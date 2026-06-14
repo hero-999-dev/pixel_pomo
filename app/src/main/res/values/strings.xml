@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Pixel Pomo</string>
+    <string name="work">WORK</string>
+    <string name="break_label">BREAK</string>
+    <string name="start">START</string>
+    <string name="pause">PAUSE</string>
+    <string name="reset">RESET</string>
+    <string name="switch_mode">&gt;&gt; SWITCH MODE</string>
+    <string name="round">ROUND %1$d</string>
+    <string name="initial_time">25:00</string>
+    <string name="work_done">WORK DONE!</string>
+    <string name="break_done">BREAK OVER!</string>
+</resources>
