@@ -1,0 +1,17 @@
+# Normalize text files to LF inside the repository.
+* text=auto
+
+# Scripts must keep specific line endings to run correctly.
+gradlew      text eol=lf
+*.sh         text eol=lf
+*.bat        text eol=crlf
+*.cmd        text eol=crlf
+
+# Treat these as binary (never touch line endings).
+*.jar        binary
+*.ttf        binary
+*.otf        binary
+*.png        binary
+*.webp       binary
+*.apk        binary
+*.aab        binary
