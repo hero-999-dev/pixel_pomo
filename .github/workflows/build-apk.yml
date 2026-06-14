@@ -42,27 +42,41 @@ jobs:
       - name: Build debug APK
         run: ./gradlew assembleDebug --no-daemon --stacktrace
 
+      # APK name follows the user's "0v0X_pixelpomo" scheme, derived from versionName:
+      # 0.1.x -> 0v01_pixelpomo, 0.2.0 -> 0v02_pixelpomo, and so on for each release.
+      - name: Compute APK name from versionName
+        id: apkname
+        run: |
+          VN=$(grep -oE 'versionName = "[0-9]+\.[0-9]+\.[0-9]+"' app/build.gradle.kts | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          MINOR=$(echo "$VN" | cut -d. -f2)
+          APK_NAME=$(printf "0v%02d_pixelpomo" "$MINOR")
+          echo "apk_name=$APK_NAME" >> "$GITHUB_OUTPUT"
+          echo "version=$VN" >> "$GITHUB_OUTPUT"
+          echo "Built $APK_NAME.apk (versionName $VN)"
+
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk pixel_pomo-debug.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk "${{ steps.apkname.outputs.apk_name }}.apk"
 
       - name: Upload APK as build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pixel_pomo-debug-apk
-          path: pixel_pomo-debug.apk
+          name: ${{ steps.apkname.outputs.apk_name }}
+          path: ${{ steps.apkname.outputs.apk_name }}.apk
           if-no-files-found: error
 
       - name: Publish APK to the "latest" release
         env:
           GH_TOKEN: ${{ github.token }}
+          APK: ${{ steps.apkname.outputs.apk_name }}.apk
+          VERSION: ${{ steps.apkname.outputs.version }}
         run: |
-          NOTES="Auto-built debug APK from commit ${GITHUB_SHA::7}. Tap the .apk asset below to install on your Android (allow installs from this source if prompted)."
+          NOTES="Pixel Pomo v$VERSION — auto-built debug APK from commit ${GITHUB_SHA::7}. Tap the .apk asset below to install on your Android (allow installs from this source if prompted)."
           if gh release view latest >/dev/null 2>&1; then
-            gh release upload latest pixel_pomo-debug.apk --clobber
-            gh release edit latest --notes "$NOTES"
+            gh release upload latest "$APK" --clobber
+            gh release edit latest --title "Latest debug build (v$VERSION)" --notes "$NOTES"
           else
-            gh release create latest pixel_pomo-debug.apk \
-              --title "Latest debug build" \
+            gh release create latest "$APK" \
+              --title "Latest debug build (v$VERSION)" \
               --notes "$NOTES" \
               --prerelease
           fi
