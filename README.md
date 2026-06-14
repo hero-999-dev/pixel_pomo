@@ -4,8 +4,9 @@ A retro **pixel-art Pomodoro timer** for Android. Built with native Kotlin and t
 [Press Start 2P](https://fonts.google.com/specimen/Press+Start+2P) font for that
 classic 8-bit look.
 
-> **Status:** v0.1.1 — working timer (WORK / BREAK, start / pause / reset, round
-> counter), with edge-case unit tests gating every build.
+> **Status:** v0.2.0 — configurable timer (WORK / BREAK, start / pause / reset,
+> **session counter**), a **settings** screen (study / break minutes + session count),
+> and **6 selectable pixel themes**, with edge-case unit tests gating every build.
 
 ---
 
@@ -16,7 +17,7 @@ which runs the tests, builds a debug APK in the cloud, and attaches it to a rele
 
 1. On your phone, open this repo on GitHub.
 2. Go to the **Releases** section → **"Latest debug build"**.
-3. Download **`pixel_pomo-debug.apk`** and tap to install.
+3. Download **`0v02_pixelpomo.apk`** (named after the version) and tap to install.
    - If Android warns about "unknown sources", allow installs for your browser /
      file app, then re-open the APK.
 
@@ -24,7 +25,7 @@ which runs the tests, builds a debug APK in the cloud, and attaches it to a rele
 > on your own device. A signed *release* APK can be added later for wider distribution.
 
 You can also grab the APK from the **Actions** tab → latest run → **Artifacts**
-(`pixel_pomo-debug-apk`), but it comes zipped there, so the Releases link is easier on mobile.
+(named like `0v02_pixelpomo`), but it comes zipped there, so the Releases link is easier on mobile.
 
 ---
 
@@ -50,15 +51,16 @@ pixel_pomo/
         ├── main/
         │   ├── AndroidManifest.xml   # app entry point, launcher activity, theme, icon
         │   ├── java/com/pixelpomo/app/
-        │   │   ├── MainActivity.kt    # UI: drives CountDownTimer + renders engine state
-        │   │   └── PomodoroEngine.kt  # pure timer state machine (no Android deps)
+        │   │   ├── MainActivity.kt    # UI: timer + settings/theme overlays
+        │   │   ├── PomodoroEngine.kt  # pure timer state machine (sessions, no Android deps)
+        │   │   ├── PixelTheme.kt      # PixelTheme data class + the 6 ClaWus themes
+        │   │   └── PixelStyle.kt      # builds themed button/progress drawables in code
         │   └── res/
         │       ├── font/press_start_2p.ttf   # the pixel font (OFL licensed)
-        │       ├── layout/activity_main.xml  # the single screen layout
-        │       ├── drawable/                 # pixel button + progress-bar backgrounds, launcher art
-        │       │   ├── btn_pixel.xml
-        │       │   ├── btn_pixel_secondary.xml
-        │       │   ├── progress_pixel.xml
+        │       ├── layout/                   # activity_main.xml (+ overlays), row_stepper.xml
+        │       ├── drawable/                 # icons + launcher art (buttons/progress drawn in code)
+        │       │   ├── ic_settings.xml           # settings gear (top-right)
+        │       │   ├── ic_palette.xml            # theme/palette icon (top-left)
         │       │   ├── ic_launcher_background.xml
         │       │   └── ic_launcher_foreground.xml   # blocky pixel tomato
         │       ├── mipmap-anydpi-v26/ic_launcher.xml # adaptive launcher icon
@@ -70,19 +72,25 @@ pixel_pomo/
             └── PomodoroEngineTest.kt         # JUnit edge-case tests (gate every build)
 ```
 
-## 🎮 What it does (v0.1.1)
+## 🎮 What it does (v0.2.0)
 
-- **WORK** phase = 25:00, **BREAK** phase = 5:00.
-- **START / PAUSE** toggles the countdown; **RESET** restores the current phase.
+- **WORK** and **BREAK** phases with **user-set durations** (defaults 25:00 / 5:00).
+- **START / PAUSE** toggles the countdown; **RESET** restarts the whole run.
 - **>> SWITCH MODE** flips between WORK and BREAK manually.
 - When a phase hits `00:00` it shows a toast, auto-switches to the other phase, and
-  increments **ROUND** after each completed break.
+  advances the **SESSION** after each completed break. After the last session it shows
+  **ALL DONE!** until you reset.
+- **⚙️ Settings** (top-right gear): steppers for **study minutes**, **break minutes**,
+  and **how many sessions** — saved and remembered between launches.
+- **🎨 Themes** (top-left palette): six pixel themes mirroring the
+  [ClaWus](https://github.com/hero-999-dev/ClaWus-Claude-Usage-Widget) widget —
+  **Dark, Light, Mocha, Macchiato, Frappe, Latte** — switchable live.
 - Pixel font, hard-edged buttons with drop shadows, and a chunky progress bar.
 
 ## 🧪 Testing
 
 Timer logic lives in a pure `PomodoroEngine` class so it can be unit-tested on the JVM.
-**13 JUnit edge-case tests** run locally and **gate every CI build** — a failing test
+**16 JUnit edge-case tests** run locally and **gate every CI build** — a failing test
 blocks the APK. Run them with:
 
 ```bash
