@@ -21,21 +21,34 @@ In CI it's uploaded as the **`unit-test-report`** artifact (even on failure).
 ## What's covered
 
 Unit tests in `app/src/test/java/com/pixelpomo/app/PomodoroEngineTest.kt`
-(**13 tests, all passing** as of v0.1.1):
+(**16 tests, all passing** as of v0.2.0):
 
 | Area | Edge cases checked |
 |------|--------------------|
-| Initial state | WORK, full time, not running, round 1, 100% progress, `00:10` format |
-| start | sets running; **no-op when time left is 0** |
+| Initial state | WORK, full time, not running, session 1, `totalSessions`, 100% progress, `00:10` format |
+| start | sets running; **no-op when time left is 0**; **no-op when the run is finished** |
 | pause | stops but **keeps remaining time** (so START resumes) |
-| reset | restores full duration and stops |
-| switch mode | toggles WORK↔BREAK, reloads that phase's time, stops |
-| finish WORK | → BREAK, round **not** advanced |
-| finish BREAK | → WORK, round **+1** |
-| full cycles | round increments exactly **once per completed break** |
+| reset | restarts the **whole run** → session 1 / WORK / full time, clears finished |
+| switch mode | toggles WORK↔BREAK, reloads that phase's time, stops, **clears finished**, keeps session |
+| finish WORK | → BREAK, session **not** advanced |
+| finish BREAK | → WORK, session **+1** |
+| final break | last session's break sets **`isFinished`**, session **never overflows** `totalSessions` |
+| custom durations | injected study/break minutes are honored (`50:00` / `10:00`) |
 | setTimeLeft | **clamps** negative → 0 and over-duration → duration |
 | progress % | 100 / 50 / 0 across the range; **never leaves 0..100** (incl. negative & `Long.MAX_VALUE`) |
 | time format | rounds **up** (`1ms`→`00:01`), zero-pads, `25:00` at full, `00:00` at zero |
+
+## Notes for v0.2.0 (settings, sessions, themes)
+
+- **"Round" became "Session."** A session is one WORK+BREAK pair; the user picks how
+  many via Settings. After the final session's break the engine is **`isFinished`**
+  (timer stops, screen shows **ALL DONE!**) until RESET or SWITCH MODE.
+- **Configurable durations.** Study minutes, break minutes and session count are
+  injected into `PomodoroEngine` and persisted in `SharedPreferences`. `customDurationsAreHonored`
+  guards that the engine respects whatever durations it's built with.
+- **Themes are presentation-only** — the six pixel themes (mirroring the ClaWus
+  widget: Dark, Light, Mocha, Macchiato, Frappe, Latte) tint views/drawables at
+  runtime and don't touch `PomodoroEngine`, so the logic tests are unaffected.
 
 ## Bugs fixed / behavior hardened (v0.1.1)
 
@@ -70,8 +83,9 @@ Every time the app changes:
 
 1. Add/adjust unit tests for any logic touched, then `./gradlew testDebugUnitTest`.
 2. Manually sanity-check on a device (install the APK from the latest release):
-   START counts down · PAUSE freezes · START resumes · RESET restores · SWITCH MODE
-   flips WORK/BREAK · timer hits 00:00 → toast + auto-switch · ROUND increments after
-   a break.
+   START counts down · PAUSE freezes · START resumes · RESET restarts the run · SWITCH
+   MODE flips WORK/BREAK · timer hits 00:00 → toast + auto-switch · SESSION increments
+   after a break · run ends at ALL DONE! after the last session · Settings steppers
+   change study/break/sessions and persist · each theme re-tints the whole screen live.
 3. Update `log.md`, and `prompt.md` if behavior changed.
 4. Push — CI runs the tests, and only then builds & publishes the APK.
