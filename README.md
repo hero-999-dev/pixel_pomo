@@ -4,14 +4,15 @@ A retro **pixel-art Pomodoro timer** for Android. Built with native Kotlin and t
 [Press Start 2P](https://fonts.google.com/specimen/Press+Start+2P) font for that
 classic 8-bit look.
 
-> **Status:** v0.1.0 — first working timer (WORK / BREAK, start / pause / reset, round counter).
+> **Status:** v0.1.1 — working timer (WORK / BREAK, start / pause / reset, round
+> counter), with edge-case unit tests gating every build.
 
 ---
 
 ## 📲 How to get the APK (test on your phone)
 
 You don't build anything yourself. Every push to `main` triggers **GitHub Actions**,
-which builds a debug APK in the cloud and attaches it to a release.
+which runs the tests, builds a debug APK in the cloud, and attaches it to a release.
 
 1. On your phone, open this repo on GitHub.
 2. Go to the **Releases** section → **"Latest debug build"**.
@@ -31,8 +32,9 @@ You can also grab the APK from the **Actions** tab → latest run → **Artifact
 
 ```
 pixel_pomo/
-├── .github/workflows/build-apk.yml   # CI: builds the APK + publishes a release on every push
+├── .github/workflows/build-apk.yml   # CI: run unit tests, then build the APK + publish a release
 ├── README.md                         # this file — structure & how to get the APK
+├── TESTING.md                        # test strategy, covered edge cases, per-change checklist
 ├── log.md                            # changelog: what changed in each prompt/iteration
 ├── prompt.md                         # master prompt to recreate this project in a new AI session
 ├── .gitignore
@@ -42,29 +44,33 @@ pixel_pomo/
 ├── gradle.properties                 # Gradle/AndroidX flags
 │
 └── app/
-    ├── build.gradle.kts              # module build config (SDK levels, deps)
+    ├── build.gradle.kts              # module build config (SDK levels, deps, test deps)
     ├── proguard-rules.pro
-    └── src/main/
-        ├── AndroidManifest.xml       # app entry point, launcher activity, theme, icon
-        ├── java/com/pixelpomo/app/
-        │   └── MainActivity.kt       # all the timer logic + UI wiring
-        └── res/
-            ├── font/press_start_2p.ttf   # the pixel font (OFL licensed)
-            ├── layout/activity_main.xml  # the single screen layout
-            ├── drawable/                 # pixel button + progress-bar backgrounds, launcher art
-            │   ├── btn_pixel.xml
-            │   ├── btn_pixel_secondary.xml
-            │   ├── progress_pixel.xml
-            │   ├── ic_launcher_background.xml
-            │   └── ic_launcher_foreground.xml   # blocky pixel tomato
-            ├── mipmap-anydpi-v26/ic_launcher.xml # adaptive launcher icon
-            └── values/
-                ├── colors.xml            # retro palette
-                ├── strings.xml
-                └── themes.xml
+    └── src/
+        ├── main/
+        │   ├── AndroidManifest.xml   # app entry point, launcher activity, theme, icon
+        │   ├── java/com/pixelpomo/app/
+        │   │   ├── MainActivity.kt    # UI: drives CountDownTimer + renders engine state
+        │   │   └── PomodoroEngine.kt  # pure timer state machine (no Android deps)
+        │   └── res/
+        │       ├── font/press_start_2p.ttf   # the pixel font (OFL licensed)
+        │       ├── layout/activity_main.xml  # the single screen layout
+        │       ├── drawable/                 # pixel button + progress-bar backgrounds, launcher art
+        │       │   ├── btn_pixel.xml
+        │       │   ├── btn_pixel_secondary.xml
+        │       │   ├── progress_pixel.xml
+        │       │   ├── ic_launcher_background.xml
+        │       │   └── ic_launcher_foreground.xml   # blocky pixel tomato
+        │       ├── mipmap-anydpi-v26/ic_launcher.xml # adaptive launcher icon
+        │       └── values/
+        │           ├── colors.xml            # retro palette
+        │           ├── strings.xml
+        │           └── themes.xml
+        └── test/java/com/pixelpomo/app/
+            └── PomodoroEngineTest.kt         # JUnit edge-case tests (gate every build)
 ```
 
-## 🎮 What it does (v0.1.0)
+## 🎮 What it does (v0.1.1)
 
 - **WORK** phase = 25:00, **BREAK** phase = 5:00.
 - **START / PAUSE** toggles the countdown; **RESET** restores the current phase.
@@ -73,12 +79,25 @@ pixel_pomo/
   increments **ROUND** after each completed break.
 - Pixel font, hard-edged buttons with drop shadows, and a chunky progress bar.
 
+## 🧪 Testing
+
+Timer logic lives in a pure `PomodoroEngine` class so it can be unit-tested on the JVM.
+**13 JUnit edge-case tests** run locally and **gate every CI build** — a failing test
+blocks the APK. Run them with:
+
+```bash
+./gradlew testDebugUnitTest
+```
+
+See **[TESTING.md](TESTING.md)** for the full list of covered edge cases and known gaps.
+
 ## 🛠️ Tech
 
 | Piece            | Choice                              |
 |------------------|-------------------------------------|
 | Language         | Kotlin                              |
 | UI               | Android Views (XML layouts)         |
+| Logic            | Pure `PomodoroEngine` + JUnit tests |
 | Min SDK          | 26 (Android 8.0)                    |
 | Target / Compile | 34                                  |
 | Gradle / AGP     | 8.7 / 8.5.2                         |
@@ -91,7 +110,8 @@ Local builds need the **Android SDK** + **JDK 17 or newer**. With those installe
 `ANDROID_HOME` (or `local.properties` → `sdk.dir`) pointing at the SDK, from the repo root:
 
 ```bash
-./gradlew assembleDebug
+./gradlew testDebugUnitTest   # run the edge-case tests
+./gradlew assembleDebug       # build the APK
 ```
 
 The APK lands at `app/build/outputs/apk/debug/app-debug.apk`. If you don't have the

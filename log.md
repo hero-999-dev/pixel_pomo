@@ -5,6 +5,32 @@ Each entry notes the **prompt** (what you asked for) and the **changes** made.
 
 ---
 
+## v0.1.1 — Edge-case tests + logic refactor
+**Date:** 2026-06-14
+
+**Prompt:** Do edge testing after every change, create a testing doc, and fix any bugs.
+
+**Changes:**
+- Extracted all timer logic into a pure, framework-free **`PomodoroEngine`** state
+  machine; `MainActivity` now only drives `CountDownTimer` and renders engine state.
+- Added **13 JUnit edge-case unit tests** (`PomodoroEngineTest`), all passing —
+  start/pause/reset/switch, phase-finish + round counting, time formatting
+  (round-up, zero-pad), and progress/time clamping.
+- **Hardening surfaced by the tests:** `start()` no-ops at 0; `setTimeLeft()` clamps
+  to `[0, duration]`; `progressPercent()` clamps to `0..100`; the old timer is
+  cancelled before a new one starts (no double timers).
+- **CI now runs the unit tests before building** — a failing test blocks the APK —
+  and uploads the test report as an artifact.
+- Added **`TESTING.md`** (strategy, covered cases, known gaps, per-change checklist).
+  Bumped to versionCode 2 / versionName 0.1.1.
+
+**APK:** Releases → "Latest debug build" (rebuilt only after tests pass).
+
+**Notes:** Known gaps to tackle later — Activity-recreation state restore, true
+background timing (foreground service), instrumented UI tests.
+
+---
+
 ## v0.1.0 — Initial scaffold
 **Date:** 2026-06-14
 
