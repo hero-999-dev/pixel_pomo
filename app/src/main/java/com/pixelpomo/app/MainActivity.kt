@@ -8,15 +8,15 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.AppCompatButton
 import androidx.core.content.ContextCompat
-import java.util.Locale
 
+/**
+ * The single screen. All timer *state* lives in [PomodoroEngine]; this class only
+ * drives the platform [CountDownTimer] and renders the engine's state into the views.
+ */
 class MainActivity : AppCompatActivity() {
 
-    /** A Pomodoro phase and how long it lasts. */
-    private enum class Mode(val label: String, val durationMillis: Long) {
-        WORK("WORK", 25 * 60 * 1000L),
-        BREAK("BREAK", 5 * 60 * 1000L)
-    }
+    private val engine = PomodoroEngine()
+    private var countDownTimer: CountDownTimer? = null
 
     private lateinit var modeLabel: TextView
     private lateinit var timerText: TextView
@@ -25,12 +25,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var resetBtn: AppCompatButton
     private lateinit var switchModeBtn: AppCompatButton
     private lateinit var roundLabel: TextView
-
-    private var mode: Mode = Mode.WORK
-    private var timeLeftMillis: Long = Mode.WORK.durationMillis
-    private var isRunning: Boolean = false
-    private var round: Int = 1
-    private var countDownTimer: CountDownTimer? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -44,87 +38,60 @@ class MainActivity : AppCompatActivity() {
         switchModeBtn = findViewById(R.id.switchModeBtn)
         roundLabel = findViewById(R.id.roundLabel)
 
-        startPauseBtn.setOnClickListener { if (isRunning) pauseTimer() else startTimer() }
-        resetBtn.setOnClickListener { resetTimer() }
+        startPauseBtn.setOnClickListener { if (engine.isRunning) pause() else start() }
+        resetBtn.setOnClickListener { reset() }
         switchModeBtn.setOnClickListener { switchMode() }
 
-        updateUi()
+        render()
     }
 
-    private fun startTimer() {
-        countDownTimer = object : CountDownTimer(timeLeftMillis, 1000) {
+    private fun start() {
+        engine.start()
+        if (!engine.isRunning) return
+        countDownTimer?.cancel()
+        countDownTimer = object : CountDownTimer(engine.timeLeftMillis, 1000) {
             override fun onTick(millisUntilFinished: Long) {
-                timeLeftMillis = millisUntilFinished
-                updateUi()
+                engine.setTimeLeft(millisUntilFinished)
+                render()
             }
 
             override fun onFinish() {
-                timeLeftMillis = 0
-                isRunning = false
-                onSessionFinished()
+                val finished = engine.finishPhase()
+                val msg = if (finished == Mode.WORK) R.string.work_done else R.string.break_done
+                Toast.makeText(this@MainActivity, getString(msg), Toast.LENGTH_SHORT).show()
+                render()
             }
         }.start()
-        isRunning = true
-        updateButtons()
+        render()
     }
 
-    private fun pauseTimer() {
+    private fun pause() {
         countDownTimer?.cancel()
-        isRunning = false
-        updateButtons()
+        engine.pause()
+        render()
     }
 
-    private fun resetTimer() {
+    private fun reset() {
         countDownTimer?.cancel()
-        isRunning = false
-        timeLeftMillis = mode.durationMillis
-        updateUi()
+        engine.reset()
+        render()
     }
 
     private fun switchMode() {
         countDownTimer?.cancel()
-        isRunning = false
-        mode = if (mode == Mode.WORK) Mode.BREAK else Mode.WORK
-        timeLeftMillis = mode.durationMillis
-        updateUi()
+        engine.switchMode()
+        render()
     }
 
-    /** Called when a phase reaches 00:00: notify, flip to the other phase, count rounds. */
-    private fun onSessionFinished() {
-        val message = if (mode == Mode.WORK) R.string.work_done else R.string.break_done
-        Toast.makeText(this, getString(message), Toast.LENGTH_SHORT).show()
-
-        if (mode == Mode.WORK) {
-            mode = Mode.BREAK
-        } else {
-            mode = Mode.WORK
-            round += 1
-        }
-        timeLeftMillis = mode.durationMillis
-        updateUi()
-    }
-
-    private fun updateUi() {
-        // Round up so a full duration reads e.g. 25:00 rather than 24:59.
-        val totalSeconds = (timeLeftMillis + 999) / 1000
-        val minutes = totalSeconds / 60
-        val seconds = totalSeconds % 60
-        timerText.text = String.format(Locale.US, "%02d:%02d", minutes, seconds)
-
-        modeLabel.text = mode.label
-        val accentRes = if (mode == Mode.WORK) R.color.work_green else R.color.break_blue
+    /** Push the engine's current state into the views. */
+    private fun render() {
+        timerText.text = engine.formattedTime()
+        modeLabel.text = getString(if (engine.mode == Mode.WORK) R.string.work else R.string.break_label)
+        val accentRes = if (engine.mode == Mode.WORK) R.color.work_green else R.color.break_blue
         modeLabel.setTextColor(ContextCompat.getColor(this, accentRes))
-
-        val pct = if (mode.durationMillis > 0)
-            (timeLeftMillis * 100 / mode.durationMillis).toInt() else 0
-        progress.progress = pct
-
-        roundLabel.text = getString(R.string.round, round)
-        updateButtons()
-    }
-
-    private fun updateButtons() {
-        startPauseBtn.text = getString(if (isRunning) R.string.pause else R.string.start)
+        progress.progress = engine.progressPercent()
+        roundLabel.text = getString(R.string.round, engine.round)
+        startPauseBtn.text = getString(if (engine.isRunning) R.string.pause else R.string.start)
     }
 
     override fun onDestroy() {
