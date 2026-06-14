@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Retro / pixel palette -->
+    <color name="bg">#0F0F1B</color>
+    <color name="panel">#1B1B2F</color>
+    <color name="accent">#E43B44</color>
+    <color name="accent_dark">#9B1B22</color>
+    <color name="work_green">#3BE48B</color>
+    <color name="break_blue">#4DA6FF</color>
+    <color name="text_light">#F4F4F4</color>
+    <color name="text_dim">#8A8AA3</color>
+    <color name="shadow">#000000</color>
+</resources>
