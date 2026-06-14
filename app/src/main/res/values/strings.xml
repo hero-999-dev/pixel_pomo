@@ -7,8 +7,25 @@
     <string name="pause">PAUSE</string>
     <string name="reset">RESET</string>
     <string name="switch_mode">&gt;&gt; SWITCH MODE</string>
-    <string name="round">ROUND %1$d</string>
+    <string name="session">SESSION %1$d / %2$d</string>
+    <string name="all_done">ALL DONE!</string>
     <string name="initial_time">25:00</string>
     <string name="work_done">WORK DONE!</string>
     <string name="break_done">BREAK OVER!</string>
+
+    <!-- Settings + theme -->
+    <string name="settings">SETTINGS</string>
+    <string name="theme">THEME</string>
+    <string name="save">SAVE</string>
+    <string name="close">CLOSE</string>
+    <string name="minus">-</string>
+    <string name="plus">+</string>
+    <string name="label_study">STUDY (MIN)</string>
+    <string name="label_break">BREAK (MIN)</string>
+    <string name="label_sessions">SESSIONS</string>
+    <string name="settings_saved">SETTINGS SAVED</string>
+
+    <!-- Content descriptions -->
+    <string name="cd_settings">Settings</string>
+    <string name="cd_theme">Theme</string>
 </resources>

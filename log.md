@@ -5,6 +5,46 @@ Each entry notes the **prompt** (what you asked for) and the **changes** made.
 
 ---
 
+## v0.2.0 — Settings, configurable sessions, and themes
+**Date:** 2026-06-14
+
+**Prompt:** Add a settings section with a classic gear icon in the top-right and a
+theme icon in the top-left. Add themes mirroring the ClaWus widget's color style,
+adapted to pixel. In the timer, remove "round" and use "session"; let the user change
+study time, break time, and how many sessions they want. Rename the APK to
+`0v01_pixelpomo`, with the next release as `0v02_pixelpomo`.
+
+**Changes:**
+- **Top bar:** added a **theme/palette icon (top-left)** and a **classic settings gear
+  (top-right)** — `ic_palette.xml` / `ic_settings.xml`, tinted to the active theme.
+- **Settings overlay:** three pixel **steppers** (`row_stepper.xml`) for **STUDY (min)**,
+  **BREAK (min)** and **SESSIONS**, each `-`/`+` clamped to a sensible range
+  (study 5–90 ×5, break 1–30 ×1, sessions 1–12 ×1). Values are edited as a draft and
+  committed on **SAVE**, persisted in `SharedPreferences`, and rebuild the engine.
+- **"Round" → "Session".** `PomodoroEngine` now takes `totalSessions`, tracks the
+  1-based `session`, and sets **`isFinished`** after the final session's break; the UI
+  shows **`SESSION n / N`** and **`ALL DONE!`** at the end (START after that restarts).
+- **Themes:** six pixel themes mirroring the **ClaWus** widget — **Dark, Light, Mocha,
+  Macchiato, Frappe, Latte** (Catppuccin palette adapted to the retro look) in
+  `PixelTheme.kt`. A **theme overlay** lists them; tapping one re-tints every view live.
+- **Runtime-themed drawables:** replaced the static `btn_pixel*.xml` / `progress_pixel.xml`
+  with `PixelStyle.kt`, which builds the drop-shadow buttons and progress bar in code so
+  their colors come from the active theme.
+- **Tests:** expanded to **16 JUnit edge-case tests** — session advance, final-break
+  `isFinished` (no session overflow), start-when-finished no-op, reset-restarts-run,
+  switch-clears-finished, and custom-duration honoring. All passing; CI still gates on them.
+- **APK naming:** the workflow now derives the name from `versionName` —
+  `0.1.x → 0v01_pixelpomo`, **`0.2.0 → 0v02_pixelpomo`** — and titles the `latest`
+  release with the version. Bumped to versionCode 3 / versionName 0.2.0.
+
+**APK:** Releases → "Latest debug build (v0.2.0)" → **`0v02_pixelpomo.apk`** (built only
+after tests pass).
+
+**Notes:** Themes/sessions are persisted; known gaps from v0.1.1 (Activity-recreation
+state restore, background-service timing, instrumented UI tests) still stand.
+
+---
+
 ## v0.1.1 — Edge-case tests + logic refactor
 **Date:** 2026-06-14
 

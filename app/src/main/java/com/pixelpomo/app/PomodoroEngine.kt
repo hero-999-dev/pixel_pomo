@@ -7,16 +7,21 @@ enum class Mode { WORK, BREAK }
 
 /**
  * Pure, framework-free Pomodoro state machine. It owns the current phase, the time
- * remaining, the run state and the completed-round count, and exposes the derived
- * values the UI renders (formatted time, progress percent).
+ * remaining, the run state, the current session number and a "finished" flag, and
+ * exposes the derived values the UI renders (formatted time, progress percent).
  *
- * It has no Android dependencies on purpose, so the whole thing can be unit-tested
- * on the JVM (see PomodoroEngineTest). Durations are injectable so tests can use
- * short values instead of waiting 25 minutes.
+ * Durations and the number of sessions are injectable so the user can configure them
+ * (and so tests can use short values instead of waiting 25 minutes). The engine has no
+ * Android dependencies on purpose, so the whole thing can be unit-tested on the JVM
+ * (see PomodoroEngineTest).
+ *
+ * A "session" is one WORK + BREAK pair. The user picks how many sessions to run; after
+ * the final break the engine is [isFinished] and won't run again until [reset].
  */
 class PomodoroEngine(
     private val workMillis: Long = 25 * 60 * 1000L,
-    private val breakMillis: Long = 5 * 60 * 1000L
+    private val breakMillis: Long = 5 * 60 * 1000L,
+    val totalSessions: Int = 4
 ) {
     var mode: Mode = Mode.WORK
         private set
@@ -24,14 +29,20 @@ class PomodoroEngine(
         private set
     var isRunning: Boolean = false
         private set
-    var round: Int = 1
+
+    /** 1-based index of the session in progress, in `1..totalSessions`. */
+    var session: Int = 1
+        private set
+
+    /** True once the final session's break has elapsed. The timer stops until [reset]. */
+    var isFinished: Boolean = false
         private set
 
     fun durationOf(target: Mode): Long = if (target == Mode.WORK) workMillis else breakMillis
 
-    /** Begin counting down. No-op when there is no time left to run. */
+    /** Begin counting down. No-op when finished or when there is no time left to run. */
     fun start() {
-        if (timeLeftMillis > 0) isRunning = true
+        if (!isFinished && timeLeftMillis > 0) isRunning = true
     }
 
     /** Stop counting down but keep the remaining time (so START resumes). */
@@ -39,15 +50,22 @@ class PomodoroEngine(
         isRunning = false
     }
 
-    /** Stop and restore the current phase to its full duration. */
+    /**
+     * Full restart: stop, clear the finished flag, return to session 1 / WORK at its
+     * full duration. With finite sessions, RESET means "start the whole run over".
+     */
     fun reset() {
         isRunning = false
-        timeLeftMillis = durationOf(mode)
+        isFinished = false
+        session = 1
+        mode = Mode.WORK
+        timeLeftMillis = workMillis
     }
 
-    /** Stop and flip to the other phase at its full duration. */
+    /** Stop and flip to the other phase at its full duration (does not change session). */
     fun switchMode() {
         isRunning = false
+        isFinished = false
         mode = other(mode)
         timeLeftMillis = durationOf(mode)
     }
@@ -58,17 +76,29 @@ class PomodoroEngine(
     }
 
     /**
-     * Handle the countdown reaching zero: flip to the other phase (a completed
-     * BREAK advances the round counter) and reload its full duration.
+     * Handle the countdown reaching zero. WORK -> BREAK (same session). BREAK -> next
+     * session's WORK, unless it was the last session's break, in which case the run is
+     * [isFinished].
      *
      * @return the phase that just finished.
      */
     fun finishPhase(): Mode {
         val finished = mode
         isRunning = false
-        if (finished == Mode.BREAK) round++
-        mode = other(mode)
-        timeLeftMillis = durationOf(mode)
+        if (finished == Mode.WORK) {
+            mode = Mode.BREAK
+            timeLeftMillis = breakMillis
+        } else { // a BREAK just finished
+            if (session >= totalSessions) {
+                isFinished = true
+                mode = Mode.WORK
+                timeLeftMillis = workMillis
+            } else {
+                session++
+                mode = Mode.WORK
+                timeLeftMillis = workMillis
+            }
+        }
         return finished
     }
 

@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  One settings row: a label, a [-] button, the current value, a [+] button.
+  Reused (via <include>) for Study / Break / Sessions. Look children up *scoped to the
+  row's view* (row.findViewById(...)) so the duplicated child ids don't collide.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:layout_marginBottom="24dp">
+
+    <TextView
+        android:id="@+id/stepperLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="12dp"
+        android:fontFamily="@font/press_start_2p"
+        android:textSize="11sp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/stepperMinus"
+            android:layout_width="56dp"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/press_start_2p"
+            android:padding="12dp"
+            android:stateListAnimator="@null"
+            android:text="@string/minus"
+            android:textSize="16sp" />
+
+        <TextView
+            android:id="@+id/stepperValue"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:fontFamily="@font/press_start_2p"
+            android:textSize="20sp"
+            tools:ignore="HardcodedText"
+            xmlns:tools="http://schemas.android.com/tools"
+            android:text="25" />
+
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/stepperPlus"
+            android:layout_width="56dp"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/press_start_2p"
+            android:padding="12dp"
+            android:stateListAnimator="@null"
+            android:text="@string/plus"
+            android:textSize="16sp" />
+    </LinearLayout>
+</LinearLayout>
