@@ -23,49 +23,74 @@ updated whenever the app changes so it always reflects the current state.
 > - Toolchain: **Gradle 8.7**, **Android Gradle Plugin 8.5.2**, **Kotlin 1.9.24**,
 >   **JDK 17**, **compileSdk/targetSdk 34**, **minSdk 26**.
 >
-> ### App spec (v0.4.0)
+> ### App spec (v0.5.0)
 > - Package / applicationId: **`com.pixelpomo.app`**. App name: **"Pixel Pomo"**.
 > - Single screen (`MainActivity` + `activity_main.xml`), **portrait-locked**.
 > - Two phases: **WORK** (default 25:00) and **BREAK** (default 5:00), both
 >   user-configurable (see Settings).
-> - UI top-to-bottom: a **top bar** with a **theme/palette icon (top-left)** and, on the
->   right, a **stats bar-chart icon**, a **settings gear**, and a **gold coin counter in the
->   far-right corner**; then a **mode label** (WORK/BREAK/ALL DONE!), a tappable
+> - UI top-to-bottom: a **top bar** with a **theme/palette icon** and a **garden flower icon**
+>   on the left and, on the right, a **stats bar-chart icon**, a **settings gear**, and a **gold
+>   coin counter in the far-right corner** (icon at the **same 32dp height** as the other icons,
+>   the count right beside it); then a **mode label** (WORK/BREAK/ALL DONE!), a tappable
 >   **focus-label chip**, a big **MM:SS timer**, a chunky horizontal **progress bar**, a row
 >   with **START/PAUSE** + **RESET** buttons, a **">> SWITCH MODE"** text button, and a
 >   **"SESSION n / N"** counter.
 > - **Settings overlay** (opened by the gear): three pixel **steppers** for
 >   **STUDY (min)** (5–300, ×5), **BREAK (min)** (1–120, ×1) and **SESSIONS** (1–24, ×1),
 >   each with `-`/`+` clamped to range. Edits are a draft committed on **SAVE**,
->   persisted in `SharedPreferences`, and rebuild the engine. CLOSE / back dismisses.
+>   persisted in `SharedPreferences`, and rebuild the engine. Below the steppers a **LANGUAGE**
+>   list switches the UI between **English / Türkçe / Polski / Deutsch / 한국어 / Italiano**
+>   (`LocaleManager` wraps the context locale in `attachBaseContext`; selecting one persists it
+>   and `recreate()`s; Korean falls back to the system font since Press Start 2P has no Hangul).
+>   CLOSE / back dismisses.
 > - **Theme overlay** (opened by the palette icon): lists **five pixel themes** —
 >   **Dark, Light, Mocha, Frappe, Latte**. Dark/Light are **neutral grayscale**, Latte uses a
 >   warm **cream** background (`#F7EFDD`), Mocha/Frappe are canonical Catppuccin — so all five
 >   read distinctly (no Macchiato). Tapping one persists it and **re-tints every view live**;
 >   the selected theme has a `>` prefix; an unknown saved id falls back to Dark.
-> - **Focus labels** (`Labels.kt`, pure): a tappable **chip** under the mode label shows the
->   current label; tapping opens a **label overlay**. Each row is **`[ name | 🗑 ]`**: tapping
->   the name **selects** it (and **stays on the page**); the **🗑** opens a **yes/no confirm
->   dialog** before removing (never empties the list). An **input + ADD** creates a label and
->   also stays on the page. Labels are **normalized** (upper-cased, A–Z/0–9/space only — so
->   they can't contain the codec's `,`/newline — inner separators → space, ≤12 chars, deduped).
->   Seeded **STUDY / MATH / CODING / READING**; the list + current selection persist.
+> - **Focus labels** (`Labels.kt` + `LabelColors.kt`, pure): a tappable **chip** under the mode
+>   label shows the current label; tapping opens a **label overlay**. Each row is
+>   **`[ ● color swatch | name | 🗑 ]`**: tapping the name **selects** it (and **stays on the
+>   page**); tapping the **swatch** opens a **palette dialog** that sets the label's color
+>   (`LabelColors`: a fixed palette + stable name-hash default + codec, persisted) which is
+>   reused as that label's **chart series color**; the **🗑** opens a **yes/no confirm dialog**
+>   before removing (never empties the list). An **input + ADD** creates a label and stays on
+>   the page. Labels are **normalized** (upper-cased, A–Z/0–9/space only — so they can't contain
+>   the codec's `,`/newline — inner separators → space, ≤12 chars, deduped). Seeded
+>   **STUDY / MATH / CODING / READING**; the list, colors + current selection persist.
 > - **Coins & shop** (`Economy.kt` + `Flowers.kt` + `PixelArt.kt`, logic pure): completing a
 >   WORK block awards `Economy.coinsFor(studyMinutes)` = **1 coin per 5 min** (25→5). The
 >   coin balance shows in the top-right and **persists**. Tapping it opens a **SHOP** overlay
 >   listing **ten flowers** (Turkish names gül/papatya/lale/kaktüs/kasımpatı/menekşe/nilüfer/
 >   orkide/begonya/kamelya), each a **2D pixel sprite** rendered by `PixelArt` from an 8×8
->   char-grid in `Flowers` (`P`=petal,`C`=center,`S`/`L`=green stem/leaf). Each row shows the
+>   char-grid in `Flowers` (`P`=petal,`C`=center,`S`/`L`=green stem/leaf). Flower names are
+>   **localized to the current language** (`Flower.names`/`nameIn(lang)`). Each row shows the
 >   name, **OWNED n**, and **BUY 10**; buying deducts 10 coins (blocked + dimmed if short) and
->   increments the owned count. Owned flowers persist via `Inventory` (`id:count` lines) for
->   the upcoming garden. `Economy.upgradeCost(n)=2n+1` and `BASE_GARDEN_SIZE=4` are ready for
->   the garden too.
-> - **Session stats** (`Stats.kt`, pure): each **completed WORK block** appends a
->   `SessionRecord(epochDay, studyMinutes, currentLabel)` to `SharedPreferences` (one
->   `epochDay,minutes,label` line each; decode skips malformed lines). A **stats overlay**
->   (opened by the bar-chart icon) shows **TODAY / THIS WEEK (Monday-start) / THIS MONTH /
->   THIS YEAR / ALL TIME** totals (via `StatsAggregator`, using `java.time.LocalDate`) plus
->   an **all-time per-label** breakdown, formatted `Xh Ym`. SWITCH/PAUSE/RESET don't record.
+>   increments the owned count. Owned flowers persist via `Inventory` (`id:count` lines).
+> - **Garden** (`Garden.kt`, pure; opened by the top-left flower icon): a square **N×N** grid,
+>   free at **4×4** (`Economy.BASE_GARDEN_SIZE`). A **CUSTOMIZE** toggle lets you tap a tile to
+>   **plant** an owned flower (a picker lists each flower with its remaining count = owned −
+>   planted) or **clear** it; planted flowers render as pixel sprites on the tiles. An **UPGRADE**
+>   button (top-left of the garden) grows the grid one ring for `Economy.upgradeCost(n)=2n+1`
+>   coins (4→5 = 9, 5→6 = 11, …), capped at 8×8. `Garden` is an immutable model
+>   (`plant`/`clear`/`grow` keep (row,col) under the new flat index) with `GardenCodec`; the
+>   grid + size persist.
+> - **Session stats** (`Stats.kt` + `ChartView.kt`, pure logic): each **completed WORK block**
+>   appends a `SessionRecord(epochDay, studyMinutes, currentLabel)` to `SharedPreferences` (one
+>   `epochDay,minutes,label` line each; decode skips malformed lines). A **stats overlay** (opened
+>   by the bar-chart icon) shows **TODAY / THIS WEEK (Monday-start) / THIS MONTH / THIS YEAR /
+>   ALL TIME** totals (via `StatsAggregator`, using `java.time`). Above the totals: a **month
+>   navigator** (◀ `MONTH YEAR` ▶ — won't browse past the current month) and a **BAR / LINE /
+>   PIE** chart-style picker driving a custom **`ChartView`** — BAR/PIE plot the selected month's
+>   **per-label** minutes (each in that label's color), LINE plots the month's **per-day** minutes
+>   (`StatsAggregator.monthTotal` / `byLabelInMonth` / `dailySeries`). Below, a **per-month
+>   by-label** breakdown, each row with its color swatch, formatted `Xh Ym`. SWITCH/PAUSE/RESET
+>   don't record.
+> - **Test fixture** (`TestData.kt`, pure): on the **first v0.5.0 launch** (guarded by a
+>   `test_seeded_v5` flag) seed **+1000 coins** and example history so the new screens have data —
+>   TODAY 360 (math 60/history 100/english 40/coding 160), THIS WEEK 700 (+science 100/english
+>   40/math 200), THIS MONTH 1000 (+turkish 300), plus earlier 2026 months and 2025 — unioning
+>   those subjects into the label list. (Week=700 assumes a mid-week "today".)
 > - **Architecture:** keep all timer state and transitions in a pure, Android-free
 >   **`PomodoroEngine`** class — constructor args `workMillis`, `breakMillis`,
 >   `totalSessions`; fields `mode`, `timeLeftMillis`, `isRunning`, `session`,
@@ -83,14 +108,13 @@ updated whenever the app changes so it always reflects the current state.
 >   cancel the timer in `onDestroy` and before starting a new one.
 >
 > ### Testing (do this after every change)
-> - Keep JUnit edge-case unit tests (JVM, no device) for the pure classes, **45 total**:
->   `PomodoroEngineTest` (16); `LabelsTest` (10) — normalize (case/trim/strip `,`+newline/
->   cap-12/reject empty), add (dedup/invalid), remove (keeps ≥1); `StatsTest` (9) — aggregate
->   across today/week(Mon-start)/month/year/all, per-label sort, `formatMinutes`, codec
->   round-trip + malformed-skip; `EconomyTest` (6) — `coinsFor` (1/5min, rounds down, ≥0),
->   `upgradeCost` (2n+1), inventory codec (drop zero/neg, skip malformed); `FlowersTest` (4)
->   — 10 unique ids, `byId`, grids rectangular/valid-cells/≥1 petal. Add
->   `testImplementation("junit:junit:4.13.2")`.
+> - Keep JUnit edge-case unit tests (JVM, no device) for the pure classes, **72 total**:
+>   `PomodoroEngineTest` (16); `LabelsTest` (10); `LabelColorsTest` (6) — stable default in
+>   palette, chosen-over-default, codec; `StatsTest` (9) + `StatsMonthTest` (5) — month total/
+>   per-label/daily-series + negative clamp; `EconomyTest` (6); `GardenTest` (8) — plant/clear/
+>   grow keeps (row,col), codec drops out-of-range + clamps size; `FlowersTest` (4) +
+>   `FlowersLocalizationTest` (3) — all six names, `nameIn` fallback; `TestDataTest` (5) —
+>   buckets 360/700/1000, 2025 seeded, 1000 coins. Add `testImplementation("junit:junit:4.13.2")`.
 > - Run `./gradlew testDebugUnitTest`. The CI workflow runs the tests **before**
 >   building, so a failing test blocks the APK. Document cases + known gaps in
 >   **`TESTING.md`** and follow its per-change checklist.
@@ -119,8 +143,9 @@ updated whenever the app changes so it always reflects the current state.
 > - The progress bar's `progressDrawable` is also built in `PixelStyle.kt` (panel track +
 >   border + a `ClipDrawable` fill in the current phase color), reassigned on theme/phase
 >   change.
-> - Top-bar icons: a **settings gear** (`ic_settings.xml`) and a **palette** icon
->   (`ic_palette.xml`) as vector drawables, `setColorFilter`-tinted to the theme.
+> - Top-bar icons: a **settings gear** (`ic_settings.xml`), a **palette** icon
+>   (`ic_palette.xml`), a **stats bar-chart** (`ic_stats.xml`) and a **garden flower**
+>   (`ic_garden.xml`) as vector drawables, `setColorFilter`-tinted to the theme.
 > - Launcher icon: an **adaptive icon** (`mipmap-anydpi-v26/ic_launcher.xml`) with a
 >   solid-color background drawable and a **blocky "pixel tomato"** vector foreground
 >   (red body, darker bottom shading, light highlight, green stem/leaves). minSdk 26
@@ -157,22 +182,28 @@ pixel_pomo/
     └── src/
         ├── main/
         │   ├── AndroidManifest.xml
-        │   ├── java/com/pixelpomo/app/MainActivity.kt    # UI: timer + settings/theme/label/stats/shop overlays
+        │   ├── java/com/pixelpomo/app/MainActivity.kt    # UI: timer + settings/theme/label/stats/shop/garden overlays
         │   ├── java/com/pixelpomo/app/PixelTheme.kt      # PixelTheme + the 5 pixel themes
         │   ├── java/com/pixelpomo/app/PixelStyle.kt      # builds themed button/progress drawables
         │   ├── java/com/pixelpomo/app/PixelArt.kt        # renders a flower grid to a Drawable
+        │   ├── java/com/pixelpomo/app/ChartView.kt       # custom bar/line/pie chart view
+        │   ├── java/com/pixelpomo/app/LocaleManager.kt   # applies the chosen UI language at runtime
         │   ├── java/com/pixelpomo/app/PomodoroEngine.kt  # pure timer state machine (sessions + isFinished)
         │   ├── java/com/pixelpomo/app/Labels.kt          # pure focus-label rules (normalize/add/remove)
-        │   ├── java/com/pixelpomo/app/Stats.kt           # pure session recording (aggregate + codec)
+        │   ├── java/com/pixelpomo/app/LabelColors.kt     # pure per-label color palette + codec
+        │   ├── java/com/pixelpomo/app/Stats.kt           # pure session recording (aggregate + month views + codec)
         │   ├── java/com/pixelpomo/app/Economy.kt         # pure coin math + upgrade cost + inventory codec
-        │   ├── java/com/pixelpomo/app/Flowers.kt         # pure 2D-pixel flower catalog (grids + colors)
+        │   ├── java/com/pixelpomo/app/Garden.kt          # pure garden grid model (plant/clear/grow) + codec
+        │   ├── java/com/pixelpomo/app/Flowers.kt         # pure 2D-pixel flower catalog (grids + 6-lang names)
+        │   ├── java/com/pixelpomo/app/TestData.kt        # pure first-launch fixture (seed stats + 1000 coins)
         │   └── res/
         │       ├── font/press_start_2p.ttf
         │       ├── layout/{activity_main,row_stepper}.xml
-        │       ├── drawable/{ic_settings,ic_stats,ic_coin,ic_palette,ic_launcher_background,ic_launcher_foreground}.xml
+        │       ├── drawable/{ic_settings,ic_stats,ic_coin,ic_palette,ic_garden,ic_launcher_background,ic_launcher_foreground}.xml
         │       ├── mipmap-anydpi-v26/ic_launcher.xml
-        │       └── values/{colors,strings,themes}.xml   # themes.xml also has stats-row styles
-        └── test/java/com/pixelpomo/app/{PomodoroEngine,Labels,Stats,Economy,Flowers}Test.kt  # JUnit edge tests
+        │       ├── values/{colors,strings,themes}.xml   # themes.xml also has stats-row styles
+        │       └── values-{tr,pl,de,ko,it}/strings.xml  # translated UI strings
+        └── test/java/com/pixelpomo/app/{PomodoroEngine,Labels,LabelColors,Stats,StatsMonth,Economy,Garden,Flowers,FlowersLocalization,TestData}Test.kt
 ```
 
 > **Tip:** When the app evolves, append the new behavior to the spec above and update
