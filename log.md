@@ -5,6 +5,55 @@ Each entry notes the **prompt** (what you asked for) and the **changes** made.
 
 ---
 
+## v0.4.0 — Label bin + confirm, coins & shop, theme trim
+**Date:** 2026-06-15
+
+**Prompt (v3 follow-up):** Labels: tapping shouldn't delete — put a 🗑 next to each label
+that asks yes/no before removing; adding a label should **stay** on the label page. Add a
+**coin system** (5 focus min = 1 coin, 25 min = 5; a flower = 10 coins) with coins in the
+top-right corner that open a **shop** of 2D-pixel flowers (Turkish names: gül, papatya,
+lale, kaktüs, kasımpatı, menekşe, nilüfer, orkide, begonya, kamelya). **Remove Macchiato**
+(too close to the others) and give **Latte a cream background** (was too close to Light).
+Pick the right iOS path; code in the concise "ponytail" style. Keep docs + edge tests current.
+
+**Changes:**
+- **Labels — bin + confirm (#1) & stay-on-page (#2):** each label row is now
+  `[ name | 🗑 ]`; the 🗑 opens a **yes/no confirm dialog** before deleting (long-press
+  delete removed). Selecting a label now **keeps you on the label page** (close via
+  CLOSE/back) instead of jumping back to the timer.
+- **Themes (#8):** **Macchiato removed** (`Themes.ALL` is now Dark/Light/Mocha/Frappe/Latte);
+  **Latte** switched to a warm **cream** background (`#F7EFDD`) so it no longer looks like the
+  cool-neutral Light theme. A previously-saved "macchiato" selection safely falls back to Dark.
+- **Coins (#5):** a gold **coin counter sits in the top-right corner**; completing a WORK
+  block awards `studyMinutes / 5` coins (`Economy.coinsFor`). Balance + owned flowers persist.
+- **Shop (#5):** tapping the coins opens a **SHOP** overlay listing the **ten flowers**, each
+  drawn as a **2D pixel sprite** (`Flowers.kt` grid data + `PixelArt.kt` canvas renderer),
+  with its Turkish name, owned count, and a **BUY (10)** button (dimmed + blocked when you
+  can't afford it). Buying deducts 10 coins and adds the flower to your inventory (ready for
+  the garden).
+- **Economy groundwork for the garden (#7):** `Economy.upgradeCost(n) = 2n+1` (4×4→5×5 = 9,
+  5×5→6×6 = 11) and `BASE_GARDEN_SIZE = 4` are implemented + tested now, so next turn's garden
+  just consumes them.
+- **Style:** new code follows the **ponytail** "lazy senior" philosophy — data-driven flowers
+  (one renderer + 10 data rows), reuse of `PixelStyle`, no new abstractions beyond what's used.
+- **Tests:** added **`EconomyTest`** (6) and **`FlowersTest`** (4) → **45 JUnit tests**, all
+  passing, still gating CI. versionCode 5 / versionName **0.4.0** → APK **`0v04_pixelpomo`**.
+
+**Deferred to next turn (with reasons):** the **garden (#7)** depends on owning flowers, so
+the shop had to land first; **languages (#6)** is a 6-locale translation pass best done once
+these new screens' strings settle. **iOS (#3):** decision recorded — **Flutter** (one Dart
+codebase → both platforms; CI can build the iOS `.ipa` on a cloud macOS runner, no Mac
+needed), executed as a single clean port **once the game design stabilizes** rather than
+re-porting a target that changes every prompt. See `README.md` roadmap.
+
+**APK:** Releases → "Latest debug build (v0.4.0)" → **`0v04_pixelpomo.apk`** (after tests pass).
+
+**Notes:** stats + owned-inventory persist in `SharedPreferences`; same known gaps as before
+(Activity-recreation restore, background-service timing, instrumented UI tests, unbounded
+stats growth).
+
+---
+
 ## v0.3.0 — Higher limits, distinct themes, labels, and stats
 **Date:** 2026-06-15
 
