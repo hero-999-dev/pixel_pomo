@@ -1,0 +1,101 @@
+name: Build Flutter (iOS + Android)
+
+# The Flutter port (in flutter/) builds from one Dart codebase to BOTH platforms:
+# an Android APK and an UNSIGNED iOS .ipa (sign later with SideStore — no Mac needed by you).
+# Runs on a GitHub macOS runner, which is required to build iOS.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'flutter/**'
+      - '.github/workflows/build-flutter.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Versions
+        run: flutter --version
+
+      # We only commit the portable parts (lib/, pubspec.yaml, assets/, test/). Generate the
+      # ios/ + android/ Xcode/Gradle scaffolding here, then restore our committed files (flutter
+      # create overwrites pubspec.yaml / lib/main.dart with templates) and drop its widget test.
+      - name: Scaffold platform projects
+        working-directory: flutter
+        run: |
+          flutter create --org com.pixelpomo --project-name pixel_pomo --platforms=ios,android .
+          git checkout -- pubspec.yaml lib
+          rm -f test/widget_test.dart analysis_options.yaml
+
+      - name: Pub get
+        working-directory: flutter
+        run: flutter pub get
+
+      - name: Analyze (non-blocking)
+        working-directory: flutter
+        run: flutter analyze || true
+
+      - name: Unit tests (gate)
+        working-directory: flutter
+        run: flutter test
+
+      - name: Build Android APK
+        working-directory: flutter
+        run: flutter build apk --release
+
+      - name: Build iOS (unsigned)
+        working-directory: flutter
+        run: flutter build ios --release --no-codesign
+
+      - name: Package unsigned IPA
+        working-directory: flutter/build/ios/iphoneos
+        run: |
+          mkdir -p Payload
+          cp -R Runner.app Payload/Runner.app
+          zip -qr9 pixel_pomo_ios.ipa Payload
+          ls -la
+
+      - name: Collect artifacts
+        run: |
+          cp flutter/build/app/outputs/flutter-apk/app-release.apk pixel_pomo_flutter.apk
+          cp flutter/build/ios/iphoneos/pixel_pomo_ios.ipa pixel_pomo_ios.ipa
+          ls -la pixel_pomo_flutter.apk pixel_pomo_ios.ipa
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pixel_pomo_flutter
+          path: |
+            pixel_pomo_flutter.apk
+            pixel_pomo_ios.ipa
+          if-no-files-found: error
+
+      - name: Publish to the "latest-flutter" release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          NOTES="Pixel Pomo — Flutter build (v0.5.0) from ${GITHUB_SHA::7}. **Android:** install pixel_pomo_flutter.apk. **iOS:** pixel_pomo_ios.ipa is UNSIGNED — sideload it with SideStore/AltStore (which signs on-device). This is the cross-platform port; the native Android app still ships as 0v0X_pixelpomo on the 'latest' release."
+          if gh release view latest-flutter >/dev/null 2>&1; then
+            gh release upload latest-flutter pixel_pomo_flutter.apk pixel_pomo_ios.ipa --clobber
+            gh release edit latest-flutter --title "Flutter build (iOS + Android, v0.5.0)" --notes "$NOTES"
+          else
+            gh release create latest-flutter pixel_pomo_flutter.apk pixel_pomo_ios.ipa \
+              --title "Flutter build (iOS + Android, v0.5.0)" \
+              --notes "$NOTES" \
+              --prerelease
+          fi
