@@ -25,7 +25,26 @@
     <string name="label_sessions">SESSIONS</string>
     <string name="settings_saved">SETTINGS SAVED</string>
 
+    <!-- Labels -->
+    <string name="label_title">LABEL</string>
+    <string name="label_hint">NEW LABEL</string>
+    <string name="add">ADD</string>
+    <string name="label_delete_hint">Long-press a label to delete it</string>
+    <string name="label_invalid">ENTER A VALID LABEL</string>
+    <string name="label_deleted">LABEL DELETED</string>
+
+    <!-- Stats -->
+    <string name="stats_title">STATS</string>
+    <string name="stat_today">TODAY</string>
+    <string name="stat_week">THIS WEEK</string>
+    <string name="stat_month">THIS MONTH</string>
+    <string name="stat_year">THIS YEAR</string>
+    <string name="stat_all">ALL TIME</string>
+    <string name="by_label">BY LABEL (ALL TIME)</string>
+    <string name="no_stats">No focus sessions yet — finish a WORK block to start tracking.</string>
+
     <!-- Content descriptions -->
     <string name="cd_settings">Settings</string>
     <string name="cd_theme">Theme</string>
+    <string name="cd_stats">Stats</string>
 </resources>

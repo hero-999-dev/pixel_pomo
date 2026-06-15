@@ -32,20 +32,25 @@ object Themes {
 
     private fun c(hex: String) = Color.parseColor(hex)
 
+    // DARK and LIGHT are deliberately **neutral grayscale** so they no longer blend into the
+    // four blue/purple Catppuccin flavors (the user noted dark≈mocha/macchiato/frappe and
+    // light≈latte). DARK's old crimson accent (#E43B44) is replaced with a brighter coral
+    // tomato (#FF5A5F) that reads as a different hue from Catppuccin's pink (#F38BA8).
+
     val DARK = PixelTheme(
         id = "dark", displayName = "DARK",
-        bg = c("#0F0F1B"), panel = c("#1B1B2F"),
-        accent = c("#E43B44"), work = c("#3BE48B"), breakColor = c("#4DA6FF"),
-        onSurface = c("#F4F4F4"), onSurfaceDim = c("#8A8AA3"), onAccent = c("#FFFFFF"),
+        bg = c("#161616"), panel = c("#262626"),
+        accent = c("#FF5A5F"), work = c("#46E08A"), breakColor = c("#58A6FF"),
+        onSurface = c("#F4F4F4"), onSurfaceDim = c("#8E8E8E"), onAccent = c("#1A1A1A"),
         shadow = c("#000000")
     )
 
     val LIGHT = PixelTheme(
         id = "light", displayName = "LIGHT",
-        bg = c("#E6E6F0"), panel = c("#FFFFFF"),
-        accent = c("#E43B44"), work = c("#1F9D55"), breakColor = c("#2A7DE1"),
-        onSurface = c("#1B1B2F"), onSurfaceDim = c("#6C6C85"), onAccent = c("#FFFFFF"),
-        shadow = c("#3A3A4A")
+        bg = c("#F2F2F4"), panel = c("#FFFFFF"),
+        accent = c("#E5484D"), work = c("#1F9D55"), breakColor = c("#2A7DE1"),
+        onSurface = c("#18181B"), onSurfaceDim = c("#6E6E73"), onAccent = c("#FFFFFF"),
+        shadow = c("#C7C7CC")
     )
 
     val MOCHA = PixelTheme(
