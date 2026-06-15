@@ -4,9 +4,12 @@ A retro **pixel-art Pomodoro timer** for Android. Built with native Kotlin and t
 [Press Start 2P](https://fonts.google.com/specimen/Press+Start+2P) font for that
 classic 8-bit look.
 
-> **Status:** v0.2.0 — configurable timer (WORK / BREAK, start / pause / reset,
-> **session counter**), a **settings** screen (study / break minutes + session count),
-> and **6 selectable pixel themes**, with edge-case unit tests gating every build.
+> **Status:** v0.3.0 — configurable timer (WORK / BREAK, start / pause / reset,
+> **session counter**), a **settings** screen (study / break minutes + session count, now
+> up to 300 / 120 / 24), **6 pixel themes** (DARK/LIGHT reworked to stand apart from the
+> Catppuccin flavors), **focus labels** (STUDY / MATH / CODING … tap to switch), and
+> **session stats** (today / week / month / year / all-time + per-label), with edge-case
+> unit tests gating every build.
 
 ---
 
@@ -17,7 +20,7 @@ which runs the tests, builds a debug APK in the cloud, and attaches it to a rele
 
 1. On your phone, open this repo on GitHub.
 2. Go to the **Releases** section → **"Latest debug build"**.
-3. Download **`0v02_pixelpomo.apk`** (named after the version) and tap to install.
+3. Download **`0v03_pixelpomo.apk`** (named after the version) and tap to install.
    - If Android warns about "unknown sources", allow installs for your browser /
      file app, then re-open the APK.
 
@@ -25,7 +28,7 @@ which runs the tests, builds a debug APK in the cloud, and attaches it to a rele
 > on your own device. A signed *release* APK can be added later for wider distribution.
 
 You can also grab the APK from the **Actions** tab → latest run → **Artifacts**
-(named like `0v02_pixelpomo`), but it comes zipped there, so the Releases link is easier on mobile.
+(named like `0v03_pixelpomo`), but it comes zipped there, so the Releases link is easier on mobile.
 
 ---
 
@@ -51,8 +54,10 @@ pixel_pomo/
         ├── main/
         │   ├── AndroidManifest.xml   # app entry point, launcher activity, theme, icon
         │   ├── java/com/pixelpomo/app/
-        │   │   ├── MainActivity.kt    # UI: timer + settings/theme overlays
+        │   │   ├── MainActivity.kt    # UI: timer + settings/theme/label/stats overlays
         │   │   ├── PomodoroEngine.kt  # pure timer state machine (sessions, no Android deps)
+        │   │   ├── Labels.kt          # pure focus-label rules (normalize/add/remove)
+        │   │   ├── Stats.kt           # pure session recording: aggregate + codec
         │   │   ├── PixelTheme.kt      # PixelTheme data class + the 6 ClaWus themes
         │   │   └── PixelStyle.kt      # builds themed button/progress drawables in code
         │   └── res/
@@ -60,6 +65,7 @@ pixel_pomo/
         │       ├── layout/                   # activity_main.xml (+ overlays), row_stepper.xml
         │       ├── drawable/                 # icons + launcher art (buttons/progress drawn in code)
         │       │   ├── ic_settings.xml           # settings gear (top-right)
+        │       │   ├── ic_stats.xml              # bar-chart stats icon (top-right)
         │       │   ├── ic_palette.xml            # theme/palette icon (top-left)
         │       │   ├── ic_launcher_background.xml
         │       │   └── ic_launcher_foreground.xml   # blocky pixel tomato
@@ -67,12 +73,14 @@ pixel_pomo/
         │       └── values/
         │           ├── colors.xml            # retro palette
         │           ├── strings.xml
-        │           └── themes.xml
+        │           └── themes.xml            # base theme + stats-row styles
         └── test/java/com/pixelpomo/app/
-            └── PomodoroEngineTest.kt         # JUnit edge-case tests (gate every build)
+            ├── PomodoroEngineTest.kt         # JUnit edge-case tests (gate every build)
+            ├── LabelsTest.kt                 # label normalize/add/remove edge cases
+            └── StatsTest.kt                  # aggregation/format/codec edge cases
 ```
 
-## 🎮 What it does (v0.2.0)
+## 🎮 What it does (v0.3.0)
 
 - **WORK** and **BREAK** phases with **user-set durations** (defaults 25:00 / 5:00).
 - **START / PAUSE** toggles the countdown; **RESET** restarts the whole run.
@@ -80,18 +88,25 @@ pixel_pomo/
 - When a phase hits `00:00` it shows a toast, auto-switches to the other phase, and
   advances the **SESSION** after each completed break. After the last session it shows
   **ALL DONE!** until you reset.
-- **⚙️ Settings** (top-right gear): steppers for **study minutes**, **break minutes**,
-  and **how many sessions** — saved and remembered between launches.
+- **🏷️ Focus labels:** a tappable chip under the mode label tags what you're focusing on
+  (**STUDY / MATH / CODING / READING** out of the box). Add your own, long-press to delete;
+  the choice is remembered and attached to every recorded session.
+- **📊 Stats** (top-right bar chart): every completed WORK block is logged, and the stats
+  screen totals your focus time for **today / this week / this month / this year / all time**,
+  plus an **all-time breakdown by label**.
+- **⚙️ Settings** (top-right gear): steppers for **study minutes** (up to 300), **break
+  minutes** (up to 120), and **sessions** (up to 24) — saved between launches.
 - **🎨 Themes** (top-left palette): six pixel themes mirroring the
   [ClaWus](https://github.com/hero-999-dev/ClaWus-Claude-Usage-Widget) widget —
-  **Dark, Light, Mocha, Macchiato, Frappe, Latte** — switchable live.
+  **Dark, Light, Mocha, Macchiato, Frappe, Latte** — switchable live. Dark and Light are
+  now neutral grayscale so they read distinctly from the four blue/purple Catppuccin flavors.
 - Pixel font, hard-edged buttons with drop shadows, and a chunky progress bar.
 
 ## 🧪 Testing
 
-Timer logic lives in a pure `PomodoroEngine` class so it can be unit-tested on the JVM.
-**16 JUnit edge-case tests** run locally and **gate every CI build** — a failing test
-blocks the APK. Run them with:
+Timer/label/stats logic lives in pure classes (`PomodoroEngine`, `Labels`, `StatsAggregator`,
+`StatsCodec`) so they can be unit-tested on the JVM. **35 JUnit edge-case tests** run locally
+and **gate every CI build** — a failing test blocks the APK. Run them with:
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -124,6 +139,21 @@ Local builds need the **Android SDK** + **JDK 17 or newer**. With those installe
 
 The APK lands at `app/build/outputs/apk/debug/app-debug.apk`. If you don't have the
 SDK locally, just rely on the GitHub Actions build above.
+
+## 🗺️ Roadmap (iOS / cross-platform)
+
+The plan is to ship this on iPhone too (via SideStore, no Mac in the loop) and later add
+Forest-style gamification. To keep that door open, **all app logic is deliberately kept in
+pure, framework-free Kotlin classes** — `PomodoroEngine`, `Labels`, `StatsAggregator`,
+`StatsCodec` — with only `MainActivity` / drawables touching Android APIs. That core ports
+cleanly to whatever cross-platform stack we pick.
+
+**Recommendation:** for a no-Mac, SideStore-friendly path with strong background-timer and
+local-notification support (the hard part of a Pomodoro app on iOS) and room for a game-like
+map later, **Flutter (Dart)** is the pragmatic choice — it builds a real `.ipa`, has mature
+`flutter_local_notifications`, and Dart is close enough to Kotlin/Java to be comfortable.
+Kotlin Multiplatform is the other option if we want to literally reuse these logic classes.
+We're still building the Android app in Kotlin for now; this is just the direction.
 
 ## 📜 License
 
