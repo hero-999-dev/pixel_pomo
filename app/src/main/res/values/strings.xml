@@ -24,17 +24,19 @@
     <string name="label_break">BREAK (MIN)</string>
     <string name="label_sessions">SESSIONS</string>
     <string name="settings_saved">SETTINGS SAVED</string>
+    <string name="language">LANGUAGE</string>
 
     <!-- Labels -->
     <string name="label_title">LABEL</string>
     <string name="label_hint">NEW LABEL</string>
     <string name="add">ADD</string>
-    <string name="label_delete_hint">Tap a label to use it · 🗑 to remove it</string>
+    <string name="label_delete_hint">Tap a label to use it · ● to recolor · 🗑 to remove</string>
     <string name="label_invalid">ENTER A VALID LABEL</string>
     <string name="label_deleted">LABEL DELETED</string>
     <string name="bin_emoji">🗑</string>
     <string name="label_remove_title">Remove label?</string>
     <string name="label_remove_msg">Remove the label \"%1$s\"?</string>
+    <string name="label_pick_color">PICK A COLOR</string>
     <string name="yes">YES</string>
     <string name="no">NO</string>
 
@@ -46,6 +48,14 @@
     <string name="stat_year">THIS YEAR</string>
     <string name="stat_all">ALL TIME</string>
     <string name="by_label">BY LABEL (ALL TIME)</string>
+    <string name="by_label_month">BY LABEL · %1$s</string>
+    <string name="month_total">MONTH TOTAL</string>
+    <string name="chart_bar">BAR</string>
+    <string name="chart_line">LINE</string>
+    <string name="chart_pie">PIE</string>
+    <string name="chart_no_data">No focus minutes this month.</string>
+    <string name="prev_arrow">◀</string>
+    <string name="next_arrow">▶</string>
     <string name="no_stats">No focus sessions yet — finish a WORK block to start tracking.</string>
 
     <!-- Coins + shop -->
@@ -57,9 +67,24 @@
     <string name="purchased">PURCHASED</string>
     <string name="shop_help">1 coin per 5 focus minutes · flowers cost 10</string>
 
+    <!-- Garden -->
+    <string name="garden_title">GARDEN</string>
+    <string name="garden_help">Tap CUSTOMIZE, then a tile to plant or clear it.</string>
+    <string name="garden_customize">CUSTOMIZE</string>
+    <string name="garden_done">DONE</string>
+    <string name="garden_upgrade">UPGRADE (%1$d)</string>
+    <string name="garden_max">MAX SIZE</string>
+    <string name="garden_size">%1$d × %2$d</string>
+    <string name="garden_upgraded">GARDEN UPGRADED</string>
+    <string name="garden_pick">PICK A FLOWER</string>
+    <string name="garden_clear_tile">CLEAR TILE</string>
+    <string name="garden_need_flowers">Buy flowers in the SHOP first.</string>
+    <string name="garden_none_left">None of that flower left to plant.</string>
+
     <!-- Content descriptions -->
     <string name="cd_settings">Settings</string>
     <string name="cd_theme">Theme</string>
     <string name="cd_stats">Stats</string>
     <string name="cd_coins">Coins and shop</string>
+    <string name="cd_garden">Garden</string>
 </resources>
