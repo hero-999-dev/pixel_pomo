@@ -30,6 +30,17 @@
                 android:contentDescription="@string/cd_theme"
                 android:src="@drawable/ic_palette" />
 
+            <ImageView
+                android:id="@+id/gardenBtn"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_marginStart="20dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:clickable="true"
+                android:focusable="true"
+                android:contentDescription="@string/cd_garden"
+                android:src="@drawable/ic_garden" />
+
             <View
                 android:layout_width="0dp"
                 android:layout_height="1dp"
@@ -56,7 +67,8 @@
                 android:contentDescription="@string/cd_settings"
                 android:src="@drawable/ic_settings" />
 
-            <!-- Coin balance (far right corner) — tap to open the shop. -->
+            <!-- Coin balance (far right corner) — icon matches the settings-icon height (32dp),
+                 with the count right beside it. Tap to open the shop. -->
             <LinearLayout
                 android:id="@+id/coinBtn"
                 android:layout_width="wrap_content"
@@ -70,17 +82,17 @@
                 android:contentDescription="@string/cd_coins">
 
                 <ImageView
-                    android:layout_width="22dp"
-                    android:layout_height="22dp"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
                     android:src="@drawable/ic_coin" />
 
                 <TextView
                     android:id="@+id/coinLabel"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="6dp"
+                    android:layout_marginStart="8dp"
                     android:fontFamily="@font/press_start_2p"
-                    android:textSize="12sp"
+                    android:textSize="14sp"
                     tools:ignore="HardcodedText"
                     android:text="0" />
             </LinearLayout>
@@ -230,6 +242,24 @@
             <include
                 android:id="@+id/rowSessions"
                 layout="@layout/row_stepper" />
+
+            <!-- Language -->
+            <TextView
+                android:id="@+id/languageTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="32dp"
+                android:layout_marginBottom="14dp"
+                android:fontFamily="@font/press_start_2p"
+                android:text="@string/language"
+                android:textSize="12sp" />
+
+            <!-- Language buttons are added here in code. -->
+            <LinearLayout
+                android:id="@+id/languageList"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
 
             <androidx.appcompat.widget.AppCompatButton
                 android:id="@+id/saveBtn"
@@ -409,11 +439,104 @@
                 android:layout_height="wrap_content"
                 android:layout_gravity="center_horizontal"
                 android:layout_marginTop="12dp"
-                android:layout_marginBottom="28dp"
+                android:layout_marginBottom="20dp"
                 android:fontFamily="@font/press_start_2p"
                 android:letterSpacing="0.1"
                 android:text="@string/stats_title"
                 android:textSize="20sp" />
+
+            <!-- Month navigator: ◀  <Month Year>  ▶ -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="14dp">
+
+                <androidx.appcompat.widget.AppCompatButton
+                    android:id="@+id/monthPrevBtn"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:minWidth="0dp"
+                    android:fontFamily="@font/press_start_2p"
+                    android:padding="12dp"
+                    android:stateListAnimator="@null"
+                    android:text="@string/prev_arrow"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:id="@+id/monthLabel"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:gravity="center"
+                    android:fontFamily="@font/press_start_2p"
+                    tools:ignore="HardcodedText"
+                    android:text="JUNE 2026"
+                    android:textSize="12sp" />
+
+                <androidx.appcompat.widget.AppCompatButton
+                    android:id="@+id/monthNextBtn"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:minWidth="0dp"
+                    android:fontFamily="@font/press_start_2p"
+                    android:padding="12dp"
+                    android:stateListAnimator="@null"
+                    android:text="@string/next_arrow"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+            <!-- Chart-style picker: choose how the month is graphed. -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="12dp">
+
+                <androidx.appcompat.widget.AppCompatButton
+                    android:id="@+id/chartBarBtn"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="6dp"
+                    android:fontFamily="@font/press_start_2p"
+                    android:padding="12dp"
+                    android:stateListAnimator="@null"
+                    android:text="@string/chart_bar"
+                    android:textSize="9sp" />
+
+                <androidx.appcompat.widget.AppCompatButton
+                    android:id="@+id/chartLineBtn"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="3dp"
+                    android:layout_marginEnd="3dp"
+                    android:fontFamily="@font/press_start_2p"
+                    android:padding="12dp"
+                    android:stateListAnimator="@null"
+                    android:text="@string/chart_line"
+                    android:textSize="9sp" />
+
+                <androidx.appcompat.widget.AppCompatButton
+                    android:id="@+id/chartPieBtn"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="6dp"
+                    android:fontFamily="@font/press_start_2p"
+                    android:padding="12dp"
+                    android:stateListAnimator="@null"
+                    android:text="@string/chart_pie"
+                    android:textSize="9sp" />
+            </LinearLayout>
+
+            <com.pixelpomo.app.ChartView
+                android:id="@+id/chart"
+                android:layout_width="match_parent"
+                android:layout_height="190dp"
+                android:layout_marginBottom="24dp" />
 
             <!-- TODAY / WEEK / MONTH / YEAR / ALL rows. Captions = child 0, values = last child. -->
             <LinearLayout
@@ -530,6 +653,107 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="20dp"
+                android:fontFamily="@font/press_start_2p"
+                android:padding="16dp"
+                android:stateListAnimator="@null"
+                android:text="@string/close"
+                android:textSize="14sp" />
+        </LinearLayout>
+    </ScrollView>
+
+    <!-- ===== Garden overlay ===== -->
+    <ScrollView
+        android:id="@+id/gardenPanel"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="28dp">
+
+            <TextView
+                android:id="@+id/gardenTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="12dp"
+                android:layout_marginBottom="16dp"
+                android:fontFamily="@font/press_start_2p"
+                android:letterSpacing="0.1"
+                android:text="@string/garden_title"
+                android:textSize="20sp" />
+
+            <!-- Upgrade (left) + current size (right). -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="14dp">
+
+                <androidx.appcompat.widget.AppCompatButton
+                    android:id="@+id/gardenUpgradeBtn"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:minWidth="0dp"
+                    android:fontFamily="@font/press_start_2p"
+                    android:padding="12dp"
+                    android:stateListAnimator="@null"
+                    android:text="@string/garden_upgrade"
+                    android:textSize="10sp" />
+
+                <View
+                    android:layout_width="0dp"
+                    android:layout_height="1dp"
+                    android:layout_weight="1" />
+
+                <TextView
+                    android:id="@+id/gardenSizeLabel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/press_start_2p"
+                    tools:ignore="HardcodedText"
+                    android:text="4 × 4"
+                    android:textSize="12sp" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/gardenHelp"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
+                android:fontFamily="@font/press_start_2p"
+                android:lineSpacingExtra="4dp"
+                android:text="@string/garden_help"
+                android:textSize="9sp" />
+
+            <!-- The N×N grid of tiles is built here in code. -->
+            <LinearLayout
+                android:id="@+id/gardenGrid"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center_horizontal" />
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/gardenCustomizeBtn"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:fontFamily="@font/press_start_2p"
+                android:padding="16dp"
+                android:stateListAnimator="@null"
+                android:text="@string/garden_customize"
+                android:textSize="13sp" />
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/gardenCloseBtn"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
                 android:fontFamily="@font/press_start_2p"
                 android:padding="16dp"
                 android:stateListAnimator="@null"

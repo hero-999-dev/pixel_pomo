@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="work">ÇALIŞ</string>
+    <string name="break_label">MOLA</string>
+    <string name="start">BAŞLAT</string>
+    <string name="pause">DURAKLAT</string>
+    <string name="reset">SIFIRLA</string>
+    <string name="switch_mode">&gt;&gt; MOD DEĞİŞTİR</string>
+    <string name="session">SEANS %1$d / %2$d</string>
+    <string name="all_done">BİTTİ!</string>
+    <string name="work_done">ÇALIŞMA BİTTİ!</string>
+    <string name="break_done">MOLA BİTTİ!</string>
+
+    <string name="settings">AYARLAR</string>
+    <string name="theme">TEMA</string>
+    <string name="save">KAYDET</string>
+    <string name="close">KAPAT</string>
+    <string name="label_study">ÇALIŞMA (DK)</string>
+    <string name="label_break">MOLA (DK)</string>
+    <string name="label_sessions">SEANS</string>
+    <string name="settings_saved">AYARLAR KAYDEDİLDİ</string>
+    <string name="language">DİL</string>
+
+    <string name="label_title">ETİKET</string>
+    <string name="label_hint">YENİ ETİKET</string>
+    <string name="add">EKLE</string>
+    <string name="label_delete_hint">Kullanmak için dokun · ● renk · 🗑 sil</string>
+    <string name="label_invalid">GEÇERLİ BİR ETİKET GİR</string>
+    <string name="label_deleted">ETİKET SİLİNDİ</string>
+    <string name="label_remove_title">Etiket silinsin mi?</string>
+    <string name="label_remove_msg">\"%1$s\" etiketi silinsin mi?</string>
+    <string name="label_pick_color">RENK SEÇ</string>
+    <string name="yes">EVET</string>
+    <string name="no">HAYIR</string>
+
+    <string name="stats_title">İSTATİSTİK</string>
+    <string name="stat_today">BUGÜN</string>
+    <string name="stat_week">BU HAFTA</string>
+    <string name="stat_month">BU AY</string>
+    <string name="stat_year">BU YIL</string>
+    <string name="stat_all">TÜM ZAMANLAR</string>
+    <string name="by_label">ETİKETE GÖRE (TÜM ZAMANLAR)</string>
+    <string name="by_label_month">ETİKETE GÖRE · %1$s</string>
+    <string name="month_total">AY TOPLAMI</string>
+    <string name="chart_bar">ÇUBUK</string>
+    <string name="chart_line">ÇİZGİ</string>
+    <string name="chart_pie">PASTA</string>
+    <string name="chart_no_data">Bu ay odak dakikası yok.</string>
+    <string name="no_stats">Henüz seans yok — bir ÇALIŞMA bloğu bitir.</string>
+
+    <string name="shop_title">MAĞAZA</string>
+    <string name="buy">AL</string>
+    <string name="owned_count">SAHİP %1$d</string>
+    <string name="not_enough_coins">YETERLİ ALTIN YOK</string>
+    <string name="purchased">SATIN ALINDI</string>
+    <string name="shop_help">5 odak dakikası = 1 altın · çiçek 10</string>
+
+    <string name="garden_title">BAHÇE</string>
+    <string name="garden_help">ÖZELLEŞTİR\'e dokun, sonra bir kareye dokunarak ek ya da temizle.</string>
+    <string name="garden_customize">ÖZELLEŞTİR</string>
+    <string name="garden_done">TAMAM</string>
+    <string name="garden_upgrade">BÜYÜT (%1$d)</string>
+    <string name="garden_max">MAKS BOYUT</string>
+    <string name="garden_upgraded">BAHÇE BÜYÜTÜLDÜ</string>
+    <string name="garden_pick">BİR ÇİÇEK SEÇ</string>
+    <string name="garden_clear_tile">KAREYİ TEMİZLE</string>
+    <string name="garden_need_flowers">Önce MAĞAZA\'dan çiçek al.</string>
+    <string name="garden_none_left">Ekecek o çiçekten kalmadı.</string>
+
+    <string name="cd_settings">Ayarlar</string>
+    <string name="cd_theme">Tema</string>
+    <string name="cd_stats">İstatistik</string>
+    <string name="cd_coins">Altın ve mağaza</string>
+    <string name="cd_garden">Bahçe</string>
+</resources>
