@@ -20,8 +20,9 @@ In CI it's uploaded as the **`unit-test-report`** artifact (even on failure).
 
 ## What's covered
 
-Unit tests in `app/src/test/java/com/pixelpomo/app/PomodoroEngineTest.kt`
-(**16 tests, all passing** as of v0.2.0):
+**35 JUnit tests, all passing** as of v0.3.0, across three pure classes:
+
+### `PomodoroEngineTest.kt` (16) — timer state machine
 
 | Area | Edge cases checked |
 |------|--------------------|
@@ -37,6 +38,40 @@ Unit tests in `app/src/test/java/com/pixelpomo/app/PomodoroEngineTest.kt`
 | setTimeLeft | **clamps** negative → 0 and over-duration → duration |
 | progress % | 100 / 50 / 0 across the range; **never leaves 0..100** (incl. negative & `Long.MAX_VALUE`) |
 | time format | rounds **up** (`1ms`→`00:01`), zero-pads, `25:00` at full, `00:00` at zero |
+
+### `LabelsTest.kt` (10) — focus-label rules
+
+| Area | Edge cases checked |
+|------|--------------------|
+| normalize | upper-cases + trims; collapses inner whitespace; **strips disallowed chars** incl. `,` and newline (codec safety); inner separators (`-`) → space; edge symbols trimmed |
+| normalize cap | caps at **12 chars** and re-trims a tail that lands on a space |
+| normalize reject | empty / whitespace-only / symbol-only → `null` |
+| add | appends a valid label; **ignores case-insensitive duplicates**; ignores invalid input |
+| remove | drops a match but **never empties** the list; missing label is a no-op |
+| seed | seed set contains the `STUDY` default |
+
+### `StatsTest.kt` (9) — recording & aggregation
+
+| Area | Edge cases checked |
+|------|--------------------|
+| aggregate | splits minutes across **today / week / month / year / all**; empty → all zero |
+| week boundary | **Monday-start** week includes this Monday, excludes the Sunday before |
+| negatives | negative minutes clamp to 0 |
+| by-label | sums per label, **sorted descending** |
+| format | `0m` / `5m` / `1h` / `1h 30m` / `2h 5m`; negative → `0m` |
+| codec | **round-trips** (labels with spaces survive); decode **skips blank/malformed lines**; null/blank → empty |
+
+## Notes for v0.3.0 (limits, themes, labels, stats)
+
+- **Higher limits are presentation-only.** The steppers now allow study 5–300, break 1–120,
+  sessions 1–24; `PomodoroEngine` already accepted arbitrary durations/sessions, so
+  `customDurationsAreHonored` still covers the engine side. No new engine cases needed.
+- **Theme change is data-only.** Recoloring DARK/LIGHT and DARK's accent doesn't touch logic.
+- **Labels & stats logic is pure and unit-tested** (`Labels`, `StatsAggregator`, `StatsCodec`).
+  The Android glue (`SharedPreferences` persistence, the two overlays, recording a block on
+  WORK completion) is verified manually per the checklist — a completed WORK phase appends
+  one record `(today, studyMinutes, currentLabel)`; SWITCH/PAUSE/RESET do **not** record.
+- **`java.time`** (`LocalDate`) is used for date bucketing — available natively on minSdk 26.
 
 ## Notes for v0.2.0 (settings, sessions, themes)
 
@@ -76,6 +111,8 @@ forgotten:
 3. **No instrumented UI tests yet.** Button clicks → view updates are currently
    verified manually (see checklist). Espresso tests could automate this once an
    emulator/device is wired into CI.
+4. **Stats grow unbounded.** One line per completed WORK block is appended forever. Fine
+   for normal use; a future change could roll old records up into daily totals.
 
 ## Per-change checklist
 
@@ -86,6 +123,10 @@ Every time the app changes:
    START counts down · PAUSE freezes · START resumes · RESET restarts the run · SWITCH
    MODE flips WORK/BREAK · timer hits 00:00 → toast + auto-switch · SESSION increments
    after a break · run ends at ALL DONE! after the last session · Settings steppers
-   change study/break/sessions and persist · each theme re-tints the whole screen live.
+   change study/break/sessions (up to 300/120/24) and persist · each theme re-tints the
+   whole screen live and DARK/LIGHT look distinct from the Catppuccin flavors · the label
+   chip opens the picker, selecting changes the chip, ADD creates a label, long-press
+   deletes · finishing a WORK block bumps the STATS totals (today/week/month/year/all) and
+   the per-label breakdown.
 3. Update `log.md`, and `prompt.md` if behavior changed.
 4. Push — CI runs the tests, and only then builds & publishes the APK.
