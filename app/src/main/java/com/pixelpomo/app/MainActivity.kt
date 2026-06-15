@@ -4,6 +4,7 @@ import android.content.SharedPreferences
 import android.os.Bundle
 import android.os.CountDownTimer
 import android.util.TypedValue
+import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
@@ -12,6 +13,7 @@ import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.AppCompatButton
 import androidx.core.content.res.ResourcesCompat
@@ -36,6 +38,8 @@ class MainActivity : AppCompatActivity() {
         const val KEY_LABELS = "labels"
         const val KEY_CURRENT_LABEL = "current_label"
         const val KEY_STATS = "stats"
+        const val KEY_COINS = "coins"
+        const val KEY_OWNED = "owned_flowers"
 
         const val DEFAULT_WORK = 25
         const val DEFAULT_BREAK = 5
@@ -68,6 +72,10 @@ class MainActivity : AppCompatActivity() {
     private var labels = Labels.SEED.toMutableList()
     private var currentLabel = Labels.DEFAULT
     private val records = mutableListOf<SessionRecord>()
+
+    // Coin wallet + owned flowers (flowerId -> count) for the shop/garden.
+    private var coins = 0
+    private val owned = LinkedHashMap<String, Int>()
 
     // Views
     private lateinit var root: View
@@ -118,6 +126,15 @@ class MainActivity : AppCompatActivity() {
     private lateinit var statsLabelList: LinearLayout
     private lateinit var statsCloseBtn: AppCompatButton
 
+    // Coins + shop
+    private lateinit var coinBtn: View
+    private lateinit var coinLabel: TextView
+    private lateinit var shopPanel: View
+    private lateinit var shopTitle: TextView
+    private lateinit var shopHelp: TextView
+    private lateinit var shopListContainer: LinearLayout
+    private lateinit var shopCloseBtn: AppCompatButton
+
     private val themeButtons = mutableListOf<Pair<PixelTheme, AppCompatButton>>()
     private val labelButtons = mutableListOf<Pair<String, AppCompatButton>>()
 
@@ -137,6 +154,7 @@ class MainActivity : AppCompatActivity() {
         buildThemeButtons()
         refreshLabelButtons()
         labelBtn.text = currentLabel
+        updateCoinLabel()
 
         applyTheme()   // applies colors, styles buttons, and renders
     }
@@ -155,6 +173,10 @@ class MainActivity : AppCompatActivity() {
 
         records.clear()
         records.addAll(StatsCodec.decode(prefs.getString(KEY_STATS, "")))
+
+        coins = prefs.getInt(KEY_COINS, 0)
+        owned.clear()
+        owned.putAll(Inventory.decode(prefs.getString(KEY_OWNED, "")))
     }
 
     /** Stored labels (one per line), falling back to the seed set on first launch. */
@@ -176,6 +198,17 @@ class MainActivity : AppCompatActivity() {
 
     private fun saveStats() {
         prefs.edit().putString(KEY_STATS, StatsCodec.encode(records)).apply()
+    }
+
+    private fun saveWallet() {
+        prefs.edit()
+            .putInt(KEY_COINS, coins)
+            .putString(KEY_OWNED, Inventory.encode(owned))
+            .apply()
+    }
+
+    private fun updateCoinLabel() {
+        coinLabel.text = coins.toString()
     }
 
     private fun buildEngine() = PomodoroEngine(
@@ -232,6 +265,14 @@ class MainActivity : AppCompatActivity() {
         statsByLabelTitle = findViewById(R.id.statsByLabelTitle)
         statsLabelList = findViewById(R.id.statsLabelList)
         statsCloseBtn = findViewById(R.id.statsCloseBtn)
+
+        coinBtn = findViewById(R.id.coinBtn)
+        coinLabel = findViewById(R.id.coinLabel)
+        shopPanel = findViewById(R.id.shopPanel)
+        shopTitle = findViewById(R.id.shopTitle)
+        shopHelp = findViewById(R.id.shopHelp)
+        shopListContainer = findViewById(R.id.shopList)
+        shopCloseBtn = findViewById(R.id.shopCloseBtn)
     }
 
     // ---- timer controls -----------------------------------------------------
@@ -293,12 +334,14 @@ class MainActivity : AppCompatActivity() {
         themeBtn.setOnClickListener { openThemes() }
         statsBtn.setOnClickListener { openStats() }
         labelBtn.setOnClickListener { openLabels() }
+        coinBtn.setOnClickListener { openShop() }
         saveBtn.setOnClickListener { saveSettings() }
         addLabelBtn.setOnClickListener { addLabel() }
         settingsCloseBtn.setOnClickListener { settingsPanel.visibility = View.GONE }
         themeCloseBtn.setOnClickListener { themePanel.visibility = View.GONE }
         labelCloseBtn.setOnClickListener { labelPanel.visibility = View.GONE }
         statsCloseBtn.setOnClickListener { statsPanel.visibility = View.GONE }
+        shopCloseBtn.setOnClickListener { shopPanel.visibility = View.GONE }
     }
 
     /** Only one overlay is visible at a time. */
@@ -307,6 +350,7 @@ class MainActivity : AppCompatActivity() {
         themePanel.visibility = View.GONE
         labelPanel.visibility = View.GONE
         statsPanel.visibility = View.GONE
+        shopPanel.visibility = View.GONE
     }
 
     private fun openSettings() {
@@ -336,6 +380,12 @@ class MainActivity : AppCompatActivity() {
         statsPanel.visibility = View.VISIBLE
     }
 
+    private fun openShop() {
+        refreshShop()
+        hideAllPanels()
+        shopPanel.visibility = View.VISIBLE
+    }
+
     private fun saveSettings() {
         workMin = draftWork
         breakMin = draftBreak
@@ -359,7 +409,8 @@ class MainActivity : AppCompatActivity() {
         val anyOpen = settingsPanel.visibility == View.VISIBLE ||
             themePanel.visibility == View.VISIBLE ||
             labelPanel.visibility == View.VISIBLE ||
-            statsPanel.visibility == View.VISIBLE
+            statsPanel.visibility == View.VISIBLE ||
+            shopPanel.visibility == View.VISIBLE
         if (anyOpen) hideAllPanels() else super.onBackPressed()
     }
 
@@ -432,28 +483,44 @@ class MainActivity : AppCompatActivity() {
 
     // ---- label picker -------------------------------------------------------
 
-    /** Rebuilds the label list (tap = select, long-press = delete) and styles it. */
+    /** Rebuilds the label list: each row is [name button | 🗑 bin], and styles it. */
     private fun refreshLabelButtons() {
         labelListContainer.removeAllViews()
         labelButtons.clear()
         val font = ResourcesCompat.getFont(this, R.font.press_start_2p)
         val pad = dp(14)
         labels.forEach { label ->
-            val btn = AppCompatButton(this).apply {
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
                 layoutParams = LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.WRAP_CONTENT
                 ).apply { bottomMargin = dp(12) }
+            }
+            val name = AppCompatButton(this).apply {
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
                 typeface = font
                 isAllCaps = false
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
                 setPadding(pad, pad, pad, pad)
                 stateListAnimator = null
                 setOnClickListener { selectLabel(label) }
-                setOnLongClickListener { deleteLabel(label); true }
             }
-            labelListContainer.addView(btn)
-            labelButtons += label to btn
+            val bin = TextView(this).apply {
+                text = getString(R.string.bin_emoji)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
+                setPadding(dp(16), dp(12), dp(8), dp(12))
+                setTextColor(pixelTheme.onSurfaceDim)
+                isClickable = true
+                isFocusable = true
+                contentDescription = getString(R.string.label_remove_title)
+                setOnClickListener { confirmDeleteLabel(label) }
+            }
+            row.addView(name)
+            row.addView(bin)
+            labelListContainer.addView(row)
+            labelButtons += label to name
         }
         styleLabelButtons()
     }
@@ -470,12 +537,12 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /** Select a label as current but **stay on the label page** (v0.4.0). */
     private fun selectLabel(label: String) {
         currentLabel = label
         saveLabels()
         labelBtn.text = currentLabel
         styleLabelButtons()
-        labelPanel.visibility = View.GONE
     }
 
     private fun addLabel() {
@@ -487,7 +554,17 @@ class MainActivity : AppCompatActivity() {
         labels = updated.toMutableList()
         labelInput.setText("")
         saveLabels()
-        refreshLabelButtons()
+        refreshLabelButtons()   // stays on the label page
+    }
+
+    /** Ask for confirmation before deleting a label (triggered by the 🗑 button). */
+    private fun confirmDeleteLabel(label: String) {
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.label_remove_title))
+            .setMessage(getString(R.string.label_remove_msg, label))
+            .setPositiveButton(getString(R.string.yes)) { _, _ -> deleteLabel(label) }
+            .setNegativeButton(getString(R.string.no), null)
+            .show()
     }
 
     private fun deleteLabel(label: String) {
@@ -505,10 +582,13 @@ class MainActivity : AppCompatActivity() {
 
     // ---- stats --------------------------------------------------------------
 
-    /** Append a completed focus block (current study minutes + label) for today and persist. */
+    /** A focus block just completed: record it for stats and award coins. */
     private fun recordWorkSession() {
         records.add(SessionRecord(LocalDate.now().toEpochDay(), workMin, currentLabel))
         saveStats()
+        coins += Economy.coinsFor(workMin)
+        saveWallet()
+        updateCoinLabel()
     }
 
     /** Recomputes the totals + per-label breakdown shown in the stats overlay. */
@@ -561,6 +641,74 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // ---- shop ---------------------------------------------------------------
+
+    /** Rebuilds the shop: one row per flower (pixel icon · name · owned · cost · BUY). */
+    private fun refreshShop() {
+        shopListContainer.removeAllViews()
+        val font = ResourcesCompat.getFont(this, R.font.press_start_2p)
+        val cell = dp(4)
+        Flowers.ALL.forEach { flower ->
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply { bottomMargin = dp(14) }
+            }
+            row.addView(ImageView(this).apply {
+                layoutParams = LinearLayout.LayoutParams(dp(40), dp(40))
+                setImageDrawable(PixelArt.flower(resources, flower, cell))
+            })
+            val info = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                setPadding(dp(12), 0, dp(8), 0)
+            }
+            info.addView(TextView(this).apply {
+                text = flower.nameTr
+                typeface = font
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+                setTextColor(pixelTheme.onSurface)
+            })
+            info.addView(TextView(this).apply {
+                text = getString(R.string.owned_count, owned[flower.id] ?: 0)
+                typeface = font
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 8f)
+                setPadding(0, dp(6), 0, 0)
+                setTextColor(pixelTheme.onSurfaceDim)
+            })
+            row.addView(info)
+            row.addView(AppCompatButton(this).apply {
+                typeface = font
+                isAllCaps = false
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
+                setPadding(dp(12), dp(12), dp(12), dp(12))
+                stateListAnimator = null
+                text = "${getString(R.string.buy)} ${Economy.FLOWER_COST}"
+                background = PixelStyle.button(resources, pixelTheme.accent, pixelTheme.onSurface, pixelTheme.shadow)
+                setTextColor(pixelTheme.onAccent)
+                alpha = if (coins >= Economy.FLOWER_COST) 1f else 0.45f
+                setOnClickListener { buyFlower(flower) }
+            })
+            shopListContainer.addView(row)
+        }
+    }
+
+    private fun buyFlower(flower: Flower) {
+        if (coins < Economy.FLOWER_COST) {
+            Toast.makeText(this, getString(R.string.not_enough_coins), Toast.LENGTH_SHORT).show()
+            return
+        }
+        coins -= Economy.FLOWER_COST
+        owned[flower.id] = (owned[flower.id] ?: 0) + 1
+        saveWallet()
+        updateCoinLabel()
+        refreshShop()
+        Toast.makeText(this, getString(R.string.purchased), Toast.LENGTH_SHORT).show()
+    }
+
     // ---- theming ------------------------------------------------------------
 
     /** Applies [pixelTheme] to every view + drawable, then re-renders. */
@@ -570,6 +718,11 @@ class MainActivity : AppCompatActivity() {
         themePanel.setBackgroundColor(pixelTheme.bg)
         labelPanel.setBackgroundColor(pixelTheme.bg)
         statsPanel.setBackgroundColor(pixelTheme.bg)
+        shopPanel.setBackgroundColor(pixelTheme.bg)
+
+        coinLabel.setTextColor(pixelTheme.onSurface)
+        shopTitle.setTextColor(pixelTheme.onSurface)
+        shopHelp.setTextColor(pixelTheme.onSurfaceDim)
 
         timerText.setTextColor(pixelTheme.onSurface)
         sessionLabel.setTextColor(pixelTheme.onSurfaceDim)
@@ -594,6 +747,7 @@ class MainActivity : AppCompatActivity() {
         styleSecondary(themeCloseBtn)
         styleSecondary(labelCloseBtn)
         styleSecondary(statsCloseBtn)
+        styleSecondary(shopCloseBtn)
 
         styleStepper(rowWork)
         styleStepper(rowBreak)

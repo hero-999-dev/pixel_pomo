@@ -55,6 +55,35 @@
                 android:focusable="true"
                 android:contentDescription="@string/cd_settings"
                 android:src="@drawable/ic_settings" />
+
+            <!-- Coin balance (far right corner) — tap to open the shop. -->
+            <LinearLayout
+                android:id="@+id/coinBtn"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="20dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:clickable="true"
+                android:focusable="true"
+                android:contentDescription="@string/cd_coins">
+
+                <ImageView
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:src="@drawable/ic_coin" />
+
+                <TextView
+                    android:id="@+id/coinLabel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:fontFamily="@font/press_start_2p"
+                    android:textSize="12sp"
+                    tools:ignore="HardcodedText"
+                    android:text="0" />
+            </LinearLayout>
         </LinearLayout>
 
         <!-- Centered timer content -->
@@ -446,6 +475,61 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="28dp"
+                android:fontFamily="@font/press_start_2p"
+                android:padding="16dp"
+                android:stateListAnimator="@null"
+                android:text="@string/close"
+                android:textSize="14sp" />
+        </LinearLayout>
+    </ScrollView>
+
+    <!-- ===== Shop overlay ===== -->
+    <ScrollView
+        android:id="@+id/shopPanel"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="28dp">
+
+            <TextView
+                android:id="@+id/shopTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="12dp"
+                android:layout_marginBottom="16dp"
+                android:fontFamily="@font/press_start_2p"
+                android:letterSpacing="0.1"
+                android:text="@string/shop_title"
+                android:textSize="20sp" />
+
+            <TextView
+                android:id="@+id/shopHelp"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="20dp"
+                android:fontFamily="@font/press_start_2p"
+                android:lineSpacingExtra="4dp"
+                android:text="@string/shop_help"
+                android:textSize="9sp" />
+
+            <!-- Flower rows are added here in code. -->
+            <LinearLayout
+                android:id="@+id/shopList"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/shopCloseBtn"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
                 android:fontFamily="@font/press_start_2p"
                 android:padding="16dp"
                 android:stateListAnimator="@null"
