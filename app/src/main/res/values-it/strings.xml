@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="work">LAVORO</string>
+    <string name="break_label">PAUSA</string>
+    <string name="start">AVVIA</string>
+    <string name="pause">PAUSA</string>
+    <string name="reset">AZZERA</string>
+    <string name="switch_mode">&gt;&gt; CAMBIA MODO</string>
+    <string name="session">SESSIONE %1$d / %2$d</string>
+    <string name="all_done">FATTO!</string>
+    <string name="work_done">LAVORO FINITO!</string>
+    <string name="break_done">PAUSA FINITA!</string>
+
+    <string name="settings">IMPOSTAZIONI</string>
+    <string name="theme">TEMA</string>
+    <string name="save">SALVA</string>
+    <string name="close">CHIUDI</string>
+    <string name="label_study">LAVORO (MIN)</string>
+    <string name="label_break">PAUSA (MIN)</string>
+    <string name="label_sessions">SESSIONI</string>
+    <string name="settings_saved">IMPOSTAZIONI SALVATE</string>
+    <string name="language">LINGUA</string>
+
+    <string name="label_title">ETICHETTA</string>
+    <string name="label_hint">NUOVA ETICHETTA</string>
+    <string name="add">AGGIUNGI</string>
+    <string name="label_delete_hint">Tocca per usare · ● colore · 🗑 elimina</string>
+    <string name="label_invalid">INSERISCI UN\'ETICHETTA VALIDA</string>
+    <string name="label_deleted">ETICHETTA ELIMINATA</string>
+    <string name="label_remove_title">Eliminare l\'etichetta?</string>
+    <string name="label_remove_msg">Eliminare l\'etichetta \"%1$s\"?</string>
+    <string name="label_pick_color">SCEGLI UN COLORE</string>
+    <string name="yes">SÌ</string>
+    <string name="no">NO</string>
+
+    <string name="stats_title">STATISTICHE</string>
+    <string name="stat_today">OGGI</string>
+    <string name="stat_week">QUESTA SETTIMANA</string>
+    <string name="stat_month">QUESTO MESE</string>
+    <string name="stat_year">QUEST\'ANNO</string>
+    <string name="stat_all">SEMPRE</string>
+    <string name="by_label">PER ETICHETTA (SEMPRE)</string>
+    <string name="by_label_month">PER ETICHETTA · %1$s</string>
+    <string name="month_total">TOTALE MESE</string>
+    <string name="chart_bar">BARRE</string>
+    <string name="chart_line">LINEA</string>
+    <string name="chart_pie">TORTA</string>
+    <string name="chart_no_data">Nessun minuto questo mese.</string>
+    <string name="no_stats">Ancora nessuna sessione — completa un blocco LAVORO.</string>
+
+    <string name="shop_title">NEGOZIO</string>
+    <string name="buy">COMPRA</string>
+    <string name="owned_count">POSSEDUTI %1$d</string>
+    <string name="not_enough_coins">MONETE INSUFFICIENTI</string>
+    <string name="purchased">ACQUISTATO</string>
+    <string name="shop_help">1 moneta ogni 5 minuti · un fiore costa 10</string>
+
+    <string name="garden_title">GIARDINO</string>
+    <string name="garden_help">Tocca PERSONALIZZA, poi una cella per piantare o svuotare.</string>
+    <string name="garden_customize">PERSONALIZZA</string>
+    <string name="garden_done">FATTO</string>
+    <string name="garden_upgrade">AMPLIA (%1$d)</string>
+    <string name="garden_max">DIM. MAX</string>
+    <string name="garden_upgraded">GIARDINO AMPLIATO</string>
+    <string name="garden_pick">SCEGLI UN FIORE</string>
+    <string name="garden_clear_tile">SVUOTA CELLA</string>
+    <string name="garden_need_flowers">Compra prima dei fiori nel NEGOZIO.</string>
+    <string name="garden_none_left">Non hai più quel fiore.</string>
+
+    <string name="cd_settings">Impostazioni</string>
+    <string name="cd_theme">Tema</string>
+    <string name="cd_stats">Statistiche</string>
+    <string name="cd_coins">Monete e negozio</string>
+    <string name="cd_garden">Giardino</string>
+</resources>

@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="work">집중</string>
+    <string name="break_label">휴식</string>
+    <string name="start">시작</string>
+    <string name="pause">일시정지</string>
+    <string name="reset">초기화</string>
+    <string name="switch_mode">&gt;&gt; 모드 전환</string>
+    <string name="session">세션 %1$d / %2$d</string>
+    <string name="all_done">완료!</string>
+    <string name="work_done">집중 완료!</string>
+    <string name="break_done">휴식 끝!</string>
+
+    <string name="settings">설정</string>
+    <string name="theme">테마</string>
+    <string name="save">저장</string>
+    <string name="close">닫기</string>
+    <string name="label_study">집중 (분)</string>
+    <string name="label_break">휴식 (분)</string>
+    <string name="label_sessions">세션</string>
+    <string name="settings_saved">설정 저장됨</string>
+    <string name="language">언어</string>
+
+    <string name="label_title">라벨</string>
+    <string name="label_hint">새 라벨</string>
+    <string name="add">추가</string>
+    <string name="label_delete_hint">탭하여 사용 · ● 색상 · 🗑 삭제</string>
+    <string name="label_invalid">올바른 라벨을 입력하세요</string>
+    <string name="label_deleted">라벨 삭제됨</string>
+    <string name="label_remove_title">라벨을 삭제할까요?</string>
+    <string name="label_remove_msg">\"%1$s\" 라벨을 삭제할까요?</string>
+    <string name="label_pick_color">색상 선택</string>
+    <string name="yes">예</string>
+    <string name="no">아니오</string>
+
+    <string name="stats_title">통계</string>
+    <string name="stat_today">오늘</string>
+    <string name="stat_week">이번 주</string>
+    <string name="stat_month">이번 달</string>
+    <string name="stat_year">올해</string>
+    <string name="stat_all">전체</string>
+    <string name="by_label">라벨별 (전체)</string>
+    <string name="by_label_month">라벨별 · %1$s</string>
+    <string name="month_total">월 합계</string>
+    <string name="chart_bar">막대</string>
+    <string name="chart_line">선</string>
+    <string name="chart_pie">원형</string>
+    <string name="chart_no_data">이번 달 기록이 없습니다.</string>
+    <string name="no_stats">아직 세션이 없어요 — 집중 블록을 완료하세요.</string>
+
+    <string name="shop_title">상점</string>
+    <string name="buy">구매</string>
+    <string name="owned_count">보유 %1$d</string>
+    <string name="not_enough_coins">코인이 부족합니다</string>
+    <string name="purchased">구매 완료</string>
+    <string name="shop_help">5분당 1코인 · 꽃은 10코인</string>
+
+    <string name="garden_title">정원</string>
+    <string name="garden_help">꾸미기를 누른 뒤 타일을 눌러 심거나 비우세요.</string>
+    <string name="garden_customize">꾸미기</string>
+    <string name="garden_done">완료</string>
+    <string name="garden_upgrade">확장 (%1$d)</string>
+    <string name="garden_max">최대 크기</string>
+    <string name="garden_upgraded">정원 확장됨</string>
+    <string name="garden_pick">꽃 선택</string>
+    <string name="garden_clear_tile">타일 비우기</string>
+    <string name="garden_need_flowers">먼저 상점에서 꽃을 사세요.</string>
+    <string name="garden_none_left">심을 그 꽃이 없습니다.</string>
+
+    <string name="cd_settings">설정</string>
+    <string name="cd_theme">테마</string>
+    <string name="cd_stats">통계</string>
+    <string name="cd_coins">코인과 상점</string>
+    <string name="cd_garden">정원</string>
+</resources>

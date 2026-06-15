@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="work">ARBEIT</string>
+    <string name="break_label">PAUSE</string>
+    <string name="start">START</string>
+    <string name="pause">PAUSE</string>
+    <string name="reset">ZURÜCK</string>
+    <string name="switch_mode">&gt;&gt; MODUS WECHSELN</string>
+    <string name="session">RUNDE %1$d / %2$d</string>
+    <string name="all_done">FERTIG!</string>
+    <string name="work_done">ARBEIT FERTIG!</string>
+    <string name="break_done">PAUSE VORBEI!</string>
+
+    <string name="settings">EINSTELLUNGEN</string>
+    <string name="theme">THEMA</string>
+    <string name="save">SPEICHERN</string>
+    <string name="close">SCHLIESSEN</string>
+    <string name="label_study">ARBEIT (MIN)</string>
+    <string name="label_break">PAUSE (MIN)</string>
+    <string name="label_sessions">RUNDEN</string>
+    <string name="settings_saved">GESPEICHERT</string>
+    <string name="language">SPRACHE</string>
+
+    <string name="label_title">LABEL</string>
+    <string name="label_hint">NEUES LABEL</string>
+    <string name="add">HINZU</string>
+    <string name="label_delete_hint">Tippen zum Wählen · ● Farbe · 🗑 löschen</string>
+    <string name="label_invalid">GÜLTIGES LABEL EINGEBEN</string>
+    <string name="label_deleted">LABEL GELÖSCHT</string>
+    <string name="label_remove_title">Label löschen?</string>
+    <string name="label_remove_msg">Label \"%1$s\" löschen?</string>
+    <string name="label_pick_color">FARBE WÄHLEN</string>
+    <string name="yes">JA</string>
+    <string name="no">NEIN</string>
+
+    <string name="stats_title">STATISTIK</string>
+    <string name="stat_today">HEUTE</string>
+    <string name="stat_week">DIESE WOCHE</string>
+    <string name="stat_month">DIESER MONAT</string>
+    <string name="stat_year">DIESES JAHR</string>
+    <string name="stat_all">GESAMT</string>
+    <string name="by_label">NACH LABEL (GESAMT)</string>
+    <string name="by_label_month">NACH LABEL · %1$s</string>
+    <string name="month_total">MONATSSUMME</string>
+    <string name="chart_bar">BALKEN</string>
+    <string name="chart_line">LINIE</string>
+    <string name="chart_pie">KREIS</string>
+    <string name="chart_no_data">Keine Minuten in diesem Monat.</string>
+    <string name="no_stats">Noch keine Sitzungen — beende einen ARBEIT-Block.</string>
+
+    <string name="shop_title">SHOP</string>
+    <string name="buy">KAUFEN</string>
+    <string name="owned_count">BESITZ %1$d</string>
+    <string name="not_enough_coins">ZU WENIG MÜNZEN</string>
+    <string name="purchased">GEKAUFT</string>
+    <string name="shop_help">1 Münze je 5 Minuten · Blume kostet 10</string>
+
+    <string name="garden_title">GARTEN</string>
+    <string name="garden_help">ANPASSEN tippen, dann ein Feld zum Pflanzen oder Leeren.</string>
+    <string name="garden_customize">ANPASSEN</string>
+    <string name="garden_done">FERTIG</string>
+    <string name="garden_upgrade">ERWEITERN (%1$d)</string>
+    <string name="garden_max">MAX. GRÖSSE</string>
+    <string name="garden_upgraded">GARTEN ERWEITERT</string>
+    <string name="garden_pick">BLUME WÄHLEN</string>
+    <string name="garden_clear_tile">FELD LEEREN</string>
+    <string name="garden_need_flowers">Kaufe zuerst Blumen im SHOP.</string>
+    <string name="garden_none_left">Keine solche Blume mehr übrig.</string>
+
+    <string name="cd_settings">Einstellungen</string>
+    <string name="cd_theme">Thema</string>
+    <string name="cd_stats">Statistik</string>
+    <string name="cd_coins">Münzen und Shop</string>
+    <string name="cd_garden">Garten</string>
+</resources>

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Blocky flower-in-a-garden icon for the garden overlay. Tinted to the active theme. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="#FFFFFF">
+    <!-- flower petals (blocky) -->
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M11,3h2v2h-2z M9,5h2v2h-2z M13,5h2v2h-2z M11,7h2v2h-2z M9,9h2v2h-2z M13,9h2v2h-2z M11,5h2v2h-2z" />
+    <!-- stem -->
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M11,9h2v8h-2z" />
+    <!-- ground line -->
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M3,18h18v3h-18z" />
+</vector>
