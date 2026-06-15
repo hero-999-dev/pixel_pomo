@@ -1,6 +1,7 @@
 package com.pixelpomo.app
 
 import java.time.LocalDate
+import java.time.YearMonth
 
 /** One completed focus block: the day it happened (epoch day), its length in minutes, and its label. */
 data class SessionRecord(val epochDay: Long, val minutes: Int, val label: String)
@@ -50,6 +51,37 @@ object StatsAggregator {
         records.groupBy { it.label }
             .map { (label, recs) -> label to recs.sumOf { if (it.minutes < 0) 0 else it.minutes } }
             .sortedByDescending { it.second }
+
+    // ---- month-scoped views (drive the stats month-navigator + charts, v0.5.0) ----------
+
+    private fun inMonth(epochDay: Long, ym: YearMonth): Boolean {
+        val d = LocalDate.ofEpochDay(epochDay)
+        return d.year == ym.year && d.monthValue == ym.monthValue
+    }
+
+    /** Total focus minutes recorded in the calendar month [ym]. */
+    fun monthTotal(records: List<SessionRecord>, ym: YearMonth): Int =
+        records.filter { inMonth(it.epochDay, ym) }
+            .sumOf { if (it.minutes < 0) 0 else it.minutes }
+
+    /** Minutes per label within month [ym], highest first (drives the per-label list + charts). */
+    fun byLabelInMonth(records: List<SessionRecord>, ym: YearMonth): List<Pair<String, Int>> =
+        records.filter { inMonth(it.epochDay, ym) }
+            .groupBy { it.label }
+            .map { (label, recs) -> label to recs.sumOf { if (it.minutes < 0) 0 else it.minutes } }
+            .filter { it.second > 0 }
+            .sortedByDescending { it.second }
+
+    /** Per-day minutes for month [ym]: an array indexed by (dayOfMonth − 1). For line/bar charts. */
+    fun dailySeries(records: List<SessionRecord>, ym: YearMonth): IntArray {
+        val days = IntArray(ym.lengthOfMonth())
+        for (r in records) {
+            if (!inMonth(r.epochDay, ym)) continue
+            val day = LocalDate.ofEpochDay(r.epochDay).dayOfMonth - 1
+            days[day] += if (r.minutes < 0) 0 else r.minutes
+        }
+        return days
+    }
 
     /** Minutes → compact "Xh Ym" / "Ym" / "0m" (negatives clamp to 0). */
     fun formatMinutes(min: Int): String {

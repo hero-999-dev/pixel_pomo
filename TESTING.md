@@ -20,7 +20,7 @@ In CI it's uploaded as the **`unit-test-report`** artifact (even on failure).
 
 ## What's covered
 
-**45 JUnit tests, all passing** as of v0.4.0, across five pure classes:
+**72 JUnit tests, all passing** as of v0.5.0, across ten pure classes:
 
 ### `PomodoroEngineTest.kt` (16) — timer state machine
 
@@ -75,6 +75,67 @@ In CI it's uploaded as the **`unit-test-report`** artifact (even on failure).
 |------|--------------------|
 | catalog | exactly **10 flowers**, **unique ids**; `byId` resolves known + returns null for unknown/null |
 | grid integrity | every grid is **rectangular**, uses only `P/C/S/L/.`, and has **at least one petal** |
+
+### `LabelColorsTest.kt` (6) — per-label color rules (v0.5.0)
+
+| Area | Edge cases checked |
+|------|--------------------|
+| default | **stable** per name, case/whitespace-insensitive, always a real palette swatch |
+| colorFor | prefers the user's chosen color, else a palette default |
+| codec | round-trips; **skips malformed/blank**, null/blank → empty |
+| palette | no duplicate swatches |
+
+### `GardenTest.kt` (8) — garden grid model (v0.5.0)
+
+| Area | Edge cases checked |
+|------|--------------------|
+| init | free **4×4**, 16 tiles, empty |
+| plant/clear | place + remove by index; **bad index / blank id are no-ops** |
+| grow | size+1, **plantings keep their (row,col)** under the new flat index |
+| countPlanted | counts per flower (so we don't over-plant inventory) |
+| codec | round-trips; **drops out-of-range tiles**, **clamps size up to the base 4**, null/blank → default |
+
+### `StatsMonthTest.kt` (5) — month-scoped stats (v0.5.0)
+
+| Area | Edge cases checked |
+|------|--------------------|
+| monthTotal | only that calendar **month+year**; other month/year excluded |
+| byLabelInMonth | sums per label **sorted desc**, **drops empty** |
+| dailySeries | array length = days in month, **bucketed by day-of-month** |
+| negatives | negative minutes clamp to 0 in both views |
+
+### `FlowersLocalizationTest.kt` (3) — localized names (v0.5.0)
+
+| Area | Edge cases checked |
+|------|--------------------|
+| names | every flower has all **six** language names |
+| nameIn | resolves a language; **falls back to English** for an unknown tag |
+| langs | the six tags `en/tr/pl/de/ko/it` are registered |
+
+### `TestDataTest.kt` (5) — seeded fixture (v0.5.0)
+
+| Area | Edge cases checked |
+|------|--------------------|
+| buckets | TODAY **360**, THIS WEEK **700**, THIS MONTH **1000** (for a mid-week "today") |
+| history | the **previous year (2025)** is seeded; fixture labels are all present |
+| coins | grants **1000** coins |
+
+## Notes for v0.5.0 (garden, languages, charts, label colors)
+
+- **All new logic is pure + unit-tested** (`Garden`, `LabelColors`, `TestData`, the new
+  `StatsAggregator` month views, `Flowers` localization). The Android glue is manual per the
+  checklist: the garden overlay (build/plant/clear/upgrade + persistence), the `ChartView`
+  rendering, the language switch (locale wrap + recreate), the color-picker dialog, and the
+  coin-icon sizing.
+- **`ChartView`** is purely presentational (canvas drawing), untested by design — the data that
+  feeds it (`byLabelInMonth` / `dailySeries` / `LabelColors`) is what's covered.
+- **Test fixture seeds once** (guarded by `test_seeded_v5`) and **adds** to any existing data,
+  so the first v0.5.0 launch shows the example history + 1000 coins. The documented week split
+  (700) assumes a mid-week "today"; on a Monday the week equals today (the extras still land in
+  the month and charts).
+- **Locale + font:** `LocaleManager` wraps the context locale in `attachBaseContext`; Korean
+  swaps to the system font (`retypeface`) because Press Start 2P has no Hangul. Some
+  Latin-Extended diacritics may render imperfectly in the pixel font (cosmetic).
 
 ## Notes for v0.4.0 (label UX, coins, shop, theme trim)
 
@@ -158,6 +219,11 @@ Every time the app changes:
    creates a label and stays, **🗑 asks yes/no** before deleting · finishing a WORK block
    bumps the STATS totals and the per-label breakdown · finishing a WORK block also **adds
    coins** (studyMin / 5) to the top-right counter · tapping coins opens the **SHOP**, BUY is
-   dimmed/blocked under 10 coins, buying deducts 10 and raises the OWNED count.
+   dimmed/blocked under 10 coins, buying deducts 10 and raises the OWNED count · the **GARDEN**
+   icon opens the 4×4 map, CUSTOMIZE → tile plants/clears an owned flower, UPGRADE deducts the
+   right coins and grows the grid · the stats **month ◀ ▶** navigates (not past this month) and
+   the **BAR/LINE/PIE** picker redraws the chart · a label's **● swatch** opens the palette and
+   recolors its chart series · the **LANGUAGE** picker re-renders the whole UI (incl. flower
+   names) in the chosen language.
 3. Update `log.md`, and `prompt.md` if behavior changed.
 4. Push — CI runs the tests, and only then builds & publishes the APK.

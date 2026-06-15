@@ -5,6 +5,67 @@ Each entry notes the **prompt** (what you asked for) and the **changes** made.
 
 ---
 
+## v0.5.0 — Garden, 6 languages, stats charts, label colors
+**Date:** 2026-06-15
+
+**Prompt (v4 follow-up, items #9–#10):** v4 missed things — add the **garden** (a 2D square
+map, free 4×4, left-corner upgrade) and a **garden section** at the top; seed **1000 test
+coins** + example study data so the mechanics can be tested; finish **languages** (en/tr/pl/de/
+ko/it) and make **flower names** localized (not one language); after every prompt make a new
+version then an iOS version (iOS = Flutter port, deferred to next turn — see below). Also: move
+the **coin icon to the right corner with the count beside it at the settings-icon height**; in
+**stats**, put **bar / line / pie charts** above the numbers with a **per-option chart-style
+picker** and a **month selector** to trace back through past months/years; seed specific study
+totals (today 360, week 700, month 1000, plus 2025 + earlier 2026 months); and let users
+**choose a color per label** that drives the **graph colors**.
+
+**Changes:**
+- **Garden (#7, #9):** new **GARDEN** overlay (top-left flower icon) showing a square grid —
+  free **4×4** for everyone. **CUSTOMIZE** mode lets you tap a tile to **plant** a flower you
+  own (picker lists remaining count) or **clear** it; planted flowers render as pixel sprites on
+  the map. The **UPGRADE** button (top-left of the garden) grows the grid one ring for the
+  new-tile count in coins (`Economy.upgradeCost`: 5×5 = 9, 6×6 = 11, … capped at 8×8). Pure
+  model in **`Garden.kt`** (immutable `plant`/`clear`/`grow` + `GardenCodec`), persisted.
+- **Languages (#6):** a **LANGUAGE** picker in Settings — **English / Türkçe / Polski / Deutsch /
+  한국어 / Italiano** — applied instantly via **`LocaleManager`** (wraps the context locale in
+  `attachBaseContext`; selecting recreates the Activity). Full translated `values-tr/pl/de/ko/it`
+  string sets. Korean falls back to the system font (the pixel font has no Hangul glyphs).
+- **Localized flowers (#9):** `Flower.names` now carries all six languages; the shop and garden
+  show `flower.nameIn(lang)` (rose/gül/róża/rose/장미/rosa, …).
+- **Stats charts + month nav (#10):** above the totals, a **month navigator** (◀ ▶, won't browse
+  the future) and a **BAR / LINE / PIE** style picker drive a custom **`ChartView`** — BAR/PIE
+  plot per-label minutes (in each label's color), LINE plots the month's per-day minutes. The
+  **by-label** breakdown is now **per selected month**, each row with a color swatch. New
+  month-scoped helpers in `Stats.kt` (`monthTotal`, `byLabelInMonth`, `dailySeries`).
+- **Label colors (#10):** each label row gains a **● color swatch** opening a palette dialog;
+  the choice (**`LabelColors`** + codec, persisted) recolors the chip list, the per-label rows,
+  and every chart series.
+- **Coin counter (#10):** icon bumped to the **settings-icon height (32dp)** with the count right
+  beside it, still in the far-right corner.
+- **Test fixture (#9, #10):** first v0.5.0 launch seeds **+1000 coins** and example history via
+  pure **`TestData`** — TODAY 360 (math 60 / history 100 / english 40 / coding 160), THIS WEEK
+  700 (+ science 100 / english 40 / math 200), THIS MONTH 1000 (+ turkish 300), plus earlier
+  2026 months and 2025, and unions those subjects into the label list. (Note: the week split
+  reads 700 only when "today" is at least mid-week; on a Monday the week equals today — the data
+  still exists for the month/graphs.)
+- **iOS (#9, #3):** confirmed plan — **Flutter** single-codebase port (Android APK + iOS `.ipa`
+  via a GitHub macOS runner) executed as **one clean pass next turn**, now that the feature set
+  has stabilized; logic is already pure to make that port mechanical.
+- **Style:** new code keeps the **ponytail** data-driven style (one `ChartView` + data rows,
+  shared `swatchView`/`listButton` builders, pure models with codecs).
+- **Tests:** added **`LabelColorsTest` (6)**, **`GardenTest` (8)**, **`StatsMonthTest` (5)**,
+  **`FlowersLocalizationTest` (3)**, **`TestDataTest` (5)** → **72 JUnit tests**, all passing and
+  still gating CI. versionCode 6 / versionName **0.5.0** → APK **`0v05_pixelpomo`**.
+
+**APK:** Releases → "Latest debug build (v0.5.0)" → **`0v05_pixelpomo.apk`** (after tests pass).
+
+**Notes / known gaps:** Korean uses the system font for glyph coverage (pixel font is Latin-only);
+some Latin-Extended diacritics (e.g. Polish ł/ż) may render imperfectly in the pixel font. Same
+prior gaps stand (Activity-recreation timer restore beyond locale change, background-service
+timing, instrumented UI tests, unbounded stats growth).
+
+---
+
 ## v0.4.0 — Label bin + confirm, coins & shop, theme trim
 **Date:** 2026-06-15
 
