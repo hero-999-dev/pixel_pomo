@@ -5,6 +5,54 @@ Each entry notes the **prompt** (what you asked for) and the **changes** made.
 
 ---
 
+## v0.3.0 — Higher limits, distinct themes, labels, and stats
+**Date:** 2026-06-15
+
+**Prompt (v3 notes):** Raise the ceilings (study → 300, break → 120, sessions → 24).
+The themes look too alike — DARK blends into Mocha/Macchiato/Frappe and LIGHT into
+Latte; change the red used in DARK (style cues from catppuccin.com / the ClaWus widget).
+Add a **label** next to WORK (custom labels like MATH, CODING; "STUDY" as the template;
+tap to switch). **Record sessions** — daily, weekly, monthly, yearly, all-time. Keep the
+logic portable for a future iOS/cross-platform build, and keep the docs + edge tests current.
+
+**Changes:**
+- **Raised limits** (`MainActivity` steppers): **STUDY 5–300** (×5), **BREAK 1–120** (×1),
+  **SESSIONS 1–24** (×1). Engine/persistence already handled arbitrary values.
+- **Theme redesign** (`PixelTheme.kt`): **DARK** and **LIGHT** are now **neutral grayscale**
+  so they no longer blend into the four blue/purple Catppuccin flavors (the core of the
+  "not much difference" complaint). DARK's crimson accent **`#E43B44` → coral `#FF5A5F`**
+  (a clearly different hue from Catppuccin pink `#F38BA8`); LIGHT's accent → `#E5484D` with
+  near-black neutral text vs Latte's lavender text. Mocha/Macchiato/Frappe/Latte stay
+  canonical Catppuccin (intentionally a close family; the fix was getting DARK/LIGHT out of
+  their lane).
+- **Focus labels** (`Labels.kt` + label overlay): a **tappable chip** under the mode label
+  shows the current label and opens a picker. Seeded with **STUDY / MATH / CODING / READING**;
+  **add** your own (normalized: upper-cased, A–Z/0–9/space, ≤12 chars, deduped) and
+  **long-press to delete** (never empties the list). Selection + list persist in
+  `SharedPreferences`.
+- **Session recording & stats** (`Stats.kt` + stats overlay, new bar-chart icon): each
+  **completed WORK block** is recorded (today's date + study minutes + current label).
+  A **STATS** screen shows **TODAY / THIS WEEK (Mon-start) / THIS MONTH / THIS YEAR /
+  ALL TIME** totals plus an **all-time per-label** breakdown, formatted as `Xh Ym`.
+  Records persist as compact `epochDay,minutes,label` lines (defensive decode skips
+  malformed lines).
+- **Logic kept portable:** all new logic lives in pure, Android-free classes
+  (`Labels`, `StatsAggregator`, `StatsCodec`) alongside `PomodoroEngine`, so the same core
+  can back a future iOS/cross-platform UI. See the roadmap note in `README.md`.
+- **Tests:** added **`LabelsTest`** (10) and **`StatsTest`** (9) — normalization/add/remove
+  edge cases and window/per-label/format/codec edge cases — bringing the suite to
+  **35 JUnit tests**, all passing and still gating CI. Bumped to versionCode 4 /
+  versionName **0.3.0** → APK **`0v03_pixelpomo`**.
+
+**APK:** Releases → "Latest debug build (v0.3.0)" → **`0v03_pixelpomo.apk`** (built only
+after tests pass).
+
+**Notes:** Stats grow unbounded over time (one line per completed WORK block) — fine for
+now, prune/rollup later. Known gaps from v0.2.0 (Activity-recreation state restore,
+background-service timing, instrumented UI tests) still stand.
+
+---
+
 ## v0.2.0 — Settings, configurable sessions, and themes
 **Date:** 2026-06-14
 

@@ -36,6 +36,17 @@
                 android:layout_weight="1" />
 
             <ImageView
+                android:id="@+id/statsBtn"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_marginEnd="20dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:clickable="true"
+                android:focusable="true"
+                android:contentDescription="@string/cd_stats"
+                android:src="@drawable/ic_stats" />
+
+            <ImageView
                 android:id="@+id/settingsBtn"
                 android:layout_width="32dp"
                 android:layout_height="32dp"
@@ -59,11 +70,25 @@
                 android:id="@+id/modeLabel"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="32dp"
+                android:layout_marginBottom="16dp"
                 android:fontFamily="@font/press_start_2p"
                 android:letterSpacing="0.1"
                 android:text="@string/work"
                 android:textSize="22sp" />
+
+            <!-- Tappable focus-label chip: shows the current label, opens the label picker. -->
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/labelBtn"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="28dp"
+                android:fontFamily="@font/press_start_2p"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:padding="10dp"
+                android:stateListAnimator="@null"
+                android:text="@string/label_title"
+                android:textSize="11sp" />
 
             <TextView
                 android:id="@+id/timer"
@@ -235,6 +260,189 @@
 
             <androidx.appcompat.widget.AppCompatButton
                 android:id="@+id/themeCloseBtn"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="28dp"
+                android:fontFamily="@font/press_start_2p"
+                android:padding="16dp"
+                android:stateListAnimator="@null"
+                android:text="@string/close"
+                android:textSize="14sp" />
+        </LinearLayout>
+    </ScrollView>
+
+    <!-- ===== Label overlay ===== -->
+    <ScrollView
+        android:id="@+id/labelPanel"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="28dp">
+
+            <TextView
+                android:id="@+id/labelTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="12dp"
+                android:layout_marginBottom="20dp"
+                android:fontFamily="@font/press_start_2p"
+                android:letterSpacing="0.1"
+                android:text="@string/label_title"
+                android:textSize="20sp" />
+
+            <TextView
+                android:id="@+id/labelHelp"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="20dp"
+                android:fontFamily="@font/press_start_2p"
+                android:lineSpacingExtra="4dp"
+                android:text="@string/label_delete_hint"
+                android:textSize="9sp" />
+
+            <!-- Existing labels are listed here in code (tap = select, long-press = delete). -->
+            <LinearLayout
+                android:id="@+id/labelList"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+
+            <!-- New-label input row -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <EditText
+                    android:id="@+id/labelInput"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="10dp"
+                    android:fontFamily="@font/press_start_2p"
+                    android:hint="@string/label_hint"
+                    android:imeOptions="actionDone"
+                    android:inputType="textCapCharacters"
+                    android:maxLength="12"
+                    android:padding="12dp"
+                    android:textSize="11sp"
+                    android:importantForAutofill="no"
+                    tools:ignore="LabelFor" />
+
+                <androidx.appcompat.widget.AppCompatButton
+                    android:id="@+id/addLabelBtn"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/press_start_2p"
+                    android:padding="14dp"
+                    android:stateListAnimator="@null"
+                    android:text="@string/add"
+                    android:textSize="12sp" />
+            </LinearLayout>
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/labelCloseBtn"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="28dp"
+                android:fontFamily="@font/press_start_2p"
+                android:padding="16dp"
+                android:stateListAnimator="@null"
+                android:text="@string/close"
+                android:textSize="14sp" />
+        </LinearLayout>
+    </ScrollView>
+
+    <!-- ===== Stats overlay ===== -->
+    <ScrollView
+        android:id="@+id/statsPanel"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="28dp">
+
+            <TextView
+                android:id="@+id/statsTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="12dp"
+                android:layout_marginBottom="28dp"
+                android:fontFamily="@font/press_start_2p"
+                android:letterSpacing="0.1"
+                android:text="@string/stats_title"
+                android:textSize="20sp" />
+
+            <!-- TODAY / WEEK / MONTH / YEAR / ALL rows. Captions = child 0, values = last child. -->
+            <LinearLayout
+                android:id="@+id/statsBody"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <LinearLayout style="@style/StatRow">
+                    <TextView style="@style/StatCaption" android:text="@string/stat_today" />
+                    <View android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" />
+                    <TextView android:id="@+id/statToday" style="@style/StatValue" />
+                </LinearLayout>
+
+                <LinearLayout style="@style/StatRow">
+                    <TextView style="@style/StatCaption" android:text="@string/stat_week" />
+                    <View android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" />
+                    <TextView android:id="@+id/statWeek" style="@style/StatValue" />
+                </LinearLayout>
+
+                <LinearLayout style="@style/StatRow">
+                    <TextView style="@style/StatCaption" android:text="@string/stat_month" />
+                    <View android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" />
+                    <TextView android:id="@+id/statMonth" style="@style/StatValue" />
+                </LinearLayout>
+
+                <LinearLayout style="@style/StatRow">
+                    <TextView style="@style/StatCaption" android:text="@string/stat_year" />
+                    <View android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" />
+                    <TextView android:id="@+id/statYear" style="@style/StatValue" />
+                </LinearLayout>
+
+                <LinearLayout style="@style/StatRow">
+                    <TextView style="@style/StatCaption" android:text="@string/stat_all" />
+                    <View android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" />
+                    <TextView android:id="@+id/statAll" style="@style/StatValue" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/statsByLabelTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="28dp"
+                android:layout_marginBottom="14dp"
+                android:fontFamily="@font/press_start_2p"
+                android:text="@string/by_label"
+                android:textSize="11sp" />
+
+            <!-- Per-label rows are added here in code. -->
+            <LinearLayout
+                android:id="@+id/statsLabelList"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/statsCloseBtn"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="28dp"
