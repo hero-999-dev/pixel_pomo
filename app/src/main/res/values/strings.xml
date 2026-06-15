@@ -29,9 +29,14 @@
     <string name="label_title">LABEL</string>
     <string name="label_hint">NEW LABEL</string>
     <string name="add">ADD</string>
-    <string name="label_delete_hint">Long-press a label to delete it</string>
+    <string name="label_delete_hint">Tap a label to use it · 🗑 to remove it</string>
     <string name="label_invalid">ENTER A VALID LABEL</string>
     <string name="label_deleted">LABEL DELETED</string>
+    <string name="bin_emoji">🗑</string>
+    <string name="label_remove_title">Remove label?</string>
+    <string name="label_remove_msg">Remove the label \"%1$s\"?</string>
+    <string name="yes">YES</string>
+    <string name="no">NO</string>
 
     <!-- Stats -->
     <string name="stats_title">STATS</string>
@@ -43,8 +48,18 @@
     <string name="by_label">BY LABEL (ALL TIME)</string>
     <string name="no_stats">No focus sessions yet — finish a WORK block to start tracking.</string>
 
+    <!-- Coins + shop -->
+    <string name="shop_title">SHOP</string>
+    <string name="buy">BUY</string>
+    <string name="cost_coins">%1$d</string>
+    <string name="owned_count">OWNED %1$d</string>
+    <string name="not_enough_coins">NOT ENOUGH COINS</string>
+    <string name="purchased">PURCHASED</string>
+    <string name="shop_help">1 coin per 5 focus minutes · flowers cost 10</string>
+
     <!-- Content descriptions -->
     <string name="cd_settings">Settings</string>
     <string name="cd_theme">Theme</string>
     <string name="cd_stats">Stats</string>
+    <string name="cd_coins">Coins and shop</string>
 </resources>
