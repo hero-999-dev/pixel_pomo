@@ -43,8 +43,10 @@ void main() {
       e.setTimeLeft(999999);
       expect(e.timeLeftMillis, 60000);
       e.setTimeLeft(1);
-      expect(e.formattedTime(), '00:01');
-      expect(e.progressPercent(), 1);
+      expect(e.formattedTime(), '00:01'); // rounds up
+      expect(e.progressPercent(), 0); // 1ms of 60000ms floors to 0%
+      e.setTimeLeft(30000);
+      expect(e.progressPercent(), 50);
     });
   });
 
