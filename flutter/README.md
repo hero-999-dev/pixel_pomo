@@ -34,15 +34,23 @@ It publishes to the **`latest-flutter`** prerelease:
 
 ## Building locally (optional)
 
-Needs the Flutter SDK. From this folder:
+Needs the Flutter SDK (this repo is validated against **Flutter 3.44.2 / Dart 3.12.2**) plus,
+for Android, **Android SDK 36 + build-tools 36** (`sdkmanager "platforms;android-36"
+"build-tools;36.0.0"`). From this folder:
 
 ```bash
 flutter create --org com.pixelpomo --project-name pixel_pomo --platforms=ios,android .
-git checkout -- pubspec.yaml lib && rm -f test/widget_test.dart
+git checkout -- pubspec.yaml lib && rm -f test/widget_test.dart analysis_options.yaml
 flutter pub get
-flutter test
+flutter analyze
+flutter test       # logic_test.dart + widget_smoke_test.dart
 flutter run        # or: flutter build apk / flutter build ios --no-codesign
 ```
+
+> **Low-RAM note:** the generated `android/gradle.properties` requests `-Xmx8G`, which can crash
+> the Gradle daemon on memory-constrained machines. Cap it in `~/.gradle/gradle.properties`
+> (`GRADLE_USER_HOME`), e.g. `org.gradle.jvmargs=-Xmx2560m -XX:MaxMetaspaceSize=768m` and
+> `org.gradle.daemon=false` — this overrides the template and survives `flutter create`.
 
 ## Status / parity
 
