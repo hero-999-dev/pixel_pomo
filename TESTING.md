@@ -20,7 +20,7 @@ In CI it's uploaded as the **`unit-test-report`** artifact (even on failure).
 
 ## What's covered
 
-**35 JUnit tests, all passing** as of v0.3.0, across three pure classes:
+**45 JUnit tests, all passing** as of v0.4.0, across five pure classes:
 
 ### `PomodoroEngineTest.kt` (16) — timer state machine
 
@@ -60,6 +60,35 @@ In CI it's uploaded as the **`unit-test-report`** artifact (even on failure).
 | by-label | sums per label, **sorted descending** |
 | format | `0m` / `5m` / `1h` / `1h 30m` / `2h 5m`; negative → `0m` |
 | codec | **round-trips** (labels with spaces survive); decode **skips blank/malformed lines**; null/blank → empty |
+
+### `EconomyTest.kt` (6) — coins & inventory
+
+| Area | Edge cases checked |
+|------|--------------------|
+| coinsFor | 1 coin / 5 min, **rounds down** (4→0, 5→1, 25→5, 50→10, 30→6); negative → 0 |
+| upgradeCost | new-tile count `2n+1` (4→9, 5→11, 6→13) |
+| inventory codec | round-trips; **drops zero/negative** counts; **skips malformed/blank** lines; null/blank → empty |
+
+### `FlowersTest.kt` (4) — flower catalog
+
+| Area | Edge cases checked |
+|------|--------------------|
+| catalog | exactly **10 flowers**, **unique ids**; `byId` resolves known + returns null for unknown/null |
+| grid integrity | every grid is **rectangular**, uses only `P/C/S/L/.`, and has **at least one petal** |
+
+## Notes for v0.4.0 (label UX, coins, shop, theme trim)
+
+- **Label deletion is now guarded.** Tap a label = select (and stay on the page); the **🗑**
+  per row triggers a yes/no `AlertDialog` before `Labels.remove` (which still keeps ≥1). The
+  pure rules were unchanged, so `LabelsTest` still covers them; the dialog/stay-on-page glue
+  is checked manually.
+- **Coins/shop logic is pure + tested** (`Economy`, `Inventory`, `Flowers`). The Android glue
+  (coin counter, shop overlay, `PixelArt` rendering, buy flow) is manual per the checklist. A
+  WORK completion awards `coinsFor(studyMinutes)`; BUY is blocked + dimmed below 10 coins.
+- **`PixelArt`** renders flowers to non-antialiased bitmaps from the `Flowers` grids — purely
+  presentational, untested by design (the grid *data* is validated by `FlowersTest`).
+- **Theme change is data-only** (Macchiato removed; Latte → cream). A stale saved id falls
+  back to Dark via `Themes.byId`.
 
 ## Notes for v0.3.0 (limits, themes, labels, stats)
 
@@ -124,9 +153,11 @@ Every time the app changes:
    MODE flips WORK/BREAK · timer hits 00:00 → toast + auto-switch · SESSION increments
    after a break · run ends at ALL DONE! after the last session · Settings steppers
    change study/break/sessions (up to 300/120/24) and persist · each theme re-tints the
-   whole screen live and DARK/LIGHT look distinct from the Catppuccin flavors · the label
-   chip opens the picker, selecting changes the chip, ADD creates a label, long-press
-   deletes · finishing a WORK block bumps the STATS totals (today/week/month/year/all) and
-   the per-label breakdown.
+   whole screen live and DARK/LIGHT/LATTE look distinct (Latte is cream; Macchiato is gone) ·
+   the label chip opens the picker, tapping a label selects it **and stays on the page**, ADD
+   creates a label and stays, **🗑 asks yes/no** before deleting · finishing a WORK block
+   bumps the STATS totals and the per-label breakdown · finishing a WORK block also **adds
+   coins** (studyMin / 5) to the top-right counter · tapping coins opens the **SHOP**, BUY is
+   dimmed/blocked under 10 coins, buying deducts 10 and raises the OWNED count.
 3. Update `log.md`, and `prompt.md` if behavior changed.
 4. Push — CI runs the tests, and only then builds & publishes the APK.

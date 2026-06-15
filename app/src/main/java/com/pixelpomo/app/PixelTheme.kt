@@ -61,13 +61,7 @@ object Themes {
         shadow = c("#11111B")
     )
 
-    val MACCHIATO = PixelTheme(
-        id = "macchiato", displayName = "MACCHIATO",
-        bg = c("#24273A"), panel = c("#363A4F"),
-        accent = c("#ED8796"), work = c("#A6DA95"), breakColor = c("#8AADF4"),
-        onSurface = c("#CAD3F5"), onSurfaceDim = c("#A5ADCB"), onAccent = c("#24273A"),
-        shadow = c("#181926")
-    )
+    // MACCHIATO removed in v0.4.0 — too close to Frappe/Mocha to justify a slot.
 
     val FRAPPE = PixelTheme(
         id = "frappe", displayName = "FRAPPE",
@@ -77,15 +71,17 @@ object Themes {
         shadow = c("#232634")
     )
 
+    // LATTE now uses a warm **cream** background so it reads clearly apart from the cool
+    // neutral LIGHT theme (the two were near-identical before).
     val LATTE = PixelTheme(
         id = "latte", displayName = "LATTE",
-        bg = c("#EFF1F5"), panel = c("#FFFFFF"),
+        bg = c("#F7EFDD"), panel = c("#FFFBF0"),
         accent = c("#D20F39"), work = c("#40A02B"), breakColor = c("#1E66F5"),
-        onSurface = c("#4C4F69"), onSurfaceDim = c("#6C6F85"), onAccent = c("#FFFFFF"),
-        shadow = c("#BCC0CC")
+        onSurface = c("#4C4F69"), onSurfaceDim = c("#8A7F6A"), onAccent = c("#FFFFFF"),
+        shadow = c("#D9CBB0")
     )
 
-    val ALL = listOf(DARK, LIGHT, MOCHA, MACCHIATO, FRAPPE, LATTE)
+    val ALL = listOf(DARK, LIGHT, MOCHA, FRAPPE, LATTE)
 
     val DEFAULT = DARK
 
