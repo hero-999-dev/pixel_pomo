@@ -5,6 +5,36 @@ Each entry notes the **prompt** (what you asked for) and the **changes** made.
 
 ---
 
+## iOS step — Flutter cross-platform port (v0.5.0 parity)
+**Date:** 2026-06-15
+
+**Prompt:** "do the next step for ios."
+
+**What landed:** a new **`flutter/`** project — a single **Dart codebase** that builds **both** an
+Android APK and an **unsigned iOS `.ipa`**, finally covering iPhone. Faithful port of v0.5.0:
+- `lib/logic.dart` — pure port of `PomodoroEngine`, `Themes` (5), `Flowers` (10, 6-lang names),
+  `Economy`, `Garden`, `Labels`, `LabelColors`, `Stats*`, `TestData` (shares the Kotlin edge cases).
+- `lib/strings.dart` — the six UI languages (en/tr/pl/de/ko/it) + localized month names.
+- `lib/store.dart` — `AppStore` (`ChangeNotifier`): all state, `shared_preferences` persistence,
+  and a wall-clock countdown; first-launch test fixture (+1000 coins + sample history).
+- `lib/pixel.dart` — pixel button / progress / swatch widgets, flower-sprite + **bar/line/pie**
+  chart painters. `lib/main.dart` — timer screen + theme/garden/stats/settings/shop/label overlays.
+- `test/logic_test.dart` — Dart edge tests that gate the Flutter CI.
+
+**CI:** new **`.github/workflows/build-flutter.yml`** runs on a **macOS runner**: it `flutter
+create`s the `ios/`+`android/` scaffolding (those aren't committed — only the portable
+`lib/`/`pubspec`/`assets`/`test` are), restores our files, runs tests, builds the APK and an
+**`flutter build ios --no-codesign`**, zips an unsigned **`.ipa`**, and publishes both to a
+**`latest-flutter`** prerelease. The iOS `.ipa` is **sideloaded via SideStore/AltStore** (signs
+on-device — no Mac needed by the user). The Flutter Android app uses app id
+`com.pixelpomo.pixel_pomo`, so it coexists with the native `com.pixelpomo.app` build for A/B
+testing on the phone. The native Android pipeline (`0v0X_pixelpomo` on `latest`) is unchanged.
+
+**Note:** Flutter isn't installed locally, so the macOS CI run is the first real compile/build —
+expect to iterate on any build errors via the workflow logs.
+
+---
+
 ## v0.5.0 — Garden, 6 languages, stats charts, label colors
 **Date:** 2026-06-15
 
