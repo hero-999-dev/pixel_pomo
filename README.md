@@ -172,12 +172,13 @@ SDK locally, just rely on the GitHub Actions build above.
 colors**, **stats charts + month navigation** (#10), and a seeded **test fixture** (1000 coins
 + example study history) so the new screens have data to explore.
 
-**Next up — iOS / cross-platform (decided):** the target is **Flutter (Dart)** — one codebase
-building both Android and iOS, with the best support for the hard part (background timers +
-local notifications) and a game-friendly canvas for the garden. **No Mac is needed:** a GitHub
-Actions **macOS runner** can build the iOS `.ipa` in CI, the same way `ubuntu` builds the
-Android APK today (SideStore signing is a later, separate step we're not doing yet). The Flutter
-port is a single clean pass done now that the feature set has settled.
+**iOS / cross-platform — started:** the **Flutter (Dart)** port now lives in **[`flutter/`](flutter/)**
+— one codebase building **both** an Android APK and an **unsigned iOS `.ipa`** on a GitHub Actions
+**macOS runner** (no Mac needed). Grab them from the **`latest-flutter`** prerelease:
+`pixel_pomo_flutter.apk` (app id `com.pixelpomo.pixel_pomo`, coexists with the native build) and
+`pixel_pomo_ios.ipa` (sideload via **SideStore/AltStore**, which signs on-device). See
+[`flutter/README.md`](flutter/README.md). The native Android app (`0v0X_pixelpomo` on `latest`)
+continues in parallel until the Flutter port is verified at parity on-device.
 
 To make that port a single clean pass rather than a moving target, **all app logic is kept
 in pure, framework-free classes** (`PomodoroEngine`, `Labels`, `Stats*`, `Economy`,
