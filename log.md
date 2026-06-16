@@ -5,6 +5,35 @@ Each entry notes the **prompt** (what you asked for) and the **changes** made.
 
 ---
 
+## Flutter port verified green — smoke test + CI hardening
+**Date:** 2026-06-16
+
+**Prompt:** "check again where we left off and continue" (the Flutter iOS step was
+left mid-validation when the connection dropped).
+
+**Where we picked up:** the Flutter port code was already committed; what remained was
+the final validation pass. Flutter is now installed locally (3.44.2 / Dart 3.12.2), so
+this was validated on-machine, not just in CI.
+
+**What landed:**
+- `flutter/test/widget_smoke_test.dart` — boots the **real** app and opens every overlay
+  (settings, garden, stats, shop, theme, labels), asserting no exceptions or layout
+  overflow. This is the runtime check the pure-logic tests can't give. It's part of the
+  CI gate (`flutter test`), so a broken screen now blocks the build.
+- `flutter/README.md` — pinned the validated toolchain (Flutter 3.44.2 / Dart 3.12.2,
+  Android SDK 36 + build-tools 36) and documented the Gradle `-Xmx8G` low-RAM crash
+  workaround for local builds.
+- **CI hardening:** bumped `actions/checkout` and `actions/upload-artifact` to **v5** in
+  both pipelines (GitHub forced Node 20 actions onto Node 24 starting 2026-06-16).
+
+**Verified:** locally `flutter analyze` clean + **16/16 tests pass** (15 logic + smoke).
+In CI both pipelines are **green on v5** — Build Flutter (iOS+Android) 7.6 min, Build APK
+88 s. The unsigned **`pixel_pomo_ios.ipa`** (~6.4 MB) + **`pixel_pomo_flutter.apk`**
+(~46 MB) are published to the **`latest-flutter`** prerelease. **The iOS build is real and
+working** — sideload the `.ipa` via SideStore/AltStore (on-device signing, no Mac).
+
+---
+
 ## iOS step — Flutter cross-platform port (v0.5.0 parity)
 **Date:** 2026-06-15
 

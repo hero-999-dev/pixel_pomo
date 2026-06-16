@@ -120,6 +120,32 @@ In CI it's uploaded as the **`unit-test-report`** artifact (even on failure).
 | history | the **previous year (2025)** is seeded; fixture labels are all present |
 | coins | grants **1000** coins |
 
+## Flutter port (`flutter/`) — iOS + Android cross-platform build
+
+The Dart port carries its own tests, gating the **`build-flutter.yml`** macOS pipeline
+(`flutter test` blocks the APK/IPA build on failure). Validated locally on Flutter
+**3.44.2 / Dart 3.12.2** and green in CI.
+
+```bash
+cd flutter && flutter analyze && flutter test   # 16 tests
+```
+
+- **`test/logic_test.dart` (15)** — pure-logic parity with the Kotlin edge suite:
+  `PomodoroEngine` state machine + progress clamp + `1ms→00:01` round-up; `Economy`
+  `coinsFor`/`upgradeCost`; `Garden` plant/grow keeps row,col + codec round-trip + decode
+  drops oversized tiles & clamps size up; `Labels` normalize (strip + cap 12), dedup, keep
+  ≥1; `LabelColors` default + codec; `Stats` monthTotal / byLabelInMonth / dailySeries +
+  minute formatting; `TestData` fixture buckets to **360 / 700 / 1000** + 2025 + 1000 coins.
+- **`test/widget_smoke_test.dart` (1, added 2026-06-16)** — boots the **real** app via
+  `PixelPomoApp(store)` and opens **every** overlay (settings, garden, stats, shop, theme,
+  labels), asserting `START` renders, each panel shows, closes cleanly, and there are **no
+  exceptions or layout overflow**. This is the runtime smoke check the pure-logic tests
+  can't provide — it catches broken screens before they ship in the `.ipa`/APK.
+
+**Known gap:** no on-device iOS UI automation (the runner builds an *unsigned* `.ipa`; it
+isn't booted in a simulator). The widget test exercises the same screens on the Flutter
+engine, so logic/layout regressions are caught; platform-channel/iOS-chrome issues aren't.
+
 ## Notes for v0.5.0 (garden, languages, charts, label colors)
 
 - **All new logic is pure + unit-tested** (`Garden`, `LabelColors`, `TestData`, the new
