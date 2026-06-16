@@ -136,25 +136,25 @@ cd flutter && flutter analyze && flutter test   # 20 tests
   drops oversized tiles & clamps size up; `Labels` normalize (strip + cap 12), dedup, keep
   ≥1; `LabelColors` default + codec; `Stats` monthTotal / byLabelInMonth / dailySeries +
   minute formatting; `TestData` fixture buckets to **360 / 700 / 1000** + 2025 + 1000 coins.
-  **New (2026-06-16, garden engine):** garden **grows with no cap** (10 EXPANDs past the old
-  8 limit) and (0,0) stays at index 0; `Economy.costOf` = **5** for road/fence, **10** for
-  flowers + `Placeables.isObject`; road/fence **round-trip through the codec**; and
-  `Garden.connectionMask` — a plus of roads connects on all 4 sides (N|E|S|W), arms connect
-  only toward the centre, an **empty tile yields 0**, and a left-edge tile **does not wrap
-  west** into the previous row.
+  **Garden/decor:** garden **grows with no cap** (10 EXPANDs past the old 8 limit) and (0,0)
+  stays at index 0; `Placeables` catalogue is **5 roads + 4 fences (9 objects)** classified
+  by `isRoad`/`isFence`; `Economy.costOf` = **5** for every object, **10** for flowers; and
+  road/fence ids **round-trip through the codec**. *(v6 rewrote these: the old
+  `connectionMask` auto-tiling was removed — adjacent same-kind tiles just abut — so its
+  tests went with it.)*
 - **`test/widget_smoke_test.dart` (1)** — boots the **real** app via `PixelPomoApp(store)`
   and opens **every** overlay (settings, garden, stats, shop, theme, labels), asserting
   `START` renders, each panel shows, closes cleanly, and there are **no exceptions or layout
-  overflow**. The **garden runs a live animation ticker** (the bugs), so this screen is
+  overflow**. The **garden runs a live animation ticker** (the critters), so this screen is
   driven with fixed `pump(Duration)` steps (it never `pumpAndSettle`s) — it loads the sprite
   bank, shows `GARDEN`, and disposes the ticker cleanly on CLOSE. This is the runtime smoke
   check the pure-logic tests can't provide — it catches broken screens before they ship.
 
-**Garden engine note:** the 2.5D renderer math (`GardenCamera` projection/inverse, `Bug`
-steering, `BugSystem` flock sizing) lives in `lib/engine/garden_engine.dart`. The
-tap-routing inverse (`tileAt`) is exercised indirectly by the smoke test; the camera/bug
-math is visual and time-based, so it's verified by eye in a local `flutter run` rather than
-asserted in unit tests.
+**Garden engine note:** the fixed-2.5D renderer math (`Projector` fit + tile↔screen inverse,
+`GardenCamera.clamp` pan bounding, `CritterSystem` spawn/visit/leave) lives in
+`lib/engine/garden_engine.dart`. The tap-routing inverse (`tileAt`) is exercised indirectly by
+the smoke test; the camera/critter motion is visual and time-based, so it's verified by eye in
+a local `flutter run` / on-device rather than asserted in unit tests.
 
 **Known gap:** no on-device iOS UI automation (the runner builds an *unsigned* `.ipa`; it
 isn't booted in a simulator). The widget test exercises the same screens on the Flutter
