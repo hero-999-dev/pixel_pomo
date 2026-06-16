@@ -24,8 +24,6 @@ class AppStore extends ChangeNotifier {
   static const _kGarden = 'garden';
   static const _kSeeded = 'test_seeded_v5';
 
-  static const gardenMaxSize = 8;
-
   late SharedPreferences _prefs;
 
   int workMin = 25;
@@ -272,18 +270,22 @@ class AppStore extends ChangeNotifier {
 
   // ---- shop -----------------------------------------------------------------
 
-  bool buyFlower(Flower flower) {
-    if (coins < Economy.flowerCost) {
+  /// Buy any catalogue id (flower or object). Adds one to inventory.
+  bool buyItem(String id) {
+    final cost = Economy.costOf(id);
+    if (coins < cost) {
       messenger?.call('notEnough');
       return false;
     }
-    coins -= Economy.flowerCost;
-    owned[flower.id] = (owned[flower.id] ?? 0) + 1;
+    coins -= cost;
+    owned[id] = (owned[id] ?? 0) + 1;
     _saveWallet();
     messenger?.call('purchased');
     notifyListeners();
     return true;
   }
+
+  bool buyFlower(Flower flower) => buyItem(flower.id);
 
   // ---- garden ---------------------------------------------------------------
 
@@ -307,7 +309,7 @@ class AppStore extends ChangeNotifier {
   }
 
   void upgradeGarden() {
-    if (garden.size >= gardenMaxSize) return;
+    // No size cap — the rising upgradeCost is the only limit.
     final cost = Economy.upgradeCost(garden.size);
     if (coins < cost) {
       messenger?.call('notEnough');

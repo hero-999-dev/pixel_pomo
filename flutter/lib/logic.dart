@@ -199,13 +199,34 @@ class Flowers {
   }
 }
 
+// ---- placeable objects (non-flower) -----------------------------------------
+
+/// Garden objects that aren't flowers. They live in the same tile map (value =
+/// the id) but connect to their own kind like roads/fences in a sim game.
+class Placeables {
+  static const road = 'road';
+  static const fence = 'fence';
+
+  /// Ids that auto-connect to adjacent tiles of the same kind.
+  static const connecting = {road, fence};
+
+  static const objectIds = [road, fence];
+
+  static bool isObject(String id) => objectIds.contains(id);
+  static bool connects(String id) => connecting.contains(id);
+}
+
 // ---- economy ----------------------------------------------------------------
 
 class Economy {
   static const flowerCost = 10;
+  static const objectCost = 5; // roads + fences
   static const baseGardenSize = 4;
   static int coinsFor(int minutes) => minutes <= 0 ? 0 : minutes ~/ 5;
   static int upgradeCost(int currentSize) => 2 * currentSize + 1;
+
+  /// Buy price for any catalogue id (flower or object).
+  static int costOf(String id) => Placeables.isObject(id) ? objectCost : flowerCost;
 }
 
 // ---- garden -----------------------------------------------------------------
@@ -243,6 +264,22 @@ class Garden {
 
   int countPlanted(String flowerId) =>
       tiles.values.where((v) => v == flowerId).length;
+
+  /// Bitmask of same-id neighbours for auto-tiling connectors (roads/fences):
+  /// bit 1 = north, 2 = east, 4 = south, 8 = west. Never wraps across edges.
+  int connectionMask(int index) {
+    final id = tiles[index];
+    if (id == null) return 0;
+    final r = index ~/ size, c = index % size;
+    bool same(int rr, int cc) =>
+        rr >= 0 && cc >= 0 && rr < size && cc < size && tiles[rr * size + cc] == id;
+    var m = 0;
+    if (same(r - 1, c)) m |= 1;
+    if (same(r, c + 1)) m |= 2;
+    if (same(r + 1, c)) m |= 4;
+    if (same(r, c - 1)) m |= 8;
+    return m;
+  }
 
   String encode() {
     final b = StringBuffer('size:$size');
