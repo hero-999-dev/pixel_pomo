@@ -1,7 +1,7 @@
 name: pixel_pomo
 description: "Pixel-art Pomodoro timer — Flutter port (one codebase → Android APK + iOS IPA)."
 publish_to: 'none'
-version: 0.5.0+6
+version: 0.6.0+7
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -35,3 +35,7 @@ flutter:
     - family: PressStart2P
       fonts:
         - asset: assets/fonts/PressStart2P-Regular.ttf
+    # Galmuri11 (OFL, © Lee Minseo) — pixel font with full Hangul, used for Korean.
+    - family: Galmuri11
+      fonts:
+        - asset: assets/fonts/Galmuri11.ttf

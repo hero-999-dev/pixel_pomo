@@ -202,18 +202,17 @@ class Flowers {
 // ---- placeable objects (non-flower) -----------------------------------------
 
 /// Garden objects that aren't flowers. They live in the same tile map (value =
-/// the id) but connect to their own kind like roads/fences in a sim game.
+/// the id). Roads lie flat on the ground; fences stand up. Adjacent same-kind
+/// tiles abut, so they read as continuous paths/fences with no extra logic.
 class Placeables {
-  static const road = 'road';
-  static const fence = 'fence';
-
-  /// Ids that auto-connect to adjacent tiles of the same kind.
-  static const connecting = {road, fence};
-
-  static const objectIds = [road, fence];
+  // 5 road surfaces + 4 fence materials.
+  static const roadIds = ['road_asphalt', 'road_wood', 'road_dirt', 'road_brick', 'road_stone'];
+  static const fenceIds = ['fence_wood', 'fence_dark', 'fence_stone', 'fence_white'];
+  static const objectIds = [...roadIds, ...fenceIds];
 
   static bool isObject(String id) => objectIds.contains(id);
-  static bool connects(String id) => connecting.contains(id);
+  static bool isRoad(String id) => roadIds.contains(id);
+  static bool isFence(String id) => fenceIds.contains(id);
 }
 
 // ---- economy ----------------------------------------------------------------
@@ -264,22 +263,6 @@ class Garden {
 
   int countPlanted(String flowerId) =>
       tiles.values.where((v) => v == flowerId).length;
-
-  /// Bitmask of same-id neighbours for auto-tiling connectors (roads/fences):
-  /// bit 1 = north, 2 = east, 4 = south, 8 = west. Never wraps across edges.
-  int connectionMask(int index) {
-    final id = tiles[index];
-    if (id == null) return 0;
-    final r = index ~/ size, c = index % size;
-    bool same(int rr, int cc) =>
-        rr >= 0 && cc >= 0 && rr < size && cc < size && tiles[rr * size + cc] == id;
-    var m = 0;
-    if (same(r - 1, c)) m |= 1;
-    if (same(r, c + 1)) m |= 2;
-    if (same(r + 1, c)) m |= 4;
-    if (same(r, c - 1)) m |= 8;
-    return m;
-  }
 
   String encode() {
     final b = StringBuffer('size:$size');
