@@ -74,6 +74,45 @@ void main() {
       expect(d.flowerAt(0), 'lale');
       expect(d.tiles.containsKey(99), false);
     });
+
+    test('garden grows with no cap; tiles remap', () {
+      var g = const Garden().plant(0, 'gul');
+      for (var i = 0; i < 10; i++) {
+        g = g.grow();
+      }
+      expect(g.size, Economy.baseGardenSize + 10); // far past the old 8 cap
+      expect(g.flowerAt(0), 'gul'); // (0,0) stays at index 0
+    });
+  });
+
+  group('Placeables (roads + fences)', () {
+    test('costOf: objects 5, flowers 10', () {
+      expect(Economy.costOf(Placeables.road), 5);
+      expect(Economy.costOf(Placeables.fence), 5);
+      expect(Economy.costOf('gul'), 10);
+      expect(Placeables.isObject('road'), true);
+      expect(Placeables.isObject('gul'), false);
+    });
+
+    test('roads/fences round-trip through the codec', () {
+      final g = const Garden().plant(0, 'road').plant(1, 'fence').plant(2, 'gul');
+      final d = Garden.decode(g.encode());
+      expect(d.flowerAt(0), 'road');
+      expect(d.flowerAt(1), 'fence');
+      expect(d.flowerAt(2), 'gul');
+    });
+
+    test('connectionMask: plus shape connects on all 4 sides, no edge wrap', () {
+      // 3x3 plus of roads centred on index 4 (r1,c1)
+      const g = Garden(size: 3, tiles: {1: 'road', 3: 'road', 4: 'road', 5: 'road', 7: 'road'});
+      expect(g.connectionMask(4), 1 | 2 | 4 | 8); // N|E|S|W
+      expect(g.connectionMask(1), 4); // only south (to centre)
+      expect(g.connectionMask(3), 2); // only east (to centre)
+      // a left-edge tile must not connect westward into the previous row
+      const wrap = Garden(size: 3, tiles: {2: 'road', 3: 'road'});
+      expect(wrap.connectionMask(3) & 8, 0); // index 3 (r1,c0) has no west link
+      expect(g.connectionMask(0), 0); // empty tile → no connections
+    });
   });
 
   group('Labels + colors', () {

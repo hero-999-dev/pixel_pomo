@@ -127,20 +127,34 @@ The Dart port carries its own tests, gating the **`build-flutter.yml`** macOS pi
 **3.44.2 / Dart 3.12.2** and green in CI.
 
 ```bash
-cd flutter && flutter analyze && flutter test   # 16 tests
+cd flutter && flutter analyze && flutter test   # 20 tests
 ```
 
-- **`test/logic_test.dart` (15)** — pure-logic parity with the Kotlin edge suite:
+- **`test/logic_test.dart` (19)** — pure-logic parity with the Kotlin edge suite:
   `PomodoroEngine` state machine + progress clamp + `1ms→00:01` round-up; `Economy`
   `coinsFor`/`upgradeCost`; `Garden` plant/grow keeps row,col + codec round-trip + decode
   drops oversized tiles & clamps size up; `Labels` normalize (strip + cap 12), dedup, keep
   ≥1; `LabelColors` default + codec; `Stats` monthTotal / byLabelInMonth / dailySeries +
   minute formatting; `TestData` fixture buckets to **360 / 700 / 1000** + 2025 + 1000 coins.
-- **`test/widget_smoke_test.dart` (1, added 2026-06-16)** — boots the **real** app via
-  `PixelPomoApp(store)` and opens **every** overlay (settings, garden, stats, shop, theme,
-  labels), asserting `START` renders, each panel shows, closes cleanly, and there are **no
-  exceptions or layout overflow**. This is the runtime smoke check the pure-logic tests
-  can't provide — it catches broken screens before they ship in the `.ipa`/APK.
+  **New (2026-06-16, garden engine):** garden **grows with no cap** (10 EXPANDs past the old
+  8 limit) and (0,0) stays at index 0; `Economy.costOf` = **5** for road/fence, **10** for
+  flowers + `Placeables.isObject`; road/fence **round-trip through the codec**; and
+  `Garden.connectionMask` — a plus of roads connects on all 4 sides (N|E|S|W), arms connect
+  only toward the centre, an **empty tile yields 0**, and a left-edge tile **does not wrap
+  west** into the previous row.
+- **`test/widget_smoke_test.dart` (1)** — boots the **real** app via `PixelPomoApp(store)`
+  and opens **every** overlay (settings, garden, stats, shop, theme, labels), asserting
+  `START` renders, each panel shows, closes cleanly, and there are **no exceptions or layout
+  overflow**. The **garden runs a live animation ticker** (the bugs), so this screen is
+  driven with fixed `pump(Duration)` steps (it never `pumpAndSettle`s) — it loads the sprite
+  bank, shows `GARDEN`, and disposes the ticker cleanly on CLOSE. This is the runtime smoke
+  check the pure-logic tests can't provide — it catches broken screens before they ship.
+
+**Garden engine note:** the 2.5D renderer math (`GardenCamera` projection/inverse, `Bug`
+steering, `BugSystem` flock sizing) lives in `lib/engine/garden_engine.dart`. The
+tap-routing inverse (`tileAt`) is exercised indirectly by the smoke test; the camera/bug
+math is visual and time-based, so it's verified by eye in a local `flutter run` rather than
+asserted in unit tests.
 
 **Known gap:** no on-device iOS UI automation (the runner builds an *unsigned* `.ipa`; it
 isn't booted in a simulator). The widget test exercises the same screens on the Flutter

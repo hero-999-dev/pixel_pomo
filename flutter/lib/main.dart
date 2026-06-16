@@ -1,9 +1,19 @@
 import 'package:flutter/material.dart';
 
+import 'engine/garden_engine.dart';
+import 'engine/garden_view.dart';
 import 'logic.dart';
 import 'pixel.dart';
 import 'store.dart';
 import 'strings.dart';
+
+/// Small PNG thumbnail for a garden object (road/fence), crisp pixels.
+Widget objectThumb(String id, double size) =>
+    Image.asset('assets/objects/$id.png', width: size, height: size, filterQuality: FilterQuality.none);
+
+/// SpriteBank is loaded once and shared across garden opens.
+Future<SpriteBank>? _spritesFuture;
+Future<SpriteBank> gardenSprites() => _spritesFuture ??= SpriteBank.load();
 
 final GlobalKey<ScaffoldMessengerState> messengerKey = GlobalKey<ScaffoldMessengerState>();
 
@@ -526,11 +536,48 @@ class ShopScreen extends StatelessWidget {
             ],
           ),
         ),
+      const SizedBox(height: 8),
+      Text(t(lang, 'shopObjects'), style: pixelStyle(lang, 12, col(th.onSurfaceDim))),
+      const SizedBox(height: 14),
+      for (final id in Placeables.objectIds) _objectRow(s, th, lang, id),
     ]);
+  }
+
+  Widget _objectRow(AppStore s, PixelTheme th, String lang, String id) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Row(
+        children: [
+          objectThumb(id, 40),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(t(lang, id), style: pixelStyle(lang, 12, col(th.onSurface))),
+                const SizedBox(height: 6),
+                Text(tf(lang, 'owned', [s.owned[id] ?? 0]), style: pixelStyle(lang, 8, col(th.onSurfaceDim))),
+              ],
+            ),
+          ),
+          PixelButton(
+            text: '${t(lang, 'buy')} ${Economy.objectCost}',
+            fill: th.accent, border: th.onSurface, textColor: th.onAccent, shadow: th.shadow,
+            lang: lang, fontSize: 11, padding: const EdgeInsets.all(12),
+            opacity: s.coins >= Economy.objectCost ? 1 : 0.45,
+            onTap: () => s.buyItem(id),
+          ),
+        ],
+      ),
+    );
   }
 }
 
 // ---- garden -----------------------------------------------------------------
+
+/// Natural garden palette (theme-independent — a garden is always green).
+const int _gardenGround = 0xFF4E9E3E;
+const int _gardenSoil = 0xFF6B4A2B;
 
 class GardenScreen extends StatelessWidget {
   final AppStore s;
@@ -540,74 +587,84 @@ class GardenScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final th = s.theme;
     final lang = s.lang;
-    final atMax = s.garden.size >= AppStore.gardenMaxSize;
     final cost = Economy.upgradeCost(s.garden.size);
 
-    final screenW = MediaQuery.of(context).size.width;
-    const gap = 4.0;
-    final avail = screenW - 56;
-    final double tile = ((avail - gap * (s.garden.size - 1)) / s.garden.size).clamp(28.0, 72.0).toDouble();
-
-    return overlayScaffold(context, s, t(lang, 'garden'), [
-      Row(
-        children: [
-          atMax
-              ? secondaryBtn(th, lang, t(lang, 'maxSize'), null, fontSize: 10, padding: const EdgeInsets.all(12))
-              : PixelButton(
-                  text: tf(lang, 'upgrade', [cost]),
-                  fill: th.accent, border: th.onSurface, textColor: th.onAccent, shadow: th.shadow,
-                  lang: lang, fontSize: 10, padding: const EdgeInsets.all(12),
-                  opacity: s.coins >= cost ? 1 : 0.45, onTap: s.upgradeGarden),
-          const Spacer(),
-          Text(tf(lang, 'gardenSize', [s.garden.size, s.garden.size]), style: pixelStyle(lang, 12, col(th.onSurface))),
-        ],
-      ),
-      const SizedBox(height: 14),
-      Text(t(lang, 'gardenHelp'), style: pixelStyle(lang, 9, col(th.onSurfaceDim))),
-      const SizedBox(height: 16),
-      Center(
+    return Scaffold(
+      backgroundColor: col(th.bg),
+      body: SafeArea(
         child: Column(
-          mainAxisSize: MainAxisSize.min,
           children: [
-            for (var r = 0; r < s.garden.size; r++)
-              Row(
-                mainAxisSize: MainAxisSize.min,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+              child: Row(
                 children: [
-                  for (var c = 0; c < s.garden.size; c++)
-                    _tile(context, s, th, r * s.garden.size + c, tile, gap),
+                  Text(t(lang, 'garden'), style: pixelStyle(lang, 20, col(th.onSurface), spacing: 2)),
+                  const Spacer(),
+                  PixelButton(
+                    text: tf(lang, 'upgrade', [cost]),
+                    fill: th.accent, border: th.onSurface, textColor: th.onAccent, shadow: th.shadow,
+                    lang: lang, fontSize: 10, padding: const EdgeInsets.all(12),
+                    opacity: s.coins >= cost ? 1 : 0.45, onTap: s.upgradeGarden,
+                  ),
                 ],
               ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Text(t(lang, 'gardenHelp'), style: pixelStyle(lang, 8, col(th.onSurfaceDim))),
+            ),
+            const SizedBox(height: 8),
+            // the live 2.5D scene fills the remaining space
+            Expanded(
+              child: FutureBuilder<SpriteBank>(
+                future: gardenSprites(),
+                builder: (context, snap) {
+                  if (!snap.hasData) {
+                    return Center(child: Text('...', style: pixelStyle(lang, 16, col(th.onSurfaceDim))));
+                  }
+                  return GardenView(
+                    garden: s.garden,
+                    sprites: snap.data!,
+                    customizing: s.customizing,
+                    onTapTile: (index) => _onTileTap(context, s, index),
+                    groundColor: _gardenGround,
+                    soilColor: _gardenSoil,
+                    uiColor: th.onSurface,
+                    lang: lang,
+                    tr: (k) => t(lang, k),
+                  );
+                },
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: primaryBtn(th, lang, t(lang, s.customizing ? 'done' : 'customize'),
+                        s.toggleCustomizing, padding: const EdgeInsets.all(16)),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: secondaryBtn(th, lang, t(lang, 'close'), () => Navigator.pop(context),
+                        padding: const EdgeInsets.all(16)),
+                  ),
+                ],
+              ),
+            ),
           ],
-        ),
-      ),
-      const SizedBox(height: 20),
-      primaryBtn(th, lang, t(lang, s.customizing ? 'done' : 'customize'), s.toggleCustomizing, padding: const EdgeInsets.all(16)),
-    ]);
-  }
-
-  Widget _tile(BuildContext context, AppStore s, PixelTheme th, int index, double size, double gap) {
-    final id = s.garden.flowerAt(index);
-    final flower = id == null ? null : Flowers.byId(id);
-    return Padding(
-      padding: EdgeInsets.only(right: gap, bottom: gap),
-      child: GestureDetector(
-        onTap: () => _onTileTap(context, s, index),
-        child: Container(
-          width: size,
-          height: size,
-          decoration: BoxDecoration(color: col(th.panel), border: Border.all(color: col(th.onSurfaceDim), width: 2)),
-          child: flower == null ? null : Center(child: FlowerSprite(flower: flower, size: size - 8)),
         ),
       ),
     );
   }
 
   void _onTileTap(BuildContext context, AppStore s, int index) {
-    if (!s.customizing) return;
     final lang = s.lang;
     final current = s.garden.flowerAt(index);
-    final plantable = Flowers.all.where((f) => s.availableOf(f.id) > 0).toList();
-    if (current == null && plantable.isEmpty) {
+    // everything the player owns and hasn't placed yet (flowers + objects)
+    final flowers = Flowers.all.where((f) => s.availableOf(f.id) > 0).toList();
+    final objects = Placeables.objectIds.where((id) => s.availableOf(id) > 0).toList();
+    if (current == null && flowers.isEmpty && objects.isEmpty) {
       s.messenger?.call(s.owned.isEmpty ? 'needFlowers' : 'noneLeft');
       return;
     }
@@ -626,20 +683,27 @@ class GardenScreen extends StatelessWidget {
               },
               child: Text(t(lang, 'clearTile'), style: pixelStyle(lang, 11, col(th.accent))),
             ),
-          for (final f in plantable)
-            SimpleDialogOption(
-              onPressed: () {
-                s.plantTile(index, f.id);
-                Navigator.pop(ctx);
-              },
-              child: Row(
-                children: [
-                  FlowerSprite(flower: f, size: 24),
-                  const SizedBox(width: 10),
-                  Text('${f.nameIn(lang)}  x${s.availableOf(f.id)}', style: pixelStyle(lang, 11, col(th.onSurface))),
-                ],
-              ),
-            ),
+          for (final f in flowers)
+            _placeOption(ctx, s, th, lang, index, f.id, FlowerSprite(flower: f, size: 24), f.nameIn(lang)),
+          for (final id in objects)
+            _placeOption(ctx, s, th, lang, index, id, objectThumb(id, 24), t(lang, id)),
+        ],
+      ),
+    );
+  }
+
+  Widget _placeOption(BuildContext ctx, AppStore s, PixelTheme th, String lang, int index,
+      String id, Widget icon, String name) {
+    return SimpleDialogOption(
+      onPressed: () {
+        s.plantTile(index, id);
+        Navigator.pop(ctx);
+      },
+      child: Row(
+        children: [
+          icon,
+          const SizedBox(width: 10),
+          Text('$name  x${s.availableOf(id)}', style: pixelStyle(lang, 11, col(th.onSurface))),
         ],
       ),
     );

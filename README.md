@@ -180,6 +180,13 @@ colors**, **stats charts + month navigation** (#10), and a seeded **test fixture
 [`flutter/README.md`](flutter/README.md). The native Android app (`0v0X_pixelpomo` on `latest`)
 continues in parallel until the Flutter port is verified at parity on-device.
 
+The Flutter build has since grown a **Flutter-exclusive living garden**: a **2.5D scene** drawn
+by a tiny custom engine (`flutter/lib/engine/`, no Unity/Flame) you can **pinch-zoom, pan and
+tilt**, with wandering **pixel bugs**, **no size cap / no tile numbers**, and **road + fence**
+decor (5 coins) that **auto-connect** like a simulation game. Objects are PNGs under
+`flutter/assets/objects/`, and the launcher icon is baked in via `flutter_launcher_icons` so it
+no longer reverts to the default logo on-device.
+
 To make that port a single clean pass rather than a moving target, **all app logic is kept
 in pure, framework-free classes** (`PomodoroEngine`, `Labels`, `Stats*`, `Economy`,
 `Inventory`, `Flowers`) — only `MainActivity` and the drawables touch Android. We finish the
