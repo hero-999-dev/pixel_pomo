@@ -91,17 +91,29 @@ jobs:
             pixel_pomo_ios.ipa
           if-no-files-found: error
 
-      - name: Publish to the "latest-flutter" release
+      - name: Publish releases
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          NOTES="Pixel Pomo — Flutter build (v0.5.0) from ${GITHUB_SHA::7}. **Android:** install pixel_pomo_flutter.apk. **iOS:** pixel_pomo_ios.ipa is UNSIGNED — sideload it with SideStore/AltStore (which signs on-device). This is the cross-platform port; the native Android app still ships as 0v0X_pixelpomo on the 'latest' release."
+          # Derive the version from pubspec: 0.6.0 -> VER=0.6.0, VTAG=v6 (the minor).
+          VER=$(grep '^version:' flutter/pubspec.yaml | sed 's/version:[[:space:]]*//' | cut -d'+' -f1)
+          VTAG="v$(echo "$VER" | cut -d. -f2)"
+          NOTES="Pixel Pomo — Flutter $VTAG ($VER) from ${GITHUB_SHA::7}. **Android:** install pixel_pomo_flutter.apk. **iOS:** pixel_pomo_ios.ipa is UNSIGNED — sideload it with SideStore/AltStore (which signs on-device). This is the cross-platform port; the native Android app still ships as 0v0X_pixelpomo on the 'latest' release."
+
+          # 1) Rolling "always newest" prerelease.
           if gh release view latest-flutter >/dev/null 2>&1; then
             gh release upload latest-flutter pixel_pomo_flutter.apk pixel_pomo_ios.ipa --clobber
-            gh release edit latest-flutter --title "Flutter build (iOS + Android, v0.5.0)" --notes "$NOTES"
+            gh release edit latest-flutter --title "Flutter build (iOS + Android, $VTAG / $VER)" --notes "$NOTES"
           else
             gh release create latest-flutter pixel_pomo_flutter.apk pixel_pomo_ios.ipa \
-              --title "Flutter build (iOS + Android, v0.5.0)" \
-              --notes "$NOTES" \
-              --prerelease
+              --title "Flutter build (iOS + Android, $VTAG / $VER)" --notes "$NOTES" --prerelease
+          fi
+
+          # 2) Permanent per-version release so v6, v7, … accumulate on GitHub.
+          if gh release view "flutter-$VTAG" >/dev/null 2>&1; then
+            gh release upload "flutter-$VTAG" pixel_pomo_flutter.apk pixel_pomo_ios.ipa --clobber
+            gh release edit "flutter-$VTAG" --title "Flutter $VTAG ($VER)" --notes "$NOTES"
+          else
+            gh release create "flutter-$VTAG" pixel_pomo_flutter.apk pixel_pomo_ios.ipa \
+              --title "Flutter $VTAG ($VER)" --notes "$NOTES" --prerelease
           fi

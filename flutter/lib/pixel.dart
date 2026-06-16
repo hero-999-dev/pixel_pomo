@@ -7,8 +7,9 @@ import 'store.dart';
 /// ARGB int → Flutter [Color].
 Color col(int argb) => Color(argb);
 
-/// The pixel font for Latin scripts; null (system font) for Korean, which it can't render.
-String? fontFor(String lang) => lang == 'ko' ? null : 'PressStart2P';
+/// The pixel font. Press Start 2P has no Hangul, so Korean uses Galmuri11 — a
+/// pixel font (OFL) that covers Korean while keeping the retro look.
+String fontFor(String lang) => lang == 'ko' ? 'Galmuri11' : 'PressStart2P';
 
 TextStyle pixelStyle(String lang, double size, Color color, {double spacing = 0}) =>
     TextStyle(fontFamily: fontFor(lang), fontSize: size, color: color, letterSpacing: spacing);
