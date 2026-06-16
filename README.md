@@ -180,12 +180,14 @@ colors**, **stats charts + month navigation** (#10), and a seeded **test fixture
 [`flutter/README.md`](flutter/README.md). The native Android app (`0v0X_pixelpomo` on `latest`)
 continues in parallel until the Flutter port is verified at parity on-device.
 
-The Flutter build has since grown a **Flutter-exclusive living garden**: a **2.5D scene** drawn
-by a tiny custom engine (`flutter/lib/engine/`, no Unity/Flame) you can **pinch-zoom, pan and
-tilt**, with wandering **pixel bugs**, **no size cap / no tile numbers**, and **road + fence**
-decor (5 coins) that **auto-connect** like a simulation game. Objects are PNGs under
-`flutter/assets/objects/`, and the launcher icon is baked in via `flutter_launcher_icons` so it
-no longer reverts to the default logo on-device.
+The Flutter build has a **Flutter-exclusive living garden**: a **fixed 2.5D diorama** drawn by a
+tiny custom engine (`flutter/lib/engine/`, no Unity/Flame). Bounded **pinch-zoom + pan** (it
+can't be dragged off-screen), **no tilt control**, **no size cap / no tile numbers**. Roads lie
+flat, fences stand up, flowers are anchored; tiny **bee/butterfly/ladybug** drift in to visit a
+flower and leave. The SHOP sells **5 roads + 4 fences** (5 coins each). Objects are PNGs under
+`flutter/assets/objects/`; Korean uses the bundled **Galmuri11** pixel font (OFL); the launcher
+icon is baked in via `flutter_launcher_icons` so it no longer reverts to the default on-device.
+Each build also publishes a permanent **`flutter-vN`** GitHub release.
 
 To make that port a single clean pass rather than a moving target, **all app logic is kept
 in pure, framework-free classes** (`PomodoroEngine`, `Labels`, `Stats*`, `Economy`,

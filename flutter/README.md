@@ -11,20 +11,20 @@ Only the **portable** parts live here and are committed:
 flutter/
 ├── pubspec.yaml          # name: pixel_pomo, deps (shared_preferences), pixel font, flutter_launcher_icons
 ├── assets/
-│   ├── fonts/PressStart2P-Regular.ttf
-│   ├── objects/          # PNG sprites: grass, bug, road, fence + 10 flowers (art-as-data)
+│   ├── fonts/            # PressStart2P (Latin) + Galmuri11 (OFL pixel Hangul, for Korean)
+│   ├── objects/          # 23 PNG sprites: grass, 3 critters, 5 roads, 4 fences, 10 flowers
 │   └── icon/             # app_icon.png + app_icon_fg.png (the pixel-tomato launcher icon)
 ├── tools/
 │   ├── gen_objects.py    # regenerates assets/objects/*.png (no Pillow needed)
 │   └── gen_icon.py       # regenerates the launcher icon PNGs
 ├── lib/
-│   ├── logic.dart        # pure port + Placeables (road/fence) + Garden.connectionMask (auto-tiling)
+│   ├── logic.dart        # pure port + Placeables (5 roads + 4 fences, isRoad/isFence)
 │   ├── strings.dart      # the six UI languages (en/tr/pl/de/ko/it) + month names
 │   ├── store.dart        # AppStore (ChangeNotifier): state, persistence, countdown, buyItem
-│   ├── pixel.dart        # pixel widgets + the bar/line/pie chart painter + flower sprites
+│   ├── pixel.dart        # pixel widgets + chart painter + flower sprites; fontFor('ko')→Galmuri11
 │   ├── engine/
-│   │   ├── garden_engine.dart  # custom 2.5D renderer: camera, sprite bank, bugs, painter
-│   │   └── garden_view.dart    # gesture/ticker widget: pinch-zoom, pan, tilt slider
+│   │   ├── garden_engine.dart  # fixed-2.5D renderer: Projector, camera, sprite bank, critters, painter
+│   │   └── garden_view.dart    # gesture/ticker widget: bounded pinch-zoom + pan (no tilt)
 │   └── main.dart         # screens: timer + theme/garden/stats/settings/shop/label overlays
 └── test/
     ├── logic_test.dart        # Dart edge tests (gate the Flutter CI)
@@ -70,10 +70,19 @@ navigator + bar/line/pie charts), coins + shop with localized flowers, 6 languag
 first-launch test fixture (1000 coins + sample history). The pure logic is shared test-for-test
 with the Kotlin original.
 
-**Flutter-exclusive garden** (richer than the native grid): a **live 2.5D scene** drawn by a
-tiny custom engine (`lib/engine/`) — no Unity/Flame. A gapless green field you can **pinch-zoom,
-pan, and tilt** ("look from above" angle), randomly wandering **pixel bugs**, **no size cap**,
-and **no tile numbers**. The SHOP sells **road & fence** decor (5 coins) that **auto-connect**
-like a simulation game. All drawable objects are PNGs under `assets/objects/`. The launcher icon
-is regenerated via `flutter_launcher_icons` (CI runs it after `flutter create`) so the pixel
-tomato survives scaffolding instead of reverting to the Flutter default.
+**Flutter-exclusive garden** (richer than the native grid): a **live, fixed 2.5D diorama** drawn
+by a tiny custom engine (`lib/engine/`) — no Unity/Flame. The depth is a single fixed projection
+(no tilt/angle control). You can **pinch-zoom (1×–4×) and pan**, but pan is **clamped** so the
+garden stays put on screen. **No size cap, no tile numbers.** Roads lie **flat**, fences **stand
+up**, flowers are anchored (no floating). A few tiny **bee/butterfly/ladybug** drift in, **visit
+a flower**, then leave. The SHOP sells **5 road** + **4 fence** materials (5 coins each); adjacent
+same-kind tiles abut so paths/fences read as continuous. All drawable objects are PNGs under
+`assets/objects/`. Korean uses the bundled **Galmuri11** pixel font (OFL). The launcher icon is
+regenerated via `flutter_launcher_icons` (CI runs it after `flutter create`) so the pixel tomato
+survives scaffolding instead of reverting to the Flutter default.
+
+## Credits
+
+- **Press Start 2P** — Latin pixel font (OFL), CodeMan38.
+- **Galmuri11** — Korean pixel font, © 2019–2025 Lee Minseo, licensed **OFL-1.1**
+  (`assets/fonts/Galmuri-OFL.txt`). Used for the Korean locale.

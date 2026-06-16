@@ -86,32 +86,33 @@ void main() {
   });
 
   group('Placeables (roads + fences)', () {
-    test('costOf: objects 5, flowers 10', () {
-      expect(Economy.costOf(Placeables.road), 5);
-      expect(Economy.costOf(Placeables.fence), 5);
-      expect(Economy.costOf('gul'), 10);
-      expect(Placeables.isObject('road'), true);
+    test('catalogue: 5 roads + 4 fences, classified correctly', () {
+      expect(Placeables.roadIds.length, 5);
+      expect(Placeables.fenceIds.length, 4);
+      expect(Placeables.objectIds.length, 9);
+      expect(Placeables.isRoad('road_asphalt'), true);
+      expect(Placeables.isFence('road_asphalt'), false);
+      expect(Placeables.isFence('fence_white'), true);
+      expect(Placeables.isRoad('fence_white'), false);
       expect(Placeables.isObject('gul'), false);
     });
 
-    test('roads/fences round-trip through the codec', () {
-      final g = const Garden().plant(0, 'road').plant(1, 'fence').plant(2, 'gul');
-      final d = Garden.decode(g.encode());
-      expect(d.flowerAt(0), 'road');
-      expect(d.flowerAt(1), 'fence');
-      expect(d.flowerAt(2), 'gul');
+    test('costOf: objects 5, flowers 10', () {
+      for (final id in Placeables.objectIds) {
+        expect(Economy.costOf(id), 5, reason: id);
+      }
+      expect(Economy.costOf('gul'), 10);
     });
 
-    test('connectionMask: plus shape connects on all 4 sides, no edge wrap', () {
-      // 3x3 plus of roads centred on index 4 (r1,c1)
-      const g = Garden(size: 3, tiles: {1: 'road', 3: 'road', 4: 'road', 5: 'road', 7: 'road'});
-      expect(g.connectionMask(4), 1 | 2 | 4 | 8); // N|E|S|W
-      expect(g.connectionMask(1), 4); // only south (to centre)
-      expect(g.connectionMask(3), 2); // only east (to centre)
-      // a left-edge tile must not connect westward into the previous row
-      const wrap = Garden(size: 3, tiles: {2: 'road', 3: 'road'});
-      expect(wrap.connectionMask(3) & 8, 0); // index 3 (r1,c0) has no west link
-      expect(g.connectionMask(0), 0); // empty tile → no connections
+    test('roads/fences round-trip through the codec', () {
+      final g = const Garden()
+          .plant(0, 'road_asphalt')
+          .plant(1, 'fence_stone')
+          .plant(2, 'gul');
+      final d = Garden.decode(g.encode());
+      expect(d.flowerAt(0), 'road_asphalt');
+      expect(d.flowerAt(1), 'fence_stone');
+      expect(d.flowerAt(2), 'gul');
     });
   });
 
