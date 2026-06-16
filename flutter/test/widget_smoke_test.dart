@@ -28,7 +28,19 @@ void main() {
     }
 
     await openClose(Icons.settings, 'SAVE');
-    await openClose(Icons.local_florist, 'GARDEN');
+
+    // The garden runs a live animation ticker (the bugs), so pumpAndSettle would
+    // never settle — drive it with fixed pumps long enough to finish the push/pop
+    // route transitions (~300ms), then settle the home (ticker is disposed by then).
+    await tester.tap(find.byIcon(Icons.local_florist));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 450)); // finish push + load sprites
+    expect(find.text('GARDEN'), findsWidgets);
+    await tester.tap(find.text('CLOSE').first);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 450)); // finish pop + dispose ticker
+    await tester.pumpAndSettle();
+
     await openClose(Icons.bar_chart, 'STATS');
     await openClose(Icons.monetization_on, 'SHOP');
     await openClose(Icons.palette, 'THEME');
