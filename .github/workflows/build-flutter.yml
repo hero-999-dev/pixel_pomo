@@ -46,6 +46,12 @@ jobs:
         working-directory: flutter
         run: flutter pub get
 
+      # flutter create stamps the default Flutter logo into android/ + ios/; this
+      # bakes our pixel-tomato launcher icon back in so it survives scaffolding.
+      - name: Generate launcher icons
+        working-directory: flutter
+        run: dart run flutter_launcher_icons
+
       - name: Analyze (non-blocking)
         working-directory: flutter
         run: flutter analyze || true

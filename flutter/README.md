@@ -9,15 +9,26 @@ Only the **portable** parts live here and are committed:
 
 ```
 flutter/
-├── pubspec.yaml          # name: pixel_pomo, deps (shared_preferences), the pixel font
-├── assets/fonts/PressStart2P-Regular.ttf
+├── pubspec.yaml          # name: pixel_pomo, deps (shared_preferences), pixel font, flutter_launcher_icons
+├── assets/
+│   ├── fonts/PressStart2P-Regular.ttf
+│   ├── objects/          # PNG sprites: grass, bug, road, fence + 10 flowers (art-as-data)
+│   └── icon/             # app_icon.png + app_icon_fg.png (the pixel-tomato launcher icon)
+├── tools/
+│   ├── gen_objects.py    # regenerates assets/objects/*.png (no Pillow needed)
+│   └── gen_icon.py       # regenerates the launcher icon PNGs
 ├── lib/
-│   ├── logic.dart        # pure port of PomodoroEngine/Themes/Flowers/Economy/Garden/Labels/Stats/TestData
+│   ├── logic.dart        # pure port + Placeables (road/fence) + Garden.connectionMask (auto-tiling)
 │   ├── strings.dart      # the six UI languages (en/tr/pl/de/ko/it) + month names
-│   ├── store.dart        # AppStore (ChangeNotifier): state, persistence, countdown
+│   ├── store.dart        # AppStore (ChangeNotifier): state, persistence, countdown, buyItem
 │   ├── pixel.dart        # pixel widgets + the bar/line/pie chart painter + flower sprites
+│   ├── engine/
+│   │   ├── garden_engine.dart  # custom 2.5D renderer: camera, sprite bank, bugs, painter
+│   │   └── garden_view.dart    # gesture/ticker widget: pinch-zoom, pan, tilt slider
 │   └── main.dart         # screens: timer + theme/garden/stats/settings/shop/label overlays
-└── test/logic_test.dart  # Dart edge tests (gate the Flutter CI)
+└── test/
+    ├── logic_test.dart        # Dart edge tests (gate the Flutter CI)
+    └── widget_smoke_test.dart # boots the app, opens every overlay incl. the live garden
 ```
 
 The generated **`ios/`** and **`android/`** Xcode/Gradle projects are **not** committed — the CI
@@ -55,6 +66,14 @@ flutter run        # or: flutter build apk / flutter build ios --no-codesign
 ## Status / parity
 
 Faithful port of v0.5.0: timer + sessions, 5 themes, focus labels with colors, stats (month
-navigator + bar/line/pie charts), coins + shop with localized flowers, garden (plant/upgrade),
-6 languages, and the first-launch test fixture (1000 coins + sample history). The pure logic is
-shared test-for-test with the Kotlin original.
+navigator + bar/line/pie charts), coins + shop with localized flowers, 6 languages, and the
+first-launch test fixture (1000 coins + sample history). The pure logic is shared test-for-test
+with the Kotlin original.
+
+**Flutter-exclusive garden** (richer than the native grid): a **live 2.5D scene** drawn by a
+tiny custom engine (`lib/engine/`) — no Unity/Flame. A gapless green field you can **pinch-zoom,
+pan, and tilt** ("look from above" angle), randomly wandering **pixel bugs**, **no size cap**,
+and **no tile numbers**. The SHOP sells **road & fence** decor (5 coins) that **auto-connect**
+like a simulation game. All drawable objects are PNGs under `assets/objects/`. The launcher icon
+is regenerated via `flutter_launcher_icons` (CI runs it after `flutter create`) so the pixel
+tomato survives scaffolding instead of reverting to the Flutter default.

@@ -14,9 +14,23 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  flutter_launcher_icons: ^0.14.1
+
+# Launcher icon (the pixel tomato). Regenerated in CI after `flutter create`
+# with: dart run flutter_launcher_icons  — so the logo survives scaffolding.
+flutter_launcher_icons:
+  android: true
+  ios: true
+  remove_alpha_ios: true
+  image_path: "assets/icon/app_icon.png"
+  adaptive_icon_background: "#161616"
+  adaptive_icon_foreground: "assets/icon/app_icon_fg.png"
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/objects/
+    - assets/icon/
   fonts:
     - family: PressStart2P
       fonts:
