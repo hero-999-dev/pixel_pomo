@@ -219,24 +219,24 @@ APK and an **unsigned iOS `.ipa`**. It started as a faithful port of v0.5.0; the
 now Flutter-exclusive and richer** than the native grid (see below) — keep the rest at parity.
 
 - `lib/logic.dart` — pure port of every Kotlin pure class (engine, themes, flowers, economy,
-  garden, labels, label colors, stats, test data), **plus** `Placeables`: **5 roads**
-  (`road_asphalt/wood/dirt/brick/stone`) + **4 fences** (`fence_wood/dark/stone/white`), all
-  5 coins, with `isRoad`/`isFence`. (No connection bitmask — adjacent same-kind tiles abut, so
-  they read as continuous.)
+  garden, labels, label colors, stats, test data), **plus** `Placeables`: **4 roads**
+  (`road_concrete/wood/dirt/stone`) + **3 fences** (`fence_wood/dark/stone`), all 5 coins, with
+  `isRoad`/`isFence`. `Garden.grow()` adds a **centered ring** (size +2, tiles shifted +1/+1).
 - `lib/strings.dart` (6 languages + month names) · `lib/store.dart` (`AppStore` ChangeNotifier
   + `shared_preferences` + wall-clock countdown; generic `buyItem(id)`, **no garden size cap**) ·
-  `lib/pixel.dart` (pixel widgets + bar/line/pie chart painters; `fontFor('ko')` → Galmuri11) ·
-  `lib/main.dart` (all screens).
+  `lib/pixel.dart` (pixel widgets + chart painters; `fontFor('ko')`→Galmuri11 and Korean text
+  scaled ×1.5 for legibility; `GoldCoin` disc with no "$") · `lib/main.dart` (all screens).
 - **Custom garden engine** `lib/engine/garden_engine.dart` + `garden_view.dart`: a small
-  purpose-built renderer (no Flame/Unity) with a **fixed 2.5D depth** (single `kVy` constant —
-  **no tilt/angle control**). **Pinch-zoom (1×–4×) + pan, with pan clamped** so the garden
-  stays fixed on screen and can't be dragged off. Shared `Projector` (fit-to-view + exact
-  tile↔screen inverse). Gapless grass + soil slab for depth; **roads lie flat**, **fences stand
-  up** as billboards, **flowers anchored** to the tile (no floating) with contact shadows. A
-  `CritterSystem` spawns **≤2 tiny bee/butterfly/ladybug** that fly in, **visit a flower**
-  (hover ~2–4s), then leave the map and despawn. No tile numbers shown.
+  purpose-built renderer (no Flame/Unity), **fixed 2.5D tilt** (`kVy`) but a **hand-controllable
+  yaw** — two-finger twist rotates the view like Google Maps (look from any compass side).
+  **Pinch-zoom (1×–4×) + pan, both clamped** so the garden stays fixed on screen. Shared
+  `Projector` (fit-to-view + yaw + exact tile↔screen inverse); the ground (grass + flat roads)
+  is drawn through a yaw+squash **affine** and standing things are **depth-sorted** so rotation
+  reads right. Gapless grass + soil slab for depth; **roads lie flat**, **fences stand up** as
+  billboards, **flowers anchored** to the tile (no floating). A `CritterSystem` spawns **≤2 tiny
+  bee/butterfly/ladybug** that fly in, **visit a flower** (hover ~2–4s), then leave & despawn.
 - **Art as data:** every drawable object is a crisp **PNG in `assets/objects/`** (grass, 3
-  critters, 5 roads, 4 fences, 10 flowers = 23), emitted by the dependency-free
+  critters, 4 roads, 3 fences, 10 flowers = 21), emitted by the dependency-free
   `tools/gen_objects.py`.
 - **Fonts:** Press Start 2P (Latin) + **Galmuri11** (`assets/fonts/`, OFL pixel font with full
   Hangul) for Korean — keeps the retro look where Press Start 2P has no glyphs.

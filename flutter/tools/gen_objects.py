@@ -193,16 +193,15 @@ def _speckle(g, w, h, seed, choices, density):
     return seed
 
 
-def road_asphalt_grid():
-    base = hexrgb("3A3A3A") + (255,)
-    line = hexrgb("F2C94C") + (255,)
+def road_concrete_grid():
+    base = hexrgb("ADADAD") + (255,)
+    joint = hexrgb("6E6E6E") + (255,)
     g = [[base for _ in range(16)] for _ in range(16)]
-    _speckle(g, 16, 16, 555, [hexrgb("444444") + (255,), hexrgb("303030") + (255,)], 7)
-    # dashed centre line — stacks into a continuous lane down a column of tiles
-    for r in range(16):
-        if (r % 6) < 4:
-            g[r][7] = line
-            g[r][8] = line
+    _speckle(g, 16, 16, 555, [hexrgb("B8B8B8") + (255,), hexrgb("9C9C9C") + (255,)], 6)
+    # straight expansion joints → reads as poured concrete slabs when tiled
+    for i in range(16):
+        g[0][i] = joint
+        g[i][0] = joint
     return g
 
 
@@ -228,20 +227,6 @@ def road_dirt_grid():
     return g
 
 
-def road_brick_grid():
-    brick = hexrgb("A23B2E") + (255,)
-    mortar = hexrgb("D8C8B0") + (255,)
-    g = [[brick for _ in range(16)] for _ in range(16)]
-    for r in range(16):
-        g[r][0] = mortar                      # vertical mortar, offset every band
-        off = 0 if (r // 4) % 2 == 0 else 8
-        g[r][(off + 7) % 16] = mortar
-    for r in (0, 4, 8, 12):                    # horizontal mortar courses
-        for c in range(16):
-            g[r][c] = mortar
-    return g
-
-
 def road_stone_grid():
     base = hexrgb("8A8A8A") + (255,)
     mortar = hexrgb("5E5E5E") + (255,)
@@ -256,17 +241,16 @@ def road_stone_grid():
 
 
 ROADS = {
-    'road_asphalt': road_asphalt_grid,
+    'road_concrete': road_concrete_grid,
     'road_wood': road_wood_grid,
     'road_dirt': road_dirt_grid,
-    'road_brick': road_brick_grid,
     'road_stone': road_stone_grid,
 }
 
 
 # ---- fence tiles (4 materials, front-on billboards: posts + two rails) --------
 
-def _fence_grid(post_hex, rail_hex, outline_hex=None):
+def _fence_grid(post_hex, rail_hex):
     post = hexrgb(post_hex) + (255,)
     rail = hexrgb(rail_hex) + (255,)
     g = blank(16, 16)
@@ -277,16 +261,6 @@ def _fence_grid(post_hex, rail_hex, outline_hex=None):
     for rr in (5, 6, 9, 10):           # top + middle rails
         for c in range(1, 15):
             g[rr][c] = rail
-    if outline_hex:                    # crisp edge for pale materials (white)
-        ol = hexrgb(outline_hex) + (255,)
-        for r in range(16):
-            for c in range(16):
-                if g[r][c][3] == 0:
-                    continue
-                for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-                    nr, nc = r + dr, c + dc
-                    if 0 <= nr < 16 and 0 <= nc < 16 and g[nr][nc][3] == 0:
-                        g[nr][nc] = ol
     return g
 
 
@@ -294,7 +268,6 @@ FENCES = {
     'fence_wood': lambda: _fence_grid("8B5A2B", "A9743E"),
     'fence_dark': lambda: _fence_grid("3D2814", "5A3A1E"),
     'fence_stone': lambda: _fence_grid("6E6E6E", "9A9A9A"),
-    'fence_white': lambda: _fence_grid("E8E8E8", "FFFFFF", outline_hex="9AA0A6"),
 }
 
 
@@ -310,8 +283,9 @@ def main():
         write_png(os.path.join(OUT, f"{rid}.png"), upscale(fn(), SCALE))
     for fid, fn in FENCES.items():
         write_png(os.path.join(OUT, f"{fid}.png"), upscale(fn(), SCALE))
-    # drop the old single road/fence/bug sprites if present
-    for old in ("road.png", "fence.png", "bug.png"):
+    # drop sprites that were renamed/removed over time, if present
+    for old in ("road.png", "fence.png", "bug.png",
+                "road_asphalt.png", "road_brick.png", "fence_white.png"):
         p = os.path.join(OUT, old)
         if os.path.exists(p):
             os.remove(p)

@@ -42,8 +42,17 @@ void main() {
     await tester.pumpAndSettle();
 
     await openClose(Icons.bar_chart, 'STATS');
-    await openClose(Icons.monetization_on, 'SHOP');
     await openClose(Icons.palette, 'THEME');
+
+    // Shop opens from the gold-coin wallet button (no longer a Material icon).
+    await tester.tap(find.byKey(const Key('shopButton')));
+    await tester.pumpAndSettle();
+    expect(find.text('SHOP'), findsWidgets);
+    final shopClose = find.text('CLOSE');
+    await tester.ensureVisible(shopClose);
+    await tester.pumpAndSettle();
+    await tester.tap(shopClose);
+    await tester.pumpAndSettle();
 
     // Label overlay opens from the focus-label chip on the home screen.
     await tester.tap(find.text(store.currentLabel));

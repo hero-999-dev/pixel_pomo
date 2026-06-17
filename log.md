@@ -5,6 +5,46 @@ Each entry notes the **prompt** (what you asked for) and the **changes** made.
 
 ---
 
+## v7 — Centered garden growth, hand-rotate camera, concrete road, fence/road trims, bigger Korean font, $-free coin
+**Date:** 2026-06-17
+
+**Prompt (Flutter, with feedback photos in `feedback/Version 06v Feedback/`):** (1) keep
+the critters — they're great. (2) EXPAND grows to one side; it should grow **centered**, a
+square ring on all 4 sides. (3) Korean font is **too small to read**. (4) let me **change
+the angle by hand** like Google Maps (look from E/W/N). (5) remove **brick road** and **white
+fence**; keep wood + dark-brown + stone fences. (6) change the **asphalt road → concrete**.
+(7) the coin shows a **dollar sign**; it should just be gold.
+
+**Changes (all in `flutter/`):**
+- **Centered growth (#2):** `Garden.grow()` now adds a **ring on every side** (size +2,
+  existing tiles shifted +1/+1) so the plot expands from the middle instead of the
+  bottom-right. The engine already centers the plot, so content now stays put as it grows.
+- **Hand-rotate camera (#4):** brought back angle control, but as a **two-finger twist**
+  (`GardenCamera.yaw`) — like Google Maps, look at the garden from any compass direction.
+  The renderer now draws the ground (grass + flat roads) through a **yaw+squash affine** and
+  sorts standing objects back-to-front by screen depth, so rotation is correct and taps still
+  land right (`Projector` inverse un-rotates). Tilt stays fixed (no slider). Recenter resets
+  zoom/pan/rotation.
+- **Korean font (#3):** Galmuri11 sits small in its em box, so Korean text is now scaled
+  **×1.5** in `pixelStyle` — readable while staying pixel-styled.
+- **Road/fence trims (#5,#6):** roads are now **concrete / wood / dirt / stone** (asphalt
+  reworked into a gray concrete-slab tile, **brick removed**); fences are **wood / dark /
+  stone** (**white removed**). Sprites regenerated (21 PNGs); the dropped ones are deleted.
+- **Gold coin (#7):** replaced Material's `monetization_on` (which draws a "$") with a
+  custom **`GoldCoin`** disc — just gold, no symbol.
+- 6-language strings updated (concrete name, dropped brick/white, "twist to rotate" help).
+  **Version → 0.7.0+8** → publishes the **`flutter-v7`** release.
+
+**Verified:** `flutter analyze` clean, **20/20 tests pass** (catalogue now 4 roads + 3 fences;
+grow test asserts the centered ring; smoke test taps the new coin button by key), debug APK
+builds locally with the 21 sprites. iOS `.ipa` builds on the macOS CI runner.
+
+> Note on the home-screen icon in the feedback photos: App-info already shows the correct
+> pixel-tomato, so the icon itself is fixed; the blue launcher tile looked like the older
+> install. Flag it again if a fresh v7 install still shows the default.
+
+---
+
 ## v6 — Fixed 2.5D garden (no tilt), 5 roads + 4 fences, flower-visiting critters, Korean pixel font
 **Date:** 2026-06-17
 
