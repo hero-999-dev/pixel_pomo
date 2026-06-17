@@ -7,9 +7,15 @@ draw gets its own crisp pixel-art PNG so the art lives as data, not as code.
 
 Run from anywhere:  python flutter/tools/gen_objects.py
 """
+import math
 import os
 import struct
 import zlib
+
+# Number of frames in every directional atlas (must match dir8 in the Dart
+# engine). Frame k is the billboard spun by k*360/FRAMES degrees about the
+# vertical axis, so the renderer can pick the facet that matches the camera.
+FRAMES = 8
 
 OUT = os.path.join(os.path.dirname(__file__), "..", "assets", "objects")
 
@@ -55,6 +61,104 @@ def upscale(grid, factor):
         for _ in range(factor):
             out.append(list(big))
     return out
+
+
+# ---- 8-direction billboard atlases (#4) -------------------------------------
+# Fake a 3D facing for flat pixel objects: spin each base sprite about its
+# vertical axis into FRAMES frames laid out in one horizontal strip (an atlas).
+# The engine slices out the frame whose angle matches the camera, so rotating
+# the garden makes flowers / fences / critters visibly turn instead of staying
+# dead-on. No per-frame hand art — it's the coin-spin trick generalised.
+
+def _bright(px, f):
+    r, g, b, a = px
+    if a == 0:
+        return px
+    return (min(255, int(r * f)), min(255, int(g * f)), min(255, int(b * f)), a)
+
+
+def spin_frame(grid, theta_deg):
+    """One billboard frame rotated `theta_deg` about the vertical axis:
+    horizontally squash by |cos| (kept >= 0.45 so sides don't vanish), shade
+    front bright / back dark, and highlight the leading vertical edge so a
+    left turn differs from a right turn (breaks the cos symmetry)."""
+    h, w = len(grid), len(grid[0])
+    th = math.radians(theta_deg)
+    sx = 0.45 + 0.55 * abs(math.cos(th))
+    bright = max(0.45, 0.62 + 0.38 * math.cos(th))
+    neww = max(2, round(w * sx))
+    x0 = (w - neww) // 2
+    out = blank(w, h)
+    for r in range(h):
+        for i in range(neww):
+            src_c = min(w - 1, int(i / neww * w))
+            px = grid[r][src_c]
+            if px[3] == 0:
+                continue
+            out[r][x0 + i] = _bright(px, bright)
+    s = math.sin(th)
+    if abs(s) > 0.15 and neww >= 3:
+        lead = x0 + neww - 1 if s > 0 else x0
+        trail = x0 if s > 0 else x0 + neww - 1
+        for r in range(h):
+            if out[r][lead][3] != 0:
+                out[r][lead] = _bright(out[r][lead], 1.25)
+            if out[r][trail][3] != 0:
+                out[r][trail] = _bright(out[r][trail], 0.7)
+    return out
+
+
+def make_atlas(grid, frames=FRAMES):
+    """Concatenate `frames` spun frames into one horizontal strip."""
+    cells = [spin_frame(grid, k * 360.0 / frames) for k in range(frames)]
+    out = []
+    for r in range(len(grid)):
+        row = []
+        for cell in cells:
+            row += cell[r]
+        out.append(row)
+    return out
+
+
+# ---- forest / rock surround (#3) --------------------------------------------
+# A dark, dense forest-floor tile that fills the whole screen behind the plot,
+# so the garden reads as a clearing and critters seem to drift in from the
+# woods. Seamless-ish (wraps with %16) since it's only a backdrop.
+
+def forest_grid():
+    dark = hexrgb("12301A") + (255,)
+    canopy = hexrgb("1E4D27") + (255,)
+    canopy2 = hexrgb("2A6B33") + (255,)
+    trunk = hexrgb("3A2A18") + (255,)
+    rock = hexrgb("595E54") + (255,)
+    rockd = hexrgb("3C403A") + (255,)
+    g = [[dark for _ in range(16)] for _ in range(16)]
+    seed = 99001
+
+    def rnd(m):
+        nonlocal seed
+        seed = (seed * 1103515245 + 12345) & 0x7FFFFFFF
+        return seed % m
+
+    for r in range(16):
+        for c in range(16):
+            v = rnd(5)
+            if v == 0:
+                g[r][c] = canopy
+            elif v == 1:
+                g[r][c] = canopy2
+    # round tree canopies with a trunk peeking out below
+    for (br, bc) in ((4, 4), (11, 11), (2, 12)):
+        for dr in range(-2, 3):
+            for dc in range(-2, 3):
+                if dr * dr + dc * dc <= 4:
+                    g[(br + dr) % 16][(bc + dc) % 16] = canopy2 if (dr + dc) % 2 else canopy
+        g[(br + 2) % 16][bc % 16] = trunk
+    # a couple of mossy rocks
+    for (br, bc) in ((9, 2), (14, 8)):
+        for (dr, dc) in ((0, 0), (0, 1), (1, 0), (1, 1), (0, -1)):
+            g[(br + dr) % 16][(bc + dc) % 16] = rock if (dr + dc) % 2 == 0 else rockd
+    return g
 
 
 # ---- flowers: render the same char-grids the Dart FlowerSprite uses ----------
@@ -159,25 +263,31 @@ def grass_grid():
     return g
 
 
-# ---- spinning coin (pixel-art, animated in the wallet) -----------------------
+# ---- plain gold coin (static, 2D — #5) ---------------------------------------
+# A clean struck-gold disc: dark rim, gold face, one small top-left shine.
+# No "$", no smiley, no inner bevel marks that could read as a face. Static —
+# the wallet shows it as a flat 2D coin with no animation.
 
 def coin_grid():
-    out = hexrgb("6E4A00") + (255,)
-    rim = hexrgb("C98A1B") + (255,)
-    face = hexrgb("F2C94C") + (255,)
-    hi = hexrgb("FFE9A8") + (255,)
+    out = hexrgb("7A5200") + (255,)   # dark outline ring
+    rim = hexrgb("C98A1B") + (255,)   # inner rim
+    face = hexrgb("F2C94C") + (255,)  # gold face
+    hi = hexrgb("FFE9A8") + (255,)    # single shine
     g = blank(16, 16)
     cx = cy = 7.5
     for r in range(16):
         for c in range(16):
             d = ((r - cy) ** 2 + (c - cx) ** 2) ** 0.5
             if d <= 7.7:
-                g[r][c] = out if d > 6.5 else (rim if d > 5.2 else face)
-    # inner bevel + a top-left shine, so it reads as a struck gold coin
-    for (r, c) in ((5, 5), (5, 6), (6, 5), (4, 7), (7, 4)):
+                if d > 6.6:
+                    g[r][c] = out
+                elif d > 5.3:
+                    g[r][c] = rim
+                else:
+                    g[r][c] = face
+    # one soft top-left shine arc — nothing in the centre (no face)
+    for (r, c) in ((3, 6), (4, 5), (4, 6), (5, 4), (5, 5)):
         g[r][c] = hi
-    for (r, c) in ((6, 8), (8, 6), (9, 9), (8, 9), (9, 8)):
-        g[r][c] = rim
     return g
 
 
@@ -311,50 +421,64 @@ ROADS = {
 }
 
 
-# ---- fence tiles (4 materials, front-on billboards: posts + two rails) --------
+# ---- fence posts (3 materials, standing single posts — #1) -------------------
+# A fence is now a STANDING post per tile (like a flower, not a flat ground
+# network). The engine draws rails between any adjacent fence posts — of ANY
+# material — so different fences join up. Each post is a single centred billboard
+# spun into an 8-direction atlas, with two short rail nubs so a lone post still
+# reads as "fence".
 
-def _fence_grid(post_hex, rail_hex):
+def _fence_post_grid(post_hex, rail_hex):
     post = hexrgb(post_hex) + (255,)
+    cap = _bright(post, 1.2)
     rail = hexrgb(rail_hex) + (255,)
     g = blank(16, 16)
-    for col in (3, 12):                # two posts
-        for r in range(3, 15):
-            g[r][col] = post
-            g[r][col + 1] = post
-    for rr in (5, 6, 9, 10):           # top + middle rails
-        for c in range(1, 15):
+    for r in range(2, 16):             # the post
+        g[r][7] = post
+        g[r][8] = post
+    g[1][7] = cap                      # little cap
+    g[1][8] = cap
+    for rr in (6, 10):                 # short rail nubs either side
+        for c in (4, 5, 6, 9, 10, 11):
             g[rr][c] = rail
     return g
 
 
 FENCES = {
-    'fence_wood': lambda: _fence_grid("8B5A2B", "A9743E"),
-    'fence_dark': lambda: _fence_grid("3D2814", "5A3A1E"),
-    'fence_stone': lambda: _fence_grid("6E6E6E", "9A9A9A"),
+    'fence_wood': lambda: _fence_post_grid("8B5A2B", "A9743E"),
+    'fence_dark': lambda: _fence_post_grid("3D2814", "5A3A1E"),
+    'fence_stone': lambda: _fence_post_grid("6E6E6E", "9A9A9A"),
 }
 
 
 def main():
     os.makedirs(OUT, exist_ok=True)
-    SCALE = 16  # 16x16 grids -> 256px; 8x8 flowers/critters -> 128px
+    SCALE = 16  # base grids are 8/10/16 px tall; ×16 keeps them crisp
+
+    # Flowers, fences and critters ship as 8-frame directional atlases (#4).
     for fid, (petal, center, chars) in FLOWERS.items():
-        write_png(os.path.join(OUT, f"flower_{fid}.png"), upscale(flower_png_grid(petal, center, chars), SCALE))
-    write_png(os.path.join(OUT, "grass.png"), upscale(grass_grid(), SCALE))
-    write_png(os.path.join(OUT, "coin.png"), upscale(coin_grid(), SCALE))
+        atlas = make_atlas(flower_png_grid(petal, center, chars))
+        write_png(os.path.join(OUT, f"flower_{fid}.png"), upscale(atlas, SCALE))
     for cid, fn in CRITTERS.items():
-        write_png(os.path.join(OUT, f"{cid}.png"), upscale(fn(), SCALE))
+        write_png(os.path.join(OUT, f"{cid}.png"), upscale(make_atlas(fn()), SCALE))
+    for fid, fn in FENCES.items():
+        write_png(os.path.join(OUT, f"{fid}.png"), upscale(make_atlas(fn()), SCALE))
+
+    # Flat / single-frame sprites: ground, surround, roads, wallet coin.
+    write_png(os.path.join(OUT, "grass.png"), upscale(grass_grid(), SCALE))
+    write_png(os.path.join(OUT, "forest.png"), upscale(forest_grid(), SCALE))
+    write_png(os.path.join(OUT, "coin.png"), upscale(coin_grid(), SCALE))
     for rid, fn in ROADS.items():
         write_png(os.path.join(OUT, f"{rid}.png"), upscale(fn(), SCALE))
-    for fid, fn in FENCES.items():
-        write_png(os.path.join(OUT, f"{fid}.png"), upscale(fn(), SCALE))
+
     # drop sprites that were renamed/removed over time, if present
     for old in ("road.png", "fence.png", "bug.png",
                 "road_asphalt.png", "road_brick.png", "fence_white.png"):
         p = os.path.join(OUT, old)
         if os.path.exists(p):
             os.remove(p)
-    n = len(FLOWERS) + 2 + len(CRITTERS) + len(ROADS) + len(FENCES)  # +grass +coin
-    print("wrote", n, "sprites to", os.path.abspath(OUT))
+    n = len(FLOWERS) + len(CRITTERS) + len(FENCES) + len(ROADS) + 3  # +grass +forest +coin
+    print("wrote", n, "sprites to", os.path.abspath(OUT), f"(FRAMES={FRAMES})")
 
 
 if __name__ == "__main__":
