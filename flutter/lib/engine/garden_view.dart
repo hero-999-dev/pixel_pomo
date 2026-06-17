@@ -44,6 +44,7 @@ class _GardenViewState extends State<GardenView> with SingleTickerProviderStateM
   late final Ticker _ticker;
   Duration _last = Duration.zero;
   double _zoomAtStart = 1;
+  double _yawAtStart = 0;
   Size _lastSize = Size.zero;
 
   @override
@@ -76,11 +77,15 @@ class _GardenViewState extends State<GardenView> with SingleTickerProviderStateM
     return out;
   }
 
-  void _onScaleStart(ScaleStartDetails d) => _zoomAtStart = _cam.zoom;
+  void _onScaleStart(ScaleStartDetails d) {
+    _zoomAtStart = _cam.zoom;
+    _yawAtStart = _cam.yaw;
+  }
 
   void _onScaleUpdate(ScaleUpdateDetails d) {
     setState(() {
       _cam.zoom = (_zoomAtStart * d.scale).clamp(1.0, 4.0);
+      _cam.yaw = _yawAtStart + d.rotation; // two-finger twist = look from another side
       _cam.panX += d.focalPointDelta.dx;
       _cam.panY += d.focalPointDelta.dy;
       _cam.clamp(widget.garden.size, _lastSize);

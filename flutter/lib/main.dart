@@ -177,12 +177,13 @@ class HomeScreen extends StatelessWidget {
           _iconBtn(Icons.bar_chart, th.onSurface, () => openPanel(context, s, () => StatsScreen(s))),
           _iconBtn(Icons.settings, th.onSurface, () => openPanel(context, s, () => SettingsScreen(s))),
           GestureDetector(
+            key: const Key('shopButton'),
             onTap: () => openPanel(context, s, () => ShopScreen(s)),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8),
               child: Row(
                 children: [
-                  Icon(Icons.monetization_on, color: col(0xFFF2C94C), size: 32),
+                  const GoldCoin(size: 30),
                   const SizedBox(width: 8),
                   Text('${s.coins}', style: pixelStyle(lang, 14, col(th.onSurface))),
                 ],

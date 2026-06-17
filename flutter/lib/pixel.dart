@@ -11,8 +11,42 @@ Color col(int argb) => Color(argb);
 /// pixel font (OFL) that covers Korean while keeping the retro look.
 String fontFor(String lang) => lang == 'ko' ? 'Galmuri11' : 'PressStart2P';
 
+/// Galmuri11's glyphs sit smaller in the em box than Press Start 2P, so Korean
+/// text needs a bump to stay legible at the same nominal sizes.
+double _fontScale(String lang) => lang == 'ko' ? 1.5 : 1.0;
+
 TextStyle pixelStyle(String lang, double size, Color color, {double spacing = 0}) =>
-    TextStyle(fontFamily: fontFor(lang), fontSize: size, color: color, letterSpacing: spacing);
+    TextStyle(fontFamily: fontFor(lang), fontSize: size * _fontScale(lang), color: color, letterSpacing: spacing);
+
+/// A simple gold coin disc (no "$"), drawn crisp for the wallet counter.
+class GoldCoin extends StatelessWidget {
+  final double size;
+  const GoldCoin({super.key, this.size = 32});
+
+  @override
+  Widget build(BuildContext context) =>
+      SizedBox(width: size, height: size, child: CustomPaint(painter: _CoinPainter()));
+}
+
+class _CoinPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = size.center(Offset.zero);
+    final r = size.width / 2;
+    final p = Paint()..isAntiAlias = true;
+    p.color = const Color(0xFFB8860B); // dark gold rim
+    canvas.drawCircle(c, r, p);
+    p.color = const Color(0xFFF2C94C); // gold face
+    canvas.drawCircle(c, r * 0.82, p);
+    p.color = const Color(0xFFFFE9A8); // inner ring highlight
+    canvas.drawCircle(c, r * 0.5, p);
+    p.color = const Color(0xFFD9A91E);
+    canvas.drawCircle(c, r * 0.34, p);
+  }
+
+  @override
+  bool shouldRepaint(covariant _CoinPainter oldDelegate) => false;
+}
 
 /// A hard-edged pixel button: solid fill, contrasting border, offset drop-shadow (no blur).
 class PixelButton extends StatelessWidget {
