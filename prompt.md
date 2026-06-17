@@ -225,19 +225,24 @@ now Flutter-exclusive and richer** than the native grid (see below) — keep the
 - `lib/strings.dart` (6 languages + month names) · `lib/store.dart` (`AppStore` ChangeNotifier
   + `shared_preferences` + wall-clock countdown; generic `buyItem(id)`, **no garden size cap**) ·
   `lib/pixel.dart` (pixel widgets + chart painters; `fontFor('ko')`→Galmuri11 and Korean text
-  scaled ×1.5 for legibility; `GoldCoin` disc with no "$") · `lib/main.dart` (all screens).
+  scaled ×1.5 for legibility; **`GoldCoin`** = animated pixel `coin.png` that spins, with a
+  `GoldCoin.animate` test flag) · `lib/main.dart` (all screens).
 - **Custom garden engine** `lib/engine/garden_engine.dart` + `garden_view.dart`: a small
   purpose-built renderer (no Flame/Unity), **fixed 2.5D tilt** (`kVy`) but a **hand-controllable
-  yaw** — two-finger twist rotates the view like Google Maps (look from any compass side).
-  **Pinch-zoom (1×–4×) + pan, both clamped** so the garden stays fixed on screen. Shared
-  `Projector` (fit-to-view + yaw + exact tile↔screen inverse); the ground (grass + flat roads)
-  is drawn through a yaw+squash **affine** and standing things are **depth-sorted** so rotation
-  reads right. Gapless grass + soil slab for depth; **roads lie flat**, **fences stand up** as
-  billboards, **flowers anchored** to the tile (no floating). A `CritterSystem` spawns **≤2 tiny
-  bee/butterfly/ladybug** that fly in, **visit a flower** (hover ~2–4s), then leave & despawn.
-- **Art as data:** every drawable object is a crisp **PNG in `assets/objects/`** (grass, 3
-  critters, 4 roads, 3 fences, 10 flowers = 21), emitted by the dependency-free
-  `tools/gen_objects.py`.
+  yaw** — two-finger twist rotates the view like Google Maps. **Pinch-zoom (1×–4×) + pan, both
+  clamped** so the garden stays fixed on screen. Shared `Projector` (fit-to-view + yaw + exact
+  tile↔screen inverse + `projectGrid`); the ground (grass + flat roads + fences) is drawn through
+  a yaw+squash **affine** so it rotates as one. **Roads lie flat**; **fences are a connected
+  ground network** (post per tile + rails to same-fence neighbours, joining H *and* V, not
+  billboards); **flowers stand up** as depth-sorted billboards (anchored, no floating). In
+  **CUSTOMIZE** the tile **gridlines** are drawn. A `CritterSystem` works in **garden coords**
+  (so critters rotate/zoom with the map) — ≤2 tiny bee/butterfly/ladybug fly in, visit a flower
+  (hover ~2–4s), then leave & despawn.
+- **Art as data:** crisp **PNGs in `assets/objects/`** (grass, coin, 3 critters, 4 roads, 3
+  fences, 10 flowers = 22), emitted by the dependency-free `tools/gen_objects.py`. Fence PNGs
+  are used for the **shop thumbnails**; the garden *renders* fences from a colour palette
+  (`_fencePalette`) instead. Garden flower PNGs get a **dark outline** (10×10 canvas) so plants
+  separate from the grass.
 - **Fonts:** Press Start 2P (Latin) + **Galmuri11** (`assets/fonts/`, OFL pixel font with full
   Hangul) for Korean — keeps the retro look where Press Start 2P has no glyphs.
 - **Launcher icon:** `assets/icon/app_icon*.png` (pixel tomato, from `tools/gen_icon.py`) +

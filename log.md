@@ -5,6 +5,46 @@ Each entry notes the **prompt** (what you asked for) and the **changes** made.
 
 ---
 
+## v8 — Garden-anchored critters, customize gridlines, ground-connected fences, plant/grass contrast, animated pixel coin
+**Date:** 2026-06-17
+
+**Prompt (Flutter, feedback photos in `feedback/Version 07v Feedback/`, incl. inspiration
+images):** (1) versioning — keep incrementing, this build = **v8** (chosen via a quick ask).
+(2) critters are pinned to the **screen**, not the garden — when I rotate, they don't move
+with it. (3) on **CUSTOMIZE**, show **gridlines** on the tiles so I know where I can place.
+(4) all objects face the **screen** not the garden — fences/flowers keep turning to follow me
+when I rotate, and **fences don't connect** (should join horizontally *and* vertically like
+roads). (5) the **cactus + plant stems blend** into the green grass — separate them (refs:
+`1000_F*` grass + `seamless` cactus). (6) the coin isn't **pixel** — make it pixel-style
+(ref: a pixel-coin spin animation), don't copy directly.
+
+**Changes (all in `flutter/`):**
+- **Garden-anchored critters (#2):** `CritterSystem` now lives in **garden coordinates**
+  (tiles), not screen pixels — it spawns at plot edges, flies to flower tiles, hovers, leaves,
+  and the painter **projects** each critter through the camera. So they rotate/zoom with the
+  map instead of floating on the screen.
+- **Customize gridlines (#3):** in CUSTOMIZE the painter draws the tile grid (projected, so it
+  follows the rotation) so it's obvious which tile a tap will hit.
+- **Ground-connected fences (#4):** fences are no longer upright billboards (which spun to
+  face you). They're drawn as a **connected ground network** — a post per tile plus rails
+  toward each same-fence neighbour, **joining horizontally and vertically** like roads — in
+  garden space, so they rotate *with* the garden. Flowers stay standing (they read fine from
+  any side). The fence sprites are now solid colours (`_fencePalette`), not PNGs.
+- **Plant/grass contrast (#5):** grass redrawn brighter + textured (tufts, olive speckle, like
+  the inspiration), and every garden flower/cactus PNG now gets a **dark 1px outline**
+  (rendered on a 10×10 canvas) so green stems/cacti separate cleanly from the grass.
+- **Animated pixel coin (#6):** replaced the smooth-circle coin with a **pixel-art `coin.png`**
+  that **spins** in the wallet (horizontal squash, crisp `filterQuality.none`). A
+  `GoldCoin.animate` flag lets tests disable the perpetual spin.
+- **Version → 0.8.0+9**, publishes **`flutter-v8`** (kept v6/v7 as history per your choice).
+
+**Verified:** `flutter analyze` clean, **20/20 tests pass** (smoke test taps the new coin
+button by key and disables the spin so it settles), debug APK builds locally with 22 sprites.
+iOS `.ipa` builds on the macOS CI runner. *Camera rotation, fence joins and critter motion are
+visual/time-based — please eyeball them on the v8 build.*
+
+---
+
 ## v7 — Centered garden growth, hand-rotate camera, concrete road, fence/road trims, bigger Korean font, $-free coin
 **Date:** 2026-06-17
 
