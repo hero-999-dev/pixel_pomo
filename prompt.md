@@ -220,37 +220,47 @@ now Flutter-exclusive and richer** than the native grid (see below) — keep the
 
 - `lib/logic.dart` — pure port of every Kotlin pure class (engine, themes, flowers, economy,
   garden, labels, label colors, stats, test data), **plus** `Placeables`: **4 roads**
-  (`road_concrete/wood/dirt/stone`) + **3 fences** (`fence_wood/dark/stone`), all 5 coins, with
-  `isRoad`/`isFence`. `Garden.grow()` adds a **centered ring** (size +2, tiles shifted +1/+1).
+  (`road_concrete/wood/dirt/stone`) + **3 fences** (`fence_wood/dark/stone`), with
+  `isRoad`/`isFence`/`isFlower`. **Tile layering:** a tile holds a flat **ground** (road) and a
+  standing **prop** (flower or fence); a fence-on-road is stored as the composite `"road+fence"`
+  parsed by `Placeables.split/combine/groundOf/propOf`. `Garden.plant` layers a fence onto a road
+  (keeps both), slides a road under a fence, and **refuses flowers on roads**; `groundAt`/`propAt`
+  expose the two layers; `countPlanted` counts composite components. `Garden.grow()` adds a
+  **centered ring** (size +2, tiles shifted +1/+1).
 - `lib/strings.dart` (6 languages + month names) · `lib/store.dart` (`AppStore` ChangeNotifier
   + `shared_preferences` + wall-clock countdown; generic `buyItem(id)`, **no garden size cap**) ·
   `lib/pixel.dart` (pixel widgets + chart painters; `fontFor('ko')`→Galmuri11 and Korean text
-  scaled ×1.5 for legibility; **`GoldCoin`** = animated pixel `coin.png` that spins, with a
-  `GoldCoin.animate` test flag) · `lib/main.dart` (all screens).
+  scaled ×1.5 for legibility; **`GoldCoin`** = a **plain static 2D** `coin.png` (no spin, no "$",
+  no smiley; the `GoldCoin.animate` flag is kept as a no-op)) · `lib/main.dart` (all screens).
 - **Custom garden engine** `lib/engine/garden_engine.dart` + `garden_view.dart`: a small
   purpose-built renderer (no Flame/Unity), **fixed 2.5D tilt** (`kVy`) but a **hand-controllable
   yaw** — two-finger twist rotates the view like Google Maps. **Pinch-zoom (1×–4×) + pan, both
   clamped** so the garden stays fixed on screen. Shared `Projector` (fit-to-view + yaw + exact
-  tile↔screen inverse + `projectGrid`); the ground (grass + flat roads + fences) is drawn through
-  a yaw+squash **affine** so it rotates as one. **Roads lie flat**; **fences are a connected
-  ground network** (post per tile + rails to same-fence neighbours, joining H *and* V, not
-  billboards); **flowers stand up** as depth-sorted billboards (anchored, no floating). In
-  **CUSTOMIZE** the tile **gridlines** are drawn. A `CritterSystem` works in **garden coords**
-  (so critters rotate/zoom with the map) — ≤2 tiny bee/butterfly/ladybug fly in, visit a flower
-  (hover ~2–4s), then leave & despawn.
-- **Art as data:** crisp **PNGs in `assets/objects/`** (grass, coin, 3 critters, 4 roads, 3
-  fences, 10 flowers = 22), emitted by the dependency-free `tools/gen_objects.py`. Fence PNGs
-  are used for the **shop thumbnails**; the garden *renders* fences from a colour palette
-  (`_fencePalette`) instead. Garden flower PNGs get a **dark outline** (10×10 canvas) so plants
-  separate from the grass.
+  tile↔screen inverse + `projectGrid`); the ground (grass + flat roads) is drawn through a
+  yaw+squash **affine** so it rotates as one. **8-direction billboards:** flowers, fences and
+  critters ship as **8-frame directional atlases**; `frameForAngle` slices the facet matching the
+  **camera yaw** (flowers/fences) or **travel heading** (critters) so objects turn in 3D and never
+  flip to face you (`kDirFrames = 8`, must match the Python tool). **Roads lie flat**; **fences
+  stand up** as directional posts and `_paintFenceRails` draws raised rails between **any**
+  adjacent fence posts (wood↔dark↔stone connect, H *and* V); **flowers stand up** as depth-sorted
+  billboards (anchored, no floating). A **forest/rock surround** (`forest.png`) tiles over the
+  whole screen behind the plot, so the garden is a clearing critters wander into. In **CUSTOMIZE**
+  the tile **gridlines** are drawn. A `CritterSystem` works in **garden coords** (so critters
+  rotate/zoom with the map) — ≤2 tiny bee/butterfly/ladybug fly in, visit a flower (hover ~2–4s),
+  then leave & despawn.
+- **Art as data:** crisp **PNGs in `assets/objects/`** (grass, forest, coin, 4 roads single-frame;
+  3 critters, 3 fences, 10 flowers as 8-frame atlases = 23 files), emitted by the dependency-free
+  `tools/gen_objects.py` (`spin_frame`/`make_atlas` generate the directional strips). Fence atlases
+  are sliced to their front frame for the **shop/place thumbnails**. Garden flower frames get a
+  **dark outline** (10×10 canvas) so plants separate from the grass.
 - **Fonts:** Press Start 2P (Latin) + **Galmuri11** (`assets/fonts/`, OFL pixel font with full
   Hangul) for Korean — keeps the retro look where Press Start 2P has no glyphs.
 - **Launcher icon:** `assets/icon/app_icon*.png` (pixel tomato, from `tools/gen_icon.py`) +
   `flutter_launcher_icons`; CI runs `dart run flutter_launcher_icons` **after** `flutter create`
   so the real logo is baked in instead of the Flutter default.
-- `test/logic_test.dart` (pure parity + placeables catalogue/costOf/codec + no-cap growth) +
-  `test/widget_smoke_test.dart` (boots the app, opens every overlay incl. the live garden,
-  asserts no exceptions/overflow). Both gate CI. **20 tests.**
+- `test/logic_test.dart` (pure parity + placeables catalogue/costOf/codec + no-cap growth +
+  road/fence overlay layering) + `test/widget_smoke_test.dart` (boots the app, opens every overlay
+  incl. the live garden, asserts no exceptions/overflow). Both gate CI. **23 tests.**
 - **Only the portable parts are committed** (`lib/`, `pubspec.yaml`, `assets/`, `tools/`, `test/`).
   `ios/` + `android/` are generated by CI via `flutter create` (see `flutter/.gitignore`).
 - CI: **`.github/workflows/build-flutter.yml`** runs on a **macOS runner**, scaffolds the

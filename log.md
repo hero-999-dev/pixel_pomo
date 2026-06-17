@@ -5,6 +5,49 @@ Each entry notes the **prompt** (what you asked for) and the **changes** made.
 
 ---
 
+## v9 — 8-direction sprite atlases, standing connected fences, fences-on-roads, forest surround, plain 2D coin
+**Date:** 2026-06-18
+
+**Prompt (Flutter, feedback photos in `feedback & guides/Feedback/Version 07v Feedback/`):**
+(1) different fences don't **connect** to each other — make them join; and fences sit on the
+ground as **dots** (a bug), they should **stand like flowers**. (2) let fences be built **on top
+of roads** too, but **not** flowers. (3) make everything **outside** the garden look like a
+**dense forest / rocks** filling the whole area, as if the critters come from deep in the woods.
+(4) build objects with an **8-direction sprite** system (`flower_n…flower_nw`) and pick the right
+frame from the atlas by **camera angle**, for a multi-dimensional (3D) illusion. (5) the gold coin
+should be **plain 2D** — no animation, no smiley inside, just gold. *(Decisions taken via a quick
+ask: 8-dir applies to flowers + fences + critters; fences stand & connect across any material;
+fence-on-road keeps both as an overlay.)*
+
+**Changes (all in `flutter/`):**
+- **8-direction atlases (#4):** `tools/gen_objects.py` now spins each base sprite about its
+  vertical axis into an **8-frame horizontal atlas** (`spin_frame` + `make_atlas`): horizontal
+  squash by `|cos|`, front-bright/back-dark shading, and a leading-edge highlight so left/right
+  turns differ. Flowers, fences and critters all ship as atlases. The engine adds `frameForAngle`
+  and slices the facet that matches the **camera yaw** (flowers/fences) or the **travel heading**
+  (critters), so objects visibly turn in 3D instead of staying dead-on (and never flip to face you).
+- **Standing, connected fences (#1):** reverted v8's flat ground-network. A fence is now a
+  **standing post billboard** (directional atlas), and `_paintFenceRails` draws two raised
+  screen-space rails between **any** adjacent fence posts — wood joins dark joins stone — so
+  different materials connect, horizontally and vertically. No more ground "dots".
+- **Fences on roads / overlay model (#2):** a tile can hold a flat **ground** (road) plus a
+  standing **prop** (flower or fence). `Placeables.split/combine/groundOf/propOf` parse the new
+  `"road+fence"` composite; `Garden.plant` layers a fence onto a road (keeps both), slides a road
+  under a fence, and **refuses flowers on roads**. The place dialog hides flowers on road tiles.
+- **Forest/rock surround (#3):** new `forest.png` tile; the painter fills the **whole screen**
+  with it behind the soil slab, so the plot reads as a clearing and critters drift in from the trees.
+- **Plain 2D coin (#5):** `coin.png` regenerated as a clean struck-gold disc — dark rim, gold face,
+  one top-left shine, **no centre marks** (the old bevel that read as a smiley is gone). `GoldCoin`
+  is now a **static** `StatelessWidget` (no spin/animation); the `animate` flag is kept as a no-op.
+- **Version → 0.9.0+10**, publishes **`flutter-v9`** (v6/v7/v8 kept as history).
+
+**Verified:** `flutter analyze` clean, **23/23 tests pass** (added 3 overlay tests: fence-on-road
+layering + round-trip, road-under-fence vs clears-flower, flowers-refuse-roads). Debug APK builds
+locally with the new atlas sprites; iOS `.ipa` builds on the macOS CI runner. *The 8-direction
+turning, fence joins, forest backdrop and coin are visual — please eyeball them on the v9 build.*
+
+---
+
 ## v8 — Garden-anchored critters, customize gridlines, ground-connected fences, plant/grass contrast, animated pixel coin
 **Date:** 2026-06-17
 

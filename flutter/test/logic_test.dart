@@ -116,6 +116,32 @@ void main() {
       expect(d.flowerAt(1), 'fence_stone');
       expect(d.flowerAt(2), 'gul');
     });
+
+    test('a fence stands on a road; layers split + round-trip (#2)', () {
+      final g = const Garden().plant(0, 'road_wood').plant(0, 'fence_stone');
+      expect(g.groundAt(0), 'road_wood'); // road kept underneath
+      expect(g.propAt(0), 'fence_stone'); // fence stands on top
+      expect(g.countPlanted('road_wood'), 1);
+      expect(g.countPlanted('fence_stone'), 1);
+      final d = Garden.decode(g.encode());
+      expect(d.groundAt(0), 'road_wood');
+      expect(d.propAt(0), 'fence_stone');
+    });
+
+    test('a road slides under a fence but clears a flower (#2)', () {
+      final withFlower = const Garden().plant(0, 'gul').plant(0, 'road_dirt');
+      expect(withFlower.groundAt(0), 'road_dirt');
+      expect(withFlower.propAt(0), isNull); // flower removed (no flowers on roads)
+      final withFence = const Garden().plant(1, 'fence_wood').plant(1, 'road_dirt');
+      expect(withFence.groundAt(1), 'road_dirt');
+      expect(withFence.propAt(1), 'fence_wood'); // fence preserved
+    });
+
+    test('flowers refuse to grow on a road (#2)', () {
+      final g = const Garden().plant(0, 'road_stone').plant(0, 'gul');
+      expect(g.groundAt(0), 'road_stone');
+      expect(g.propAt(0), isNull); // plant() rejected the flower
+    });
   });
 
   group('Labels + colors', () {

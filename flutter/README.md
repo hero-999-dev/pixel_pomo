@@ -12,18 +12,18 @@ flutter/
 ├── pubspec.yaml          # name: pixel_pomo, deps (shared_preferences), pixel font, flutter_launcher_icons
 ├── assets/
 │   ├── fonts/            # PressStart2P (Latin) + Galmuri11 (OFL pixel Hangul, for Korean)
-│   ├── objects/          # 22 PNG sprites: grass, coin, 3 critters, 4 roads, 3 fences, 10 flowers
+│   ├── objects/          # 23 sprites: grass/forest/coin + 4 roads (flat) + 3 critters/3 fences/10 flowers (8-frame atlases)
 │   └── icon/             # app_icon.png + app_icon_fg.png (the pixel-tomato launcher icon)
 ├── tools/
 │   ├── gen_objects.py    # regenerates assets/objects/*.png (no Pillow needed)
 │   └── gen_icon.py       # regenerates the launcher icon PNGs
 ├── lib/
-│   ├── logic.dart        # pure port + Placeables (5 roads + 4 fences, isRoad/isFence)
+│   ├── logic.dart        # pure port + Placeables (4 roads + 3 fences; road+fence tile-layering)
 │   ├── strings.dart      # the six UI languages (en/tr/pl/de/ko/it) + month names
 │   ├── store.dart        # AppStore (ChangeNotifier): state, persistence, countdown, buyItem
 │   ├── pixel.dart        # pixel widgets + chart painter + flower sprites; fontFor('ko')→Galmuri11
 │   ├── engine/
-│   │   ├── garden_engine.dart  # 2.5D renderer: Projector (+yaw), camera, sprite bank, critters, painter
+│   │   ├── garden_engine.dart  # 2.5D renderer: Projector (+yaw), 8-dir atlases, forest bg, fence rails, critters
 │   │   └── garden_view.dart    # gesture/ticker widget: bounded pinch-zoom + pan + two-finger rotate
 │   └── main.dart         # screens: timer + theme/garden/stats/settings/shop/label overlays
 └── test/
@@ -74,13 +74,17 @@ with the Kotlin original.
 tiny custom engine (`lib/engine/`) — no Unity/Flame. The tilt is fixed, but you can **rotate the
 view by hand** (two-finger twist, like Google Maps), plus **pinch-zoom (1×–4×) and pan**, all
 **clamped** so the garden stays fixed on screen. It **grows from the center**, **no size cap, no
-tile numbers**; **CUSTOMIZE** shows tile gridlines. Roads lie flat and **fences are a connected
-ground network** (joining horizontally *and* vertically, rotating with the garden); flowers stand
-up. Tiny **bee/butterfly/ladybug** live in garden space (so they rotate with the map), drift in to
-**visit a flower**, then leave. The SHOP sells **4 road** + **3 fence** materials (5 coins each).
-Plants get a dark outline so they separate from the grass. The wallet shows a **spinning pixel
-gold coin**. Korean uses the bundled **Galmuri11** pixel font (OFL, scaled up). The launcher icon
-is regenerated via `flutter_launcher_icons` so the pixel tomato survives scaffolding.
+tile numbers**; **CUSTOMIZE** shows tile gridlines. A **forest/rock surround** tiles the whole
+screen behind the plot so the garden reads as a clearing. Flowers, fences and critters use an
+**8-direction sprite atlas** — the engine picks the facet matching the camera angle, so objects
+turn in 3D as you rotate. Roads lie flat; **fences stand up** as posts and **connect to any
+adjacent fence** (wood↔dark↔stone) with raised rails, horizontally *and* vertically; a fence can
+also stand **on top of a road** (flowers can't). Tiny **bee/butterfly/ladybug** live in garden
+space (so they rotate with the map), drift in to **visit a flower**, then leave. The SHOP sells
+**4 road** + **3 fence** materials (5 coins each). Plants get a dark outline so they separate from
+the grass. The wallet shows a **plain 2D gold coin** (no animation). Korean uses the bundled
+**Galmuri11** pixel font (OFL, scaled up). The launcher icon is regenerated via
+`flutter_launcher_icons` so the pixel tomato survives scaffolding.
 
 ## Credits
 
