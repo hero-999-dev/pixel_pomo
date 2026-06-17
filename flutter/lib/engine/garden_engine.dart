@@ -2,15 +2,17 @@
 //  PixelPomo Garden Engine — a tiny, purpose-built 2.5D scene renderer.
 //
 //  Not a general game engine (no Unity/Flame): just what a living pixel garden
-//  needs — a FIXED oblique "2.5D" projection (no angle controls), a contiguous
-//  grass field with a raised soil slab for depth, flat roads, standing fences,
-//  and a few tiny critters that drift in, visit a flower, and leave.
+//  needs — a 2.5D projection with a fixed tilt but a hand-controllable compass
+//  rotation (look from N/E/S/W like Google Maps), a contiguous grass field with
+//  a raised soil slab for depth, flat roads, standing fences, and a few tiny
+//  critters that drift in, visit a flower, and leave.
 //
-//  The camera only zooms and pans, and pan is clamped so the garden can never
-//  be flung off-screen — it stays put as "your map". Pure rendering + camera
-//  math live here; it reads a [Garden] from logic.dart and a [SpriteBank].
+//  The camera zooms, pans (clamped so the garden can't leave the screen) and
+//  yaws (two-finger twist). Pure rendering + camera math live here; it reads a
+//  [Garden] from logic.dart and a [SpriteBank].
 // ─────────────────────────────────────────────────────────────────────────
 import 'dart:math' as math;
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -18,8 +20,9 @@ import 'package:flutter/services.dart' show rootBundle;
 
 import '../logic.dart';
 
-/// Fixed vertical squash of the ground plane — this single constant *is* the
-/// 2.5D depth (1.0 would be a flat top-down square). There is no tilt control.
+/// Fixed vertical squash of the ground plane — this constant *is* the 2.5D
+/// depth (1.0 would be flat top-down). The viewing angle around the vertical
+/// axis is the camera's [GardenCamera.yaw]; the tilt itself stays fixed.
 const double kVy = 0.60;
 
 // ---- sprite bank ------------------------------------------------------------
@@ -55,26 +58,33 @@ class SpriteBank {
 
 // ---- camera -----------------------------------------------------------------
 
-/// Zoom + pan only. [clamp] keeps the garden inside the viewport so it always
+/// Zoom + pan + yaw. [clamp] keeps the garden inside the viewport so it always
 /// stays fixed on screen (you can't drag the map away).
 class GardenCamera {
   double zoom;
   double panX;
   double panY;
+  double yaw; // radians, rotation around the vertical axis
 
-  GardenCamera({this.zoom = 1, this.panX = 0, this.panY = 0});
+  GardenCamera({this.zoom = 1, this.panX = 0, this.panY = 0, this.yaw = 0});
 
   void reset() {
     zoom = 1;
     panX = 0;
     panY = 0;
+    yaw = 0;
   }
 
   void clamp(int n, Size size) {
     final p = Projector.fit(n, this, size);
+    var mx = 0.0, my = 0.0;
+    for (final c in p.corners()) {
+      mx = math.max(mx, (c.dx - p.center.dx).abs());
+      my = math.max(my, (c.dy - p.center.dy).abs());
+    }
     final slab = Projector.slabFor(p.t);
-    final maxX = math.max(0.0, (p.planeW - size.width) / 2);
-    final maxY = math.max(0.0, (p.planeH + slab - size.height) / 2);
+    final maxX = math.max(0.0, mx - size.width / 2);
+    final maxY = math.max(0.0, my + slab - size.height / 2);
     panX = panX.clamp(-maxX, maxX);
     panY = panY.clamp(-maxY, maxY);
   }
@@ -82,41 +92,68 @@ class GardenCamera {
 
 // ---- projection -------------------------------------------------------------
 
-/// Maps tile (col,row) → screen point and back. Fits the whole plot in view at
-/// zoom 1, then the camera's zoom/pan scale and shift it. The inverse is exact,
-/// so taps land on the right tile.
+/// Maps tile (col,row) → screen point and back, with the camera's yaw applied.
+/// Fits the whole plot in view at zoom 1; the inverse is exact so taps land on
+/// the right tile from any rotation.
 class Projector {
   final int n;
-  final double t; // tile width in px (already includes zoom)
+  final double t; // tile size in px (already includes zoom)
   final Offset center;
+  final double yaw;
+  late final double _cos = math.cos(yaw);
+  late final double _sin = math.sin(yaw);
 
-  Projector(this.n, this.t, this.center);
+  Projector(this.n, this.t, this.center, this.yaw);
 
   factory Projector.fit(int n, GardenCamera cam, Size size) {
     final fit = math.min(size.width, size.height) / (n + 1);
     final t = fit * cam.zoom;
-    return Projector(n, t, Offset(size.width / 2 + cam.panX, size.height / 2 + cam.panY));
+    return Projector(
+        n, t, Offset(size.width / 2 + cam.panX, size.height / 2 + cam.panY), cam.yaw);
   }
 
   /// Soil-slab thickness (the 2.5D platform edge) for a given tile size.
   static double slabFor(double t) => t * 0.32 + 6;
 
-  double get planeW => n * t;
-  double get planeH => n * t * kVy;
-  Rect get plane => Rect.fromCenter(center: center, width: planeW, height: planeH);
+  Offset _proj(double gx, double gy) {
+    final rx = gx * _cos - gy * _sin;
+    final ry = gx * _sin + gy * _cos;
+    return Offset(center.dx + rx * t, center.dy + ry * t * kVy);
+  }
 
-  Offset ground(int c, int r) => Offset(
-        center.dx + (c - (n - 1) / 2.0) * t,
-        center.dy + (r - (n - 1) / 2.0) * t * kVy,
-      );
-
+  Offset ground(int c, int r) => _proj(c - (n - 1) / 2.0, r - (n - 1) / 2.0);
   Offset groundIndex(int i) => ground(i % n, i ~/ n);
 
   int tileAt(Offset p) {
-    final c = ((p.dx - center.dx) / t + (n - 1) / 2.0).round();
-    final r = ((p.dy - center.dy) / (t * kVy) + (n - 1) / 2.0).round();
+    final dx = (p.dx - center.dx) / t;
+    final dy = (p.dy - center.dy) / (t * kVy);
+    final gx = dx * _cos + dy * _sin; // inverse rotation
+    final gy = -dx * _sin + dy * _cos;
+    final c = (gx + (n - 1) / 2.0).round();
+    final r = (gy + (n - 1) / 2.0).round();
     if (c < 0 || r < 0 || c >= n || r >= n) return -1;
     return r * n + c;
+  }
+
+  /// The 4 plot corners in screen space (for the slab + bounds), CW.
+  List<Offset> corners() {
+    final h = n / 2.0;
+    return [_proj(-h, -h), _proj(h, -h), _proj(h, h), _proj(-h, h)];
+  }
+
+  /// Affine that maps grid coords (tile units, centred) → screen, so the ground
+  /// layer can be drawn axis-aligned and the canvas handles yaw + squash.
+  Float64List gridToScreen() {
+    final m = Float64List(16);
+    m[0] = t * _cos;
+    m[1] = t * kVy * _sin;
+    m[4] = -t * _sin;
+    m[5] = t * kVy * _cos;
+    m[10] = 1;
+    m[12] = center.dx;
+    m[13] = center.dy;
+    m[15] = 1;
+    return m;
   }
 }
 
@@ -208,7 +245,6 @@ class CritterSystem {
         if (c.timer >= c.hoverFor) {
           c.state = _CState.leave;
           c.timer = 0;
-          // exit toward the nearest screen edge
           final ex = c.pos.dx < b.width / 2 ? -60.0 : b.width + 60.0;
           c.target = Offset(ex, c.pos.dy - 30);
         }
@@ -247,76 +283,115 @@ class GardenPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final p = Projector.fit(_n, cam, size);
     final t = p.t;
-    final plane = p.plane;
     final slab = Projector.slabFor(t);
+    final cs = p.corners();
 
-    // 1) raised soil slab under the front edge → the 2.5D platform thickness
+    // 1) soil slab — extrude each plot edge downward for the 2.5D thickness.
     final soil = Paint()..color = Color(soilColor);
-    canvas.drawRect(
-        Rect.fromLTRB(plane.left, plane.bottom, plane.right, plane.bottom + slab), soil);
-    canvas.drawRect(
-        Rect.fromLTRB(plane.left, plane.bottom + slab - 3, plane.right, plane.bottom + slab),
-        Paint()..color = Color(soilColor).withValues(alpha: 0.55));
+    final soilDim = Paint()..color = Color(soilColor).withValues(alpha: 0.55);
+    for (var i = 0; i < 4; i++) {
+      final a = cs[i], b = cs[(i + 1) % 4];
+      canvas.drawPath(
+          Path()
+            ..moveTo(a.dx, a.dy)
+            ..lineTo(b.dx, b.dy)
+            ..lineTo(b.dx, b.dy + slab)
+            ..lineTo(a.dx, a.dy + slab)
+            ..close(),
+          soil);
+    }
+    // a darker lip along the very bottom of the slab
+    for (var i = 0; i < 4; i++) {
+      final a = cs[i], b = cs[(i + 1) % 4];
+      canvas.drawPath(
+          Path()
+            ..moveTo(a.dx, a.dy + slab - 3)
+            ..lineTo(b.dx, b.dy + slab - 3)
+            ..lineTo(b.dx, b.dy + slab)
+            ..lineTo(a.dx, a.dy + slab)
+            ..close(),
+          soilDim);
+    }
 
-    // 2) contiguous grass field (tiled PNG, no gaps), clipped to the plane
+    // 2) ground layer (grass + flat roads) drawn in grid space under the
+    //    yaw+squash affine, clipped to the plot quad — no gaps, rotates cleanly.
     final grass = sprites.grass();
+    final plot = Path()
+      ..moveTo(cs[0].dx, cs[0].dy)
+      ..lineTo(cs[1].dx, cs[1].dy)
+      ..lineTo(cs[2].dx, cs[2].dy)
+      ..lineTo(cs[3].dx, cs[3].dy)
+      ..close();
     canvas.save();
-    canvas.clipRect(plane);
+    canvas.clipPath(plot);
+    canvas.transform(p.gridToScreen());
+    final half = _n / 2.0;
+    final gridRect = Rect.fromLTWH(-half, -half, _n.toDouble(), _n.toDouble());
     if (grass != null) {
       paintImage(
         canvas: canvas,
-        rect: plane,
+        rect: gridRect,
         image: grass,
         fit: BoxFit.none,
         repeat: ImageRepeat.repeat,
-        scale: grass.width / t,
+        scale: grass.width.toDouble(), // one grass tile == one grid unit
         filterQuality: FilterQuality.none,
         alignment: Alignment.topLeft,
       );
     } else {
-      canvas.drawRect(plane, Paint()..color = Color(groundColor));
+      canvas.drawRect(gridRect, Paint()..color = Color(groundColor));
     }
-
-    // 3) flat surfaces (roads) sit on the ground, drawn one full texture per tile
     for (var r = 0; r < _n; r++) {
       for (var c = 0; c < _n; c++) {
         final id = garden.flowerAt(r * _n + c);
         if (id == null || !Placeables.isRoad(id)) continue;
         final img = sprites.object(id);
-        final rect = Rect.fromCenter(center: p.ground(c, r), width: t, height: t * kVy);
+        final dst = Rect.fromCenter(
+            center: Offset(c - (_n - 1) / 2.0, r - (_n - 1) / 2.0), width: 1, height: 1);
         if (img != null) {
-          paintImage(canvas: canvas, rect: rect, image: img, fit: BoxFit.fill, filterQuality: FilterQuality.none);
+          canvas.drawImageRect(
+              img,
+              Rect.fromLTWH(0, 0, img.width.toDouble(), img.height.toDouble()),
+              dst,
+              Paint()..filterQuality = FilterQuality.none);
         } else {
-          canvas.drawRect(rect, Paint()..color = const Color(0xFFB7A687));
+          canvas.drawRect(dst, Paint()..color = const Color(0xFFB7A687));
         }
       }
     }
     canvas.restore();
 
-    // crisp slab-top outline
-    canvas.drawRect(
-        plane,
+    // crisp plot outline
+    canvas.drawPath(
+        plot,
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2
           ..color = Color(soilColor).withValues(alpha: 0.7));
 
-    // 4) standing things (fences + flowers) back-to-front so nearer rows overlap
+    // 3) standing things (fences + flowers) sorted back-to-front by screen-y so
+    //    nearer ones overlap — correct from any rotation.
+    final standing = <(double, int, String)>[];
     for (var r = 0; r < _n; r++) {
       for (var c = 0; c < _n; c++) {
         final index = r * _n + c;
         final id = garden.flowerAt(index);
         if (id == null || Placeables.isRoad(id)) continue;
-        if (Placeables.isFence(id)) {
-          _paintStanding(canvas, sprites.object(id), p.ground(c, r), t, height: t, sway: 0);
-        } else {
-          final sway = math.sin(time * 1.6 + index) * 1.4;
-          _paintStanding(canvas, sprites.flower(id), p.ground(c, r), t, height: t * 1.05, sway: sway);
-        }
+        standing.add((p.ground(c, r).dy, index, id));
+      }
+    }
+    standing.sort((a, b) => a.$1.compareTo(b.$1));
+    for (final (_, index, id) in standing) {
+      final base = p.groundIndex(index);
+      if (Placeables.isFence(id)) {
+        _paintStanding(canvas, sprites.object(id), base, t, height: t, sway: 0);
+      } else {
+        final sway = math.sin(time * 1.6 + index) * 1.4;
+        _paintStanding(canvas, sprites.flower(id), base, t, height: t * 1.05, sway: sway);
       }
     }
 
-    // 5) critters on top of everything
+    // 4) critters on top of everything
     _paintCritters(canvas, t);
   }
 
@@ -339,7 +414,6 @@ class GardenPainter extends CustomPainter {
     final s = (t * 0.42).clamp(12.0, 30.0);
     for (final c in critterSystem.critters) {
       final img = sprites.critter(c.kind);
-      // gentle flight wobble; ladybugs sit calmer
       final amp = c.kind == 'ladybug' ? 0.6 : 2.2;
       final bob = math.sin((time + c.phase) * 9) * amp;
       final rect = Rect.fromCenter(center: c.pos.translate(0, bob), width: s, height: s);

@@ -59,10 +59,11 @@ void main() {
       expect(Economy.upgradeCost(5), 11);
     });
 
-    test('garden plant/grow keeps row,col; codec round-trips', () {
+    test('garden grows as a centred ring; codec round-trips', () {
+      // (1,1) on a 4×4 → after a +2 ring it sits at (2,2) on a 6×6.
       final g = const Garden().plant(5, 'lale').grow();
-      expect(g.size, 5);
-      expect(g.flowerAt(6), 'lale');
+      expect(g.size, 6);
+      expect(g.flowerAt(2 * 6 + 2), 'lale');
       final decoded = Garden.decode(g.encode());
       expect(decoded.size, g.size);
       expect(decoded.tiles, g.tiles);
@@ -75,25 +76,26 @@ void main() {
       expect(d.tiles.containsKey(99), false);
     });
 
-    test('garden grows with no cap; tiles remap', () {
+    test('garden grows with no cap; stays centred', () {
       var g = const Garden().plant(0, 'gul');
       for (var i = 0; i < 10; i++) {
         g = g.grow();
       }
-      expect(g.size, Economy.baseGardenSize + 10); // far past the old 8 cap
-      expect(g.flowerAt(0), 'gul'); // (0,0) stays at index 0
+      expect(g.size, Economy.baseGardenSize + 20); // +2 ring × 10, past the old 8 cap
+      expect(g.countPlanted('gul'), 1); // nothing lost
+      expect(g.flowerAt(10 * g.size + 10), 'gul'); // (0,0) drifted to (10,10), centred
     });
   });
 
   group('Placeables (roads + fences)', () {
-    test('catalogue: 5 roads + 4 fences, classified correctly', () {
-      expect(Placeables.roadIds.length, 5);
-      expect(Placeables.fenceIds.length, 4);
-      expect(Placeables.objectIds.length, 9);
-      expect(Placeables.isRoad('road_asphalt'), true);
-      expect(Placeables.isFence('road_asphalt'), false);
-      expect(Placeables.isFence('fence_white'), true);
-      expect(Placeables.isRoad('fence_white'), false);
+    test('catalogue: 4 roads + 3 fences, classified correctly', () {
+      expect(Placeables.roadIds.length, 4);
+      expect(Placeables.fenceIds.length, 3);
+      expect(Placeables.objectIds.length, 7);
+      expect(Placeables.isRoad('road_concrete'), true);
+      expect(Placeables.isFence('road_concrete'), false);
+      expect(Placeables.isFence('fence_stone'), true);
+      expect(Placeables.isRoad('fence_stone'), false);
       expect(Placeables.isObject('gul'), false);
     });
 
@@ -106,11 +108,11 @@ void main() {
 
     test('roads/fences round-trip through the codec', () {
       final g = const Garden()
-          .plant(0, 'road_asphalt')
+          .plant(0, 'road_concrete')
           .plant(1, 'fence_stone')
           .plant(2, 'gul');
       final d = Garden.decode(g.encode());
-      expect(d.flowerAt(0), 'road_asphalt');
+      expect(d.flowerAt(0), 'road_concrete');
       expect(d.flowerAt(1), 'fence_stone');
       expect(d.flowerAt(2), 'gul');
     });

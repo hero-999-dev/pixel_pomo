@@ -205,9 +205,9 @@ class Flowers {
 /// the id). Roads lie flat on the ground; fences stand up. Adjacent same-kind
 /// tiles abut, so they read as continuous paths/fences with no extra logic.
 class Placeables {
-  // 5 road surfaces + 4 fence materials.
-  static const roadIds = ['road_asphalt', 'road_wood', 'road_dirt', 'road_brick', 'road_stone'];
-  static const fenceIds = ['fence_wood', 'fence_dark', 'fence_stone', 'fence_white'];
+  // 4 road surfaces + 3 fence materials.
+  static const roadIds = ['road_concrete', 'road_wood', 'road_dirt', 'road_stone'];
+  static const fenceIds = ['fence_wood', 'fence_dark', 'fence_stone'];
   static const objectIds = [...roadIds, ...fenceIds];
 
   static bool isObject(String id) => objectIds.contains(id);
@@ -250,13 +250,15 @@ class Garden {
     return Garden(size: size, tiles: next);
   }
 
+  /// Expand by one tile on every side (a ring), so the plot grows **centred** —
+  /// existing tiles shift by (+1,+1) into the larger grid and stay in the middle.
   Garden grow() {
-    final newSize = size + 1;
+    final newSize = size + 2;
     final remapped = <int, String>{};
     tiles.forEach((index, id) {
       final r = index ~/ size;
       final c = index % size;
-      remapped[r * newSize + c] = id;
+      remapped[(r + 1) * newSize + (c + 1)] = id;
     });
     return Garden(size: newSize, tiles: remapped);
   }
