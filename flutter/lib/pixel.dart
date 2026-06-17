@@ -18,34 +18,51 @@ double _fontScale(String lang) => lang == 'ko' ? 1.5 : 1.0;
 TextStyle pixelStyle(String lang, double size, Color color, {double spacing = 0}) =>
     TextStyle(fontFamily: fontFor(lang), fontSize: size * _fontScale(lang), color: color, letterSpacing: spacing);
 
-/// A simple gold coin disc (no "$"), drawn crisp for the wallet counter.
-class GoldCoin extends StatelessWidget {
+/// A pixel-art gold coin that spins (no "$"). The spin is faked by squashing the
+/// coin sprite horizontally — cheap and crisp. Set [GoldCoin.animate] = false in
+/// tests so `pumpAndSettle` isn't blocked by the perpetual animation.
+class GoldCoin extends StatefulWidget {
+  static bool animate = true;
   final double size;
   const GoldCoin({super.key, this.size = 32});
 
   @override
-  Widget build(BuildContext context) =>
-      SizedBox(width: size, height: size, child: CustomPaint(painter: _CoinPainter()));
+  State<GoldCoin> createState() => _GoldCoinState();
 }
 
-class _CoinPainter extends CustomPainter {
+class _GoldCoinState extends State<GoldCoin> with SingleTickerProviderStateMixin {
+  late final AnimationController _c =
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 2400));
+
   @override
-  void paint(Canvas canvas, Size size) {
-    final c = size.center(Offset.zero);
-    final r = size.width / 2;
-    final p = Paint()..isAntiAlias = true;
-    p.color = const Color(0xFFB8860B); // dark gold rim
-    canvas.drawCircle(c, r, p);
-    p.color = const Color(0xFFF2C94C); // gold face
-    canvas.drawCircle(c, r * 0.82, p);
-    p.color = const Color(0xFFFFE9A8); // inner ring highlight
-    canvas.drawCircle(c, r * 0.5, p);
-    p.color = const Color(0xFFD9A91E);
-    canvas.drawCircle(c, r * 0.34, p);
+  void initState() {
+    super.initState();
+    if (GoldCoin.animate) _c.repeat();
   }
 
   @override
-  bool shouldRepaint(covariant _CoinPainter oldDelegate) => false;
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final coin = Image.asset('assets/objects/coin.png',
+        width: widget.size, height: widget.size, filterQuality: FilterQuality.none);
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (context, child) {
+        final sx = math.cos(_c.value * 2 * math.pi).abs().clamp(0.14, 1.0);
+        return Transform(
+          alignment: Alignment.center,
+          transform: Matrix4.identity()..scaleByDouble(sx, 1.0, 1.0, 1.0),
+          child: child,
+        );
+      },
+      child: coin,
+    );
+  }
 }
 
 /// A hard-edged pixel button: solid fill, contrasting border, offset drop-shadow (no blur).

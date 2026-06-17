@@ -183,7 +183,7 @@ class HomeScreen extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 8),
               child: Row(
                 children: [
-                  const GoldCoin(size: 30),
+                  const GoldCoin(size: 32),
                   const SizedBox(width: 8),
                   Text('${s.coins}', style: pixelStyle(lang, 14, col(th.onSurface))),
                 ],
