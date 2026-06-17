@@ -98,23 +98,86 @@ def flower_grid(petal_hex, center_hex, chars):
     return grid
 
 
+def outline(grid, hexcol):
+    """Add a 1px border in `hexcol` around every opaque pixel (transparent only)."""
+    h, w = len(grid), len(grid[0])
+    ol = hexrgb(hexcol) + (255,)
+    add = []
+    for r in range(h):
+        for c in range(w):
+            if grid[r][c][3] != 0:
+                continue
+            for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                nr, nc = r + dr, c + dc
+                if 0 <= nr < h and 0 <= nc < w and grid[nr][nc][3] != 0:
+                    add.append((r, c))
+                    break
+    for (r, c) in add:
+        grid[r][c] = ol
+    return grid
+
+
+def flower_png_grid(petal_hex, center_hex, chars):
+    """Garden PNG version: the 8x8 flower on a 10x10 canvas with a dark outline,
+    so green stems/cacti separate cleanly from the green grass (#5)."""
+    g8 = flower_grid(petal_hex, center_hex, chars)
+    g = blank(10, 10)
+    for r in range(8):
+        for c in range(8):
+            g[r + 1][c + 1] = g8[r][c]
+    return outline(g, "16280F")
+
+
 # ---- grass tile (seamless, subtle speckle) -----------------------------------
 
 def grass_grid():
-    base = hexrgb("4E9E3E")
-    dark = hexrgb("3F8A33")
-    lite = hexrgb("5DB14A")
+    # Brighter, more textured field (closer to the feedback inspiration) so plant
+    # greens read against it — paired with the dark plant outline in flower_png_grid.
+    base = hexrgb("5BA838")
+    d1 = hexrgb("4F9A30")
+    d2 = hexrgb("3E7F2A")    # darker blade tufts
+    l1 = hexrgb("6FC04A")
+    olive = hexrgb("BBD37A")
     g = [[base + (255,) for _ in range(16)] for _ in range(16)]
-    # deterministic speckle so tiles stay seamless when repeated
     seed = 1234567
     for r in range(16):
         for c in range(16):
             seed = (seed * 1103515245 + 12345) & 0x7FFFFFFF
-            v = seed % 11
+            v = seed % 14
             if v == 0:
-                g[r][c] = dark + (255,)
+                g[r][c] = d1 + (255,)
             elif v == 1:
-                g[r][c] = lite + (255,)
+                g[r][c] = l1 + (255,)
+            elif v == 2:
+                g[r][c] = olive + (255,)
+    # a couple of little grass tufts
+    for (br, bc) in ((3, 4), (10, 11)):
+        for (dr, dc) in ((0, 0), (1, -1), (1, 1), (2, 0)):
+            rr, cc = br + dr, bc + dc
+            if 0 <= rr < 16 and 0 <= cc < 16:
+                g[rr][cc] = d2 + (255,)
+    return g
+
+
+# ---- spinning coin (pixel-art, animated in the wallet) -----------------------
+
+def coin_grid():
+    out = hexrgb("6E4A00") + (255,)
+    rim = hexrgb("C98A1B") + (255,)
+    face = hexrgb("F2C94C") + (255,)
+    hi = hexrgb("FFE9A8") + (255,)
+    g = blank(16, 16)
+    cx = cy = 7.5
+    for r in range(16):
+        for c in range(16):
+            d = ((r - cy) ** 2 + (c - cx) ** 2) ** 0.5
+            if d <= 7.7:
+                g[r][c] = out if d > 6.5 else (rim if d > 5.2 else face)
+    # inner bevel + a top-left shine, so it reads as a struck gold coin
+    for (r, c) in ((5, 5), (5, 6), (6, 5), (4, 7), (7, 4)):
+        g[r][c] = hi
+    for (r, c) in ((6, 8), (8, 6), (9, 9), (8, 9), (9, 8)):
+        g[r][c] = rim
     return g
 
 
@@ -275,8 +338,9 @@ def main():
     os.makedirs(OUT, exist_ok=True)
     SCALE = 16  # 16x16 grids -> 256px; 8x8 flowers/critters -> 128px
     for fid, (petal, center, chars) in FLOWERS.items():
-        write_png(os.path.join(OUT, f"flower_{fid}.png"), upscale(flower_grid(petal, center, chars), SCALE))
+        write_png(os.path.join(OUT, f"flower_{fid}.png"), upscale(flower_png_grid(petal, center, chars), SCALE))
     write_png(os.path.join(OUT, "grass.png"), upscale(grass_grid(), SCALE))
+    write_png(os.path.join(OUT, "coin.png"), upscale(coin_grid(), SCALE))
     for cid, fn in CRITTERS.items():
         write_png(os.path.join(OUT, f"{cid}.png"), upscale(fn(), SCALE))
     for rid, fn in ROADS.items():
@@ -289,7 +353,7 @@ def main():
         p = os.path.join(OUT, old)
         if os.path.exists(p):
             os.remove(p)
-    n = len(FLOWERS) + 1 + len(CRITTERS) + len(ROADS) + len(FENCES)
+    n = len(FLOWERS) + 2 + len(CRITTERS) + len(ROADS) + len(FENCES)  # +grass +coin
     print("wrote", n, "sprites to", os.path.abspath(OUT))
 
 

@@ -53,7 +53,7 @@ class _GardenViewState extends State<GardenView> with SingleTickerProviderStateM
     _ticker = createTicker((elapsed) {
       final dt = (elapsed - _last).inMicroseconds / 1e6;
       _last = elapsed;
-      _critters.step(dt, _lastSize, _flowerTargets());
+      _critters.step(dt, widget.garden.size, _flowerTargets());
       _frame.value++; // nudges the painter to repaint
     })..start();
   }
@@ -65,14 +65,15 @@ class _GardenViewState extends State<GardenView> with SingleTickerProviderStateM
     super.dispose();
   }
 
-  /// Screen positions of planted flowers (not roads/fences), aimed a little
-  /// above the ground so visitors hover at bloom height.
+  /// Garden-coord centres of planted flowers (not roads/fences) — critters live
+  /// in garden space so they rotate/zoom with the map.
   List<Offset> _flowerTargets() {
-    if (_lastSize == Size.zero) return const [];
-    final p = Projector.fit(widget.garden.size, _cam, _lastSize);
+    final n = widget.garden.size;
     final out = <Offset>[];
     widget.garden.tiles.forEach((i, id) {
-      if (!Placeables.isObject(id)) out.add(p.groundIndex(i).translate(0, -p.t * 0.35));
+      if (!Placeables.isObject(id)) {
+        out.add(Offset(i % n - (n - 1) / 2.0, i ~/ n - (n - 1) / 2.0));
+      }
     });
     return out;
   }
@@ -104,6 +105,7 @@ class _GardenViewState extends State<GardenView> with SingleTickerProviderStateM
         cam: _cam,
         sprites: widget.sprites,
         critterSystem: _critters,
+        customizing: widget.customizing,
         groundColor: widget.groundColor,
         soilColor: widget.soilColor,
         repaint: _frame,

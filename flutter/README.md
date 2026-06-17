@@ -12,7 +12,7 @@ flutter/
 ├── pubspec.yaml          # name: pixel_pomo, deps (shared_preferences), pixel font, flutter_launcher_icons
 ├── assets/
 │   ├── fonts/            # PressStart2P (Latin) + Galmuri11 (OFL pixel Hangul, for Korean)
-│   ├── objects/          # 21 PNG sprites: grass, 3 critters, 4 roads, 3 fences, 10 flowers
+│   ├── objects/          # 22 PNG sprites: grass, coin, 3 critters, 4 roads, 3 fences, 10 flowers
 │   └── icon/             # app_icon.png + app_icon_fg.png (the pixel-tomato launcher icon)
 ├── tools/
 │   ├── gen_objects.py    # regenerates assets/objects/*.png (no Pillow needed)
@@ -72,15 +72,15 @@ with the Kotlin original.
 
 **Flutter-exclusive garden** (richer than the native grid): a **live 2.5D diorama** drawn by a
 tiny custom engine (`lib/engine/`) — no Unity/Flame. The tilt is fixed, but you can **rotate the
-view by hand** (two-finger twist, like Google Maps — look from any compass side), plus
-**pinch-zoom (1×–4×) and pan**, all **clamped** so the garden stays fixed on screen. It **grows
-from the center** (a ring on every side), **no size cap, no tile numbers.** Roads lie **flat**,
-fences **stand up**, flowers are anchored (no floating). A few tiny **bee/butterfly/ladybug**
-drift in, **visit a flower**, then leave. The SHOP sells **4 road** + **3 fence** materials (5
-coins each). All drawable objects are PNGs under `assets/objects/`. The wallet shows a **gold
-coin** (no "$"). Korean uses the bundled **Galmuri11** pixel font (OFL, scaled up for legibility).
-The launcher icon is regenerated via `flutter_launcher_icons` (CI runs it after `flutter create`)
-so the pixel tomato survives scaffolding instead of reverting to the Flutter default.
+view by hand** (two-finger twist, like Google Maps), plus **pinch-zoom (1×–4×) and pan**, all
+**clamped** so the garden stays fixed on screen. It **grows from the center**, **no size cap, no
+tile numbers**; **CUSTOMIZE** shows tile gridlines. Roads lie flat and **fences are a connected
+ground network** (joining horizontally *and* vertically, rotating with the garden); flowers stand
+up. Tiny **bee/butterfly/ladybug** live in garden space (so they rotate with the map), drift in to
+**visit a flower**, then leave. The SHOP sells **4 road** + **3 fence** materials (5 coins each).
+Plants get a dark outline so they separate from the grass. The wallet shows a **spinning pixel
+gold coin**. Korean uses the bundled **Galmuri11** pixel font (OFL, scaled up). The launcher icon
+is regenerated via `flutter_launcher_icons` so the pixel tomato survives scaffolding.
 
 ## Credits
 

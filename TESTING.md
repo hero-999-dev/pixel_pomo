@@ -144,17 +144,20 @@ cd flutter && flutter analyze && flutter test   # 20 tests
   concrete instead of asphalt, brick + white fence removed.)*
 - **`test/widget_smoke_test.dart` (1)** — boots the **real** app via `PixelPomoApp(store)`
   and opens **every** overlay (settings, garden, stats, theme, labels, **and the shop via the
-  gold-coin button keyed `shopButton`** since it's no longer a Material icon), asserting
-  `START` renders, each panel shows, closes cleanly, and there are **no exceptions or layout
-  overflow**. The **garden runs a live animation ticker** (the critters), so this screen is
-  driven with fixed `pump(Duration)` steps (it never `pumpAndSettle`s) — it loads the sprite
-  bank, shows `GARDEN`, and disposes the ticker cleanly on CLOSE.
+  gold-coin button keyed `shopButton`**), asserting `START` renders, each panel shows, closes
+  cleanly, and there are **no exceptions or layout overflow**. It sets **`GoldCoin.animate =
+  false`** so the perpetual coin spin doesn't block `pumpAndSettle`. The **garden runs a live
+  ticker** (the critters), so that screen is driven with fixed `pump(Duration)` steps — it loads
+  the sprite bank, shows `GARDEN`, and disposes the ticker cleanly on CLOSE.
 
-**Garden engine note:** the 2.5D renderer math (`Projector` fit + **yaw** + tile↔screen inverse,
-`GardenCamera.clamp` pan bounding, `CritterSystem` spawn/visit/leave) lives in
-`lib/engine/garden_engine.dart`. The tap-routing inverse (`tileAt`) is exercised indirectly by
-the smoke test; the camera rotation/zoom and critter motion are visual and time-based, so
-they're verified by eye in a local `flutter run` / on-device rather than asserted in unit tests.
+**Garden engine note (visual, not unit-tested):** the 2.5D renderer math (`Projector` fit + yaw
++ tile↔screen inverse + `projectGrid`, `GardenCamera.clamp` pan bounding, **garden-space**
+`CritterSystem`, the connected-fence auto-tiling, and the customize gridlines) lives in
+`lib/engine/garden_engine.dart`. The tap inverse (`tileAt`) is exercised indirectly by the smoke
+test; the rotation/zoom, fence joins, plant/grass contrast and critter motion are visual, so
+they're verified by eye on-device / in a local `flutter run` rather than asserted in unit tests.
+*(An offscreen golden-render harness was tried but `toImage` doesn't work headlessly in
+`flutter test` here, so previews are done on-device.)*
 
 **Known gap:** no on-device iOS UI automation (the runner builds an *unsigned* `.ipa`; it
 isn't booted in a simulator). The widget test exercises the same screens on the Flutter

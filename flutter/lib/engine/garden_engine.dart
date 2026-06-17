@@ -4,12 +4,13 @@
 //  Not a general game engine (no Unity/Flame): just what a living pixel garden
 //  needs — a 2.5D projection with a fixed tilt but a hand-controllable compass
 //  rotation (look from N/E/S/W like Google Maps), a contiguous grass field with
-//  a raised soil slab for depth, flat roads, standing fences, and a few tiny
-//  critters that drift in, visit a flower, and leave.
+//  a raised soil slab for depth, flat roads, ground-connected fences, and a few
+//  tiny critters that drift in (in garden space, so they rotate with the map),
+//  visit a flower, and leave.
 //
 //  The camera zooms, pans (clamped so the garden can't leave the screen) and
-//  yaws (two-finger twist). Pure rendering + camera math live here; it reads a
-//  [Garden] from logic.dart and a [SpriteBank].
+//  yaws. Pure rendering + camera math live here; it reads a [Garden] from
+//  logic.dart and a [SpriteBank].
 // ─────────────────────────────────────────────────────────────────────────
 import 'dart:math' as math;
 import 'dart:typed_data';
@@ -25,16 +26,25 @@ import '../logic.dart';
 /// axis is the camera's [GardenCamera.yaw]; the tilt itself stays fixed.
 const double kVy = 0.60;
 
+/// Solid (post, rail) colours per fence id — fences are drawn as a connected
+/// ground network (not billboards), so they're filled rects, not the sprite.
+const Map<String, (int, int)> _fencePalette = {
+  'fence_wood': (0xFF8B5A2B, 0xFFA9743E),
+  'fence_dark': (0xFF3D2814, 0xFF5A3A1E),
+  'fence_stone': (0xFF6E6E6E, 0xFF9A9A9A),
+};
+
 // ---- sprite bank ------------------------------------------------------------
 
 /// Decoded PNGs from assets/objects/, keyed by id ('grass', the critter kinds,
-/// every road/fence id, and 'flower_<id>'). Loaded once, reused for the scene.
+/// every road id, and 'flower_<id>'). Fences are drawn from [_fencePalette], not
+/// loaded here. Loaded once, reused for the scene.
 class SpriteBank {
   final Map<String, ui.Image> images;
   const SpriteBank(this.images);
 
   ui.Image? grass() => images['grass'];
-  ui.Image? object(String id) => images[id]; // roads + fences share their id
+  ui.Image? object(String id) => images[id]; // roads
   ui.Image? flower(String id) => images['flower_$id'];
   ui.Image? critter(String kind) => images[kind];
 
@@ -49,7 +59,7 @@ class SpriteBank {
     await Future.wait([
       grab('grass', 'grass.png'),
       for (final k in CritterSystem.kinds) grab(k, '$k.png'),
-      for (final id in Placeables.objectIds) grab(id, '$id.png'),
+      for (final id in Placeables.roadIds) grab(id, '$id.png'),
       for (final f in Flowers.all) grab('flower_${f.id}', 'flower_${f.id}.png'),
     ]);
     return SpriteBank(out);
@@ -92,9 +102,9 @@ class GardenCamera {
 
 // ---- projection -------------------------------------------------------------
 
-/// Maps tile (col,row) → screen point and back, with the camera's yaw applied.
-/// Fits the whole plot in view at zoom 1; the inverse is exact so taps land on
-/// the right tile from any rotation.
+/// Maps garden coords (tile units, centred) → screen and back, with the camera's
+/// yaw applied. Fits the whole plot in view at zoom 1; the inverse is exact so
+/// taps land on the right tile from any rotation.
 class Projector {
   final int n;
   final double t; // tile size in px (already includes zoom)
@@ -112,16 +122,21 @@ class Projector {
         n, t, Offset(size.width / 2 + cam.panX, size.height / 2 + cam.panY), cam.yaw);
   }
 
-  /// Soil-slab thickness (the 2.5D platform edge) for a given tile size.
   static double slabFor(double t) => t * 0.32 + 6;
 
-  Offset _proj(double gx, double gy) {
-    final rx = gx * _cos - gy * _sin;
-    final ry = gx * _sin + gy * _cos;
+  double get planeW => n * t;
+  double get planeH => n * t * kVy;
+
+  /// Project a continuous garden coordinate (in tile units, plot centred at 0).
+  Offset projectGrid(Offset g) {
+    final rx = g.dx * _cos - g.dy * _sin;
+    final ry = g.dx * _sin + g.dy * _cos;
     return Offset(center.dx + rx * t, center.dy + ry * t * kVy);
   }
 
-  Offset ground(int c, int r) => _proj(c - (n - 1) / 2.0, r - (n - 1) / 2.0);
+  /// Garden coordinate of tile (col,row)'s centre.
+  Offset gridOf(int c, int r) => Offset(c - (n - 1) / 2.0, r - (n - 1) / 2.0);
+  Offset ground(int c, int r) => projectGrid(gridOf(c, r));
   Offset groundIndex(int i) => ground(i % n, i ~/ n);
 
   int tileAt(Offset p) {
@@ -135,14 +150,19 @@ class Projector {
     return r * n + c;
   }
 
-  /// The 4 plot corners in screen space (for the slab + bounds), CW.
+  /// The 4 plot corners in screen space (for the slab + bounds + grid), CW.
   List<Offset> corners() {
     final h = n / 2.0;
-    return [_proj(-h, -h), _proj(h, -h), _proj(h, h), _proj(-h, h)];
+    return [
+      projectGrid(Offset(-h, -h)),
+      projectGrid(Offset(h, -h)),
+      projectGrid(Offset(h, h)),
+      projectGrid(Offset(-h, h)),
+    ];
   }
 
-  /// Affine that maps grid coords (tile units, centred) → screen, so the ground
-  /// layer can be drawn axis-aligned and the canvas handles yaw + squash.
+  /// Affine mapping garden coords → screen, so the ground layer can be drawn
+  /// axis-aligned and the canvas handles yaw + squash.
   Float64List gridToScreen() {
     final m = Float64List(16);
     m[0] = t * _cos;
@@ -157,27 +177,28 @@ class Projector {
   }
 }
 
-// ---- critters ---------------------------------------------------------------
+// ---- critters (garden-space) ------------------------------------------------
 
 enum _CState { approach, hover, leave }
 
-/// A tiny visiting creature (bee / butterfly / ladybug). It enters from a screen
-/// edge, flies to a flower, hovers as if sniffing, then leaves and despawns.
+/// A tiny visiting creature (bee / butterfly / ladybug). It lives in **garden
+/// coordinates** — so it rotates/zooms with the map — entering from a plot edge,
+/// flying to a flower, hovering as if sniffing, then leaving and despawning.
 class Critter {
   final String kind;
-  Offset pos;
-  Offset target;
+  Offset pos; // garden coords (tile units)
+  Offset target; // garden coords
   _CState state = _CState.approach;
-  double timer = 0; // seconds in the current state
-  final double speed; // px/sec
+  double timer = 0;
+  final double speed; // tiles/sec
   final double phase; // flight-wobble offset
-  final double hoverFor; // seconds to linger on the flower
+  final double hoverFor;
 
   Critter(this.kind, this.pos, this.target, this.speed, this.phase, this.hoverFor);
 }
 
-/// Owns the (at most 2) active critters and spawns them occasionally. Needs the
-/// current flower screen positions each step so visitors actually head to blooms.
+/// Owns the (at most 2) active critters and spawns them occasionally. Works
+/// purely in garden coords; the painter projects each critter to the screen.
 class CritterSystem {
   static const kinds = ['bee', 'butterfly', 'ladybug'];
   static const maxActive = 2;
@@ -193,48 +214,51 @@ class CritterSystem {
     _spawnIn = 2 + _r.nextDouble() * 3;
   }
 
-  void step(double dt, Size bounds, List<Offset> flowers) {
+  /// [flowers] are flower-tile centres in garden coords; [n] is the plot size.
+  void step(double dt, int n, List<Offset> flowers) {
     final d = dt.clamp(0.0, 0.05);
     time += d;
     _spawnIn -= d;
+    final half = n / 2.0 + 0.8;
     if (_spawnIn <= 0) {
       _spawnIn = 6 + _r.nextDouble() * 8; // a visitor every ~6–14s
-      if (critters.length < maxActive && flowers.isNotEmpty && bounds != Size.zero) {
-        _spawn(bounds, flowers);
+      if (critters.length < maxActive && flowers.isNotEmpty) {
+        _spawn(half, flowers);
       }
     }
     for (final c in critters) {
-      _stepOne(c, d, bounds);
+      _stepOne(c, d, half);
     }
-    final viewport = (Offset.zero & bounds).inflate(48);
-    critters.removeWhere((c) => c.state == _CState.leave && !viewport.contains(c.pos));
+    critters.removeWhere((c) =>
+        c.state == _CState.leave &&
+        (c.pos.dx.abs() > half + 0.5 || c.pos.dy.abs() > half + 0.5));
   }
 
-  void _spawn(Size b, List<Offset> flowers) {
+  void _spawn(double half, List<Offset> flowers) {
+    double rnd() => (_r.nextDouble() * 2 - 1) * half;
     final start = switch (_r.nextInt(4)) {
-      0 => Offset(_r.nextDouble() * b.width, -24),
-      1 => Offset(b.width + 24, _r.nextDouble() * b.height),
-      2 => Offset(_r.nextDouble() * b.width, b.height + 24),
-      _ => Offset(-24, _r.nextDouble() * b.height),
+      0 => Offset(rnd(), -half),
+      1 => Offset(half, rnd()),
+      2 => Offset(rnd(), half),
+      _ => Offset(-half, rnd()),
     };
-    final target = flowers[_r.nextInt(flowers.length)];
     critters.add(Critter(
       kinds[_r.nextInt(kinds.length)],
       start,
-      target,
-      36 + _r.nextDouble() * 28,
+      flowers[_r.nextInt(flowers.length)],
+      1.0 + _r.nextDouble() * 0.8, // tiles/sec
       _r.nextDouble() * math.pi * 2,
       2.0 + _r.nextDouble() * 2.5,
     ));
   }
 
-  void _stepOne(Critter c, double dt, Size b) {
+  void _stepOne(Critter c, double dt, double half) {
     c.timer += dt;
     final to = c.target - c.pos;
     final dist = to.distance;
     switch (c.state) {
       case _CState.approach:
-        if (dist < 6) {
+        if (dist < 0.18) {
           c.state = _CState.hover;
           c.timer = 0;
         } else {
@@ -245,12 +269,12 @@ class CritterSystem {
         if (c.timer >= c.hoverFor) {
           c.state = _CState.leave;
           c.timer = 0;
-          final ex = c.pos.dx < b.width / 2 ? -60.0 : b.width + 60.0;
-          c.target = Offset(ex, c.pos.dy - 30);
+          final ex = c.pos.dx < 0 ? -(half + 1) : (half + 1);
+          c.target = Offset(ex, c.pos.dy);
         }
         break;
       case _CState.leave:
-        if (dist > 0.1) c.pos += to / dist * c.speed * 1.4 * dt;
+        if (dist > 0.01) c.pos += to / dist * c.speed * 1.4 * dt;
         break;
     }
   }
@@ -263,6 +287,7 @@ class GardenPainter extends CustomPainter {
   final GardenCamera cam;
   final SpriteBank sprites;
   final CritterSystem critterSystem;
+  final bool customizing;
   final int groundColor;
   final int soilColor;
 
@@ -271,6 +296,7 @@ class GardenPainter extends CustomPainter {
     required this.cam,
     required this.sprites,
     required this.critterSystem,
+    required this.customizing,
     required this.groundColor,
     required this.soilColor,
     required Listenable repaint,
@@ -288,7 +314,6 @@ class GardenPainter extends CustomPainter {
 
     // 1) soil slab — extrude each plot edge downward for the 2.5D thickness.
     final soil = Paint()..color = Color(soilColor);
-    final soilDim = Paint()..color = Color(soilColor).withValues(alpha: 0.55);
     for (var i = 0; i < 4; i++) {
       final a = cs[i], b = cs[(i + 1) % 4];
       canvas.drawPath(
@@ -300,22 +325,9 @@ class GardenPainter extends CustomPainter {
             ..close(),
           soil);
     }
-    // a darker lip along the very bottom of the slab
-    for (var i = 0; i < 4; i++) {
-      final a = cs[i], b = cs[(i + 1) % 4];
-      canvas.drawPath(
-          Path()
-            ..moveTo(a.dx, a.dy + slab - 3)
-            ..lineTo(b.dx, b.dy + slab - 3)
-            ..lineTo(b.dx, b.dy + slab)
-            ..lineTo(a.dx, a.dy + slab)
-            ..close(),
-          soilDim);
-    }
 
-    // 2) ground layer (grass + flat roads) drawn in grid space under the
-    //    yaw+squash affine, clipped to the plot quad — no gaps, rotates cleanly.
-    final grass = sprites.grass();
+    // 2) ground layer (grass + flat roads + connected fences) in garden space,
+    //    under the yaw+squash affine, clipped to the plot — rotates cleanly.
     final plot = Path()
       ..moveTo(cs[0].dx, cs[0].dy)
       ..lineTo(cs[1].dx, cs[1].dy)
@@ -327,6 +339,7 @@ class GardenPainter extends CustomPainter {
     canvas.transform(p.gridToScreen());
     final half = _n / 2.0;
     final gridRect = Rect.fromLTWH(-half, -half, _n.toDouble(), _n.toDouble());
+    final grass = sprites.grass();
     if (grass != null) {
       paintImage(
         canvas: canvas,
@@ -334,13 +347,50 @@ class GardenPainter extends CustomPainter {
         image: grass,
         fit: BoxFit.none,
         repeat: ImageRepeat.repeat,
-        scale: grass.width.toDouble(), // one grass tile == one grid unit
+        scale: grass.width.toDouble(), // one grass tile == one garden unit
         filterQuality: FilterQuality.none,
         alignment: Alignment.topLeft,
       );
     } else {
       canvas.drawRect(gridRect, Paint()..color = Color(groundColor));
     }
+    _paintRoads(canvas);
+    _paintFences(canvas);
+    canvas.restore();
+
+    // crisp plot outline
+    canvas.drawPath(
+        plot,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2
+          ..color = Color(soilColor).withValues(alpha: 0.7));
+
+    // 3) customize gridlines (screen space, uniform width) so it's clear which
+    //    tile you'll tap.
+    if (customizing) _paintGrid(canvas, p);
+
+    // 4) flowers stand up as billboards, sorted back-to-front by screen depth.
+    final standing = <(double, int, String)>[];
+    for (var r = 0; r < _n; r++) {
+      for (var c = 0; c < _n; c++) {
+        final index = r * _n + c;
+        final id = garden.flowerAt(index);
+        if (id == null || Placeables.isObject(id)) continue;
+        standing.add((p.ground(c, r).dy, index, id));
+      }
+    }
+    standing.sort((a, b) => a.$1.compareTo(b.$1));
+    for (final (_, index, id) in standing) {
+      final sway = math.sin(time * 1.6 + index) * 1.4;
+      _paintFlower(canvas, sprites.flower(id), p.groundIndex(index), t, sway);
+    }
+
+    // 5) critters on top of everything (projected from garden coords)
+    _paintCritters(canvas, p, t);
+  }
+
+  void _paintRoads(Canvas canvas) {
     for (var r = 0; r < _n; r++) {
       for (var c = 0; c < _n; c++) {
         final id = garden.flowerAt(r * _n + c);
@@ -359,64 +409,73 @@ class GardenPainter extends CustomPainter {
         }
       }
     }
-    canvas.restore();
-
-    // crisp plot outline
-    canvas.drawPath(
-        plot,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2
-          ..color = Color(soilColor).withValues(alpha: 0.7));
-
-    // 3) standing things (fences + flowers) sorted back-to-front by screen-y so
-    //    nearer ones overlap — correct from any rotation.
-    final standing = <(double, int, String)>[];
-    for (var r = 0; r < _n; r++) {
-      for (var c = 0; c < _n; c++) {
-        final index = r * _n + c;
-        final id = garden.flowerAt(index);
-        if (id == null || Placeables.isRoad(id)) continue;
-        standing.add((p.ground(c, r).dy, index, id));
-      }
-    }
-    standing.sort((a, b) => a.$1.compareTo(b.$1));
-    for (final (_, index, id) in standing) {
-      final base = p.groundIndex(index);
-      if (Placeables.isFence(id)) {
-        _paintStanding(canvas, sprites.object(id), base, t, height: t, sway: 0);
-      } else {
-        final sway = math.sin(time * 1.6 + index) * 1.4;
-        _paintStanding(canvas, sprites.flower(id), base, t, height: t * 1.05, sway: sway);
-      }
-    }
-
-    // 4) critters on top of everything
-    _paintCritters(canvas, t);
   }
 
-  /// Draw a billboard sprite standing up with its base resting on the tile
-  /// (toward the front), plus a soft contact shadow — so nothing floats.
-  void _paintStanding(Canvas canvas, ui.Image? img, Offset anchor, double t,
-      {required double height, required double sway}) {
+  /// Fences as a connected ground network: a post per tile + rails toward each
+  /// same-fence neighbour (so they join both horizontally and vertically, like
+  /// roads) — all in garden space, so they rotate with the map.
+  void _paintFences(Canvas canvas) {
+    bool same(int idx, String id) =>
+        idx >= 0 && idx < _n * _n && garden.flowerAt(idx) == id;
+    for (var r = 0; r < _n; r++) {
+      for (var c = 0; c < _n; c++) {
+        final id = garden.flowerAt(r * _n + c);
+        if (id == null || !Placeables.isFence(id)) continue;
+        final (postC, railC) = _fencePalette[id]!;
+        final gx = c - (_n - 1) / 2.0, gy = r - (_n - 1) / 2.0;
+        final rail = Paint()..color = Color(railC);
+        final n = same((r - 1) * _n + c, id) && r > 0;
+        final s = same((r + 1) * _n + c, id) && r < _n - 1;
+        final e = same(r * _n + c + 1, id) && c < _n - 1;
+        final w = same(r * _n + c - 1, id) && c > 0;
+        if (e) canvas.drawRect(Rect.fromLTWH(gx, gy - 0.07, 0.5, 0.14), rail);
+        if (w) canvas.drawRect(Rect.fromLTWH(gx - 0.5, gy - 0.07, 0.5, 0.14), rail);
+        if (s) canvas.drawRect(Rect.fromLTWH(gx - 0.07, gy, 0.14, 0.5), rail);
+        if (n) canvas.drawRect(Rect.fromLTWH(gx - 0.07, gy - 0.5, 0.14, 0.5), rail);
+        if (!n && !s && !e && !w) {
+          canvas.drawRect(Rect.fromCenter(center: Offset(gx, gy), width: 0.6, height: 0.14), rail);
+        }
+        canvas.drawRect(
+            Rect.fromCenter(center: Offset(gx, gy), width: 0.28, height: 0.28),
+            Paint()..color = Color(postC));
+      }
+    }
+  }
+
+  void _paintGrid(Canvas canvas, Projector p) {
+    final line = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..color = const Color(0x66FFFFFF);
+    final h = _n / 2.0;
+    for (var i = 0; i <= _n; i++) {
+      final g = -h + i;
+      canvas.drawLine(p.projectGrid(Offset(g, -h)), p.projectGrid(Offset(g, h)), line);
+      canvas.drawLine(p.projectGrid(Offset(-h, g)), p.projectGrid(Offset(h, g)), line);
+    }
+  }
+
+  void _paintFlower(Canvas canvas, ui.Image? img, Offset anchor, double t, double sway) {
     canvas.drawOval(
         Rect.fromCenter(
             center: anchor.translate(0, t * kVy * 0.16), width: t * 0.5, height: t * kVy * 0.34),
         Paint()..color = const Color(0x33000000));
     if (img == null) return;
+    final h = t * 1.05;
     final bottom = anchor.dy + t * kVy * 0.30;
     final rect = Rect.fromCenter(
-        center: Offset(anchor.dx + sway, bottom - height / 2), width: t * 0.9, height: height);
+        center: Offset(anchor.dx + sway, bottom - h / 2), width: t * 0.9, height: h);
     paintImage(canvas: canvas, rect: rect, image: img, fit: BoxFit.contain, filterQuality: FilterQuality.none);
   }
 
-  void _paintCritters(Canvas canvas, double t) {
+  void _paintCritters(Canvas canvas, Projector p, double t) {
     final s = (t * 0.42).clamp(12.0, 30.0);
     for (final c in critterSystem.critters) {
       final img = sprites.critter(c.kind);
       final amp = c.kind == 'ladybug' ? 0.6 : 2.2;
       final bob = math.sin((time + c.phase) * 9) * amp;
-      final rect = Rect.fromCenter(center: c.pos.translate(0, bob), width: s, height: s);
+      final at = p.projectGrid(c.pos).translate(0, bob - t * 0.25); // hover above ground
+      final rect = Rect.fromCenter(center: at, width: s, height: s);
       if (img != null) {
         paintImage(canvas: canvas, rect: rect, image: img, fit: BoxFit.contain, filterQuality: FilterQuality.none);
       } else {

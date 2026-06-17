@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pixel_pomo/main.dart';
+import 'package:pixel_pomo/pixel.dart';
 import 'package:pixel_pomo/store.dart';
 
 /// Boots the real app and opens every overlay, asserting no exceptions or layout overflow.
@@ -9,6 +10,7 @@ import 'package:pixel_pomo/store.dart';
 void main() {
   testWidgets('app boots and every overlay opens cleanly', (tester) async {
     SharedPreferences.setMockInitialValues({});
+    GoldCoin.animate = false; // the perpetual coin spin would block pumpAndSettle
     final store = AppStore();
     await store.load();
 
