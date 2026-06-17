@@ -127,10 +127,10 @@ The Dart port carries its own tests, gating the **`build-flutter.yml`** macOS pi
 **3.44.2 / Dart 3.12.2** and green in CI.
 
 ```bash
-cd flutter && flutter analyze && flutter test   # 20 tests
+cd flutter && flutter analyze && flutter test   # 23 tests
 ```
 
-- **`test/logic_test.dart` (19)** — pure-logic parity with the Kotlin edge suite:
+- **`test/logic_test.dart` (22)** — pure-logic parity with the Kotlin edge suite:
   `PomodoroEngine` state machine + progress clamp + `1ms→00:01` round-up; `Economy`
   `coinsFor`/`upgradeCost`; `Garden` plant/grow keeps row,col + codec round-trip + decode
   drops oversized tiles & clamps size up; `Labels` normalize (strip + cap 12), dedup, keep
@@ -140,24 +140,27 @@ cd flutter && flutter analyze && flutter test   # 20 tests
   **centered** — `grow()` adds a +2 ring, so a tile drifts +1/+1 each step and nothing is lost;
   `Placeables` catalogue is **4 roads + 3 fences (7 objects)** classified by `isRoad`/`isFence`;
   `Economy.costOf` = **5** for every object, **10** for flowers; and road/fence ids **round-trip
-  through the codec**. *(v7 changed growth to a centered ring and trimmed the catalogue —
-  concrete instead of asphalt, brick + white fence removed.)*
+  through the codec**. **v9 tile-layering (#2):** a **fence stands on a road** (the tile splits
+  into `groundAt`=road + `propAt`=fence, both survive the codec); placing a **road under a fence**
+  keeps the fence but a road **clears a flower**; and a **flower refuses to plant on a road**.
 - **`test/widget_smoke_test.dart` (1)** — boots the **real** app via `PixelPomoApp(store)`
   and opens **every** overlay (settings, garden, stats, theme, labels, **and the shop via the
   gold-coin button keyed `shopButton`**), asserting `START` renders, each panel shows, closes
-  cleanly, and there are **no exceptions or layout overflow**. It sets **`GoldCoin.animate =
-  false`** so the perpetual coin spin doesn't block `pumpAndSettle`. The **garden runs a live
-  ticker** (the critters), so that screen is driven with fixed `pump(Duration)` steps — it loads
-  the sprite bank, shows `GARDEN`, and disposes the ticker cleanly on CLOSE.
+  cleanly, and there are **no exceptions or layout overflow**. The **garden runs a live ticker**
+  (the critters), so that screen is driven with fixed `pump(Duration)` steps — it loads the sprite
+  bank, shows `GARDEN`, and disposes the ticker cleanly on CLOSE. *(The coin is now a plain static
+  widget, so `GoldCoin.animate=false` is a harmless no-op.)*
 
 **Garden engine note (visual, not unit-tested):** the 2.5D renderer math (`Projector` fit + yaw
 + tile↔screen inverse + `projectGrid`, `GardenCamera.clamp` pan bounding, **garden-space**
-`CritterSystem`, the connected-fence auto-tiling, and the customize gridlines) lives in
+`CritterSystem`, the **8-direction atlas frame pick** (`frameForAngle`), the **fence-rail
+connections**, the **forest surround**, and the customize gridlines) lives in
 `lib/engine/garden_engine.dart`. The tap inverse (`tileAt`) is exercised indirectly by the smoke
-test; the rotation/zoom, fence joins, plant/grass contrast and critter motion are visual, so
-they're verified by eye on-device / in a local `flutter run` rather than asserted in unit tests.
-*(An offscreen golden-render harness was tried but `toImage` doesn't work headlessly in
-`flutter test` here, so previews are done on-device.)*
+test; the camera rotation/zoom, the 8-direction turning, fence joins, forest backdrop and the
+plain coin are visual, so they're verified by eye on-device / in a local `flutter run` rather than
+asserted in unit tests. The directional atlases themselves were eyeballed from the generated PNGs
+(front-bright → squashed sides → dark back, 8 frames each). *(An offscreen golden-render harness
+was tried but `toImage` doesn't work headlessly in `flutter test` here, so previews are on-device.)*
 
 **Known gap:** no on-device iOS UI automation (the runner builds an *unsigned* `.ipa`; it
 isn't booted in a simulator). The widget test exercises the same screens on the Flutter

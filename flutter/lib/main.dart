@@ -7,9 +7,27 @@ import 'pixel.dart';
 import 'store.dart';
 import 'strings.dart';
 
-/// Small PNG thumbnail for a garden object (road/fence), crisp pixels.
-Widget objectThumb(String id, double size) =>
-    Image.asset('assets/objects/$id.png', width: size, height: size, filterQuality: FilterQuality.none);
+/// Small PNG thumbnail for a garden object (road/fence), crisp pixels. Fence
+/// PNGs are 8-frame directional atlases, so show just their front frame.
+Widget objectThumb(String id, double size) {
+  final img = Image.asset('assets/objects/$id.png',
+      filterQuality: FilterQuality.none, fit: BoxFit.fill);
+  if (!Placeables.isFence(id)) {
+    return SizedBox(width: size, height: size, child: img);
+  }
+  return ClipRect(
+    child: SizedBox(
+      width: size,
+      height: size,
+      child: OverflowBox(
+        alignment: Alignment.centerLeft,
+        minWidth: size * kDirFrames,
+        maxWidth: size * kDirFrames,
+        child: SizedBox(width: size * kDirFrames, height: size, child: img),
+      ),
+    ),
+  );
+}
 
 /// SpriteBank is loaded once and shared across garden opens.
 Future<SpriteBank>? _spritesFuture;
@@ -662,8 +680,11 @@ class GardenScreen extends StatelessWidget {
   void _onTileTap(BuildContext context, AppStore s, int index) {
     final lang = s.lang;
     final current = s.garden.flowerAt(index);
+    // flowers can't grow on a road; fences can stand on one (#2).
+    final hasRoad = s.garden.groundAt(index) != null;
     // everything the player owns and hasn't placed yet (flowers + objects)
-    final flowers = Flowers.all.where((f) => s.availableOf(f.id) > 0).toList();
+    final flowers =
+        hasRoad ? <Flower>[] : Flowers.all.where((f) => s.availableOf(f.id) > 0).toList();
     final objects = Placeables.objectIds.where((id) => s.availableOf(id) > 0).toList();
     if (current == null && flowers.isEmpty && objects.isEmpty) {
       s.messenger?.call(s.owned.isEmpty ? 'needFlowers' : 'noneLeft');

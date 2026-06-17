@@ -70,8 +70,9 @@ class _GardenViewState extends State<GardenView> with SingleTickerProviderStateM
   List<Offset> _flowerTargets() {
     final n = widget.garden.size;
     final out = <Offset>[];
-    widget.garden.tiles.forEach((i, id) {
-      if (!Placeables.isObject(id)) {
+    widget.garden.tiles.forEach((i, _) {
+      final prop = widget.garden.propAt(i);
+      if (prop != null && Placeables.isFlower(prop)) {
         out.add(Offset(i % n - (n - 1) / 2.0, i ~/ n - (n - 1) / 2.0));
       }
     });
