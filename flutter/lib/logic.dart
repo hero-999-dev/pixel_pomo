@@ -204,6 +204,11 @@ class Flowers {
 /// Garden objects that aren't flowers. They live in the same tile map (value =
 /// the id). Roads lie flat on the ground; fences stand up. Adjacent same-kind
 /// tiles abut, so they read as continuous paths/fences with no extra logic.
+///
+/// A tile can hold up to two things: a flat **ground** layer (a road) and a
+/// standing **prop** (a flower or a fence). Fences may stand on top of a road,
+/// so such a tile is stored as the composite `"<road>+<fence>"`. Flowers only
+/// grow on bare grass. A plain id (no `+`) is a single occupant.
 class Placeables {
   // 4 road surfaces + 3 fence materials.
   static const roadIds = ['road_concrete', 'road_wood', 'road_dirt', 'road_stone'];
@@ -213,6 +218,29 @@ class Placeables {
   static bool isObject(String id) => objectIds.contains(id);
   static bool isRoad(String id) => roadIds.contains(id);
   static bool isFence(String id) => fenceIds.contains(id);
+  static bool isFlower(String id) => id.isNotEmpty && !isObject(id);
+
+  /// Split a stored tile value into (road, prop). prop is the standing
+  /// flower/fence; road is the flat ground beneath it (or null).
+  static (String?, String?) split(String value) {
+    String? road, prop;
+    for (final p in value.split('+')) {
+      if (p.isEmpty) continue;
+      if (isRoad(p)) {
+        road = p;
+      } else {
+        prop = p;
+      }
+    }
+    return (road, prop);
+  }
+
+  static String? groundOf(String? value) => value == null ? null : split(value).$1;
+  static String? propOf(String? value) => value == null ? null : split(value).$2;
+
+  /// Re-join a (road, prop) pair into a stored value (road first).
+  static String combine(String? road, String? prop) =>
+      (road != null && prop != null) ? '$road+$prop' : (road ?? prop)!;
 }
 
 // ---- economy ----------------------------------------------------------------
@@ -237,11 +265,38 @@ class Garden {
 
   int get tileCount => size * size;
   bool isValidIndex(int i) => i >= 0 && i < tileCount;
+
+  /// Raw stored value for a tile (may be a `"road+fence"` composite).
   String? flowerAt(int i) => tiles[i];
 
-  Garden plant(int index, String flowerId) {
-    if (!isValidIndex(index) || flowerId.trim().isEmpty) return this;
-    return Garden(size: size, tiles: {...tiles, index: flowerId});
+  /// The flat ground layer (a road) on a tile, or null.
+  String? groundAt(int i) => Placeables.groundOf(tiles[i]);
+
+  /// The standing prop (flower or fence) on a tile, or null.
+  String? propAt(int i) => Placeables.propOf(tiles[i]);
+
+  /// Place [id] on [index], honouring the layering rules:
+  /// • a flower only grows on bare grass (rejected if a road is there);
+  /// • a fence stands on grass or on top of a road (keeps the road);
+  /// • a road slides under an existing fence (keeps the fence) but clears a
+  ///   flower, since flowers can't sit on roads.
+  Garden plant(int index, String id) {
+    if (!isValidIndex(index) || id.trim().isEmpty) return this;
+    final current = tiles[index];
+    final (road, prop) = current == null ? (null, null) : Placeables.split(current);
+
+    final String value;
+    if (Placeables.isRoad(id)) {
+      final keepFence = prop != null && Placeables.isFence(prop) ? prop : null;
+      value = Placeables.combine(id, keepFence);
+    } else if (Placeables.isFence(id)) {
+      value = Placeables.combine(road, id);
+    } else {
+      // flower — only on bare grass
+      if (road != null) return this;
+      value = id;
+    }
+    return Garden(size: size, tiles: {...tiles, index: value});
   }
 
   Garden clear(int index) {
@@ -263,8 +318,10 @@ class Garden {
     return Garden(size: newSize, tiles: remapped);
   }
 
-  int countPlanted(String flowerId) =>
-      tiles.values.where((v) => v == flowerId).length;
+  int countPlanted(String flowerId) => tiles.values.where((v) {
+        final (road, prop) = Placeables.split(v);
+        return road == flowerId || prop == flowerId;
+      }).length;
 
   String encode() {
     final b = StringBuffer('size:$size');

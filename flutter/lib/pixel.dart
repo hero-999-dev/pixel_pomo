@@ -18,51 +18,21 @@ double _fontScale(String lang) => lang == 'ko' ? 1.5 : 1.0;
 TextStyle pixelStyle(String lang, double size, Color color, {double spacing = 0}) =>
     TextStyle(fontFamily: fontFor(lang), fontSize: size * _fontScale(lang), color: color, letterSpacing: spacing);
 
-/// A pixel-art gold coin that spins (no "$"). The spin is faked by squashing the
-/// coin sprite horizontally — cheap and crisp. Set [GoldCoin.animate] = false in
-/// tests so `pumpAndSettle` isn't blocked by the perpetual animation.
-class GoldCoin extends StatefulWidget {
-  static bool animate = true;
+/// A plain 2D gold coin (no "$", no smiley, no animation — #5). Just the flat
+/// struck-gold sprite, drawn crisp. The [animate] flag is kept (a no-op) so old
+/// call sites / tests that toggle it still compile.
+class GoldCoin extends StatelessWidget {
+  static bool animate = false;
   final double size;
   const GoldCoin({super.key, this.size = 32});
 
   @override
-  State<GoldCoin> createState() => _GoldCoinState();
-}
-
-class _GoldCoinState extends State<GoldCoin> with SingleTickerProviderStateMixin {
-  late final AnimationController _c =
-      AnimationController(vsync: this, duration: const Duration(milliseconds: 2400));
-
-  @override
-  void initState() {
-    super.initState();
-    if (GoldCoin.animate) _c.repeat();
-  }
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final coin = Image.asset('assets/objects/coin.png',
-        width: widget.size, height: widget.size, filterQuality: FilterQuality.none);
-    return AnimatedBuilder(
-      animation: _c,
-      builder: (context, child) {
-        final sx = math.cos(_c.value * 2 * math.pi).abs().clamp(0.14, 1.0);
-        return Transform(
-          alignment: Alignment.center,
-          transform: Matrix4.identity()..scaleByDouble(sx, 1.0, 1.0, 1.0),
-          child: child,
-        );
-      },
-      child: coin,
-    );
-  }
+  Widget build(BuildContext context) => Image.asset(
+        'assets/objects/coin.png',
+        width: size,
+        height: size,
+        filterQuality: FilterQuality.none,
+      );
 }
 
 /// A hard-edged pixel button: solid fill, contrasting border, offset drop-shadow (no blur).

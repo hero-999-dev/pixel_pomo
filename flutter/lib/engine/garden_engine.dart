@@ -26,26 +26,41 @@ import '../logic.dart';
 /// axis is the camera's [GardenCamera.yaw]; the tilt itself stays fixed.
 const double kVy = 0.60;
 
-/// Solid (post, rail) colours per fence id — fences are drawn as a connected
-/// ground network (not billboards), so they're filled rects, not the sprite.
-const Map<String, (int, int)> _fencePalette = {
-  'fence_wood': (0xFF8B5A2B, 0xFFA9743E),
-  'fence_dark': (0xFF3D2814, 0xFF5A3A1E),
-  'fence_stone': (0xFF6E6E6E, 0xFF9A9A9A),
+/// Number of frames in every directional atlas — must match `FRAMES` in
+/// tools/gen_objects.py. Flowers, fences and critters each ship as a horizontal
+/// strip of [kDirFrames] facets; the painter slices out the one that matches the
+/// viewing angle so objects appear to turn in 3D as the camera yaws.
+const int kDirFrames = 8;
+
+/// Rail colour per fence id — the connecting rails between adjacent fence posts
+/// are drawn as lines (the posts themselves come from the directional atlas).
+const Map<String, int> _fenceRail = {
+  'fence_wood': 0xFFA9743E,
+  'fence_dark': 0xFF5A3A1E,
+  'fence_stone': 0xFF9A9A9A,
 };
+
+/// Pick the atlas frame for a viewing/heading angle (radians).
+int frameForAngle(double a) {
+  final k = (a / (2 * math.pi) * kDirFrames).round() % kDirFrames;
+  return (k + kDirFrames) % kDirFrames;
+}
 
 // ---- sprite bank ------------------------------------------------------------
 
-/// Decoded PNGs from assets/objects/, keyed by id ('grass', the critter kinds,
-/// every road id, and 'flower_<id>'). Fences are drawn from [_fencePalette], not
-/// loaded here. Loaded once, reused for the scene.
+/// Decoded PNGs from assets/objects/, keyed by id. Flowers (`flower_<id>`),
+/// fences (`fence_<id>`) and critters are 8-frame directional **atlases**; the
+/// ground (`grass`), the `forest` surround and every road are single tiles.
+/// Loaded once, reused for the scene.
 class SpriteBank {
   final Map<String, ui.Image> images;
   const SpriteBank(this.images);
 
   ui.Image? grass() => images['grass'];
+  ui.Image? forest() => images['forest'];
   ui.Image? object(String id) => images[id]; // roads
   ui.Image? flower(String id) => images['flower_$id'];
+  ui.Image? fence(String id) => images[id];
   ui.Image? critter(String kind) => images[kind];
 
   static Future<SpriteBank> load() async {
@@ -58,8 +73,10 @@ class SpriteBank {
 
     await Future.wait([
       grab('grass', 'grass.png'),
+      grab('forest', 'forest.png'),
       for (final k in CritterSystem.kinds) grab(k, '$k.png'),
       for (final id in Placeables.roadIds) grab(id, '$id.png'),
+      for (final id in Placeables.fenceIds) grab(id, '$id.png'),
       for (final f in Flowers.all) grab('flower_${f.id}', 'flower_${f.id}.png'),
     ]);
     return SpriteBank(out);
@@ -312,6 +329,25 @@ class GardenPainter extends CustomPainter {
     final slab = Projector.slabFor(t);
     final cs = p.corners();
 
+    // 0) forest/rock surround (#3) — tile a dark woodland over the whole screen
+    //    so the garden is a clearing and critters drift in from the trees.
+    final forest = sprites.forest();
+    final screen = Offset.zero & size;
+    if (forest != null) {
+      paintImage(
+        canvas: canvas,
+        rect: screen,
+        image: forest,
+        fit: BoxFit.none,
+        repeat: ImageRepeat.repeat,
+        scale: forest.width / 56.0, // ~56px woodland tiles
+        filterQuality: FilterQuality.none,
+        alignment: Alignment.topLeft,
+      );
+    } else {
+      canvas.drawRect(screen, Paint()..color = const Color(0xFF12301A));
+    }
+
     // 1) soil slab — extrude each plot edge downward for the 2.5D thickness.
     final soil = Paint()..color = Color(soilColor);
     for (var i = 0; i < 4; i++) {
@@ -326,8 +362,8 @@ class GardenPainter extends CustomPainter {
           soil);
     }
 
-    // 2) ground layer (grass + flat roads + connected fences) in garden space,
-    //    under the yaw+squash affine, clipped to the plot — rotates cleanly.
+    // 2) ground layer (grass + flat roads) in garden space, under the
+    //    yaw+squash affine, clipped to the plot — rotates cleanly.
     final plot = Path()
       ..moveTo(cs[0].dx, cs[0].dy)
       ..lineTo(cs[1].dx, cs[1].dy)
@@ -355,7 +391,6 @@ class GardenPainter extends CustomPainter {
       canvas.drawRect(gridRect, Paint()..color = Color(groundColor));
     }
     _paintRoads(canvas);
-    _paintFences(canvas);
     canvas.restore();
 
     // crisp plot outline
@@ -370,20 +405,31 @@ class GardenPainter extends CustomPainter {
     //    tile you'll tap.
     if (customizing) _paintGrid(canvas, p);
 
-    // 4) flowers stand up as billboards, sorted back-to-front by screen depth.
+    // 4a) connecting rails between adjacent fence posts (any material), drawn
+    //     first so the posts and flowers sit in front of them.
+    _paintFenceRails(canvas, p, t);
+
+    // 4b) standing props — flowers and fence posts — pick the atlas facet for
+    //     the current camera yaw (#4) and sort back-to-front by screen depth.
+    final frame = frameForAngle(cam.yaw);
     final standing = <(double, int, String)>[];
     for (var r = 0; r < _n; r++) {
       for (var c = 0; c < _n; c++) {
         final index = r * _n + c;
-        final id = garden.flowerAt(index);
-        if (id == null || Placeables.isObject(id)) continue;
-        standing.add((p.ground(c, r).dy, index, id));
+        final prop = garden.propAt(index);
+        if (prop == null) continue;
+        standing.add((p.ground(c, r).dy, index, prop));
       }
     }
     standing.sort((a, b) => a.$1.compareTo(b.$1));
     for (final (_, index, id) in standing) {
-      final sway = math.sin(time * 1.6 + index) * 1.4;
-      _paintFlower(canvas, sprites.flower(id), p.groundIndex(index), t, sway);
+      final anchor = p.groundIndex(index);
+      if (Placeables.isFence(id)) {
+        _paintBillboard(canvas, sprites.fence(id), frame, anchor, t, height: 0.95, width: 0.78);
+      } else {
+        final sway = math.sin(time * 1.6 + index) * 1.4;
+        _paintBillboard(canvas, sprites.flower(id), frame, anchor, t, sway: sway);
+      }
     }
 
     // 5) critters on top of everything (projected from garden coords)
@@ -393,8 +439,8 @@ class GardenPainter extends CustomPainter {
   void _paintRoads(Canvas canvas) {
     for (var r = 0; r < _n; r++) {
       for (var c = 0; c < _n; c++) {
-        final id = garden.flowerAt(r * _n + c);
-        if (id == null || !Placeables.isRoad(id)) continue;
+        final id = garden.groundAt(r * _n + c);
+        if (id == null) continue;
         final img = sprites.object(id);
         final dst = Rect.fromCenter(
             center: Offset(c - (_n - 1) / 2.0, r - (_n - 1) / 2.0), width: 1, height: 1);
@@ -411,33 +457,34 @@ class GardenPainter extends CustomPainter {
     }
   }
 
-  /// Fences as a connected ground network: a post per tile + rails toward each
-  /// same-fence neighbour (so they join both horizontally and vertically, like
-  /// roads) — all in garden space, so they rotate with the map.
-  void _paintFences(Canvas canvas) {
-    bool same(int idx, String id) =>
-        idx >= 0 && idx < _n * _n && garden.flowerAt(idx) == id;
+  /// Rails between adjacent standing fence posts. A post links to **any** fence
+  /// neighbour regardless of material (#1), so a wood fence joins a stone one.
+  /// Each tile only draws toward its E and S neighbours (so every shared edge is
+  /// drawn once) using its own rail colour. Rails are two screen-space bars
+  /// raised off the ground, so they read as a standing fence that rotates with
+  /// the garden.
+  void _paintFenceRails(Canvas canvas, Projector p, double t) {
+    bool fence(int idx) =>
+        idx >= 0 && idx < _n * _n && Placeables.isFence(garden.propAt(idx) ?? '');
+    final postH = t * 0.62;
     for (var r = 0; r < _n; r++) {
       for (var c = 0; c < _n; c++) {
-        final id = garden.flowerAt(r * _n + c);
+        final index = r * _n + c;
+        final id = garden.propAt(index);
         if (id == null || !Placeables.isFence(id)) continue;
-        final (postC, railC) = _fencePalette[id]!;
-        final gx = c - (_n - 1) / 2.0, gy = r - (_n - 1) / 2.0;
-        final rail = Paint()..color = Color(railC);
-        final n = same((r - 1) * _n + c, id) && r > 0;
-        final s = same((r + 1) * _n + c, id) && r < _n - 1;
-        final e = same(r * _n + c + 1, id) && c < _n - 1;
-        final w = same(r * _n + c - 1, id) && c > 0;
-        if (e) canvas.drawRect(Rect.fromLTWH(gx, gy - 0.07, 0.5, 0.14), rail);
-        if (w) canvas.drawRect(Rect.fromLTWH(gx - 0.5, gy - 0.07, 0.5, 0.14), rail);
-        if (s) canvas.drawRect(Rect.fromLTWH(gx - 0.07, gy, 0.14, 0.5), rail);
-        if (n) canvas.drawRect(Rect.fromLTWH(gx - 0.07, gy - 0.5, 0.14, 0.5), rail);
-        if (!n && !s && !e && !w) {
-          canvas.drawRect(Rect.fromCenter(center: Offset(gx, gy), width: 0.6, height: 0.14), rail);
+        final paint = Paint()
+          ..color = Color(_fenceRail[id]!)
+          ..strokeWidth = math.max(2, t * 0.09)
+          ..strokeCap = StrokeCap.round;
+        final a = p.ground(c, r);
+        void link(int nc, int nr) {
+          final b = p.ground(nc, nr);
+          for (final f in const [0.42, 0.78]) {
+            canvas.drawLine(a.translate(0, -postH * f), b.translate(0, -postH * f), paint);
+          }
         }
-        canvas.drawRect(
-            Rect.fromCenter(center: Offset(gx, gy), width: 0.28, height: 0.28),
-            Paint()..color = Color(postC));
+        if (c < _n - 1 && fence(r * _n + c + 1)) link(c + 1, r);
+        if (r < _n - 1 && fence((r + 1) * _n + c)) link(c, r + 1);
       }
     }
   }
@@ -455,17 +502,22 @@ class GardenPainter extends CustomPainter {
     }
   }
 
-  void _paintFlower(Canvas canvas, ui.Image? img, Offset anchor, double t, double sway) {
+  /// Draw a standing object as a billboard, slicing frame [frame] out of its
+  /// [kDirFrames]-frame directional atlas so it faces the camera correctly.
+  void _paintBillboard(Canvas canvas, ui.Image? img, int frame, Offset anchor, double t,
+      {double height = 1.05, double width = 0.9, double sway = 0}) {
     canvas.drawOval(
         Rect.fromCenter(
             center: anchor.translate(0, t * kVy * 0.16), width: t * 0.5, height: t * kVy * 0.34),
         Paint()..color = const Color(0x33000000));
     if (img == null) return;
-    final h = t * 1.05;
+    final cellW = img.width / kDirFrames;
+    final src = Rect.fromLTWH(frame * cellW, 0, cellW, img.height.toDouble());
+    final h = t * height;
     final bottom = anchor.dy + t * kVy * 0.30;
-    final rect = Rect.fromCenter(
-        center: Offset(anchor.dx + sway, bottom - h / 2), width: t * 0.9, height: h);
-    paintImage(canvas: canvas, rect: rect, image: img, fit: BoxFit.contain, filterQuality: FilterQuality.none);
+    final dst = Rect.fromCenter(
+        center: Offset(anchor.dx + sway, bottom - h / 2), width: t * width, height: h);
+    canvas.drawImageRect(img, src, dst, Paint()..filterQuality = FilterQuality.none);
   }
 
   void _paintCritters(Canvas canvas, Projector p, double t) {
@@ -477,7 +529,16 @@ class GardenPainter extends CustomPainter {
       final at = p.projectGrid(c.pos).translate(0, bob - t * 0.25); // hover above ground
       final rect = Rect.fromCenter(center: at, width: s, height: s);
       if (img != null) {
-        paintImage(canvas: canvas, rect: rect, image: img, fit: BoxFit.contain, filterQuality: FilterQuality.none);
+        // face the direction of travel on screen (#4) — pick the atlas facet.
+        final vel = p.projectGrid(c.target) - p.projectGrid(c.pos);
+        final frame =
+            vel.distance < 0.01 ? 0 : frameForAngle(math.atan2(vel.dy, vel.dx));
+        final cellW = img.width / kDirFrames;
+        canvas.drawImageRect(
+            img,
+            Rect.fromLTWH(frame * cellW, 0, cellW, img.height.toDouble()),
+            rect,
+            Paint()..filterQuality = FilterQuality.none);
       } else {
         canvas.drawRect(rect.deflate(s * 0.3), Paint()..color = const Color(0xFF2B2B2B));
       }
