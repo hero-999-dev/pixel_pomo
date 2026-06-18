@@ -31,6 +31,25 @@ void main() {
 
     await openClose(Icons.settings, 'SAVE');
 
+    // home-screen mode toggle: flip to GARDEN then back to CLEAN (so later
+    // pumpAndSettle calls don't hit the live-backdrop ticker).
+    await tester.tap(find.byIcon(Icons.settings));
+    await tester.pumpAndSettle();
+    expect(find.text('GARDEN'), findsWidgets); // the gardenMode button
+    await tester.ensureVisible(find.text('GARDEN').last);
+    await tester.tap(find.text('GARDEN').last);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.ensureVisible(find.text('CLEAN'));
+    await tester.tap(find.text('CLEAN'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    final settingsClose = find.text('CLOSE');
+    await tester.ensureVisible(settingsClose);
+    await tester.pumpAndSettle();
+    await tester.tap(settingsClose);
+    await tester.pumpAndSettle();
+
     // The garden runs a live animation ticker (the bugs), so pumpAndSettle would
     // never settle — drive it with fixed pumps long enough to finish the push/pop
     // route transitions (~300ms), then settle the home (ticker is disposed by then).
