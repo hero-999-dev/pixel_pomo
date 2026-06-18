@@ -225,19 +225,28 @@ now Flutter-exclusive and richer** than the native grid (see below) — keep the
   standing **prop** (flower or fence); a fence-on-road is stored as the composite `"road+fence"`
   parsed by `Placeables.split/combine/groundOf/propOf`. `Garden.plant` layers a fence onto a road
   (keeps both), slides a road under a fence, and **refuses flowers on roads**; `groundAt`/`propAt`
-  expose the two layers; `countPlanted` counts composite components. `Garden.grow()` adds a
-  **centered ring** (size +2, tiles shifted +1/+1).
+  expose the two layers; `countPlanted` counts composite components. **The garden is rectangular
+  `cols × rows` (starts 4×6)**, index = `r*cols+c`; `Garden.grow()` adds a **centered ring** (cols+2,
+  rows+2, tiles shifted +1/+1); `Economy.upgradeCost(cols,rows)=2*(cols+rows)+1`; `decode` migrates a
+  legacy square `size:` line.
 - `lib/strings.dart` (6 languages + month names) · `lib/store.dart` (`AppStore` ChangeNotifier
-  + `shared_preferences` + wall-clock countdown; generic `buyItem(id)`, **no garden size cap**) ·
-  `lib/pixel.dart` (pixel widgets + chart painters; `fontFor('ko')`→Galmuri11 and Korean text
-  scaled ×1.5 for legibility; **`GoldCoin`** = a **plain static 2D** `coin.png` (no spin, no "$",
-  no smiley; the `GoldCoin.animate` flag is kept as a no-op)) · `lib/main.dart` (all screens).
+  + `shared_preferences` + wall-clock countdown; generic `buyItem(id)`, **no garden size cap**;
+  **`gardenBackdropPath`** = static camera photo + **`homeGardenBackdrop`** = live-garden-behind-timer
+  toggle, both persisted) · `lib/pixel.dart` (pixel widgets + chart painters; `fontFor('ko')`→Galmuri11
+  and Korean text scaled ×1.5; **`GoldCoin`** = a **plain static 2D** `coin.png`) ·
+  `lib/camera.dart` (garden screenshot via `RepaintBoundary.toImage` → save with `path_provider` /
+  share with `share_plus`) · `lib/main.dart` (all screens; stateful `GardenScreen` with peek + camera).
 - **Custom garden engine** `lib/engine/garden_engine.dart` + `garden_view.dart`: a small
   purpose-built renderer (no Flame/Unity), **fixed 2.5D tilt** (`kVy`) but a **hand-controllable
   yaw** — two-finger twist rotates the view like Google Maps. **Pinch-zoom (1×–4×) + pan, both
-  clamped** so the garden stays fixed on screen. Shared `Projector` (fit-to-view + yaw + exact
-  tile↔screen inverse + `projectGrid`); the ground (grass + flat roads) is drawn through a
-  yaw+squash **affine** so it rotates as one. **Flat sky-ambient lighting (no sun):** nothing is
+  clamped** so the garden stays fixed on screen. **Full-screen world (#1):** `Projector` is
+  **rectangular `cols × rows`** and `Projector.fit` **fills the portrait viewport**; a `WorldGrid`
+  centers the claimed plot inside a **margin-2 forest border** of the *same* world, so the projector
+  is sized to the whole world and the 2.5D scene covers the screen. Unclaimed tiles draw a `tree.png`
+  billboard (depth-sorted with flowers/fences) over a dark forest floor; **EXPAND converts the inner
+  ring of trees to grass** (the woods recede). Taps map world-tile → claimed-tile (forest isn't
+  plantable). Shared `Projector` (fit + yaw + exact tile↔screen inverse + `projectGrid`); the ground
+  (grass + flat roads) is drawn through a yaw+squash **affine**. **Flat sky-ambient lighting (no sun):** nothing is
   shaded by view angle, so rotating the garden never sweeps a fake sun across it. **Fences are real
   low-poly 3D** — `Projector.projectElevated` (vertical maps straight up by `e·t`, same for every
   yaw) + `boxCorners` build an upright **post box** (4 flat side faces + a slightly brighter sky-lit
@@ -247,14 +256,20 @@ now Flutter-exclusive and richer** than the native grid (see below) — keep the
   pipeline that trees/houses will extend). **Roads lie flat**; **flowers are single billboards** —
   radially symmetric, so one PNG looks the same from every angle (no atlas). **Only critters** keep
   an **8-frame directional atlas** (`frameForAngle` picks the facet for their **travel heading**;
-  `kDirFrames = 8`, must match the Python tool), drawn depth-sorted. A **forest/rock surround**
-  (`forest.png`) tiles over the
-  whole screen behind the plot, so the garden is a clearing critters wander into. In **CUSTOMIZE**
+  `kDirFrames = 8`, must match the Python tool), drawn depth-sorted. In **CUSTOMIZE**
   the tile **gridlines** are drawn. A `CritterSystem` works in **garden coords** (so critters
   rotate/zoom with the map) — ≤2 tiny bee/butterfly/ladybug fly in, visit a flower (hover ~2–4s),
   then leave & despawn.
-- **Art as data:** crisp **PNGs in `assets/objects/`** (grass, forest, coin, 4 roads, 3 fences,
-  10 flowers all single-frame; only the 3 critters are 8-frame atlases = 23 files), emitted by the
+- **Peek + camera + backgrounds (#2, #3):** `GardenView` has a bottom-left **peek** button
+  (`peekButton`) that hides all `GardenScreen` HUD, and a **camera** button (`cameraButton`) that
+  enters a clean framing mode (yaw/zoom/pan only — tilt stays fixed). The painter is wrapped in a
+  `RepaintBoundary` (`captureKey`); CAPTURE screenshots it (`lib/camera.dart`) → **set as the garden
+  section's static backdrop** (`Image.file`, persisted) or **save/share**. Separately, **Settings →
+  HOME SCREEN `CLEAN | GARDEN`**: GARDEN renders a dimmed **non-interactive** live `GardenView`
+  (`interactive:false`) behind the pomodoro timer (engine-as-live-wallpaper). No OS wallpaper service;
+  the static photo is never shown behind the timer.
+- **Art as data:** crisp **PNGs in `assets/objects/`** (grass, forest, **tree**, coin, 4 roads, 3 fences,
+  10 flowers all single-frame; only the 3 critters are 8-frame atlases = 24 files), emitted by the
   dependency-free `tools/gen_objects.py` (`make_atlas`/`spin_frame` still build the **critter** strips;
   `spin_frame` does a `|cos|` squash only — **no** view-dependent shading, so light is flat). Fences
   render as 3D meshes in the garden, so their single-frame PNG is only a **shop/place thumbnail**.
@@ -264,11 +279,12 @@ now Flutter-exclusive and richer** than the native grid (see below) — keep the
 - **Launcher icon:** `assets/icon/app_icon*.png` (pixel tomato, from `tools/gen_icon.py`) +
   `flutter_launcher_icons`; CI runs `dart run flutter_launcher_icons` **after** `flutter create`
   so the real logo is baked in instead of the Flutter default.
-- `test/logic_test.dart` (pure parity + placeables catalogue/costOf/codec + no-cap growth +
-  road/fence overlay layering) + `test/engine_test.dart` (the low-poly 3D geometry: `projectElevated`
-  yaw-independent vertical + `boxCorners` 8 corners / top-above-base / centred real-width footprint) +
-  `test/widget_smoke_test.dart` (boots the app, opens every overlay incl. the live garden, asserts no
-  exceptions/overflow). All gate CI. **26 tests.**
+- `test/logic_test.dart` (pure parity + placeables catalogue/costOf/codec + **rectangular 4×6 garden**
+  grow/cost/legacy-decode + road/fence overlay layering) + `test/engine_test.dart` (low-poly 3D geometry:
+  `projectElevated` yaw-independent vertical + `boxCorners`; **rectangular `Projector` tile round-trip** +
+  fill-fit + **`WorldGrid`** claimed/forest) + `test/widget_smoke_test.dart` (boots the app, opens every
+  overlay incl. the live garden, exercises **peek/camera/home-mode**, asserts no exceptions/overflow;
+  uses `runAsync` to load sprite PNGs). All gate CI. **31 tests.**
 - **Only the portable parts are committed** (`lib/`, `pubspec.yaml`, `assets/`, `tools/`, `test/`).
   `ios/` + `android/` are generated by CI via `flutter create` (see `flutter/.gitignore`).
 - CI: **`.github/workflows/build-flutter.yml`** runs on a **macOS runner**, scaffolds the
