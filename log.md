@@ -5,6 +5,47 @@ Each entry notes the **prompt** (what you asked for) and the **changes** made.
 
 ---
 
+## v11 — full-screen rectangular garden world + peek/camera/background (Flutter, 0.11.0+12)
+**Date:** 2026-06-18
+
+**Prompt (Flutter, regular v11 prompt):** three asks. **(1)** Stop making the garden a small rectangle on a
+flat 2D image — make it a **full-screen, portrait, screen-indexed** 2.5D world. The garden is e.g. a **4-wide ×
+6-tall** plot and *all the surrounding area is garden too*; as you develop it, the **surrounding dark trees turn
+to grass one by one** and the garden area expands. **(2)** A bottom-left button to **see just the garden (hide
+all HUD)**, like the bottom-right recenter symbol; next to it a **camera mode** where you frame any angle, take a
+**screenshot**, and **set it as a background** — the background can be **active** (live, with critters wandering,
+wallpaper-engine style) **or a static photo**. **(3)** The engine should be **suitable for a live wallpaper**.
+Decisions taken up front (via AskUserQuestion): in-app live background + static export (no OS live-wallpaper
+service — iOS has no API, Android would need native Kotlin that breaks the no-Mac CI); rectangular **cols×rows
+starting 4×6**; the **forest is a receding border** of one unified world; camera framing keeps the **fixed tilt**
+(yaw/zoom/pan only); the **static photo lives only in the garden section**, while the **home screen** gets a
+**Settings `Clean | Garden`** toggle where Garden = the **live** garden behind the timer.
+
+**Changes (all in `flutter/`):**
+- **Rectangular garden model** — `Garden` is now **`cols × rows` (default 4×6)** instead of a square `size`;
+  index = `r*cols+c`, `grow()` adds a centered ring (4×6 → 6×8), `Economy.upgradeCost(cols,rows)=2*(cols+rows)+1`,
+  and `decode` migrates a legacy `size:` square. `Projector`/`GardenCamera`/`GardenPainter`/`GardenView`/`store`
+  all generalized off the single dimension. TDD: rewritten `logic_test` + new rectangular `engine_test` group.
+- **One screen-filling 2.5D world (#1)** — new `WorldGrid` (claimed plot centered inside a **margin-2 forest
+  border**) + `forestMargin`. The painter now sizes the projector to the **whole world**, so the scene fills the
+  portrait screen; unclaimed tiles draw a new **`tree.png`** billboard (depth-sorted with flowers/fences) over a
+  dark forest floor, replacing the old flat screen-space `forest` blit. EXPAND converts the inner forest ring to
+  grass. Taps map world-tile → claimed-tile (forest isn't plantable); pan-clamp uses world bounds.
+- **Peek button (#2)** — bottom-left `peekButton` in `GardenView` (mirrors the recenter button) toggles a flag
+  on the now-**stateful `GardenScreen`** that hides **all** HUD (title, EXPAND, help, CUSTOMIZE/CLOSE), leaving
+  only the world. Tap again to restore.
+- **Camera mode + screenshot + background (#2, #3)** — a `cameraButton` enters a clean framing mode
+  (HUD hidden, yaw/zoom/pan). New `lib/camera.dart`: `captureBoundary` (screenshots a `RepaintBoundary` keyed
+  `captureKey`), `saveBackdropPng` (persists via `path_provider`), `sharePng` (system share sheet via
+  `share_plus`). CAPTURE → **Set as backdrop** (static photo shown in the garden section, with a CLEAR control) /
+  **Save / Share** / Cancel. New deps: `share_plus`, `path_provider`.
+- **Home-screen mode (#3)** — `AppStore.homeGardenBackdrop` + Settings **`CLEAN | GARDEN`** toggle; when GARDEN,
+  `HomeScreen` renders a dimmed, **non-interactive** live `GardenView` behind the timer (the "engine as live
+  wallpaper" deliverable). The static photo is deliberately **never** placed behind the running timer.
+- **Tests:** `flutter analyze` clean, **31 tests** (24 logic + 7 engine + smoke). Smoke now exercises peek,
+  camera mode, and the home-mode toggle, and uses `runAsync` to load the sprite PNGs in-test.
+- **Docs:** `TESTING.md`, `README.md`, `flutter/README.md`, `prompt.md` updated; version → **0.11.0+12**.
+
 ## v10 — no-sun flat lighting, flowers back to single billboards, fences become real low-poly 3D
 **Date:** 2026-06-18
 

@@ -127,49 +127,53 @@ The Dart port carries its own tests, gating the **`build-flutter.yml`** macOS pi
 **3.44.2 / Dart 3.12.2** and green in CI.
 
 ```bash
-cd flutter && flutter analyze && flutter test   # 26 tests
+cd flutter && flutter analyze && flutter test   # 31 tests
 ```
 
-- **`test/logic_test.dart` (22)** — pure-logic parity with the Kotlin edge suite:
+- **`test/logic_test.dart` (24)** — pure-logic parity with the Kotlin edge suite:
   `PomodoroEngine` state machine + progress clamp + `1ms→00:01` round-up; `Economy`
-  `coinsFor`/`upgradeCost`; `Garden` plant/grow keeps row,col + codec round-trip + decode
-  drops oversized tiles & clamps size up; `Labels` normalize (strip + cap 12), dedup, keep
-  ≥1; `LabelColors` default + codec; `Stats` monthTotal / byLabelInMonth / dailySeries +
-  minute formatting; `TestData` fixture buckets to **360 / 700 / 1000** + 2025 + 1000 coins.
-  **Garden/decor:** garden **grows with no cap** (10 EXPANDs past the old 8 limit) and stays
-  **centered** — `grow()` adds a +2 ring, so a tile drifts +1/+1 each step and nothing is lost;
-  `Placeables` catalogue is **4 roads + 3 fences (7 objects)** classified by `isRoad`/`isFence`;
-  `Economy.costOf` = **5** for every object, **10** for flowers; and road/fence ids **round-trip
-  through the codec**. **v9 tile-layering (#2):** a **fence stands on a road** (the tile splits
-  into `groundAt`=road + `propAt`=fence, both survive the codec); placing a **road under a fence**
-  keeps the fence but a road **clears a flower**; and a **flower refuses to plant on a road**.
-- **`test/engine_test.dart` (3)** — the **v10 low-poly 3D geometry** (TDD). `Projector.projectElevated`
-  raises a garden point and asserts it moves **straight up the screen by `e·t` with no horizontal shift,
-  identical across five camera yaws** (uniform height from every side — the "no sun" / sun-free vertical).
-  `boxCorners` returns **8 corners**, each **top corner directly above its base corner** by `height·t`, and
-  the **base ring is centred on the tile with a real footprint width from every angle** — the invariant that
-  fixes the "fence collapses to a thin antenna under rotation" bug.
+  `coinsFor`/`upgradeCost`; `Garden` plant/grow + codec round-trip; `Labels` normalize (strip +
+  cap 12), dedup, keep ≥1; `LabelColors` default + codec; `Stats` monthTotal / byLabelInMonth /
+  dailySeries + minute formatting; `TestData` fixture buckets to **360 / 700 / 1000** + 2025 + 1000 coins.
+  **v11 rectangular garden:** `Garden` is now **cols×rows, starting 4×6** (`tileCount=24`); `grow()`
+  adds a **centered ring** (4×6 → 6×8, a tile drifts +1/+1), index = `r*cols+c`, **no cap** (10 EXPANDs);
+  `Economy.upgradeCost(cols,rows) = 2*(cols+rows)+1` (4×6 → 21); `decode` **migrates a legacy `size:`
+  square** and drops out-of-range tiles. `Placeables` catalogue **4 roads + 3 fences (7 objects)** by
+  `isRoad`/`isFence`; `costOf` = **5** objects / **10** flowers; ids round-trip. **Tile-layering (#2):**
+  a fence stands on a road (`groundAt`=road + `propAt`=fence survive the codec); a road slides under a
+  fence but clears a flower; a flower refuses to plant on a road.
+- **`test/engine_test.dart` (7)** — low-poly 3D geometry + **v11 rectangular/world** math (TDD).
+  `Projector.projectElevated` raises a point **straight up by `e·t`, no horizontal shift, identical across
+  five yaws** (sun-free vertical); `boxCorners` returns **8 corners**, top directly above base by `height·t`,
+  **real footprint width from every angle** (fixes the "fence → thin antenna" bug). **v11:** the **rectangular
+  `Projector` tile mapping** round-trips `tileAt(projectGrid(gridOf(c,r))) == r*cols+c` for a **non-square 4×6
+  plot across four yaws**, and `Projector.fit` **fills the portrait viewport** centering the plot. **`WorldGrid`**
+  classifies claimed-vs-forest tiles: a centered 4×6 claim inside a margin-2 border (8×10 world), `claimedIndex`
+  round-trip, and the **forest stays a constant-thickness ring** as the plot grows (the inner ring converts to grass).
 - **`test/widget_smoke_test.dart` (1)** — boots the **real** app via `PixelPomoApp(store)`
   and opens **every** overlay (settings, garden, stats, theme, labels, **and the shop via the
   gold-coin button keyed `shopButton`**), asserting `START` renders, each panel shows, closes
-  cleanly, and there are **no exceptions or layout overflow**. The **garden runs a live ticker**
-  (the critters), so that screen is driven with fixed `pump(Duration)` steps — it loads the sprite
-  bank, shows `GARDEN`, and disposes the ticker cleanly on CLOSE. *(The coin is now a plain static
-  widget, so `GoldCoin.animate=false` is a harmless no-op.)*
+  cleanly, and there are **no exceptions or layout overflow**. The **garden runs a live ticker**, so
+  that screen is driven with fixed `pump(Duration)` steps; the sprite PNGs decode via real async, so the
+  test uses **`tester.runAsync(gardenSprites)`** to resolve the `FutureBuilder` before asserting.
+  **v11 interactions:** it taps the **peek button** (`peekButton`) to hide all HUD (the `GARDEN` title
+  disappears) and restores it; enters **camera mode** (`cameraButton`) and confirms `CAPTURE`/`CANCEL`
+  (without tapping CAPTURE — its `toImage` hangs headless); and toggles **Settings → HOME SCREEN
+  `GARDEN`→`CLEAN`** (`ensureVisible` first, so the tap really lands and leaves no live-backdrop ticker running).
 
 **Garden engine note (visual, partly unit-tested):** the renderer math in `lib/engine/garden_engine.dart`
 — `Projector` fit + yaw + tile↔screen inverse (`projectGrid`/`tileAt`), `GardenCamera.clamp` pan bounding,
-**garden-space** `CritterSystem`, the critter travel-heading atlas pick (`frameForAngle`), the **forest
-surround**, the customize gridlines — and, **new in v10**, the **low-poly 3D fence** primitives
-`projectElevated` + `boxCorners` (now covered by `engine_test.dart`) feeding the post/rail mesh
-(`_paintFencePost` / `_paintFenceRails` / `_fillQuad`). The **lighting is now flat sky-ambient** — the
-generator's `spin_frame` no longer bakes the view-dependent front-bright/back-dark shading, so nothing
-sweeps a fake sun as the camera turns. **Flowers are single billboards** (one PNG, drawn whole — radially
-symmetric, so an atlas was wasted); **only critters** still use an 8-frame atlas. The actual on-screen
-result — camera rotation/zoom, the 3D fence posts + rails, flat lighting, flower billboards, forest
-backdrop, plain coin — is **visual**, verified by eye on-device / in a local `flutter run`. *(An offscreen
-golden-render harness was tried but `toImage` doesn't work headlessly in `flutter test` here, so the full
-scene is previewed on-device; the geometry underneath it is what the unit tests pin down.)*
+**garden-space** `CritterSystem`, the critter travel-heading atlas pick (`frameForAngle`), the **low-poly 3D
+fence** primitives `projectElevated` + `boxCorners` feeding the post/rail mesh, and **new in v11** the
+**`WorldGrid`** claimed/forest split — are covered by `engine_test.dart`. **v11 full-screen world (#1):** the
+projector is sized to the **whole world** (claimed plot + a margin-2 forest border), so the 2.5D scene **fills
+the screen**; unclaimed tiles draw a `tree.png` billboard (depth-sorted with flowers/fences) over a dark
+forest floor, and EXPAND converts the inner ring to grass — replacing the old flat screen-space forest blit.
+Lighting is flat sky-ambient; **flowers are single billboards**, **only critters** use an 8-frame atlas. The
+**peek** + **camera mode** (screenshot via a `RepaintBoundary`/`captureKey`) + **static backdrop**
+(`Image.file`) + **live home backdrop** (`GardenView(interactive:false)` behind the timer) are **visual**,
+verified by eye on-device / `flutter run`. *(An offscreen golden harness was tried but `toImage` hangs
+headlessly here; capture/the rendered world are previewed on-device, and the geometry underneath is unit-pinned.)*
 
 **Known gap:** no on-device iOS UI automation (the runner builds an *unsigned* `.ipa`; it
 isn't booted in a simulator). The widget test exercises the same screens on the Flutter
