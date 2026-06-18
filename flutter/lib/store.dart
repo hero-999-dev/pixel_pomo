@@ -22,6 +22,8 @@ class AppStore extends ChangeNotifier {
   static const _kCoins = 'coins';
   static const _kOwned = 'owned_flowers';
   static const _kGarden = 'garden';
+  static const _kBackdrop = 'garden_backdrop_path'; // static camera photo (#2)
+  static const _kHomeMode = 'home_garden_backdrop'; // live garden behind timer (#3)
   static const _kSeeded = 'test_seeded_v5';
 
   late SharedPreferences _prefs;
@@ -40,6 +42,12 @@ class AppStore extends ChangeNotifier {
   int coins = 0;
   Map<String, int> owned = {};
   Garden garden = const Garden();
+
+  /// Camera-captured static photo shown in the garden section (#2); null = live.
+  String? gardenBackdropPath;
+
+  /// Home-screen mode: false = clean pomodoro, true = live garden behind it (#3).
+  bool homeGardenBackdrop = false;
 
   late PomodoroEngine engine;
 
@@ -87,6 +95,8 @@ class AppStore extends ChangeNotifier {
     coins = _prefs.getInt(_kCoins) ?? 0;
     owned = _decodeOwned(_prefs.getString(_kOwned));
     garden = Garden.decode(_prefs.getString(_kGarden));
+    gardenBackdropPath = _prefs.getString(_kBackdrop);
+    homeGardenBackdrop = _prefs.getBool(_kHomeMode) ?? false;
 
     _seedOnce();
     engine = _buildEngine();
@@ -308,9 +318,27 @@ class AppStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Set (or clear) the camera-captured static backdrop for the garden section.
+  void setGardenBackdrop(String? path) {
+    gardenBackdropPath = path;
+    if (path == null) {
+      _prefs.remove(_kBackdrop);
+    } else {
+      _prefs.setString(_kBackdrop, path);
+    }
+    notifyListeners();
+  }
+
+  /// Toggle the home screen between clean pomodoro and a live garden backdrop.
+  void setHomeGardenBackdrop(bool v) {
+    homeGardenBackdrop = v;
+    _prefs.setBool(_kHomeMode, v);
+    notifyListeners();
+  }
+
   void upgradeGarden() {
     // No size cap — the rising upgradeCost is the only limit.
-    final cost = Economy.upgradeCost(garden.size);
+    final cost = Economy.upgradeCost(garden.cols, garden.rows);
     if (coins < cost) {
       messenger?.call('notEnough');
       return;
