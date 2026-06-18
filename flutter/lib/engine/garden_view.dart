@@ -21,6 +21,21 @@ class GardenView extends StatefulWidget {
   final String lang;
   final String Function(String key) tr;
 
+  /// Toggle hiding all garden HUD (bottom-left button). Null hides the button.
+  final VoidCallback? onPeek;
+
+  /// Enter camera-framing mode (bottom-left button). Null hides the button.
+  final VoidCallback? onCamera;
+
+  /// Wraps the painter in a RepaintBoundary so the scene can be screenshot.
+  final GlobalKey? captureKey;
+
+  /// In camera mode the corner buttons hide so framing is clean.
+  final bool cameraMode;
+
+  /// When false the view ignores gestures (used as a live backdrop).
+  final bool interactive;
+
   const GardenView({
     super.key,
     required this.garden,
@@ -32,6 +47,11 @@ class GardenView extends StatefulWidget {
     required this.uiColor,
     required this.lang,
     required this.tr,
+    this.onPeek,
+    this.onCamera,
+    this.captureKey,
+    this.cameraMode = false,
+    this.interactive = true,
   });
 
   @override
@@ -136,26 +156,61 @@ class _GardenViewState extends State<GardenView> with SingleTickerProviderStateM
       builder: (context, constraints) {
         _lastSize = Size(constraints.maxWidth, constraints.maxHeight);
         _clampWorld();
+        final scene = RepaintBoundary(
+          key: widget.captureKey,
+          child: CustomPaint(painter: _painter(), size: _lastSize),
+        );
+        // corner controls are hidden while framing a photo (cameraMode) or when
+        // the view is a non-interactive backdrop.
+        final showControls = widget.interactive && !widget.cameraMode;
         return Stack(
           children: [
             Positioned.fill(
-              child: GestureDetector(
-                onScaleStart: _onScaleStart,
-                onScaleUpdate: _onScaleUpdate,
-                onTapUp: _onTapUp,
-                child: CustomPaint(painter: _painter(), size: _lastSize),
-              ),
+              child: widget.interactive
+                  ? GestureDetector(
+                      onScaleStart: _onScaleStart,
+                      onScaleUpdate: _onScaleUpdate,
+                      onTapUp: _onTapUp,
+                      child: scene,
+                    )
+                  : scene,
             ),
-            // recenter / reset zoom
-            Positioned(
-              right: 6,
-              bottom: 4,
-              child: IconButton(
-                icon: Icon(Icons.center_focus_strong, size: 22, color: ui),
-                tooltip: widget.tr('recenter'),
-                onPressed: () => setState(_cam.reset),
+            if (showControls) ...[
+              // recenter / reset zoom
+              Positioned(
+                right: 6,
+                bottom: 4,
+                child: IconButton(
+                  icon: Icon(Icons.center_focus_strong, size: 22, color: ui),
+                  tooltip: widget.tr('recenter'),
+                  onPressed: () => setState(_cam.reset),
+                ),
               ),
-            ),
+              // peek — hide all HUD, just the garden
+              if (widget.onPeek != null)
+                Positioned(
+                  left: 6,
+                  bottom: 4,
+                  child: IconButton(
+                    key: const Key('peekButton'),
+                    icon: Icon(Icons.visibility, size: 22, color: ui),
+                    tooltip: widget.tr('peek'),
+                    onPressed: widget.onPeek,
+                  ),
+                ),
+              // camera — frame & screenshot the garden
+              if (widget.onCamera != null)
+                Positioned(
+                  left: 46,
+                  bottom: 4,
+                  child: IconButton(
+                    key: const Key('cameraButton'),
+                    icon: Icon(Icons.photo_camera, size: 22, color: ui),
+                    tooltip: widget.tr('camera'),
+                    onPressed: widget.onCamera,
+                  ),
+                ),
+            ],
           ],
         );
       },
