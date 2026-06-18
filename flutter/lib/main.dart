@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
+import 'camera.dart';
 import 'engine/garden_engine.dart';
 import 'engine/garden_view.dart';
 import 'logic.dart';
@@ -114,10 +117,14 @@ class HomeScreen extends StatelessWidget {
         final modeColor = e.isFinished ? th.accent : th.phaseColor(e.mode);
         return Scaffold(
           backgroundColor: col(th.bg),
-          body: SafeArea(
-            child: Column(
-              children: [
-                _topBar(context, th, lang),
+          body: Stack(
+            children: [
+              // live garden behind the timer when HOME mode = GARDEN (#3)
+              if (s.homeGardenBackdrop) Positioned.fill(child: _liveBackdrop(th, lang)),
+              SafeArea(
+                child: Column(
+                  children: [
+                    _topBar(context, th, lang),
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.all(24),
@@ -162,6 +169,32 @@ class HomeScreen extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _liveBackdrop(PixelTheme th, String lang) {
+    return FutureBuilder<SpriteBank>(
+      future: gardenSprites(),
+      builder: (context, snap) {
+        if (!snap.hasData) return const SizedBox.shrink();
+        return Opacity(
+          opacity: 0.45,
+          child: GardenView(
+            garden: s.garden,
+            sprites: snap.data!,
+            customizing: false,
+            onTapTile: (_) {},
+            groundColor: _gardenGround,
+            soilColor: _gardenSoil,
+            uiColor: th.onSurface,
+            lang: lang,
+            tr: (k) => t(lang, k),
+            interactive: false,
           ),
         );
       },
@@ -240,6 +273,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onTap: () => s.selectLanguage(opt[0]),
           ),
         ),
+      const SizedBox(height: 24),
+      Text(t(lang, 'homeMode'), style: pixelStyle(lang, 12, col(th.onSurfaceDim))),
+      const SizedBox(height: 12),
+      Row(
+        children: [
+          for (final on in const [false, true]) ...[
+            if (on) const SizedBox(width: 12),
+            Expanded(
+              child: PixelButton(
+                text: t(lang, on ? 'gardenMode' : 'clean'),
+                fill: s.homeGardenBackdrop == on ? th.accent : th.panel,
+                border: s.homeGardenBackdrop == on ? th.onSurface : th.onSurfaceDim,
+                textColor: s.homeGardenBackdrop == on ? th.onAccent : th.onSurface,
+                shadow: th.shadow,
+                lang: lang,
+                fontSize: 11,
+                onTap: () => s.setHomeGardenBackdrop(on),
+              ),
+            ),
+          ],
+        ],
+      ),
       const SizedBox(height: 16),
       primaryBtn(th, lang, t(lang, 'save'), () {
         s.saveSettings(work, brk, sess);
@@ -585,82 +640,197 @@ class ShopScreen extends StatelessWidget {
 const int _gardenGround = 0xFF4E9E3E;
 const int _gardenSoil = 0xFF6B4A2B;
 
-class GardenScreen extends StatelessWidget {
+class GardenScreen extends StatefulWidget {
   final AppStore s;
   const GardenScreen(this.s, {super.key});
 
   @override
-  Widget build(BuildContext context) {
+  State<GardenScreen> createState() => _GardenScreenState();
+}
+
+class _GardenScreenState extends State<GardenScreen> {
+  bool _peek = false; // hide all HUD, just the garden (#2)
+  bool _camera = false; // framing a screenshot (#2)
+  final GlobalKey _captureKey = GlobalKey();
+
+  bool get _hudHidden => _peek || _camera;
+
+  void _enterCamera() => setState(() => _camera = true);
+  void _exitCamera() => setState(() {
+        _camera = false;
+        _peek = false;
+      });
+
+  /// Screenshot the framed garden, then offer to set it as the static backdrop
+  /// or share it. Capture itself is on-device only (toImage hangs in tests).
+  Future<void> _capture() async {
+    final bytes = await captureBoundary(_captureKey);
+    if (bytes == null || !mounted) return;
+    final s = widget.s;
     final th = s.theme;
     final lang = s.lang;
-    final cost = Economy.upgradeCost(s.garden.size);
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        backgroundColor: col(th.panel),
+        title: Text(t(lang, 'camera'), style: pixelStyle(lang, 12, col(th.onSurface))),
+        children: [
+          SimpleDialogOption(
+            onPressed: () async {
+              final path = await saveBackdropPng(bytes);
+              s.setGardenBackdrop(path);
+              if (ctx.mounted) Navigator.pop(ctx);
+              _exitCamera();
+            },
+            child: Text(t(lang, 'setBackdrop'), style: pixelStyle(lang, 11, col(th.onSurface))),
+          ),
+          SimpleDialogOption(
+            onPressed: () async {
+              await sharePng(bytes, 'pixel_pomo_garden.png');
+              if (ctx.mounted) Navigator.pop(ctx);
+            },
+            child: Text(t(lang, 'share'), style: pixelStyle(lang, 11, col(th.onSurface))),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(t(lang, 'cancel'), style: pixelStyle(lang, 11, col(th.accent))),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = widget.s;
+    final th = s.theme;
+    final lang = s.lang;
+    final cost = Economy.upgradeCost(s.garden.cols, s.garden.rows);
+    // the static photo replaces the live scene in the garden section only when
+    // not actively customizing or framing a new shot.
+    final showStatic = s.gardenBackdropPath != null && !_camera && !s.customizing;
 
     return Scaffold(
       backgroundColor: col(th.bg),
       body: SafeArea(
         child: Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-              child: Row(
-                children: [
-                  Text(t(lang, 'garden'), style: pixelStyle(lang, 20, col(th.onSurface), spacing: 2)),
-                  const Spacer(),
-                  PixelButton(
-                    text: tf(lang, 'upgrade', [cost]),
-                    fill: th.accent, border: th.onSurface, textColor: th.onAccent, shadow: th.shadow,
-                    lang: lang, fontSize: 10, padding: const EdgeInsets.all(12),
-                    opacity: s.coins >= cost ? 1 : 0.45, onTap: s.upgradeGarden,
-                  ),
-                ],
+            if (!_hudHidden)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+                child: Row(
+                  children: [
+                    Text(t(lang, 'garden'), style: pixelStyle(lang, 20, col(th.onSurface), spacing: 2)),
+                    const Spacer(),
+                    PixelButton(
+                      text: tf(lang, 'upgrade', [cost]),
+                      fill: th.accent, border: th.onSurface, textColor: th.onAccent, shadow: th.shadow,
+                      lang: lang, fontSize: 10, padding: const EdgeInsets.all(12),
+                      opacity: s.coins >= cost ? 1 : 0.45, onTap: s.upgradeGarden,
+                    ),
+                  ],
+                ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Text(t(lang, 'gardenHelp'), style: pixelStyle(lang, 8, col(th.onSurfaceDim))),
-            ),
-            const SizedBox(height: 8),
-            // the live 2.5D scene fills the remaining space
+            if (!_hudHidden)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Text(t(lang, 'gardenHelp'), style: pixelStyle(lang, 8, col(th.onSurfaceDim))),
+              ),
+            if (!_hudHidden) const SizedBox(height: 8),
+            // the live 2.5D scene (or the static photo) fills the remaining space
             Expanded(
-              child: FutureBuilder<SpriteBank>(
-                future: gardenSprites(),
-                builder: (context, snap) {
-                  if (!snap.hasData) {
-                    return Center(child: Text('...', style: pixelStyle(lang, 16, col(th.onSurfaceDim))));
-                  }
-                  return GardenView(
-                    garden: s.garden,
-                    sprites: snap.data!,
-                    customizing: s.customizing,
-                    onTapTile: (index) => _onTileTap(context, s, index),
-                    groundColor: _gardenGround,
-                    soilColor: _gardenSoil,
-                    uiColor: th.onSurface,
-                    lang: lang,
-                    tr: (k) => t(lang, k),
-                  );
-                },
-              ),
+              child: showStatic
+                  ? _staticBackdrop(s, th, lang)
+                  : FutureBuilder<SpriteBank>(
+                      future: gardenSprites(),
+                      builder: (context, snap) {
+                        if (!snap.hasData) {
+                          return Center(child: Text('...', style: pixelStyle(lang, 16, col(th.onSurfaceDim))));
+                        }
+                        return GardenView(
+                          garden: s.garden,
+                          sprites: snap.data!,
+                          customizing: s.customizing,
+                          onTapTile: (index) => _onTileTap(context, s, index),
+                          groundColor: _gardenGround,
+                          soilColor: _gardenSoil,
+                          uiColor: th.onSurface,
+                          lang: lang,
+                          tr: (k) => t(lang, k),
+                          captureKey: _captureKey,
+                          cameraMode: _camera,
+                          onPeek: () => setState(() => _peek = !_peek),
+                          onCamera: _enterCamera,
+                        );
+                      },
+                    ),
             ),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: primaryBtn(th, lang, t(lang, s.customizing ? 'done' : 'customize'),
-                        s.toggleCustomizing, padding: const EdgeInsets.all(16)),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: secondaryBtn(th, lang, t(lang, 'close'), () => Navigator.pop(context),
-                        padding: const EdgeInsets.all(16)),
-                  ),
-                ],
+            if (_camera)
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: primaryBtn(th, lang, t(lang, 'capture'), _capture,
+                          padding: const EdgeInsets.all(16)),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: secondaryBtn(th, lang, t(lang, 'cancel'), _exitCamera,
+                          padding: const EdgeInsets.all(16)),
+                    ),
+                  ],
+                ),
+              )
+            else if (!_peek)
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: primaryBtn(th, lang, t(lang, s.customizing ? 'done' : 'customize'),
+                          s.toggleCustomizing, padding: const EdgeInsets.all(16)),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: secondaryBtn(th, lang, t(lang, 'close'), () => Navigator.pop(context),
+                          padding: const EdgeInsets.all(16)),
+                    ),
+                  ],
+                ),
               ),
-            ),
           ],
         ),
       ),
+    );
+  }
+
+  /// The captured static photo as the garden section's backdrop, with controls
+  /// to retake (camera) or clear it (back to the live garden).
+  Widget _staticBackdrop(AppStore s, PixelTheme th, String lang) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Image.file(File(s.gardenBackdropPath!), fit: BoxFit.cover, filterQuality: FilterQuality.none),
+        Positioned(
+          left: 6,
+          bottom: 4,
+          child: IconButton(
+            key: const Key('cameraButton'),
+            icon: Icon(Icons.photo_camera, size: 22, color: col(th.onSurface)),
+            tooltip: t(lang, 'camera'),
+            onPressed: _enterCamera,
+          ),
+        ),
+        Positioned(
+          right: 6,
+          bottom: 4,
+          child: TextButton(
+            onPressed: () => s.setGardenBackdrop(null),
+            child: Text(t(lang, 'clearBackdrop'), style: pixelStyle(lang, 9, col(th.onSurface))),
+          ),
+        ),
+      ],
     );
   }
 

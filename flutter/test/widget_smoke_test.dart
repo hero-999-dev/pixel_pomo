@@ -31,13 +31,62 @@ void main() {
 
     await openClose(Icons.settings, 'SAVE');
 
+    // home-screen mode toggle: flip to GARDEN then back to CLEAN (so later
+    // pumpAndSettle calls don't hit the live-backdrop ticker).
+    await tester.tap(find.byIcon(Icons.settings));
+    await tester.pumpAndSettle();
+    expect(find.text('GARDEN'), findsWidgets); // the gardenMode button
+    await tester.ensureVisible(find.text('GARDEN').last);
+    await tester.tap(find.text('GARDEN').last);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.ensureVisible(find.text('CLEAN'));
+    await tester.tap(find.text('CLEAN'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    final settingsClose = find.text('CLOSE');
+    await tester.ensureVisible(settingsClose);
+    await tester.pumpAndSettle();
+    await tester.tap(settingsClose);
+    await tester.pumpAndSettle();
+
     // The garden runs a live animation ticker (the bugs), so pumpAndSettle would
     // never settle — drive it with fixed pumps long enough to finish the push/pop
     // route transitions (~300ms), then settle the home (ticker is disposed by then).
     await tester.tap(find.byIcon(Icons.local_florist));
+    await tester.pump(); // push begins; the FutureBuilder mounts & subscribes
+    await tester.pump(const Duration(milliseconds: 450)); // finish push
+    // Decoding the object PNGs is real async, which fake-async pump() can't
+    // drive — let it complete in a real zone, then pump to render with data.
+    await tester.runAsync(() => gardenSprites());
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 450)); // finish push + load sprites
+    await tester.pump(const Duration(milliseconds: 50));
     expect(find.text('GARDEN'), findsWidgets);
+    expect(find.text('...'), findsNothing, reason: 'sprite FutureBuilder should have resolved');
+
+    // peek hides all HUD (the GARDEN title disappears), then restores it
+    expect(find.byKey(const Key('peekButton')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('peekButton')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('GARDEN'), findsNothing);
+    await tester.tap(find.byKey(const Key('peekButton'))); // restore HUD
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('GARDEN'), findsWidgets);
+
+    // camera mode opens a clean framing view with CAPTURE/CANCEL; cancel out
+    // (don't tap CAPTURE — its toImage hangs in headless flutter test).
+    expect(find.byKey(const Key('cameraButton')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('cameraButton')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('CAPTURE'), findsOneWidget);
+    await tester.tap(find.text('CANCEL'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('GARDEN'), findsWidgets);
+
     await tester.tap(find.text('CLOSE').first);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 450)); // finish pop + dispose ticker

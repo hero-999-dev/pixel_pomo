@@ -152,6 +152,30 @@ def forest_grid():
     return g
 
 
+# ---- forest tree billboard (#1) ---------------------------------------------
+# A single standing tree on a transparent background. The garden engine tiles
+# the WHOLE screen as one 2.5D world and stamps this billboard on every
+# *unclaimed* tile, so the plot reads as a clearing inside the woods that
+# recedes (tree -> grass) as the garden EXPANDs. Flat, no directional shading
+# (matches the v10 no-sun lighting).
+
+def tree_grid():
+    g = blank(16, 16)
+    canopy = hexrgb("1E4D27") + (255,)
+    canopy2 = hexrgb("2A6B33") + (255,)
+    trunk = hexrgb("3A2A18") + (255,)
+    cx, cy, rad = 7.5, 6.0, 5.0
+    for r in range(16):
+        for c in range(16):
+            if (c - cx) ** 2 + ((r - cy) * 1.15) ** 2 <= rad * rad:
+                g[r][c] = canopy2 if (r + c) % 2 else canopy
+    # trunk peeking out below the canopy
+    for r in range(11, 16):
+        g[r][7] = trunk
+        g[r][8] = trunk
+    return g
+
+
 # ---- flowers: render the same char-grids the Dart FlowerSprite uses ----------
 
 GREEN = hexrgb("46A03C")
@@ -462,6 +486,7 @@ def main():
     # Flat / single-frame sprites: ground, surround, roads, wallet coin.
     write_png(os.path.join(OUT, "grass.png"), upscale(grass_grid(), SCALE))
     write_png(os.path.join(OUT, "forest.png"), upscale(forest_grid(), SCALE))
+    write_png(os.path.join(OUT, "tree.png"), upscale(tree_grid(), SCALE))
     write_png(os.path.join(OUT, "coin.png"), upscale(coin_grid(), SCALE))
     for rid, fn in ROADS.items():
         write_png(os.path.join(OUT, f"{rid}.png"), upscale(fn(), SCALE))
@@ -472,7 +497,7 @@ def main():
         p = os.path.join(OUT, old)
         if os.path.exists(p):
             os.remove(p)
-    n = len(FLOWERS) + len(CRITTERS) + len(FENCES) + len(ROADS) + 3  # +grass +forest +coin
+    n = len(FLOWERS) + len(CRITTERS) + len(FENCES) + len(ROADS) + 4  # +grass +forest +tree +coin
     print("wrote", n, "sprites to", os.path.abspath(OUT), f"(FRAMES={FRAMES})")
 
 
