@@ -117,10 +117,14 @@ class HomeScreen extends StatelessWidget {
         final modeColor = e.isFinished ? th.accent : th.phaseColor(e.mode);
         return Scaffold(
           backgroundColor: col(th.bg),
-          body: SafeArea(
-            child: Column(
-              children: [
-                _topBar(context, th, lang),
+          body: Stack(
+            children: [
+              // live garden behind the timer when HOME mode = GARDEN (#3)
+              if (s.homeGardenBackdrop) Positioned.fill(child: _liveBackdrop(th, lang)),
+              SafeArea(
+                child: Column(
+                  children: [
+                    _topBar(context, th, lang),
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.all(24),
@@ -165,6 +169,32 @@ class HomeScreen extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _liveBackdrop(PixelTheme th, String lang) {
+    return FutureBuilder<SpriteBank>(
+      future: gardenSprites(),
+      builder: (context, snap) {
+        if (!snap.hasData) return const SizedBox.shrink();
+        return Opacity(
+          opacity: 0.45,
+          child: GardenView(
+            garden: s.garden,
+            sprites: snap.data!,
+            customizing: false,
+            onTapTile: (_) {},
+            groundColor: _gardenGround,
+            soilColor: _gardenSoil,
+            uiColor: th.onSurface,
+            lang: lang,
+            tr: (k) => t(lang, k),
+            interactive: false,
           ),
         );
       },
@@ -243,6 +273,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onTap: () => s.selectLanguage(opt[0]),
           ),
         ),
+      const SizedBox(height: 24),
+      Text(t(lang, 'homeMode'), style: pixelStyle(lang, 12, col(th.onSurfaceDim))),
+      const SizedBox(height: 12),
+      Row(
+        children: [
+          for (final on in const [false, true]) ...[
+            if (on) const SizedBox(width: 12),
+            Expanded(
+              child: PixelButton(
+                text: t(lang, on ? 'gardenMode' : 'clean'),
+                fill: s.homeGardenBackdrop == on ? th.accent : th.panel,
+                border: s.homeGardenBackdrop == on ? th.onSurface : th.onSurfaceDim,
+                textColor: s.homeGardenBackdrop == on ? th.onAccent : th.onSurface,
+                shadow: th.shadow,
+                lang: lang,
+                fontSize: 11,
+                onTap: () => s.setHomeGardenBackdrop(on),
+              ),
+            ),
+          ],
+        ],
+      ),
       const SizedBox(height: 16),
       primaryBtn(th, lang, t(lang, 'save'), () {
         s.saveSettings(work, brk, sess);
