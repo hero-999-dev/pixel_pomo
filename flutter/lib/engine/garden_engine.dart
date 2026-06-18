@@ -119,8 +119,8 @@ class GardenCamera {
     yaw = 0;
   }
 
-  void clamp(int n, Size size) {
-    final p = Projector.fit(n, this, size);
+  void clamp(int cols, int rows, Size size) {
+    final p = Projector.fit(cols, rows, this, size);
     var mx = 0.0, my = 0.0;
     for (final c in p.corners()) {
       mx = math.max(mx, (c.dx - p.center.dx).abs());
@@ -140,26 +140,30 @@ class GardenCamera {
 /// yaw applied. Fits the whole plot in view at zoom 1; the inverse is exact so
 /// taps land on the right tile from any rotation.
 class Projector {
-  final int n;
+  final int cols;
+  final int rows;
   final double t; // tile size in px (already includes zoom)
   final Offset center;
   final double yaw;
   late final double _cos = math.cos(yaw);
   late final double _sin = math.sin(yaw);
 
-  Projector(this.n, this.t, this.center, this.yaw);
+  Projector(this.cols, this.rows, this.t, this.center, this.yaw);
 
-  factory Projector.fit(int n, GardenCamera cam, Size size) {
-    final fit = math.min(size.width, size.height) / (n + 1);
-    final t = fit * cam.zoom;
-    return Projector(
-        n, t, Offset(size.width / 2 + cam.panX, size.height / 2 + cam.panY), cam.yaw);
+  /// Fit-to-fill a rectangular plot into the viewport: size the tile so the
+  /// dominant axis fills the screen (portrait → rows usually win), then zoom.
+  factory Projector.fit(int cols, int rows, GardenCamera cam, Size size) {
+    final fitW = size.width / (cols + 0.5);
+    final fitH = size.height / ((rows + 0.5) * kVy);
+    final t = math.min(fitW, fitH) * cam.zoom;
+    return Projector(cols, rows, t,
+        Offset(size.width / 2 + cam.panX, size.height / 2 + cam.panY), cam.yaw);
   }
 
   static double slabFor(double t) => t * 0.32 + 6;
 
-  double get planeW => n * t;
-  double get planeH => n * t * kVy;
+  double get planeW => cols * t;
+  double get planeH => rows * t * kVy;
 
   /// Project a continuous garden coordinate (in tile units, plot centred at 0).
   Offset projectGrid(Offset g) {
@@ -175,29 +179,30 @@ class Projector {
   Offset projectElevated(Offset g, double e) => projectGrid(g).translate(0, -e * t);
 
   /// Garden coordinate of tile (col,row)'s centre.
-  Offset gridOf(int c, int r) => Offset(c - (n - 1) / 2.0, r - (n - 1) / 2.0);
+  Offset gridOf(int c, int r) =>
+      Offset(c - (cols - 1) / 2.0, r - (rows - 1) / 2.0);
   Offset ground(int c, int r) => projectGrid(gridOf(c, r));
-  Offset groundIndex(int i) => ground(i % n, i ~/ n);
+  Offset groundIndex(int i) => ground(i % cols, i ~/ cols);
 
   int tileAt(Offset p) {
     final dx = (p.dx - center.dx) / t;
     final dy = (p.dy - center.dy) / (t * kVy);
     final gx = dx * _cos + dy * _sin; // inverse rotation
     final gy = -dx * _sin + dy * _cos;
-    final c = (gx + (n - 1) / 2.0).round();
-    final r = (gy + (n - 1) / 2.0).round();
-    if (c < 0 || r < 0 || c >= n || r >= n) return -1;
-    return r * n + c;
+    final c = (gx + (cols - 1) / 2.0).round();
+    final r = (gy + (rows - 1) / 2.0).round();
+    if (c < 0 || r < 0 || c >= cols || r >= rows) return -1;
+    return r * cols + c;
   }
 
   /// The 4 plot corners in screen space (for the slab + bounds + grid), CW.
   List<Offset> corners() {
-    final h = n / 2.0;
+    final hx = cols / 2.0, hy = rows / 2.0;
     return [
-      projectGrid(Offset(-h, -h)),
-      projectGrid(Offset(h, -h)),
-      projectGrid(Offset(h, h)),
-      projectGrid(Offset(-h, h)),
+      projectGrid(Offset(-hx, -hy)),
+      projectGrid(Offset(hx, -hy)),
+      projectGrid(Offset(hx, hy)),
+      projectGrid(Offset(-hx, hy)),
     ];
   }
 
@@ -343,11 +348,12 @@ class GardenPainter extends CustomPainter {
   }) : super(repaint: repaint);
 
   double get time => critterSystem.time;
-  int get _n => garden.size;
+  int get _cols => garden.cols;
+  int get _rows => garden.rows;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final p = Projector.fit(_n, cam, size);
+    final p = Projector.fit(_cols, _rows, cam, size);
     final t = p.t;
     final slab = Projector.slabFor(t);
     final cs = p.corners();
@@ -396,8 +402,8 @@ class GardenPainter extends CustomPainter {
     canvas.save();
     canvas.clipPath(plot);
     canvas.transform(p.gridToScreen());
-    final half = _n / 2.0;
-    final gridRect = Rect.fromLTWH(-half, -half, _n.toDouble(), _n.toDouble());
+    final gridRect =
+        Rect.fromLTWH(-_cols / 2.0, -_rows / 2.0, _cols.toDouble(), _rows.toDouble());
     final grass = sprites.grass();
     if (grass != null) {
       paintImage(
@@ -436,9 +442,9 @@ class GardenPainter extends CustomPainter {
     //     low-poly 3D posts (boxCorners); flowers are flat billboards — radially
     //     symmetric, so one sprite reads the same from every angle (no atlas).
     final standing = <(double, int, String)>[];
-    for (var r = 0; r < _n; r++) {
-      for (var c = 0; c < _n; c++) {
-        final index = r * _n + c;
+    for (var r = 0; r < _rows; r++) {
+      for (var c = 0; c < _cols; c++) {
+        final index = r * _cols + c;
         final prop = garden.propAt(index);
         if (prop == null) continue;
         standing.add((p.ground(c, r).dy, index, prop));
@@ -447,7 +453,7 @@ class GardenPainter extends CustomPainter {
     standing.sort((a, b) => a.$1.compareTo(b.$1));
     for (final (_, index, id) in standing) {
       if (Placeables.isFence(id)) {
-        _paintFencePost(canvas, p, index % _n, index ~/ _n, id);
+        _paintFencePost(canvas, p, index % _cols, index ~/ _cols, id);
       } else {
         final anchor = p.groundIndex(index);
         final sway = math.sin(time * 1.6 + index) * 1.4;
@@ -460,13 +466,13 @@ class GardenPainter extends CustomPainter {
   }
 
   void _paintRoads(Canvas canvas) {
-    for (var r = 0; r < _n; r++) {
-      for (var c = 0; c < _n; c++) {
-        final id = garden.groundAt(r * _n + c);
+    for (var r = 0; r < _rows; r++) {
+      for (var c = 0; c < _cols; c++) {
+        final id = garden.groundAt(r * _cols + c);
         if (id == null) continue;
         final img = sprites.object(id);
         final dst = Rect.fromCenter(
-            center: Offset(c - (_n - 1) / 2.0, r - (_n - 1) / 2.0), width: 1, height: 1);
+            center: Offset(c - (_cols - 1) / 2.0, r - (_rows - 1) / 2.0), width: 1, height: 1);
         if (img != null) {
           canvas.drawImageRect(
               img,
@@ -488,10 +494,10 @@ class GardenPainter extends CustomPainter {
   /// no more vanishing into a thin antenna under rotation.
   void _paintFenceRails(Canvas canvas, Projector p) {
     bool fence(int idx) =>
-        idx >= 0 && idx < _n * _n && Placeables.isFence(garden.propAt(idx) ?? '');
-    for (var r = 0; r < _n; r++) {
-      for (var c = 0; c < _n; c++) {
-        final index = r * _n + c;
+        idx >= 0 && idx < _cols * _rows && Placeables.isFence(garden.propAt(idx) ?? '');
+    for (var r = 0; r < _rows; r++) {
+      for (var c = 0; c < _cols; c++) {
+        final index = r * _cols + c;
         final id = garden.propAt(index);
         if (id == null || !Placeables.isFence(id)) continue;
         final rail = Color(_fence3d[id]!.$3);
@@ -503,8 +509,8 @@ class GardenPainter extends CustomPainter {
                 p.projectElevated(b, e - 0.05), p.projectElevated(a, e - 0.05), rail);
           }
         }
-        if (c < _n - 1 && fence(r * _n + c + 1)) link(c + 1, r);
-        if (r < _n - 1 && fence((r + 1) * _n + c)) link(c, r + 1);
+        if (c < _cols - 1 && fence(r * _cols + c + 1)) link(c + 1, r);
+        if (r < _rows - 1 && fence((r + 1) * _cols + c)) link(c, r + 1);
       }
     }
   }
@@ -550,11 +556,14 @@ class GardenPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5
       ..color = const Color(0x66FFFFFF);
-    final h = _n / 2.0;
-    for (var i = 0; i <= _n; i++) {
-      final g = -h + i;
-      canvas.drawLine(p.projectGrid(Offset(g, -h)), p.projectGrid(Offset(g, h)), line);
-      canvas.drawLine(p.projectGrid(Offset(-h, g)), p.projectGrid(Offset(h, g)), line);
+    final hx = _cols / 2.0, hy = _rows / 2.0;
+    for (var i = 0; i <= _cols; i++) {
+      final g = -hx + i;
+      canvas.drawLine(p.projectGrid(Offset(g, -hy)), p.projectGrid(Offset(g, hy)), line);
+    }
+    for (var i = 0; i <= _rows; i++) {
+      final g = -hy + i;
+      canvas.drawLine(p.projectGrid(Offset(-hx, g)), p.projectGrid(Offset(hx, g)), line);
     }
   }
 

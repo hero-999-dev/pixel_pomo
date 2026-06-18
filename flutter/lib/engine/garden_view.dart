@@ -2,6 +2,8 @@
 // the animation ticker that drives the critters, and turns finger gestures into
 // pinch-zoom / pan. Pan is clamped so the garden stays fixed on screen. There is
 // no viewing-angle control — the 2.5D depth is fixed (see kVy).
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart' show Ticker;
 
@@ -53,7 +55,7 @@ class _GardenViewState extends State<GardenView> with SingleTickerProviderStateM
     _ticker = createTicker((elapsed) {
       final dt = (elapsed - _last).inMicroseconds / 1e6;
       _last = elapsed;
-      _critters.step(dt, widget.garden.size, _flowerTargets());
+      _critters.step(dt, math.max(widget.garden.cols, widget.garden.rows), _flowerTargets());
       _frame.value++; // nudges the painter to repaint
     })..start();
   }
@@ -68,12 +70,12 @@ class _GardenViewState extends State<GardenView> with SingleTickerProviderStateM
   /// Garden-coord centres of planted flowers (not roads/fences) — critters live
   /// in garden space so they rotate/zoom with the map.
   List<Offset> _flowerTargets() {
-    final n = widget.garden.size;
+    final cols = widget.garden.cols, rows = widget.garden.rows;
     final out = <Offset>[];
     widget.garden.tiles.forEach((i, _) {
       final prop = widget.garden.propAt(i);
       if (prop != null && Placeables.isFlower(prop)) {
-        out.add(Offset(i % n - (n - 1) / 2.0, i ~/ n - (n - 1) / 2.0));
+        out.add(Offset(i % cols - (cols - 1) / 2.0, i ~/ cols - (rows - 1) / 2.0));
       }
     });
     return out;
@@ -90,13 +92,13 @@ class _GardenViewState extends State<GardenView> with SingleTickerProviderStateM
       _cam.yaw = _yawAtStart + d.rotation; // two-finger twist = look from another side
       _cam.panX += d.focalPointDelta.dx;
       _cam.panY += d.focalPointDelta.dy;
-      _cam.clamp(widget.garden.size, _lastSize);
+      _cam.clamp(widget.garden.cols, widget.garden.rows, _lastSize);
     });
   }
 
   void _onTapUp(TapUpDetails d) {
     if (!widget.customizing || _lastSize == Size.zero) return;
-    final p = Projector.fit(widget.garden.size, _cam, _lastSize);
+    final p = Projector.fit(widget.garden.cols, widget.garden.rows, _cam, _lastSize);
     final index = p.tileAt(d.localPosition);
     if (index >= 0) widget.onTapTile(index);
   }
@@ -118,7 +120,7 @@ class _GardenViewState extends State<GardenView> with SingleTickerProviderStateM
     return LayoutBuilder(
       builder: (context, constraints) {
         _lastSize = Size(constraints.maxWidth, constraints.maxHeight);
-        _cam.clamp(widget.garden.size, _lastSize);
+        _cam.clamp(widget.garden.cols, widget.garden.rows, _lastSize);
         return Stack(
           children: [
             Positioned.fill(

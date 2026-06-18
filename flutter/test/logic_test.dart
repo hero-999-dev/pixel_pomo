@@ -51,39 +51,56 @@ void main() {
   });
 
   group('Economy + Garden', () {
-    test('coinsFor / upgradeCost', () {
+    test('coinsFor / upgradeCost (rectangular)', () {
       expect(Economy.coinsFor(4), 0);
       expect(Economy.coinsFor(25), 5);
       expect(Economy.coinsFor(-3), 0);
-      expect(Economy.upgradeCost(4), 9);
-      expect(Economy.upgradeCost(5), 11);
+      expect(Economy.upgradeCost(4, 6), 21); // 2*(4+6)+1
+      expect(Economy.upgradeCost(6, 8), 29);
     });
 
-    test('garden grows as a centred ring; codec round-trips', () {
-      // (1,1) on a 4×4 → after a +2 ring it sits at (2,2) on a 6×6.
-      final g = const Garden().plant(5, 'lale').grow();
-      expect(g.size, 6);
-      expect(g.flowerAt(2 * 6 + 2), 'lale');
-      final decoded = Garden.decode(g.encode());
-      expect(decoded.size, g.size);
-      expect(decoded.tiles, g.tiles);
+    test('garden starts 4x6 and grows as a centred ring', () {
+      const g = Garden();
+      expect(g.cols, 4);
+      expect(g.rows, 6);
+      expect(g.tileCount, 24);
+
+      // plant at (col 1, row 2) = index 2*4+1 = 9
+      final grown = g.plant(9, 'lale').grow();
+      expect(grown.cols, 6);
+      expect(grown.rows, 8);
+      // (1,2) drifts to (2,3) = 3*6+2 = 20
+      expect(grown.propAt(20), 'lale');
+      final decoded = Garden.decode(grown.encode());
+      expect(decoded.cols, 6);
+      expect(decoded.rows, 8);
+      expect(decoded.propAt(20), 'lale');
+      expect(decoded.tiles, grown.tiles);
     });
 
-    test('garden decode drops oversized tiles and clamps size up', () {
-      final d = Garden.decode('size:1\n99:gul\n0:lale');
-      expect(d.size, 4);
-      expect(d.flowerAt(0), 'lale');
+    test('garden decode migrates a legacy square size: line', () {
+      final d = Garden.decode('size:5\n0:gul');
+      expect(d.cols, 5);
+      expect(d.rows, 5);
+      expect(d.propAt(0), 'gul');
+    });
+
+    test('garden decode drops out-of-range tiles', () {
+      final d = Garden.decode('cols:4\nrows:6\n99:gul\n9:lale');
       expect(d.tiles.containsKey(99), false);
+      expect(d.propAt(9), 'lale');
     });
 
     test('garden grows with no cap; stays centred', () {
-      var g = const Garden().plant(0, 'gul');
+      var g = const Garden().plant(0, 'gul'); // (0,0)
       for (var i = 0; i < 10; i++) {
         g = g.grow();
       }
-      expect(g.size, Economy.baseGardenSize + 20); // +2 ring × 10, past the old 8 cap
+      expect(g.cols, 4 + 20);
+      expect(g.rows, 6 + 20);
       expect(g.countPlanted('gul'), 1); // nothing lost
-      expect(g.flowerAt(10 * g.size + 10), 'gul'); // (0,0) drifted to (10,10), centred
+      // (0,0) drifts +10/+10 → (10,10) = 10*g.cols + 10
+      expect(g.propAt(10 * g.cols + 10), 'gul');
     });
   });
 

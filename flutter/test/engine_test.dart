@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pixel_pomo/engine/garden_engine.dart';
 
@@ -14,7 +15,7 @@ void main() {
       const t = 40.0;
       const center = Offset(200, 300);
       for (final yaw in [0.0, 0.5, 1.3, math.pi, -2.0]) {
-        final p = Projector(6, t, center, yaw);
+        final p = Projector(6, 6, t, center, yaw);
         const g = Offset(1.5, -2.0);
         final ground = p.projectGrid(g);
         final raised = p.projectElevated(g, 0.75);
@@ -25,7 +26,7 @@ void main() {
   });
 
   group('Fence post box geometry (real 3D, not a billboard)', () {
-    final p = Projector(6, 40.0, const Offset(200, 300), 0.7);
+    final p = Projector(6, 6, 40.0, const Offset(200, 300), 0.7);
     const center = Offset.zero;
 
     test('returns 8 corners: a base ring and a top ring directly above it', () {
@@ -39,7 +40,7 @@ void main() {
 
     test('base ring is centred on the tile and spans real width from any angle', () {
       for (final yaw in [0.0, 0.7, 2.4, -1.1]) {
-        final pp = Projector(6, 40.0, const Offset(200, 300), yaw);
+        final pp = Projector(6, 6, 40.0, const Offset(200, 300), yaw);
         final base = boxCorners(pp, center, 0.12, 0.6).sublist(0, 4);
         final cx = base.map((o) => o.dx).reduce((a, b) => a + b) / 4;
         final cy = base.map((o) => o.dy).reduce((a, b) => a + b) / 4;
@@ -52,6 +53,34 @@ void main() {
             base.map((o) => o.dx).reduce(math.max) - base.map((o) => o.dx).reduce(math.min);
         expect(spanX, greaterThan(2), reason: 'yaw=$yaw');
       }
+    });
+  });
+
+  group('Projector rectangular tile mapping', () {
+    test('tileAt inverts gridOf for a non-square plot at several yaws', () {
+      const cols = 4, rows = 6, t = 40.0;
+      const center = Offset(200, 400);
+      for (final yaw in [0.0, 0.6, 1.9, -1.2]) {
+        final p = Projector(cols, rows, t, center, yaw);
+        for (var r = 0; r < rows; r++) {
+          for (var c = 0; c < cols; c++) {
+            final screen = p.projectGrid(p.gridOf(c, r));
+            expect(p.tileAt(screen), r * cols + c, reason: 'yaw=$yaw ($c,$r)');
+          }
+        }
+      }
+    });
+
+    test('fit fills the portrait viewport and centres the plot', () {
+      final cam = GardenCamera();
+      const size = Size(360, 720);
+      final p = Projector.fit(4, 6, cam, size);
+      expect(p.center.dx, closeTo(180, 0.001));
+      final cs = p.corners();
+      final minX = cs.map((o) => o.dx).reduce(math.min);
+      final maxX = cs.map((o) => o.dx).reduce(math.max);
+      // the 4-wide plot spans essentially the full width at fit-zoom
+      expect(maxX - minX, greaterThan(size.width * 0.8));
     });
   });
 }
