@@ -24,6 +24,9 @@ const Map<String, Map<String, String>> _s = {
     'gardenSize': '{0} × {1}', 'upgraded': 'GARDEN EXPANDED', 'pickFlower': 'PLACE WHAT?',
     'clearTile': 'CLEAR TILE', 'needFlowers': 'Buy something in the SHOP first.',
     'noneLeft': 'None of that left to place.', 'recenter': 'RECENTER',
+    'peek': 'HIDE UI', 'camera': 'CAMERA', 'capture': 'CAPTURE', 'share': 'SAVE / SHARE',
+    'setBackdrop': 'SET AS BACKDROP', 'clearBackdrop': 'CLEAR BACKDROP', 'cancel': 'CANCEL',
+    'homeMode': 'HOME SCREEN', 'clean': 'CLEAN', 'gardenMode': 'GARDEN',
   },
   'tr': {
     'work': 'ÇALIŞ', 'break': 'MOLA', 'start': 'BAŞLAT', 'pause': 'DURAKLAT', 'reset': 'SIFIRLA',
@@ -47,6 +50,9 @@ const Map<String, Map<String, String>> _s = {
     'gardenSize': '{0} × {1}', 'upgraded': 'BAHÇE BÜYÜTÜLDÜ', 'pickFlower': 'NE KOYALIM?',
     'clearTile': 'KAREYİ TEMİZLE', 'needFlowers': 'Önce MAĞAZA\'dan bir şey al.',
     'noneLeft': 'Koyacak o şeyden kalmadı.', 'recenter': 'ORTALA',
+    'peek': 'GİZLE', 'camera': 'KAMERA', 'capture': 'ÇEK', 'share': 'KAYDET / PAYLAŞ',
+    'setBackdrop': 'ARKA PLAN YAP', 'clearBackdrop': 'ARKA PLANI SİL', 'cancel': 'İPTAL',
+    'homeMode': 'ANA EKRAN', 'clean': 'SADE', 'gardenMode': 'BAHÇE',
   },
   'pl': {
     'work': 'PRACA', 'break': 'PRZERWA', 'start': 'START', 'pause': 'PAUZA', 'reset': 'RESET',
@@ -70,6 +76,9 @@ const Map<String, Map<String, String>> _s = {
     'gardenSize': '{0} × {1}', 'upgraded': 'OGRÓD ROZBUDOWANY', 'pickFlower': 'CO POSTAWIĆ?',
     'clearTile': 'WYCZYŚĆ POLE', 'needFlowers': 'Najpierw kup coś w SKLEPIE.',
     'noneLeft': 'Nie masz już tego.', 'recenter': 'WYŚRODKUJ',
+    'peek': 'UKRYJ UI', 'camera': 'APARAT', 'capture': 'ZRÓB', 'share': 'ZAPISZ / UDOSTĘPNIJ',
+    'setBackdrop': 'USTAW TŁO', 'clearBackdrop': 'USUŃ TŁO', 'cancel': 'ANULUJ',
+    'homeMode': 'EKRAN GŁÓWNY', 'clean': 'CZYSTY', 'gardenMode': 'OGRÓD',
   },
   'de': {
     'work': 'ARBEIT', 'break': 'PAUSE', 'start': 'START', 'pause': 'PAUSE', 'reset': 'ZURÜCK',
@@ -93,6 +102,9 @@ const Map<String, Map<String, String>> _s = {
     'gardenSize': '{0} × {1}', 'upgraded': 'GARTEN ERWEITERT', 'pickFlower': 'WAS SETZEN?',
     'clearTile': 'FELD LEEREN', 'needFlowers': 'Kaufe zuerst etwas im SHOP.',
     'noneLeft': 'Nichts davon mehr übrig.', 'recenter': 'ZENTRIEREN',
+    'peek': 'UI AUS', 'camera': 'KAMERA', 'capture': 'AUFNAHME', 'share': 'SPEICHERN / TEILEN',
+    'setBackdrop': 'ALS HINTERGRUND', 'clearBackdrop': 'HINTERGRUND LÖSCHEN', 'cancel': 'ABBRECHEN',
+    'homeMode': 'STARTBILDSCHIRM', 'clean': 'SCHLICHT', 'gardenMode': 'GARTEN',
   },
   'ko': {
     'work': '집중', 'break': '휴식', 'start': '시작', 'pause': '일시정지', 'reset': '초기화',
@@ -116,6 +128,9 @@ const Map<String, Map<String, String>> _s = {
     'gardenSize': '{0} × {1}', 'upgraded': '정원 확장됨', 'pickFlower': '무엇을 놓을까요?',
     'clearTile': '타일 비우기', 'needFlowers': '먼저 상점에서 구매하세요.',
     'noneLeft': '놓을 것이 없습니다.', 'recenter': '가운데로',
+    'peek': 'UI 숨기기', 'camera': '카메라', 'capture': '촬영', 'share': '저장 / 공유',
+    'setBackdrop': '배경으로', 'clearBackdrop': '배경 지우기', 'cancel': '취소',
+    'homeMode': '홈 화면', 'clean': '심플', 'gardenMode': '정원',
   },
   'it': {
     'work': 'LAVORO', 'break': 'PAUSA', 'start': 'AVVIA', 'pause': 'PAUSA', 'reset': 'AZZERA',
@@ -139,6 +154,9 @@ const Map<String, Map<String, String>> _s = {
     'gardenSize': '{0} × {1}', 'upgraded': 'GIARDINO AMPLIATO', 'pickFlower': 'COSA METTERE?',
     'clearTile': 'SVUOTA CELLA', 'needFlowers': 'Compra prima qualcosa nel NEGOZIO.',
     'noneLeft': 'Non hai più quello.', 'recenter': 'CENTRA',
+    'peek': 'NASCONDI UI', 'camera': 'FOTOCAMERA', 'capture': 'SCATTA', 'share': 'SALVA / CONDIVIDI',
+    'setBackdrop': 'IMPOSTA SFONDO', 'clearBackdrop': 'RIMUOVI SFONDO', 'cancel': 'ANNULLA',
+    'homeMode': 'SCHERMATA', 'clean': 'PULITO', 'gardenMode': 'GIARDINO',
   },
 };
 
