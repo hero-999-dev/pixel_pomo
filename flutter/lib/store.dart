@@ -310,7 +310,7 @@ class AppStore extends ChangeNotifier {
 
   void upgradeGarden() {
     // No size cap — the rising upgradeCost is the only limit.
-    final cost = Economy.upgradeCost(garden.size);
+    final cost = Economy.upgradeCost(garden.cols, garden.rows);
     if (coins < cost) {
       messenger?.call('notEnough');
       return;
