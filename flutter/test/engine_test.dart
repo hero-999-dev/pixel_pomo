@@ -83,4 +83,36 @@ void main() {
       expect(maxX - minX, greaterThan(size.width * 0.8));
     });
   });
+
+  group('WorldGrid claimed vs forest', () {
+    test('claimed window is centred inside the forest margin', () {
+      const w = WorldGrid(cols: 4, rows: 6, margin: 2);
+      expect(w.worldCols, 8);
+      expect(w.worldRows, 10);
+      // corners are forest
+      expect(w.isClaimed(0, 0), false);
+      expect(w.isClaimed(7, 9), false);
+      // centre 4x6 block (cols 2..5, rows 2..7) is claimed
+      expect(w.isClaimed(2, 2), true);
+      expect(w.isClaimed(5, 7), true);
+      expect(w.isClaimed(1, 2), false); // just outside claimed, in margin
+      // claimed index round-trips: world (5,7) → claimed (3,5) → 5*4+3 = 23
+      expect(w.claimedIndex(2, 2), 0);
+      expect(w.claimedIndex(5, 7), 23);
+      expect(w.claimedIndex(0, 0), -1);
+    });
+
+    test('forest stays a constant-thickness ring as the plot grows', () {
+      const before = WorldGrid(cols: 4, rows: 6, margin: 2);
+      const after = WorldGrid(cols: 6, rows: 8, margin: 2);
+      // forest is always a `margin`-thick border around the claimed centre, so
+      // each EXPAND converts the inner forest ring to grass while the woods stay.
+      expect(before.worldCols - before.cols, 2 * before.margin);
+      expect(after.worldCols - after.cols, 2 * after.margin);
+      expect(after.cols, before.cols + 2); // claimed grew by one ring
+      // the claimed window stays centred (top-left claimed tile is at margin)
+      expect(before.isClaimed(before.margin, before.margin), true);
+      expect(after.isClaimed(after.margin, after.margin), true);
+    });
+  });
 }
