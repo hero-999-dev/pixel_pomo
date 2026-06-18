@@ -86,21 +86,36 @@ class _GardenViewState extends State<GardenView> with SingleTickerProviderStateM
     _yawAtStart = _cam.yaw;
   }
 
+  /// Clamp pan against the WHOLE world (claimed plot + forest margin), since the
+  /// painter sizes the projector to the world.
+  void _clampWorld() {
+    final cols = widget.garden.cols, rows = widget.garden.rows;
+    final m = forestMargin(cols, rows);
+    _cam.clamp(cols + 2 * m, rows + 2 * m, _lastSize);
+  }
+
   void _onScaleUpdate(ScaleUpdateDetails d) {
     setState(() {
       _cam.zoom = (_zoomAtStart * d.scale).clamp(1.0, 4.0);
       _cam.yaw = _yawAtStart + d.rotation; // two-finger twist = look from another side
       _cam.panX += d.focalPointDelta.dx;
       _cam.panY += d.focalPointDelta.dy;
-      _cam.clamp(widget.garden.cols, widget.garden.rows, _lastSize);
+      _clampWorld();
     });
   }
 
   void _onTapUp(TapUpDetails d) {
     if (!widget.customizing || _lastSize == Size.zero) return;
-    final p = Projector.fit(widget.garden.cols, widget.garden.rows, _cam, _lastSize);
-    final index = p.tileAt(d.localPosition);
-    if (index >= 0) widget.onTapTile(index);
+    final cols = widget.garden.cols, rows = widget.garden.rows;
+    final m = forestMargin(cols, rows);
+    final wCols = cols + 2 * m, wRows = rows + 2 * m;
+    final p = Projector.fit(wCols, wRows, _cam, _lastSize);
+    final wi = p.tileAt(d.localPosition);
+    if (wi < 0) return;
+    // map the tapped world tile to a claimed tile (forest tiles aren't plantable)
+    final w = WorldGrid(cols: cols, rows: rows, margin: m);
+    final ci = w.claimedIndex(wi % wCols, wi ~/ wCols);
+    if (ci >= 0) widget.onTapTile(ci);
   }
 
   GardenPainter _painter() => GardenPainter(
@@ -120,7 +135,7 @@ class _GardenViewState extends State<GardenView> with SingleTickerProviderStateM
     return LayoutBuilder(
       builder: (context, constraints) {
         _lastSize = Size(constraints.maxWidth, constraints.maxHeight);
-        _cam.clamp(widget.garden.cols, widget.garden.rows, _lastSize);
+        _clampWorld();
         return Stack(
           children: [
             Positioned.fill(
