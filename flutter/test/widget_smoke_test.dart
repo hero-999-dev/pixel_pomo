@@ -56,6 +56,18 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
     expect(find.text('GARDEN'), findsWidgets);
 
+    // camera mode opens a clean framing view with CAPTURE/CANCEL; cancel out
+    // (don't tap CAPTURE — its toImage hangs in headless flutter test).
+    expect(find.byKey(const Key('cameraButton')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('cameraButton')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('CAPTURE'), findsOneWidget);
+    await tester.tap(find.text('CANCEL'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('GARDEN'), findsWidgets);
+
     await tester.tap(find.text('CLOSE').first);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 450)); // finish pop + dispose ticker
