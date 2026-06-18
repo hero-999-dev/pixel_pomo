@@ -26,18 +26,19 @@ import '../logic.dart';
 /// axis is the camera's [GardenCamera.yaw]; the tilt itself stays fixed.
 const double kVy = 0.60;
 
-/// Number of frames in every directional atlas — must match `FRAMES` in
-/// tools/gen_objects.py. Flowers, fences and critters each ship as a horizontal
-/// strip of [kDirFrames] facets; the painter slices out the one that matches the
-/// viewing angle so objects appear to turn in 3D as the camera yaws.
+/// Number of frames in a directional atlas — must match `FRAMES` in
+/// tools/gen_objects.py. Only **critters** still ship as an 8-frame strip (so a
+/// bee faces its travel heading); the painter slices out the matching frame.
+/// Flowers are single billboards and fences are 3D meshes — neither uses this.
 const int kDirFrames = 8;
 
-/// Rail colour per fence id — the connecting rails between adjacent fence posts
-/// are drawn as lines (the posts themselves come from the directional atlas).
-const Map<String, int> _fenceRail = {
-  'fence_wood': 0xFFA9743E,
-  'fence_dark': 0xFF5A3A1E,
-  'fence_stone': 0xFF9A9A9A,
+/// Flat ambient palette per fence id as `(side, top, rail)`. The top face is a
+/// touch brighter than the sides — light from the sky, baked to the geometry, so
+/// it stays put as the camera yaws (a fixed sky glow, never a directional sun).
+const Map<String, (int side, int top, int rail)> _fence3d = {
+  'fence_wood': (0xFF8B5A2B, 0xFFA9743E, 0xFFA9743E),
+  'fence_dark': (0xFF3D2814, 0xFF5A3A1E, 0xFF5A3A1E),
+  'fence_stone': (0xFF6E6E6E, 0xFF9A9A9A, 0xFF9A9A9A),
 };
 
 /// Pick the atlas frame for a viewing/heading angle (radians).
@@ -46,12 +47,28 @@ int frameForAngle(double a) {
   return (k + kDirFrames) % kDirFrames;
 }
 
+/// The 8 screen-space corners of an upright box at garden [c] (tile units), with
+/// a square footprint of half-width [half] tiles rising [height] tiles. Indices
+/// 0..3 are the base ring (CW), 4..7 the matching top ring directly above. This
+/// is the low-poly primitive every standing 3D object (fence posts now, trees /
+/// houses next) is built from — real geometry that rotates correctly and keeps a
+/// solid footprint from every angle, instead of a flat sprite that thins out.
+List<Offset> boxCorners(Projector p, Offset c, double half, double height) {
+  final base = <Offset>[
+    p.projectGrid(Offset(c.dx - half, c.dy - half)),
+    p.projectGrid(Offset(c.dx + half, c.dy - half)),
+    p.projectGrid(Offset(c.dx + half, c.dy + half)),
+    p.projectGrid(Offset(c.dx - half, c.dy + half)),
+  ];
+  return [...base, for (final b in base) b.translate(0, -height * p.t)];
+}
+
 // ---- sprite bank ------------------------------------------------------------
 
-/// Decoded PNGs from assets/objects/, keyed by id. Flowers (`flower_<id>`),
-/// fences (`fence_<id>`) and critters are 8-frame directional **atlases**; the
-/// ground (`grass`), the `forest` surround and every road are single tiles.
-/// Loaded once, reused for the scene.
+/// Decoded PNGs from assets/objects/, keyed by id. Critters are 8-frame
+/// directional **atlases**; flowers (`flower_<id>`), the ground (`grass`), the
+/// `forest` surround and every road are single tiles. Fences aren't loaded here
+/// at all — they render as 3D meshes. Loaded once, reused for the scene.
 class SpriteBank {
   final Map<String, ui.Image> images;
   const SpriteBank(this.images);
@@ -60,7 +77,6 @@ class SpriteBank {
   ui.Image? forest() => images['forest'];
   ui.Image? object(String id) => images[id]; // roads
   ui.Image? flower(String id) => images['flower_$id'];
-  ui.Image? fence(String id) => images[id];
   ui.Image? critter(String kind) => images[kind];
 
   static Future<SpriteBank> load() async {
@@ -76,7 +92,8 @@ class SpriteBank {
       grab('forest', 'forest.png'),
       for (final k in CritterSystem.kinds) grab(k, '$k.png'),
       for (final id in Placeables.roadIds) grab(id, '$id.png'),
-      for (final id in Placeables.fenceIds) grab(id, '$id.png'),
+      // fences render as low-poly 3D meshes, not sprites; their PNGs are only
+      // used as shop thumbnails (loaded there via Image.asset).
       for (final f in Flowers.all) grab('flower_${f.id}', 'flower_${f.id}.png'),
     ]);
     return SpriteBank(out);
@@ -150,6 +167,12 @@ class Projector {
     final ry = g.dx * _sin + g.dy * _cos;
     return Offset(center.dx + rx * t, center.dy + ry * t * kVy);
   }
+
+  /// Project a garden coordinate raised [e] tile-heights off the ground. The
+  /// camera tilt is fixed, so true vertical maps **straight up the screen** by
+  /// `e * t` and is identical from every compass [yaw] — a post is equally tall
+  /// from all sides (uniform sky light, no moving sun).
+  Offset projectElevated(Offset g, double e) => projectGrid(g).translate(0, -e * t);
 
   /// Garden coordinate of tile (col,row)'s centre.
   Offset gridOf(int c, int r) => Offset(c - (n - 1) / 2.0, r - (n - 1) / 2.0);
@@ -405,13 +428,13 @@ class GardenPainter extends CustomPainter {
     //    tile you'll tap.
     if (customizing) _paintGrid(canvas, p);
 
-    // 4a) connecting rails between adjacent fence posts (any material), drawn
-    //     first so the posts and flowers sit in front of them.
-    _paintFenceRails(canvas, p, t);
+    // 4a) fence rails — raised 3D bars between adjacent posts (any material),
+    //     drawn first so the posts and flowers sit in front of them.
+    _paintFenceRails(canvas, p);
 
-    // 4b) standing props — flowers and fence posts — pick the atlas facet for
-    //     the current camera yaw (#4) and sort back-to-front by screen depth.
-    final frame = frameForAngle(cam.yaw);
+    // 4b) standing props, sorted back-to-front by screen depth. Fences are real
+    //     low-poly 3D posts (boxCorners); flowers are flat billboards — radially
+    //     symmetric, so one sprite reads the same from every angle (no atlas).
     final standing = <(double, int, String)>[];
     for (var r = 0; r < _n; r++) {
       for (var c = 0; c < _n; c++) {
@@ -423,12 +446,12 @@ class GardenPainter extends CustomPainter {
     }
     standing.sort((a, b) => a.$1.compareTo(b.$1));
     for (final (_, index, id) in standing) {
-      final anchor = p.groundIndex(index);
       if (Placeables.isFence(id)) {
-        _paintBillboard(canvas, sprites.fence(id), frame, anchor, t, height: 0.95, width: 0.78);
+        _paintFencePost(canvas, p, index % _n, index ~/ _n, id);
       } else {
+        final anchor = p.groundIndex(index);
         final sway = math.sin(time * 1.6 + index) * 1.4;
-        _paintBillboard(canvas, sprites.flower(id), frame, anchor, t, sway: sway);
+        _paintBillboard(canvas, sprites.flower(id), anchor, p.t, sway: sway);
       }
     }
 
@@ -457,36 +480,69 @@ class GardenPainter extends CustomPainter {
     }
   }
 
-  /// Rails between adjacent standing fence posts. A post links to **any** fence
+  /// Raised 3D rails between adjacent fence posts. A post links to **any** fence
   /// neighbour regardless of material (#1), so a wood fence joins a stone one.
-  /// Each tile only draws toward its E and S neighbours (so every shared edge is
-  /// drawn once) using its own rail colour. Rails are two screen-space bars
-  /// raised off the ground, so they read as a standing fence that rotates with
-  /// the garden.
-  void _paintFenceRails(Canvas canvas, Projector p, double t) {
+  /// Each tile only draws toward its E and S neighbour (so every shared edge is
+  /// drawn once). Each rail is a flat ribbon at a fixed height in garden space,
+  /// so it rotates with the map and keeps a steady thickness from every angle —
+  /// no more vanishing into a thin antenna under rotation.
+  void _paintFenceRails(Canvas canvas, Projector p) {
     bool fence(int idx) =>
         idx >= 0 && idx < _n * _n && Placeables.isFence(garden.propAt(idx) ?? '');
-    final postH = t * 0.62;
     for (var r = 0; r < _n; r++) {
       for (var c = 0; c < _n; c++) {
         final index = r * _n + c;
         final id = garden.propAt(index);
         if (id == null || !Placeables.isFence(id)) continue;
-        final paint = Paint()
-          ..color = Color(_fenceRail[id]!)
-          ..strokeWidth = math.max(2, t * 0.09)
-          ..strokeCap = StrokeCap.round;
-        final a = p.ground(c, r);
+        final rail = Color(_fence3d[id]!.$3);
+        final a = p.gridOf(c, r);
         void link(int nc, int nr) {
-          final b = p.ground(nc, nr);
-          for (final f in const [0.42, 0.78]) {
-            canvas.drawLine(a.translate(0, -postH * f), b.translate(0, -postH * f), paint);
+          final b = p.gridOf(nc, nr);
+          for (final e in const [0.50, 0.28]) {
+            _fillQuad(canvas, p.projectElevated(a, e + 0.05), p.projectElevated(b, e + 0.05),
+                p.projectElevated(b, e - 0.05), p.projectElevated(a, e - 0.05), rail);
           }
         }
         if (c < _n - 1 && fence(r * _n + c + 1)) link(c + 1, r);
         if (r < _n - 1 && fence((r + 1) * _n + c)) link(c, r + 1);
       }
     }
+  }
+
+  /// One fence as a low-poly 3D post (the first object on the reusable mesh
+  /// pipeline): an upright [boxCorners] box with a brighter top face. The four
+  /// side faces share one flat colour, so their draw order is irrelevant; the
+  /// top is drawn last so it always reads correctly however the box is turned.
+  void _paintFencePost(Canvas canvas, Projector p, int c, int r, String id) {
+    final pal = _fence3d[id]!;
+    final gc = p.gridOf(c, r);
+    final ground = p.projectGrid(gc);
+    canvas.drawOval(
+        Rect.fromCenter(
+            center: ground.translate(0, p.t * kVy * 0.10),
+            width: p.t * 0.34,
+            height: p.t * kVy * 0.30),
+        Paint()..color = const Color(0x33000000));
+    final box = boxCorners(p, gc, 0.10, 0.66);
+    for (var i = 0; i < 4; i++) {
+      final j = (i + 1) % 4;
+      _fillQuad(canvas, box[i], box[j], box[j + 4], box[i + 4], Color(pal.$1));
+    }
+    _fillQuad(canvas, box[4], box[5], box[6], box[7], Color(pal.$2));
+  }
+
+  /// Fill a flat-shaded quad (one low-poly face). Pixel-crisp, no anti-aliasing.
+  void _fillQuad(Canvas canvas, Offset a, Offset b, Offset c, Offset d, Color color) {
+    canvas.drawPath(
+        Path()
+          ..moveTo(a.dx, a.dy)
+          ..lineTo(b.dx, b.dy)
+          ..lineTo(c.dx, c.dy)
+          ..lineTo(d.dx, d.dy)
+          ..close(),
+        Paint()
+          ..color = color
+          ..isAntiAlias = false);
   }
 
   void _paintGrid(Canvas canvas, Projector p) {
@@ -502,17 +558,17 @@ class GardenPainter extends CustomPainter {
     }
   }
 
-  /// Draw a standing object as a billboard, slicing frame [frame] out of its
-  /// [kDirFrames]-frame directional atlas so it faces the camera correctly.
-  void _paintBillboard(Canvas canvas, ui.Image? img, int frame, Offset anchor, double t,
+  /// Draw a flower as a flat, camera-facing billboard. Flowers are radially
+  /// symmetric, so one sprite looks the same from every angle — no directional
+  /// atlas to slice, no wasted memory, no fake snapping.
+  void _paintBillboard(Canvas canvas, ui.Image? img, Offset anchor, double t,
       {double height = 1.05, double width = 0.9, double sway = 0}) {
     canvas.drawOval(
         Rect.fromCenter(
             center: anchor.translate(0, t * kVy * 0.16), width: t * 0.5, height: t * kVy * 0.34),
         Paint()..color = const Color(0x33000000));
     if (img == null) return;
-    final cellW = img.width / kDirFrames;
-    final src = Rect.fromLTWH(frame * cellW, 0, cellW, img.height.toDouble());
+    final src = Rect.fromLTWH(0, 0, img.width.toDouble(), img.height.toDouble());
     final h = t * height;
     final bottom = anchor.dy + t * kVy * 0.30;
     final dst = Rect.fromCenter(

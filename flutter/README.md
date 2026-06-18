@@ -12,7 +12,7 @@ flutter/
 ├── pubspec.yaml          # name: pixel_pomo, deps (shared_preferences), pixel font, flutter_launcher_icons
 ├── assets/
 │   ├── fonts/            # PressStart2P (Latin) + Galmuri11 (OFL pixel Hangul, for Korean)
-│   ├── objects/          # 23 sprites: grass/forest/coin + 4 roads (flat) + 3 critters/3 fences/10 flowers (8-frame atlases)
+│   ├── objects/          # 23 sprites: grass/forest/coin + 4 roads + 3 fences + 10 flowers (all single-frame) + 3 critters (8-frame atlases)
 │   └── icon/             # app_icon.png + app_icon_fg.png (the pixel-tomato launcher icon)
 ├── tools/
 │   ├── gen_objects.py    # regenerates assets/objects/*.png (no Pillow needed)
@@ -23,11 +23,12 @@ flutter/
 │   ├── store.dart        # AppStore (ChangeNotifier): state, persistence, countdown, buyItem
 │   ├── pixel.dart        # pixel widgets + chart painter + flower sprites; fontFor('ko')→Galmuri11
 │   ├── engine/
-│   │   ├── garden_engine.dart  # 2.5D renderer: Projector (+yaw), 8-dir atlases, forest bg, fence rails, critters
+│   │   ├── garden_engine.dart  # 2.5D renderer: Projector (+yaw/+elevation), low-poly 3D fence mesh, flat lighting, flower billboards, forest bg, critter atlas
 │   │   └── garden_view.dart    # gesture/ticker widget: bounded pinch-zoom + pan + two-finger rotate
 │   └── main.dart         # screens: timer + theme/garden/stats/settings/shop/label overlays
 └── test/
     ├── logic_test.dart        # Dart edge tests (gate the Flutter CI)
+    ├── engine_test.dart       # low-poly 3D geometry: projectElevated + boxCorners
     └── widget_smoke_test.dart # boots the app, opens every overlay incl. the live garden
 ```
 
@@ -54,7 +55,7 @@ flutter create --org com.pixelpomo --project-name pixel_pomo --platforms=ios,and
 git checkout -- pubspec.yaml lib && rm -f test/widget_test.dart analysis_options.yaml
 flutter pub get
 flutter analyze
-flutter test       # logic_test.dart + widget_smoke_test.dart
+flutter test       # logic_test.dart + engine_test.dart + widget_smoke_test.dart (26)
 flutter run        # or: flutter build apk / flutter build ios --no-codesign
 ```
 
@@ -75,11 +76,14 @@ tiny custom engine (`lib/engine/`) — no Unity/Flame. The tilt is fixed, but yo
 view by hand** (two-finger twist, like Google Maps), plus **pinch-zoom (1×–4×) and pan**, all
 **clamped** so the garden stays fixed on screen. It **grows from the center**, **no size cap, no
 tile numbers**; **CUSTOMIZE** shows tile gridlines. A **forest/rock surround** tiles the whole
-screen behind the plot so the garden reads as a clearing. Flowers, fences and critters use an
-**8-direction sprite atlas** — the engine picks the facet matching the camera angle, so objects
-turn in 3D as you rotate. Roads lie flat; **fences stand up** as posts and **connect to any
-adjacent fence** (wood↔dark↔stone) with raised rails, horizontally *and* vertically; a fence can
-also stand **on top of a road** (flowers can't). Tiny **bee/butterfly/ladybug** live in garden
+screen behind the plot so the garden reads as a clearing. **Lighting is flat sky-ambient** — nothing
+is shaded by view angle, so rotating never sweeps a fake sun across the garden. Roads lie flat;
+**fences are real low-poly 3D** — upright post meshes (brighter sky-lit top) joined by **raised 3D
+rails** to any adjacent fence (wood↔dark↔stone), horizontally *and* vertically, keeping a solid
+footprint from every angle; a fence can also stand **on top of a road** (flowers can't). **Flowers
+are flat billboards** — radially symmetric, so one sprite reads the same from all sides; **only
+critters** (tiny **bee/butterfly/ladybug**) use an 8-direction atlas, to face their travel heading.
+They live in garden
 space (so they rotate with the map), drift in to **visit a flower**, then leave. The SHOP sells
 **4 road** + **3 fence** materials (5 coins each). Plants get a dark outline so they separate from
 the grass. The wallet shows a **plain 2D gold coin** (no animation). Korean uses the bundled
