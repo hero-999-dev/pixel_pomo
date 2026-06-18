@@ -593,7 +593,7 @@ class GardenScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final th = s.theme;
     final lang = s.lang;
-    final cost = Economy.upgradeCost(s.garden.size);
+    final cost = Economy.upgradeCost(s.garden.cols, s.garden.rows);
 
     return Scaffold(
       backgroundColor: col(th.bg),

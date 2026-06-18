@@ -248,9 +248,12 @@ class Placeables {
 class Economy {
   static const flowerCost = 10;
   static const objectCost = 5; // roads + fences
-  static const baseGardenSize = 4;
+  static const baseGardenCols = 4;
+  static const baseGardenRows = 6;
   static int coinsFor(int minutes) => minutes <= 0 ? 0 : minutes ~/ 5;
-  static int upgradeCost(int currentSize) => 2 * currentSize + 1;
+
+  /// EXPAND price — rises with the plot's perimeter so each ring costs more.
+  static int upgradeCost(int cols, int rows) => 2 * (cols + rows) + 1;
 
   /// Buy price for any catalogue id (flower or object).
   static int costOf(String id) => Placeables.isObject(id) ? objectCost : flowerCost;
@@ -259,11 +262,16 @@ class Economy {
 // ---- garden -----------------------------------------------------------------
 
 class Garden {
-  final int size;
+  final int cols;
+  final int rows;
   final Map<int, String> tiles;
-  const Garden({this.size = Economy.baseGardenSize, this.tiles = const {}});
+  const Garden({
+    this.cols = Economy.baseGardenCols,
+    this.rows = Economy.baseGardenRows,
+    this.tiles = const {},
+  });
 
-  int get tileCount => size * size;
+  int get tileCount => cols * rows;
   bool isValidIndex(int i) => i >= 0 && i < tileCount;
 
   /// Raw stored value for a tile (may be a `"road+fence"` composite).
@@ -296,26 +304,27 @@ class Garden {
       if (road != null) return this;
       value = id;
     }
-    return Garden(size: size, tiles: {...tiles, index: value});
+    return Garden(cols: cols, rows: rows, tiles: {...tiles, index: value});
   }
 
   Garden clear(int index) {
     if (!tiles.containsKey(index)) return this;
     final next = {...tiles}..remove(index);
-    return Garden(size: size, tiles: next);
+    return Garden(cols: cols, rows: rows, tiles: next);
   }
 
   /// Expand by one tile on every side (a ring), so the plot grows **centred** —
-  /// existing tiles shift by (+1,+1) into the larger grid and stay in the middle.
+  /// existing tiles shift by (+1 col, +1 row) into the larger grid.
   Garden grow() {
-    final newSize = size + 2;
+    final nc = cols + 2;
+    final nr = rows + 2;
     final remapped = <int, String>{};
     tiles.forEach((index, id) {
-      final r = index ~/ size;
-      final c = index % size;
-      remapped[(r + 1) * newSize + (c + 1)] = id;
+      final r = index ~/ cols;
+      final c = index % cols;
+      remapped[(r + 1) * nc + (c + 1)] = id;
     });
-    return Garden(size: newSize, tiles: remapped);
+    return Garden(cols: nc, rows: nr, tiles: remapped);
   }
 
   int countPlanted(String flowerId) => tiles.values.where((v) {
@@ -324,7 +333,7 @@ class Garden {
       }).length;
 
   String encode() {
-    final b = StringBuffer('size:$size');
+    final b = StringBuffer('cols:$cols\nrows:$rows');
     final keys = tiles.keys.toList()..sort();
     for (final k in keys) {
       b.write('\n$k:${tiles[k]}');
@@ -334,7 +343,8 @@ class Garden {
 
   static Garden decode(String? text) {
     if (text == null || text.trim().isEmpty) return const Garden();
-    var size = Economy.baseGardenSize;
+    var cols = Economy.baseGardenCols;
+    var rows = Economy.baseGardenRows;
     final tiles = <int, String>{};
     for (final line in text.split('\n')) {
       if (line.trim().isEmpty) continue;
@@ -343,15 +353,24 @@ class Garden {
       final key = line.substring(0, i).trim();
       final value = line.substring(i + 1).trim();
       if (key == 'size') {
+        final s = int.tryParse(value); // legacy square gardens
+        if (s != null && s >= 1) {
+          cols = s;
+          rows = s;
+        }
+      } else if (key == 'cols') {
         final s = int.tryParse(value);
-        if (s != null && s >= Economy.baseGardenSize) size = s;
+        if (s != null && s >= 1) cols = s;
+      } else if (key == 'rows') {
+        final s = int.tryParse(value);
+        if (s != null && s >= 1) rows = s;
       } else {
         final idx = int.tryParse(key);
         if (idx != null && idx >= 0 && value.isNotEmpty) tiles[idx] = value;
       }
     }
-    tiles.removeWhere((k, v) => k >= size * size);
-    return Garden(size: size, tiles: tiles);
+    tiles.removeWhere((k, v) => k >= cols * rows);
+    return Garden(cols: cols, rows: rows, tiles: tiles);
   }
 }
 
