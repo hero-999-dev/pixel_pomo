@@ -180,16 +180,19 @@ colors**, **stats charts + month navigation** (#10), and a seeded **test fixture
 [`flutter/README.md`](flutter/README.md). The native Android app (`0v0X_pixelpomo` on `latest`)
 continues in parallel until the Flutter port is verified at parity on-device.
 
-The Flutter build has a **Flutter-exclusive living garden**: a **2.5D diorama** drawn by a tiny
-custom engine (`flutter/lib/engine/`, no Unity/Flame). You can **rotate the view by hand**
-(two-finger twist) plus **pinch-zoom + pan**, all clamped so it can't be dragged off-screen; it
-**grows from the center**, **no size cap / no tile numbers**, and **CUSTOMIZE shows gridlines**.
-Roads lie flat and **fences connect** (horizontally and vertically, rotating with the garden);
-flowers stand up with a dark outline so they pop off the grass. Tiny **bee/butterfly/ladybug**
-live in garden space and drift in to visit a flower. The SHOP sells **4 roads + 3 fences** (5
-coins each). The wallet shows a **spinning pixel gold coin**; Korean uses the bundled **Galmuri11**
-pixel font (OFL); the launcher icon is baked in via `flutter_launcher_icons`. Each build publishes
-a permanent **`flutter-vN`** GitHub release.
+The Flutter build has a **Flutter-exclusive living garden**: a **full-screen, portrait 2.5D world**
+drawn by a tiny custom engine (`flutter/lib/engine/`, no Unity/Flame). The whole screen is one
+world — a **rectangular `cols × rows` plot (starts 4×6)** centered inside a **forest border**, so
+the garden is a clearing in the woods. **EXPAND grows it from the center and converts the inner ring
+of dark trees to grass** (the forest recedes). You can **rotate the view by hand** (two-finger twist)
+plus **pinch-zoom + pan**, clamped; **CUSTOMIZE shows gridlines**. Roads lie flat, **fences are
+low-poly 3D** posts+rails, flowers and trees are depth-sorted billboards; tiny **bee/butterfly/ladybug**
+drift in to visit a flower. **New in v11:** a **peek** button hides all HUD; a **camera mode** frames
+and screenshots the garden to **set as a static backdrop** or **save/share** as a phone wallpaper; and
+**Settings → HOME SCREEN `CLEAN | GARDEN`** can put the **live** garden behind the pomodoro timer
+(engine-as-live-wallpaper). The SHOP sells **4 roads + 3 fences** (5 coins each); Korean uses the
+bundled **Galmuri11** pixel font (OFL); the launcher icon is baked in via `flutter_launcher_icons`.
+Each build publishes a permanent **`flutter-vN`** GitHub release.
 
 To make that port a single clean pass rather than a moving target, **all app logic is kept
 in pure, framework-free classes** (`PomodoroEngine`, `Labels`, `Stats*`, `Economy`,
