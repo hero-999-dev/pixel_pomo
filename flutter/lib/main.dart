@@ -585,12 +585,20 @@ class ShopScreen extends StatelessWidget {
 const int _gardenGround = 0xFF4E9E3E;
 const int _gardenSoil = 0xFF6B4A2B;
 
-class GardenScreen extends StatelessWidget {
+class GardenScreen extends StatefulWidget {
   final AppStore s;
   const GardenScreen(this.s, {super.key});
 
   @override
+  State<GardenScreen> createState() => _GardenScreenState();
+}
+
+class _GardenScreenState extends State<GardenScreen> {
+  bool _peek = false; // hide all HUD, just the garden (#2)
+
+  @override
   Widget build(BuildContext context) {
+    final s = widget.s;
     final th = s.theme;
     final lang = s.lang;
     final cost = Economy.upgradeCost(s.garden.cols, s.garden.rows);
@@ -600,26 +608,28 @@ class GardenScreen extends StatelessWidget {
       body: SafeArea(
         child: Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-              child: Row(
-                children: [
-                  Text(t(lang, 'garden'), style: pixelStyle(lang, 20, col(th.onSurface), spacing: 2)),
-                  const Spacer(),
-                  PixelButton(
-                    text: tf(lang, 'upgrade', [cost]),
-                    fill: th.accent, border: th.onSurface, textColor: th.onAccent, shadow: th.shadow,
-                    lang: lang, fontSize: 10, padding: const EdgeInsets.all(12),
-                    opacity: s.coins >= cost ? 1 : 0.45, onTap: s.upgradeGarden,
-                  ),
-                ],
+            if (!_peek)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+                child: Row(
+                  children: [
+                    Text(t(lang, 'garden'), style: pixelStyle(lang, 20, col(th.onSurface), spacing: 2)),
+                    const Spacer(),
+                    PixelButton(
+                      text: tf(lang, 'upgrade', [cost]),
+                      fill: th.accent, border: th.onSurface, textColor: th.onAccent, shadow: th.shadow,
+                      lang: lang, fontSize: 10, padding: const EdgeInsets.all(12),
+                      opacity: s.coins >= cost ? 1 : 0.45, onTap: s.upgradeGarden,
+                    ),
+                  ],
+                ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Text(t(lang, 'gardenHelp'), style: pixelStyle(lang, 8, col(th.onSurfaceDim))),
-            ),
-            const SizedBox(height: 8),
+            if (!_peek)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Text(t(lang, 'gardenHelp'), style: pixelStyle(lang, 8, col(th.onSurfaceDim))),
+              ),
+            if (!_peek) const SizedBox(height: 8),
             // the live 2.5D scene fills the remaining space
             Expanded(
               child: FutureBuilder<SpriteBank>(
@@ -638,26 +648,28 @@ class GardenScreen extends StatelessWidget {
                     uiColor: th.onSurface,
                     lang: lang,
                     tr: (k) => t(lang, k),
+                    onPeek: () => setState(() => _peek = !_peek),
                   );
                 },
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: primaryBtn(th, lang, t(lang, s.customizing ? 'done' : 'customize'),
-                        s.toggleCustomizing, padding: const EdgeInsets.all(16)),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: secondaryBtn(th, lang, t(lang, 'close'), () => Navigator.pop(context),
-                        padding: const EdgeInsets.all(16)),
-                  ),
-                ],
+            if (!_peek)
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: primaryBtn(th, lang, t(lang, s.customizing ? 'done' : 'customize'),
+                          s.toggleCustomizing, padding: const EdgeInsets.all(16)),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: secondaryBtn(th, lang, t(lang, 'close'), () => Navigator.pop(context),
+                          padding: const EdgeInsets.all(16)),
+                    ),
+                  ],
+                ),
               ),
-            ),
           ],
         ),
       ),
