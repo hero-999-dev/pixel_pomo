@@ -5,6 +5,46 @@ Each entry notes the **prompt** (what you asked for) and the **changes** made.
 
 ---
 
+## v10 — no-sun flat lighting, flowers back to single billboards, fences become real low-poly 3D
+**Date:** 2026-06-18
+
+**Prompt (Flutter, feedback photos in `feedback & guides/Feedback/Version 08-09v Feedback/`):** a step-back
+architecture review before committing further. The garden "acts like a sun is looking from one way and other
+angles have shadows" — it should look like **there is no sun, every angle has the same sunlight**; and the
+**fences have bugs** (a thin metallic post that nearly vanishes at some angles). Goals restated: pixel-art look,
+360° camera, pinch/pan/rotate, view from any angle, **no billboard fakeness**, *between* pixel-art and low-poly
+3D (Apico/Littlewood feel; Kynseed roof-off house interiors **near-term**), not Stardew's fixed camera, not
+realistic 3D. After a critical no-agreement-bias evaluation of 8 rendering approaches, **decisions taken:**
+adopt a staged move to real low-poly 3D (not Unity/Godot — a dependency-free `Canvas`-based mesh pipeline), and
+**don't 3D-model radially-symmetric flowers** (a billboard is indistinguishable and 8× cheaper). v10 is the
+bounded, shippable first step.
+
+**Changes (all in `flutter/`):**
+- **No-sun lighting:** `tools/gen_objects.py` `spin_frame` dropped the view-dependent `front-bright/back-dark`
+  shading **and** the leading-edge highlight — frames now only carry the `|cos|` horizontal squash. Rotating an
+  object no longer sweeps a fake sun across it; light is flat sky-ambient, identical from every side. This was
+  the literal cause of the "sun from one direction" complaint (`bright = 0.62 + 0.38*cos θ`).
+- **Flowers → single billboards:** flowers were shipping as 8-frame directional atlases, but a flower is
+  radially symmetric so all 8 facets looked the same — it read as a flat card *and* cost 8× the memory. The
+  generator now emits one frame per flower (PNG `1280×160 → 160×160`); the engine draws the full image (no
+  atlas slice). Same look, far cheaper, simpler code.
+- **Fences → real low-poly 3D mesh (first piece of the reusable pipeline):** new tested geometry —
+  `Projector.projectElevated(g, e)` (vertical maps straight up the screen by `e·t`, identical for every yaw)
+  and top-level `boxCorners(p, c, half, height)` (the 8 screen corners of an upright box). A fence is now an
+  upright **3D post** (4 flat side faces + a slightly-brighter sky-lit top, drawn last) with **raised 3D
+  ribbon rails** between any adjacent posts (`_paintFenceRails`/`_paintFencePost`/`_fillQuad`). It keeps a solid
+  footprint and consistent thickness from every angle — the "thin antenna" bug is gone. Fences are no longer
+  loaded into `SpriteBank`; their PNG is now only a shop thumbnail (`objectThumb` simplified — no atlas slice).
+- **Critters unchanged:** still 8-frame atlases (a bee should face its travel heading), now with the flat
+  lighting too.
+
+**Testing:** new `test/engine_test.dart` (TDD, 3 tests) covers `projectElevated` yaw-independence and `boxCorners`
+(8 corners, top directly above base, centred footprint with real width from every angle). Full suite **26 tests**
+green (20 logic + 3 engine + 3 placeable-overlay) plus the boot/overlay **smoke test**; `flutter analyze` clean;
+debug APK builds locally. The garden render itself is verified **on-device** (headless `toImage` hangs here).
+
+---
+
 ## v9 — 8-direction sprite atlases, standing connected fences, fences-on-roads, forest surround, plain 2D coin
 **Date:** 2026-06-18
 

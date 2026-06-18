@@ -78,14 +78,14 @@ def _bright(px, f):
 
 
 def spin_frame(grid, theta_deg):
-    """One billboard frame rotated `theta_deg` about the vertical axis:
-    horizontally squash by |cos| (kept >= 0.45 so sides don't vanish), shade
-    front bright / back dark, and highlight the leading vertical edge so a
-    left turn differs from a right turn (breaks the cos symmetry)."""
+    """One billboard frame rotated `theta_deg` about the vertical axis: just a
+    horizontal squash by |cos| (kept >= 0.45 so the sides never vanish). The
+    light is uniform from every angle — NO front-bright/back-dark shading and no
+    leading-edge highlight — so rotating an object never looks like a moving sun
+    sweeping across it (lighting is flat sky-ambient, the same from all sides)."""
     h, w = len(grid), len(grid[0])
     th = math.radians(theta_deg)
     sx = 0.45 + 0.55 * abs(math.cos(th))
-    bright = max(0.45, 0.62 + 0.38 * math.cos(th))
     neww = max(2, round(w * sx))
     x0 = (w - neww) // 2
     out = blank(w, h)
@@ -95,16 +95,7 @@ def spin_frame(grid, theta_deg):
             px = grid[r][src_c]
             if px[3] == 0:
                 continue
-            out[r][x0 + i] = _bright(px, bright)
-    s = math.sin(th)
-    if abs(s) > 0.15 and neww >= 3:
-        lead = x0 + neww - 1 if s > 0 else x0
-        trail = x0 if s > 0 else x0 + neww - 1
-        for r in range(h):
-            if out[r][lead][3] != 0:
-                out[r][lead] = _bright(out[r][lead], 1.25)
-            if out[r][trail][3] != 0:
-                out[r][trail] = _bright(out[r][trail], 0.7)
+            out[r][x0 + i] = px
     return out
 
 
@@ -455,14 +446,18 @@ def main():
     os.makedirs(OUT, exist_ok=True)
     SCALE = 16  # base grids are 8/10/16 px tall; ×16 keeps them crisp
 
-    # Flowers, fences and critters ship as 8-frame directional atlases (#4).
+    # Critters still ship as 8-frame directional atlases so a bee faces its
+    # travel heading (#4). Flowers are single billboards (radially symmetric — an
+    # atlas would be 8x the memory for no visible gain), and fences are single
+    # frames too: the garden renders them as low-poly 3D meshes, so their PNG is
+    # now only a shop thumbnail.
     for fid, (petal, center, chars) in FLOWERS.items():
-        atlas = make_atlas(flower_png_grid(petal, center, chars))
-        write_png(os.path.join(OUT, f"flower_{fid}.png"), upscale(atlas, SCALE))
+        write_png(os.path.join(OUT, f"flower_{fid}.png"),
+                  upscale(flower_png_grid(petal, center, chars), SCALE))
     for cid, fn in CRITTERS.items():
         write_png(os.path.join(OUT, f"{cid}.png"), upscale(make_atlas(fn()), SCALE))
     for fid, fn in FENCES.items():
-        write_png(os.path.join(OUT, f"{fid}.png"), upscale(make_atlas(fn()), SCALE))
+        write_png(os.path.join(OUT, f"{fid}.png"), upscale(fn(), SCALE))
 
     # Flat / single-frame sprites: ground, surround, roads, wallet coin.
     write_png(os.path.join(OUT, "grass.png"), upscale(grass_grid(), SCALE))

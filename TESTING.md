@@ -127,7 +127,7 @@ The Dart port carries its own tests, gating the **`build-flutter.yml`** macOS pi
 **3.44.2 / Dart 3.12.2** and green in CI.
 
 ```bash
-cd flutter && flutter analyze && flutter test   # 23 tests
+cd flutter && flutter analyze && flutter test   # 26 tests
 ```
 
 - **`test/logic_test.dart` (22)** — pure-logic parity with the Kotlin edge suite:
@@ -143,6 +143,12 @@ cd flutter && flutter analyze && flutter test   # 23 tests
   through the codec**. **v9 tile-layering (#2):** a **fence stands on a road** (the tile splits
   into `groundAt`=road + `propAt`=fence, both survive the codec); placing a **road under a fence**
   keeps the fence but a road **clears a flower**; and a **flower refuses to plant on a road**.
+- **`test/engine_test.dart` (3)** — the **v10 low-poly 3D geometry** (TDD). `Projector.projectElevated`
+  raises a garden point and asserts it moves **straight up the screen by `e·t` with no horizontal shift,
+  identical across five camera yaws** (uniform height from every side — the "no sun" / sun-free vertical).
+  `boxCorners` returns **8 corners**, each **top corner directly above its base corner** by `height·t`, and
+  the **base ring is centred on the tile with a real footprint width from every angle** — the invariant that
+  fixes the "fence collapses to a thin antenna under rotation" bug.
 - **`test/widget_smoke_test.dart` (1)** — boots the **real** app via `PixelPomoApp(store)`
   and opens **every** overlay (settings, garden, stats, theme, labels, **and the shop via the
   gold-coin button keyed `shopButton`**), asserting `START` renders, each panel shows, closes
@@ -151,16 +157,19 @@ cd flutter && flutter analyze && flutter test   # 23 tests
   bank, shows `GARDEN`, and disposes the ticker cleanly on CLOSE. *(The coin is now a plain static
   widget, so `GoldCoin.animate=false` is a harmless no-op.)*
 
-**Garden engine note (visual, not unit-tested):** the 2.5D renderer math (`Projector` fit + yaw
-+ tile↔screen inverse + `projectGrid`, `GardenCamera.clamp` pan bounding, **garden-space**
-`CritterSystem`, the **8-direction atlas frame pick** (`frameForAngle`), the **fence-rail
-connections**, the **forest surround**, and the customize gridlines) lives in
-`lib/engine/garden_engine.dart`. The tap inverse (`tileAt`) is exercised indirectly by the smoke
-test; the camera rotation/zoom, the 8-direction turning, fence joins, forest backdrop and the
-plain coin are visual, so they're verified by eye on-device / in a local `flutter run` rather than
-asserted in unit tests. The directional atlases themselves were eyeballed from the generated PNGs
-(front-bright → squashed sides → dark back, 8 frames each). *(An offscreen golden-render harness
-was tried but `toImage` doesn't work headlessly in `flutter test` here, so previews are on-device.)*
+**Garden engine note (visual, partly unit-tested):** the renderer math in `lib/engine/garden_engine.dart`
+— `Projector` fit + yaw + tile↔screen inverse (`projectGrid`/`tileAt`), `GardenCamera.clamp` pan bounding,
+**garden-space** `CritterSystem`, the critter travel-heading atlas pick (`frameForAngle`), the **forest
+surround**, the customize gridlines — and, **new in v10**, the **low-poly 3D fence** primitives
+`projectElevated` + `boxCorners` (now covered by `engine_test.dart`) feeding the post/rail mesh
+(`_paintFencePost` / `_paintFenceRails` / `_fillQuad`). The **lighting is now flat sky-ambient** — the
+generator's `spin_frame` no longer bakes the view-dependent front-bright/back-dark shading, so nothing
+sweeps a fake sun as the camera turns. **Flowers are single billboards** (one PNG, drawn whole — radially
+symmetric, so an atlas was wasted); **only critters** still use an 8-frame atlas. The actual on-screen
+result — camera rotation/zoom, the 3D fence posts + rails, flat lighting, flower billboards, forest
+backdrop, plain coin — is **visual**, verified by eye on-device / in a local `flutter run`. *(An offscreen
+golden-render harness was tried but `toImage` doesn't work headlessly in `flutter test` here, so the full
+scene is previewed on-device; the geometry underneath it is what the unit tests pin down.)*
 
 **Known gap:** no on-device iOS UI automation (the runner builds an *unsigned* `.ipa`; it
 isn't booted in a simulator). The widget test exercises the same screens on the Flutter

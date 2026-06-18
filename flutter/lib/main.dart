@@ -7,26 +7,13 @@ import 'pixel.dart';
 import 'store.dart';
 import 'strings.dart';
 
-/// Small PNG thumbnail for a garden object (road/fence), crisp pixels. Fence
-/// PNGs are 8-frame directional atlases, so show just their front frame.
+/// Small PNG thumbnail for a garden object (road/fence), crisp pixels. Every
+/// object PNG is now a single frame (fences render as 3D meshes in the garden,
+/// but keep a flat post sprite for this thumbnail).
 Widget objectThumb(String id, double size) {
   final img = Image.asset('assets/objects/$id.png',
       filterQuality: FilterQuality.none, fit: BoxFit.fill);
-  if (!Placeables.isFence(id)) {
-    return SizedBox(width: size, height: size, child: img);
-  }
-  return ClipRect(
-    child: SizedBox(
-      width: size,
-      height: size,
-      child: OverflowBox(
-        alignment: Alignment.centerLeft,
-        minWidth: size * kDirFrames,
-        maxWidth: size * kDirFrames,
-        child: SizedBox(width: size * kDirFrames, height: size, child: img),
-      ),
-    ),
-  );
+  return SizedBox(width: size, height: size, child: img);
 }
 
 /// SpriteBank is loaded once and shared across garden opens.
