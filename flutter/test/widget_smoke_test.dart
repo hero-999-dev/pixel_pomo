@@ -35,9 +35,27 @@ void main() {
     // never settle — drive it with fixed pumps long enough to finish the push/pop
     // route transitions (~300ms), then settle the home (ticker is disposed by then).
     await tester.tap(find.byIcon(Icons.local_florist));
+    await tester.pump(); // push begins; the FutureBuilder mounts & subscribes
+    await tester.pump(const Duration(milliseconds: 450)); // finish push
+    // Decoding the object PNGs is real async, which fake-async pump() can't
+    // drive — let it complete in a real zone, then pump to render with data.
+    await tester.runAsync(() => gardenSprites());
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 450)); // finish push + load sprites
+    await tester.pump(const Duration(milliseconds: 50));
     expect(find.text('GARDEN'), findsWidgets);
+    expect(find.text('...'), findsNothing, reason: 'sprite FutureBuilder should have resolved');
+
+    // peek hides all HUD (the GARDEN title disappears), then restores it
+    expect(find.byKey(const Key('peekButton')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('peekButton')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('GARDEN'), findsNothing);
+    await tester.tap(find.byKey(const Key('peekButton'))); // restore HUD
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('GARDEN'), findsWidgets);
+
     await tester.tap(find.text('CLOSE').first);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 450)); // finish pop + dispose ticker
