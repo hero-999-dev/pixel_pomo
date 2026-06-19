@@ -209,6 +209,7 @@ class HomeScreen extends StatelessWidget {
             groundColor: _gardenGround,
             soilColor: _gardenSoil,
             uiColor: th.onSurface,
+            panelColor: th.panel,
             lang: lang,
             tr: (k) => t(lang, k),
             interactive: false,
@@ -781,9 +782,17 @@ class _GardenScreenState extends State<GardenScreen> {
     // not actively customizing or framing a new shot.
     final showStatic = s.gardenBackdropPath != null && !_camera && !s.customizing;
 
-    return Scaffold(
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      // while peeking, let the forest run edge-to-edge behind transparent bars (#5)
+      value: _hudHidden
+          ? const SystemUiOverlayStyle(
+              statusBarColor: Colors.transparent, systemNavigationBarColor: Colors.transparent)
+          : systemOverlayFor(th),
+      child: Scaffold(
       backgroundColor: col(th.bg),
       body: SafeArea(
+        top: !_hudHidden,
+        bottom: !_hudHidden,
         child: Column(
           children: [
             if (!_hudHidden)
@@ -826,6 +835,7 @@ class _GardenScreenState extends State<GardenScreen> {
                           groundColor: _gardenGround,
                           soilColor: _gardenSoil,
                           uiColor: th.onSurface,
+                          panelColor: th.panel,
                           lang: lang,
                           tr: (k) => t(lang, k),
                           captureKey: _captureKey,
@@ -872,6 +882,7 @@ class _GardenScreenState extends State<GardenScreen> {
               ),
           ],
         ),
+      ),
       ),
     );
   }
