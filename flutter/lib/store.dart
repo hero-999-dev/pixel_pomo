@@ -54,6 +54,7 @@ class AppStore extends ChangeNotifier {
   // Stats view state.
   ChartMode chartMode = ChartMode.bar;
   StatPeriod statPeriod = StatPeriod.monthly;
+  int statOffset = 0; // periods back from now (history navigator, #1)
   int viewYear = DateTime.now().year;
   int viewMonth = DateTime.now().month;
   bool customizing = false;
@@ -383,6 +384,14 @@ class AppStore extends ChangeNotifier {
 
   void setStatPeriod(StatPeriod p) {
     statPeriod = p;
+    statOffset = 0; // a fresh period starts at "now"
+    notifyListeners();
+  }
+
+  void shiftStatOffset(int d) {
+    final next = statOffset + d;
+    if (next < 0) return; // can't browse the future
+    statOffset = next;
     notifyListeners();
   }
 
