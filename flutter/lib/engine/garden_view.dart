@@ -106,12 +106,9 @@ class _GardenViewState extends State<GardenView> with SingleTickerProviderStateM
     _yawAtStart = _cam.yaw;
   }
 
-  /// Clamp pan against the WHOLE world (claimed plot + forest margin), since the
-  /// painter sizes the projector to the world.
+  /// Clamp pan to the plot's roam radius (the forest fills the rest of the screen).
   void _clampWorld() {
-    final cols = widget.garden.cols, rows = widget.garden.rows;
-    final m = forestMargin(cols, rows);
-    _cam.clamp(cols + 2 * m, rows + 2 * m, _lastSize);
+    _cam.clamp(widget.garden.cols, widget.garden.rows, _lastSize);
   }
 
   void _onScaleUpdate(ScaleUpdateDetails d) {
@@ -126,16 +123,11 @@ class _GardenViewState extends State<GardenView> with SingleTickerProviderStateM
 
   void _onTapUp(TapUpDetails d) {
     if (!widget.customizing || _lastSize == Size.zero) return;
-    final cols = widget.garden.cols, rows = widget.garden.rows;
-    final m = forestMargin(cols, rows);
-    final wCols = cols + 2 * m, wRows = rows + 2 * m;
-    final p = Projector.fit(wCols, wRows, _cam, _lastSize);
-    final wi = p.tileAt(d.localPosition);
-    if (wi < 0) return;
-    // map the tapped world tile to a claimed tile (forest tiles aren't plantable)
-    final w = WorldGrid(cols: cols, rows: rows, margin: m);
-    final ci = w.claimedIndex(wi % wCols, wi ~/ wCols);
-    if (ci >= 0) widget.onTapTile(ci);
+    // the projector is plot-sized again, so tileAt returns the claimed index
+    // directly; taps on the surrounding forest fall outside and are ignored.
+    final p = Projector.fit(widget.garden.cols, widget.garden.rows, _cam, _lastSize);
+    final index = p.tileAt(d.localPosition);
+    if (index >= 0) widget.onTapTile(index);
   }
 
   GardenPainter _painter() => GardenPainter(
