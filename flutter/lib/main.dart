@@ -386,6 +386,7 @@ class _LabelScreenState extends State<LabelScreen> {
     final lang = s.lang;
     return overlayScaffold(context, s, t(lang, 'label'), [
       for (final label in s.labels) _labelRow(context, s, th, lang, label),
+      Text(t(lang, 'renameHint'), style: pixelStyle(lang, 8, col(th.onSurfaceDim))),
       const SizedBox(height: 8),
       Row(
         children: [
@@ -424,14 +425,47 @@ class _LabelScreenState extends State<LabelScreen> {
           Swatch(color: s.labelColorOf(label), border: th.onSurfaceDim, size: 24, onTap: () => _pickColor(context, s, label)),
           const SizedBox(width: 12),
           Expanded(
-            child: selected
-                ? primaryBtn(th, lang, '> $label', () => s.selectLabel(label))
-                : secondaryBtn(th, lang, label, () => s.selectLabel(label)),
+            child: GestureDetector(
+              onLongPress: () => _renameLabel(context, s, label),
+              child: selected
+                  ? primaryBtn(th, lang, '> $label', () => s.selectLabel(label))
+                  : secondaryBtn(th, lang, label, () => s.selectLabel(label)),
+            ),
           ),
           IconButton(
             icon: Icon(Icons.delete, color: col(th.onSurfaceDim)),
             onPressed: () => _confirmDelete(context, s, label),
           ),
+        ],
+      ),
+    );
+  }
+
+  void _renameLabel(BuildContext context, AppStore s, String label) {
+    final th = s.theme;
+    final lang = s.lang;
+    final ctrl = TextEditingController(text: label);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: col(th.panel),
+        title: Text(t(lang, 'renameTitle'), style: pixelStyle(lang, 12, col(th.onSurface))),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          textCapitalization: TextCapitalization.characters,
+          maxLength: 12,
+          style: pixelStyle(lang, 12, col(th.onSurface)),
+          decoration: InputDecoration(counterText: '', filled: true, fillColor: col(th.bg)),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(t(lang, 'no'), style: pixelStyle(lang, 11, col(th.onSurfaceDim)))),
+          TextButton(
+              onPressed: () {
+                s.renameLabel(label, ctrl.text);
+                Navigator.pop(ctx);
+              },
+              child: Text(t(lang, 'save'), style: pixelStyle(lang, 11, col(th.accent)))),
         ],
       ),
     );

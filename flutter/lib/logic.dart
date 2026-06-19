@@ -405,6 +405,19 @@ class Labels {
     if (list.length <= 1) return list;
     return list.where((l) => l.toUpperCase() != label.toUpperCase()).toList();
   }
+
+  /// Rename [oldLabel] to a normalized [raw]. Returns the list unchanged if the
+  /// new name is empty, would collide with another label, or [oldLabel] is absent.
+  static List<String> rename(List<String> list, String oldLabel, String raw) {
+    final next = normalize(raw);
+    if (next == null) return list;
+    final oldU = oldLabel.toUpperCase();
+    if (!list.any((l) => l.toUpperCase() == oldU)) return list;
+    if (next.toUpperCase() != oldU && list.any((l) => l.toUpperCase() == next.toUpperCase())) {
+      return list;
+    }
+    return [for (final l in list) l.toUpperCase() == oldU ? next : l];
+  }
 }
 
 class LabelColors {
