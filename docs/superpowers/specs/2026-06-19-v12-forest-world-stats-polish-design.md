@@ -124,9 +124,10 @@ stroke. Visual; no unit test (eyeballed + smoke).
 ### #10 — Line chart tap → day details
 Make the chart interactive:
 - `StatsChart` becomes stateful (or wrapped in a `GestureDetector`) tracking a **selected x-index**.
-- On tap, find the nearest point; paint a callout near it showing the **bucket label** (e.g. day/
-  month), **total minutes**, and the **per-label breakdown** for that bucket; highlight the x-axis
-  tick.
+- On tap, find the nearest x-bucket; paint a callout showing the **bucket label** (e.g. day/month),
+  **total minutes**, and the **per-label breakdown** for that bucket; highlight the x-axis tick.
+  (Works for both the single-line and the DAILY multi-line modes — the callout always lists the
+  bucket's per-label minutes.)
 - The screen passes a `List<List<ChartEntry>>` (per-x-bucket by-label) alongside the series, computed
   by a new aggregator. The per-bucket breakdown computation is pure and unit-tested.
 
@@ -144,9 +145,13 @@ Make the chart interactive:
     - monthly → this month, per-day;
     - yearly → this year, per-month (12);
     - allTime → per-year (min year..this year).
-    returns the `List<int>` series, the x tick labels, and the per-bucket by-label list (for #10).
-- BAR & PIE use `byLabelInWindow`; LINE uses the series. The 5-row totals block (today/week/month/
-  year/all) stays as a quick summary; the by-label list reflects the selected period.
+    returns the `List<int>` total series, the x tick labels, and the per-bucket by-label list.
+  - **per-label series** `labelSeriesFor(records, now, period)` → `List<(label,color,List<int>)>`,
+    one series per label across the same buckets (for the DAILY multi-line, below).
+- BAR & PIE use `byLabelInWindow`. LINE: for **DAILY** it draws a **multi-line chart — one colored
+  line per label** across the last 7 days (compare subjects); for the other periods it draws the
+  single total series. The 5-row totals block (today/week/month/year/all) stays as a quick summary;
+  the by-label list reflects the selected period.
 
 ### #12 — Kill the white tap animation
 Give `MaterialApp` a `ThemeData` with `splashFactory: NoSplash.splashFactory`,
