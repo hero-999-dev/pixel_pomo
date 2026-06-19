@@ -124,5 +124,14 @@ void main() {
     await tester.tap(find.text(store.currentLabel));
     await tester.pumpAndSettle();
     expect(find.text('ADD'), findsOneWidget);
+
+    // long-press the selected label to rename it (#8)
+    await tester.longPress(find.text('> ${store.currentLabel}').first);
+    await tester.pumpAndSettle();
+    expect(find.text('RENAME LABEL'), findsOneWidget);
+    await tester.enterText(find.byType(TextField).last, 'RENAMED');
+    await tester.tap(find.text('SAVE'));
+    await tester.pumpAndSettle();
+    expect(find.text('> RENAMED'), findsWidgets); // selected label keeps the '> ' prefix
   });
 }

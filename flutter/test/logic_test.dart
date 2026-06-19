@@ -258,6 +258,14 @@ void main() {
       expect(list.length, 1);
     });
 
+    test('rename replaces a label in place, rejects empty/dupe/missing', () {
+      final list = ['STUDY', 'MATH', 'CODING'];
+      expect(Labels.rename(list, 'MATH', 'algebra'), ['STUDY', 'ALGEBRA', 'CODING']);
+      expect(Labels.rename(list, 'MATH', '   '), list); // empty → unchanged
+      expect(Labels.rename(list, 'MATH', 'coding'), list); // dupe → unchanged
+      expect(Labels.rename(list, 'NOPE', 'X'), list); // missing → unchanged
+    });
+
     test('label color default is stable and codec round-trips', () {
       expect(LabelColors.defaultFor('MATH'), LabelColors.defaultFor(' math '));
       final colors = {'MATH': 0xFFE5484D, 'CODING': 0xFF2A7DE1};
