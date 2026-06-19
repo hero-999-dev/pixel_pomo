@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'camera.dart';
 import 'engine/garden_engine.dart';
@@ -46,11 +47,27 @@ class PixelPomoApp extends StatelessWidget {
           duration: const Duration(seconds: 2),
         ));
     };
-    return MaterialApp(
-      title: 'Pixel Pomo',
-      debugShowCheckedModeBanner: false,
-      scaffoldMessengerKey: messengerKey,
-      home: HomeScreen(store),
+    return AnimatedBuilder(
+      animation: store,
+      builder: (context, _) {
+        final th = store.theme;
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: systemOverlayFor(th),
+          child: MaterialApp(
+            title: 'Pixel Pomo',
+            debugShowCheckedModeBanner: false,
+            scaffoldMessengerKey: messengerKey,
+            theme: ThemeData(
+              useMaterial3: false,
+              scaffoldBackgroundColor: col(th.bg),
+              splashFactory: NoSplash.splashFactory, // #12 no white ripple
+              splashColor: Colors.transparent,
+              highlightColor: Colors.transparent,
+            ),
+            home: HomeScreen(store),
+          ),
+        );
+      },
     );
   }
 }
