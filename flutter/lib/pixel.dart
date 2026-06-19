@@ -193,7 +193,7 @@ class _FlowerPainter extends CustomPainter {
   bool shouldRepaint(covariant _FlowerPainter oldDelegate) => oldDelegate.flower.id != flower.id;
 }
 
-/// One per-label datum for the chart.
+/// One per-label datum for bar/pie.
 class ChartEntry {
   final String label;
   final int value;
@@ -201,33 +201,76 @@ class ChartEntry {
   const ChartEntry(this.label, this.value, this.color);
 }
 
-/// Bar / line / pie chart for the selected month (a port of the Android `ChartView`).
-class StatsChart extends StatelessWidget {
-  final List<ChartEntry> entries; // per-label (bar/pie)
-  final List<int> daySeries; // per-day (line)
+/// One per-label line (daily multi-line mode).
+class LabelLine {
+  final String label;
+  final int color;
+  final List<int> values;
+  const LabelLine(this.label, this.color, this.values);
+}
+
+/// Bar / line / pie chart for the selected stats period. Line mode is tappable:
+/// tapping a bucket shows its total + per-label breakdown (#10). DAILY draws one
+/// line per label (#10 multi-line); other periods draw one total line.
+class StatsChart extends StatefulWidget {
+  final List<ChartEntry> entries; // by-label for bar/pie
+  final StatSeries series; // totals + tick labels + per-bucket by-label
+  final List<LabelLine>? labelLines; // non-null + multiLine → daily per-label
+  final bool multiLine;
   final ChartMode mode;
   final String lang;
-  final int axisColor, textColor, lineColor;
+  final int axisColor, textColor, lineColor, panelColor, panelBorder;
 
   const StatsChart({
     super.key,
     required this.entries,
-    required this.daySeries,
+    required this.series,
+    required this.labelLines,
+    required this.multiLine,
     required this.mode,
     required this.lang,
     required this.axisColor,
     required this.textColor,
     required this.lineColor,
+    required this.panelColor,
+    required this.panelBorder,
   });
 
   @override
-  Widget build(BuildContext context) =>
-      CustomPaint(painter: _ChartPainter(this), child: const SizedBox.expand());
+  State<StatsChart> createState() => _StatsChartState();
+}
+
+class _StatsChartState extends State<StatsChart> {
+  int? _sel; // selected bucket index (line mode)
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: widget.mode == ChartMode.line ? _onTap : null,
+      child: CustomPaint(
+        painter: _ChartPainter(widget, _sel),
+        child: const SizedBox.expand(),
+      ),
+    );
+  }
+
+  void _onTap(TapDownDetails d) {
+    final box = context.findRenderObject() as RenderBox?;
+    if (box == null) return;
+    final w = box.size.width;
+    final n = widget.series.totals.length;
+    if (n == 0) return;
+    const padL = 10.0, padR = 10.0;
+    final plotW = w - padL - padR;
+    final rel = ((d.localPosition.dx - padL) / (plotW <= 0 ? 1 : plotW)).clamp(0.0, 1.0);
+    setState(() => _sel = (rel * (n - 1)).round());
+  }
 }
 
 class _ChartPainter extends CustomPainter {
   final StatsChart c;
-  _ChartPainter(this.c);
+  final int? sel;
+  _ChartPainter(this.c, this.sel);
 
   void _text(Canvas canvas, String s, double x, double y, double size, int color, {TextAlign align = TextAlign.left}) {
     final tp = TextPainter(
@@ -241,8 +284,9 @@ class _ChartPainter extends CustomPainter {
     tp.paint(canvas, Offset(dx, y - tp.height));
   }
 
-  bool _hasData() =>
-      c.mode == ChartMode.line ? c.daySeries.any((v) => v > 0) : c.entries.any((e) => e.value > 0);
+  bool _hasData() => c.mode == ChartMode.line
+      ? c.series.totals.any((v) => v > 0)
+      : c.entries.any((e) => e.value > 0);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -265,14 +309,13 @@ class _ChartPainter extends CustomPainter {
   }
 
   String _noData() {
-    // strings.dart's chartNoData via lang would need an import cycle; keep a tiny inline map.
     const m = {
-      'en': 'No focus minutes this month.',
-      'tr': 'Bu ay odak dakikası yok.',
-      'pl': 'Brak minut w tym miesiącu.',
-      'de': 'Keine Minuten in diesem Monat.',
-      'ko': '이번 달 기록이 없습니다.',
-      'it': 'Nessun minuto questo mese.',
+      'en': 'No focus minutes here.',
+      'tr': 'Burada odak dakikası yok.',
+      'pl': 'Brak minut tutaj.',
+      'de': 'Keine Minuten hier.',
+      'ko': '기록이 없습니다.',
+      'it': 'Nessun minuto qui.',
     };
     return m[c.lang] ?? m['en']!;
   }
@@ -282,87 +325,127 @@ class _ChartPainter extends CustomPainter {
 
   void _bars(Canvas canvas, double w, double h) {
     const padL = 8.0, padR = 8.0, padTop = 10.0, padBottom = 26.0;
-    final plotW = w - padL - padR;
-    final plotH = h - padTop - padBottom;
+    final plotW = w - padL - padR, plotH = h - padTop - padBottom;
     final maxVal = math.max(1, c.entries.map((e) => e.value).reduce(math.max));
     final n = c.entries.length;
-    final slot = plotW / n;
-    final barW = slot * 0.62;
-
-    final axis = Paint()
-      ..color = col(c.axisColor)
-      ..strokeWidth = 2;
+    final slot = plotW / n, barW = slot * 0.62;
+    final axis = Paint()..color = col(c.axisColor)..strokeWidth = 2;
     canvas.drawLine(Offset(padL, padTop + plotH), Offset(padL + plotW, padTop + plotH), axis);
-
     final fill = Paint();
     for (var i = 0; i < n; i++) {
       final e = c.entries[i];
       final cx = padL + slot * i + slot / 2;
       final barH = plotH * (e.value / maxVal);
-      final left = cx - barW / 2;
-      final top = padTop + plotH - barH;
       fill.color = col(e.color);
-      canvas.drawRect(Rect.fromLTWH(left, top, barW, barH), fill);
+      canvas.drawRect(Rect.fromLTWH(cx - barW / 2, padTop + plotH - barH, barW, barH), fill);
       _text(canvas, _short(e.label), cx, h - 14, 7, c.textColor, align: TextAlign.center);
-      _text(canvas, _fmt(e.value), cx, top - 3, 7, c.textColor, align: TextAlign.center);
+      _text(canvas, _fmt(e.value), cx, padTop + plotH - barH - 3, 7, c.textColor, align: TextAlign.center);
     }
   }
 
   void _line(Canvas canvas, double w, double h) {
     const padL = 10.0, padR = 10.0, padTop = 12.0, padBottom = 18.0;
-    final plotW = w - padL - padR;
-    final plotH = h - padTop - padBottom;
-    final maxVal = math.max(1, c.daySeries.reduce(math.max));
-    final n = c.daySeries.length;
-
-    final axis = Paint()
-      ..color = col(c.axisColor)
-      ..strokeWidth = 2;
+    final plotW = w - padL - padR, plotH = h - padTop - padBottom;
+    final totals = c.series.totals;
+    final n = totals.length;
+    final lines = (c.multiLine && c.labelLines != null && c.labelLines!.isNotEmpty)
+        ? c.labelLines!
+        : null;
+    final maxVal = math.max(
+        1,
+        lines == null
+            ? totals.reduce(math.max)
+            : lines.expand((l) => l.values).fold(1, math.max));
+    final axis = Paint()..color = col(c.axisColor)..strokeWidth = 2;
     canvas.drawLine(Offset(padL, padTop + plotH), Offset(padL + plotW, padTop + plotH), axis);
-
     double x(int i) => padL + plotW * (n <= 1 ? 0 : i / (n - 1));
     double y(int v) => padTop + plotH * (1 - v / maxVal);
 
-    final path = Path();
-    for (var i = 0; i < n; i++) {
-      final px = x(i), py = y(c.daySeries[i]);
-      if (i == 0) {
-        path.moveTo(px, py);
-      } else {
-        path.lineTo(px, py);
+    void drawSeries(List<int> vals, int color) {
+      final path = Path();
+      for (var i = 0; i < vals.length; i++) {
+        final px = x(i), py = y(vals[i]);
+        i == 0 ? path.moveTo(px, py) : path.lineTo(px, py);
+      }
+      canvas.drawPath(
+          path, Paint()..color = col(color)..style = PaintingStyle.stroke..strokeWidth = 2.5);
+      final dot = Paint()..color = col(color);
+      for (var i = 0; i < vals.length; i++) {
+        canvas.drawCircle(Offset(x(i), y(vals[i])), 2, dot);
       }
     }
-    final stroke = Paint()
-      ..color = col(c.lineColor)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.5;
-    canvas.drawPath(path, stroke);
 
-    final dot = Paint()..color = col(c.lineColor);
-    for (var i = 0; i < n; i++) {
-      canvas.drawCircle(Offset(x(i), y(c.daySeries[i])), 2, dot);
+    if (lines == null) {
+      drawSeries(totals, c.lineColor);
+    } else {
+      for (final l in lines) {
+        drawSeries(l.values, l.color);
+      }
     }
-    _text(canvas, '1', padL, h - 4, 7, c.textColor);
-    _text(canvas, '$n', padL + plotW, h - 4, 7, c.textColor, align: TextAlign.right);
+
+    if (c.series.tickLabels.isNotEmpty) {
+      _text(canvas, c.series.tickLabels.first, padL, h - 4, 7, c.textColor);
+      _text(canvas, c.series.tickLabels.last, padL + plotW, h - 4, 7, c.textColor, align: TextAlign.right);
+    }
+
+    final s = sel;
+    if (s != null && s >= 0 && s < n) {
+      final sx = x(s);
+      canvas.drawLine(Offset(sx, padTop), Offset(sx, padTop + plotH),
+          Paint()..color = col(c.axisColor)..strokeWidth = 1);
+      final detail = c.series.byLabel[s];
+      final lines2 = <String>[
+        '${c.series.tickLabels[s]} · ${_fmt(totals[s])}',
+        for (final e in detail) '${_short(e.key)} ${_fmt(e.value)}',
+      ];
+      _callout(canvas, w, sx, padTop + 4, lines2);
+    }
+  }
+
+  void _callout(Canvas canvas, double w, double anchorX, double top, List<String> lines) {
+    const fs = 7.0, pad = 4.0, lh = 11.0;
+    var maxW = 0.0;
+    for (final s in lines) {
+      final tp = TextPainter(
+        text: TextSpan(text: s, style: pixelStyle(c.lang, fs, col(c.textColor))),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      maxW = math.max(maxW, tp.width);
+    }
+    final boxW = maxW + pad * 2;
+    final boxH = lines.length * lh + pad * 2;
+    var left = anchorX + 6;
+    if (left + boxW > w) left = anchorX - 6 - boxW;
+    if (left < 0) left = 0;
+    final rect = Rect.fromLTWH(left, top, boxW, boxH);
+    canvas.drawRect(rect, Paint()..color = col(c.panelColor));
+    canvas.drawRect(rect, Paint()..style = PaintingStyle.stroke..strokeWidth = 1..color = col(c.panelBorder));
+    var ty = top + pad + lh;
+    for (final s in lines) {
+      _text(canvas, s, left + pad, ty, fs, c.textColor);
+      ty += lh;
+    }
   }
 
   void _pie(Canvas canvas, double w, double h) {
     final total = c.entries.fold<int>(0, (a, e) => a + e.value).toDouble();
     final legendW = w * 0.42;
     final dia = math.min(h - 16, (w - legendW) - 16);
-    final cx = 8 + (w - legendW - 8) / 2;
-    final cy = h / 2;
+    final cx = 8 + (w - legendW - 8) / 2, cy = h / 2;
     final rect = Rect.fromCircle(center: Offset(cx, cy), radius: dia / 2);
-
     var start = -math.pi / 2;
     final fill = Paint();
+    final sep = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2
+      ..color = col(c.panelColor); // #9 separator in the panel/bg color
     for (final e in c.entries) {
       final sweep = 2 * math.pi * (e.value / total);
       fill.color = col(e.color);
       canvas.drawArc(rect, start, sweep, true, fill);
+      canvas.drawArc(rect, start, sweep, true, sep); // wedge outline separates same-colored slices
       start += sweep;
     }
-
     final lx = w - legendW + 6;
     var ly = cy - (c.entries.length * 13) / 2 + 8;
     for (final e in c.entries) {
@@ -375,5 +458,5 @@ class _ChartPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _ChartPainter oldDelegate) => true;
+  bool shouldRepaint(covariant _ChartPainter old) => true;
 }
