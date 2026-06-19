@@ -53,6 +53,7 @@ class AppStore extends ChangeNotifier {
 
   // Stats view state.
   ChartMode chartMode = ChartMode.bar;
+  StatPeriod statPeriod = StatPeriod.monthly;
   int viewYear = DateTime.now().year;
   int viewMonth = DateTime.now().month;
   bool customizing = false;
@@ -355,6 +356,11 @@ class AppStore extends ChangeNotifier {
 
   void setChartMode(ChartMode m) {
     chartMode = m;
+    notifyListeners();
+  }
+
+  void setStatPeriod(StatPeriod p) {
+    statPeriod = p;
     notifyListeners();
   }
 
