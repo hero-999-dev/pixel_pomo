@@ -41,31 +41,6 @@ const Map<String, (int side, int top, int rail)> _fence3d = {
   'fence_stone': (0xFF6E6E6E, 0xFF9A9A9A, 0xFF9A9A9A),
 };
 
-/// How many rings of forest surround the claimed plot. Constant: enough that a
-/// margin of woodland is always visible so EXPAND reads as claiming it.
-int forestMargin(int cols, int rows) => 2;
-
-/// The full world = the claimed plot centred inside a forest border. The painter
-/// projects every world tile; claimed tiles are grass, the rest are forest that
-/// recedes as the plot grows.
-class WorldGrid {
-  final int cols; // claimed plot dimensions
-  final int rows;
-  final int margin; // forest rings on each side
-  const WorldGrid({required this.cols, required this.rows, required this.margin});
-
-  int get worldCols => cols + 2 * margin;
-  int get worldRows => rows + 2 * margin;
-
-  /// Is world tile (wc,wr) inside the centred claimed window?
-  bool isClaimed(int wc, int wr) =>
-      wc >= margin && wc < margin + cols && wr >= margin && wr < margin + rows;
-
-  /// Claimed tile index (r*cols+c) for a world tile, or -1 if it's forest.
-  int claimedIndex(int wc, int wr) =>
-      isClaimed(wc, wr) ? (wr - margin) * cols + (wc - margin) : -1;
-}
-
 /// Pick the atlas frame for a viewing/heading angle (radians).
 int frameForAngle(double a) {
   final k = (a / (2 * math.pi) * kDirFrames).round() % kDirFrames;
@@ -146,16 +121,14 @@ class GardenCamera {
     yaw = 0;
   }
 
+  /// Bound pan to a roam radius around the plot: you can wander into the
+  /// surrounding forest (#1) but can't lose the garden. The forest fills the
+  /// screen wherever you go, so there's no void to clamp against.
   void clamp(int cols, int rows, Size size) {
     final p = Projector.fit(cols, rows, this, size);
-    var mx = 0.0, my = 0.0;
-    for (final c in p.corners()) {
-      mx = math.max(mx, (c.dx - p.center.dx).abs());
-      my = math.max(my, (c.dy - p.center.dy).abs());
-    }
-    final slab = Projector.slabFor(p.t);
-    final maxX = math.max(0.0, mx - size.width / 2);
-    final maxY = math.max(0.0, my + slab - size.height / 2);
+    final roam = math.max(cols, rows).toDouble();
+    final maxX = (cols / 2 + roam) * p.t;
+    final maxY = (rows / 2 + roam) * p.t * kVy;
     panX = panX.clamp(-maxX, maxX);
     panY = panY.clamp(-maxY, maxY);
   }
@@ -177,11 +150,13 @@ class Projector {
 
   Projector(this.cols, this.rows, this.t, this.center, this.yaw);
 
-  /// Fit-to-fill a rectangular plot into the viewport: size the tile so the
-  /// dominant axis fills the screen (portrait → rows usually win), then zoom.
+  /// Fit a rectangular plot into the viewport leaving a forest margin around it,
+  /// so the garden reads as a clearing in the woods (#1): the extra `+kFitMargin`
+  /// tiles on each axis are the visible forest border at zoom 1.
+  static const double kFitMargin = 3.0;
   factory Projector.fit(int cols, int rows, GardenCamera cam, Size size) {
-    final fitW = size.width / (cols + 0.5);
-    final fitH = size.height / ((rows + 0.5) * kVy);
+    final fitW = size.width / (cols + kFitMargin);
+    final fitH = size.height / ((rows + kFitMargin) * kVy);
     final t = math.min(fitW, fitH) * cam.zoom;
     return Projector(cols, rows, t,
         Offset(size.width / 2 + cam.panX, size.height / 2 + cam.panY), cam.yaw);
@@ -208,8 +183,38 @@ class Projector {
   /// Garden coordinate of tile (col,row)'s centre.
   Offset gridOf(int c, int r) =>
       Offset(c - (cols - 1) / 2.0, r - (rows - 1) / 2.0);
+  /// Continuous garden coord for fractional (col,row).
+  Offset gridOfD(double c, double r) => Offset(c - (cols - 1) / 2.0, r - (rows - 1) / 2.0);
   Offset ground(int c, int r) => projectGrid(gridOf(c, r));
   Offset groundIndex(int i) => ground(i % cols, i ~/ cols);
+
+  /// Inverse of [ground]: continuous (col,row) in claimed-index space for a
+  /// screen point — finds which tiles are visible so the forest can fill the
+  /// whole screen (#1).
+  Offset gridAt(Offset p) {
+    final dx = (p.dx - center.dx) / t;
+    final dy = (p.dy - center.dy) / (t * kVy);
+    final gx = dx * _cos + dy * _sin;
+    final gy = -dx * _sin + dy * _cos;
+    return Offset(gx + (cols - 1) / 2.0, gy + (rows - 1) / 2.0);
+  }
+
+  /// Integer tile range (1-tile bleed) covering the screen, so every visible
+  /// tile outside the claimed plot can be painted as forest (no void).
+  ({int minC, int maxC, int minR, int maxR}) visibleTileBounds(Size size) {
+    final corners = [
+      gridAt(const Offset(0, 0)),
+      gridAt(Offset(size.width, 0)),
+      gridAt(Offset(size.width, size.height)),
+      gridAt(Offset(0, size.height)),
+    ];
+    var minC = double.infinity, maxC = -double.infinity, minR = double.infinity, maxR = -double.infinity;
+    for (final c in corners) {
+      minC = math.min(minC, c.dx); maxC = math.max(maxC, c.dx);
+      minR = math.min(minR, c.dy); maxR = math.max(maxR, c.dy);
+    }
+    return (minC: minC.floor() - 1, maxC: maxC.ceil() + 1, minR: minR.floor() - 1, maxR: maxR.ceil() + 1);
+  }
 
   int tileAt(Offset p) {
     final dx = (p.dx - center.dx) / t;
@@ -380,12 +385,10 @@ class GardenPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // One screen-filling 2.5D world (#1): the claimed plot sits centred inside a
-    // forest border, and the projector is sized to the WHOLE world so the garden
-    // fills the screen and the woods recede (tree → grass) as the plot EXPANDs.
-    final margin = forestMargin(_cols, _rows);
-    final world = WorldGrid(cols: _cols, rows: _rows, margin: margin);
-    final p = Projector.fit(world.worldCols, world.worldRows, cam, size);
+    // One screen-filling 2.5D world (#1): the claimed plot is the grass clearing;
+    // the projector is sized to the plot, and the forest is drawn over every
+    // visible tile outside it, so the woods fill the whole screen at any pan/zoom.
+    final p = Projector.fit(_cols, _rows, cam, size);
     final t = p.t;
     final slab = Projector.slabFor(t);
 
@@ -459,34 +462,36 @@ class GardenPainter extends CustomPainter {
     // 3) customize gridlines over the claimed plot.
     if (customizing) _paintGrid(canvas, p);
 
-    // 4a) fence rails between adjacent claimed posts (offset into world coords).
-    _paintFenceRails(canvas, p, margin);
+    // 4a) fence rails between adjacent claimed posts.
+    _paintFenceRails(canvas, p);
 
     // 4b) standing things, depth-sorted back-to-front by screen-y: forest trees
-    //     on every unclaimed world tile + claimed props. Fences are low-poly 3D
-    //     posts; trees and flowers are flat billboards.
+    //     on every VISIBLE tile outside the claimed plot (so the woods fill the
+    //     screen — no void) + claimed props. Fences are low-poly 3D posts; trees
+    //     and flowers are flat billboards grounded with a contact shadow.
     const treeTag = '__tree__';
-    final standing = <(double, int, int, String)>[]; // (depthY, worldCol, worldRow, id)
-    for (var wr = 0; wr < world.worldRows; wr++) {
-      for (var wc = 0; wc < world.worldCols; wc++) {
-        if (world.isClaimed(wc, wr)) {
-          final ci = world.claimedIndex(wc, wr);
-          final prop = garden.propAt(ci);
-          if (prop != null) standing.add((p.ground(wc, wr).dy, wc, wr, prop));
+    final b = p.visibleTileBounds(size);
+    final standing = <(double, int, int, String)>[]; // (depthY, col, row, id)
+    for (var r = b.minR; r <= b.maxR; r++) {
+      for (var c = b.minC; c <= b.maxC; c++) {
+        final claimed = c >= 0 && c < _cols && r >= 0 && r < _rows;
+        if (claimed) {
+          final prop = garden.propAt(r * _cols + c);
+          if (prop != null) standing.add((p.ground(c, r).dy, c, r, prop));
         } else {
-          standing.add((p.ground(wc, wr).dy, wc, wr, treeTag));
+          standing.add((p.ground(c, r).dy, c, r, treeTag));
         }
       }
     }
-    standing.sort((a, b) => a.$1.compareTo(b.$1));
-    for (final (_, wc, wr, id) in standing) {
-      final anchor = p.ground(wc, wr);
+    standing.sort((a, b2) => a.$1.compareTo(b2.$1));
+    for (final (_, c, r, id) in standing) {
+      final anchor = p.ground(c, r);
       if (id == treeTag) {
         _paintBillboard(canvas, sprites.tree(), anchor, p.t, height: 1.25, width: 1.1);
       } else if (Placeables.isFence(id)) {
-        _paintFencePost(canvas, p, wc, wr, id);
+        _paintFencePost(canvas, p, c, r, id);
       } else {
-        final sway = math.sin(time * 1.6 + wc * 7 + wr) * 1.4;
+        final sway = math.sin(time * 1.6 + c * 7 + r) * 1.4;
         _paintBillboard(canvas, sprites.flower(id), anchor, p.t, sway: sway);
       }
     }
@@ -522,7 +527,7 @@ class GardenPainter extends CustomPainter {
   /// drawn once). Each rail is a flat ribbon at a fixed height in garden space,
   /// so it rotates with the map and keeps a steady thickness from every angle —
   /// no more vanishing into a thin antenna under rotation.
-  void _paintFenceRails(Canvas canvas, Projector p, int margin) {
+  void _paintFenceRails(Canvas canvas, Projector p) {
     bool fence(int idx) =>
         idx >= 0 && idx < _cols * _rows && Placeables.isFence(garden.propAt(idx) ?? '');
     for (var r = 0; r < _rows; r++) {
@@ -531,9 +536,9 @@ class GardenPainter extends CustomPainter {
         final id = garden.propAt(index);
         if (id == null || !Placeables.isFence(id)) continue;
         final rail = Color(_fence3d[id]!.$3);
-        final a = p.gridOf(c + margin, r + margin);
+        final a = p.gridOf(c, r);
         void link(int nc, int nr) {
-          final b = p.gridOf(nc + margin, nr + margin);
+          final b = p.gridOf(nc, nr);
           for (final e in const [0.50, 0.28]) {
             _fillQuad(canvas, p.projectElevated(a, e + 0.05), p.projectElevated(b, e + 0.05),
                 p.projectElevated(b, e - 0.05), p.projectElevated(a, e - 0.05), rail);
