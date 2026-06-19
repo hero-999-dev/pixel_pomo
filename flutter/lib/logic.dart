@@ -582,10 +582,27 @@ class StatsAggregator {
     }
   }
 
+  /// Anchor date for browsing earlier periods: [offset] periods before [now].
+  static DateTime anchorFor(DateTime now, StatPeriod p, int offset) {
+    if (offset <= 0) return now;
+    switch (p) {
+      case StatPeriod.daily:
+        return now.subtract(Duration(days: offset));
+      case StatPeriod.weekly:
+        return now.subtract(Duration(days: offset * 7));
+      case StatPeriod.monthly:
+        return DateTime(now.year, now.month - offset, 1);
+      case StatPeriod.yearly:
+        return DateTime(now.year - offset, 1, 1);
+      case StatPeriod.allTime:
+        return now;
+    }
+  }
+
   /// By-label totals (desc) within a period's window.
   static List<MapEntry<String, int>> byLabelInWindow(
-      List<SessionRecord> records, DateTime now, StatPeriod p) {
-    final (lo, hi) = windowDays(now, p);
+      List<SessionRecord> records, DateTime now, StatPeriod p, [int offset = 0]) {
+    final (lo, hi) = windowDays(anchorFor(now, p, offset), p);
     final map = <String, int>{};
     for (final r in records) {
       if (r.epochDay < lo || r.epochDay > hi) continue;
@@ -598,28 +615,30 @@ class StatsAggregator {
 
   /// Time-series (per bucket) for a period: totals, x tick labels, and the
   /// per-bucket by-label breakdown.
-  static StatSeries seriesFor(List<SessionRecord> records, DateTime now, StatPeriod p) {
+  static StatSeries seriesFor(List<SessionRecord> records, DateTime now, StatPeriod p,
+      [int offset = 0]) {
+    final now0 = anchorFor(now, p, offset);
     late int n;
     late int Function(SessionRecord) idx;
     late List<String> ticks;
     switch (p) {
       case StatPeriod.daily:
         n = 7;
-        final endE = epochDayOf(now);
+        final endE = epochDayOf(now0);
         idx = (r) => r.epochDay - (endE - 6);
         ticks = [for (var i = 0; i < 7; i++) '${dateOfEpochDay(endE - 6 + i).day}'];
         break;
       case StatPeriod.weekly:
         n = 7;
-        final mon = epochDayOf(now) - (now.weekday - 1);
+        final mon = epochDayOf(now0) - (now0.weekday - 1);
         idx = (r) => r.epochDay - mon;
         ticks = [for (var i = 0; i < 7; i++) '${dateOfEpochDay(mon + i).day}'];
         break;
       case StatPeriod.monthly:
-        n = DateTime(now.year, now.month + 1, 0).day;
+        n = DateTime(now0.year, now0.month + 1, 0).day;
         idx = (r) {
           final d = dateOfEpochDay(r.epochDay);
-          return (d.year == now.year && d.month == now.month) ? d.day - 1 : -1;
+          return (d.year == now0.year && d.month == now0.month) ? d.day - 1 : -1;
         };
         ticks = [for (var i = 1; i <= n; i++) '$i'];
         break;
@@ -627,17 +646,17 @@ class StatsAggregator {
         n = 12;
         idx = (r) {
           final d = dateOfEpochDay(r.epochDay);
-          return d.year == now.year ? d.month - 1 : -1;
+          return d.year == now0.year ? d.month - 1 : -1;
         };
         ticks = [for (var i = 1; i <= 12; i++) '$i'];
         break;
       case StatPeriod.allTime:
-        var minY = now.year;
+        var minY = now0.year;
         for (final r in records) {
           final y = dateOfEpochDay(r.epochDay).year;
           if (y < minY) minY = y;
         }
-        n = now.year - minY + 1;
+        n = now0.year - minY + 1;
         idx = (r) => dateOfEpochDay(r.epochDay).year - minY;
         ticks = [for (var i = 0; i < n; i++) '${minY + i}'];
         break;
@@ -661,8 +680,8 @@ class StatsAggregator {
 
   /// One series per label across the period's buckets (daily multi-line).
   static List<LabelSeries> labelSeriesFor(
-      List<SessionRecord> records, DateTime now, StatPeriod p) {
-    final s = seriesFor(records, now, p);
+      List<SessionRecord> records, DateTime now, StatPeriod p, [int offset = 0]) {
+    final s = seriesFor(records, now, p, offset);
     final n = s.totals.length;
     final totalByLabel = <String, int>{};
     for (final bucket in s.byLabel) {
