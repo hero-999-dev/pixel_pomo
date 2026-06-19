@@ -491,10 +491,29 @@ class StatsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final th = s.theme;
     final lang = s.lang;
-    final totals = StatsAggregator.aggregate(s.records, DateTime.now());
-    final byLabel = StatsAggregator.byLabelInMonth(s.records, s.viewYear, s.viewMonth);
-    final series = StatsAggregator.dailySeries(s.records, s.viewYear, s.viewMonth);
-    final monthTitle = '${monthName(lang, s.viewMonth)} ${s.viewYear}';
+    final now = DateTime.now();
+    final totals = StatsAggregator.aggregate(s.records, now);
+    final byLabel = StatsAggregator.byLabelInWindow(s.records, now, s.statPeriod);
+    final series = StatsAggregator.seriesFor(s.records, now, s.statPeriod);
+    final multiLine = s.statPeriod == StatPeriod.daily;
+    final labelLines = multiLine
+        ? [
+            for (final ls in StatsAggregator.labelSeriesFor(s.records, now, s.statPeriod))
+              LabelLine(ls.label, s.labelColorOf(ls.label), ls.values)
+          ]
+        : null;
+
+    Widget periodBtn(String text, StatPeriod p) {
+      final sel = s.statPeriod == p;
+      return Expanded(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: sel
+              ? primaryBtn(th, lang, text, () => s.setStatPeriod(p), fontSize: 8, padding: const EdgeInsets.all(8))
+              : secondaryBtn(th, lang, text, () => s.setStatPeriod(p), fontSize: 8, padding: const EdgeInsets.all(8)),
+        ),
+      );
+    }
 
     Widget chartBtn(String text, ChartMode m) {
       final sel = s.chartMode == m;
@@ -520,29 +539,30 @@ class StatsScreen extends StatelessWidget {
         );
 
     return overlayScaffold(context, s, t(lang, 'stats'), [
-      Row(
-        children: [
-          secondaryBtn(th, lang, '<', () => s.shiftMonth(-1), fontSize: 13, padding: const EdgeInsets.all(12)),
-          Expanded(child: Center(child: Text(monthTitle, style: pixelStyle(lang, 12, col(th.onSurface))))),
-          PixelButton(
-              text: '>', fill: th.panel, border: th.onSurfaceDim, textColor: th.onSurface, shadow: th.shadow,
-              lang: lang, fontSize: 13, padding: const EdgeInsets.all(12),
-              opacity: s.canGoNextMonth ? 1 : 0.35, onTap: () => s.shiftMonth(1)),
-        ],
-      ),
+      Row(children: [
+        periodBtn(t(lang, 'pDaily'), StatPeriod.daily),
+        periodBtn(t(lang, 'pWeekly'), StatPeriod.weekly),
+        periodBtn(t(lang, 'pMonthly'), StatPeriod.monthly),
+        periodBtn(t(lang, 'pYearly'), StatPeriod.yearly),
+        periodBtn(t(lang, 'pAll'), StatPeriod.allTime),
+      ]),
       const SizedBox(height: 12),
       Row(children: [chartBtn(t(lang, 'chartBar'), ChartMode.bar), chartBtn(t(lang, 'chartLine'), ChartMode.line), chartBtn(t(lang, 'chartPie'), ChartMode.pie)]),
       const SizedBox(height: 16),
       SizedBox(
-        height: 190,
+        height: 200,
         child: StatsChart(
           entries: [for (final e in byLabel) ChartEntry(e.key, e.value, s.labelColorOf(e.key))],
-          daySeries: series,
+          series: series,
+          labelLines: labelLines,
+          multiLine: multiLine,
           mode: s.chartMode,
           lang: lang,
           axisColor: th.onSurfaceDim,
           textColor: th.onSurface,
           lineColor: th.accent,
+          panelColor: th.panel,
+          panelBorder: th.onSurfaceDim,
         ),
       ),
       const SizedBox(height: 16),
@@ -552,7 +572,7 @@ class StatsScreen extends StatelessWidget {
       statRow(t(lang, 'year'), totals.year),
       statRow(t(lang, 'all'), totals.all),
       const SizedBox(height: 16),
-      Text(tf(lang, 'byLabelMonth', [monthTitle]), style: pixelStyle(lang, 11, col(th.onSurfaceDim))),
+      Text(t(lang, 'byLabel'), style: pixelStyle(lang, 11, col(th.onSurfaceDim))),
       const SizedBox(height: 12),
       if (byLabel.isEmpty)
         Text(t(lang, 'chartNoData'), style: pixelStyle(lang, 9, col(th.onSurfaceDim)))

@@ -92,7 +92,22 @@ void main() {
     await tester.pump(const Duration(milliseconds: 450)); // finish pop + dispose ticker
     await tester.pumpAndSettle();
 
-    await openClose(Icons.bar_chart, 'STATS');
+    // stats: period selector + chart types (no crash)
+    await tester.tap(find.byIcon(Icons.bar_chart));
+    await tester.pumpAndSettle();
+    expect(find.text('STATS'), findsWidgets);
+    await tester.tap(find.text('DAILY'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('LINE'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('PIE'));
+    await tester.pumpAndSettle();
+    final statsClose = find.text('CLOSE');
+    await tester.ensureVisible(statsClose);
+    await tester.pumpAndSettle();
+    await tester.tap(statsClose);
+    await tester.pumpAndSettle();
+
     await openClose(Icons.palette, 'THEME');
 
     // Shop opens from the gold-coin wallet button (no longer a Material icon).
