@@ -9,7 +9,7 @@ Only the **portable** parts live here and are committed:
 
 ```
 flutter/
-├── pubspec.yaml          # name: pixel_pomo, deps (shared_preferences, share_plus, path_provider), pixel font, flutter_launcher_icons
+├── pubspec.yaml          # deps (shared_preferences, share_plus, path_provider, wallpaper_manager_flutter [Android]), pixel font, flutter_launcher_icons
 ├── assets/
 │   ├── fonts/            # PressStart2P (Latin) + Galmuri11 (OFL pixel Hangul, for Korean)
 │   ├── objects/          # 24 sprites: grass/forest/tree/coin + 4 roads + 3 fences + 10 flowers (single-frame) + 3 critters (8-frame atlases)
@@ -56,7 +56,7 @@ flutter create --org com.pixelpomo --project-name pixel_pomo --platforms=ios,and
 git checkout -- pubspec.yaml lib && rm -f test/widget_test.dart analysis_options.yaml
 flutter pub get
 flutter analyze
-flutter test       # logic_test.dart + engine_test.dart + widget_smoke_test.dart (31)
+flutter test       # logic_test.dart + engine_test.dart + widget_smoke_test.dart (42)
 flutter run        # or: flutter build apk / flutter build ios --no-codesign
 ```
 
@@ -73,12 +73,12 @@ first-launch test fixture (1000 coins + sample history). The pure logic is share
 with the Kotlin original.
 
 **Flutter-exclusive garden** (richer than the native grid): a **full-screen, portrait, 2.5D world**
-drawn by a tiny custom engine (`lib/engine/`) — no Unity/Flame. The whole screen is one projected
-world: a **rectangular `cols × rows` claimed plot (starts 4×6)** sits centered inside a **forest
-border** of the *same* world, so the garden reads as a clearing in the woods. **EXPAND grows the plot
-from the center** (+2 ring, no cap) and **converts the inner ring of dark trees to grass** — the
-forest recedes as you develop. The tilt is fixed, but you can **rotate by hand** (two-finger twist),
-**pinch-zoom (1×–4×) and pan**, all **clamped** to the world. **CUSTOMIZE** shows tile gridlines.
+drawn by a tiny custom engine (`lib/engine/`) — no Unity/Flame. A **rectangular `cols × rows` claimed
+plot (starts 4×6)** is the grass **clearing**; the **forest fills the rest of the screen** — the painter
+stamps a tree billboard on every visible tile outside the plot (grounded with a contact shadow), so the
+woods cover the screen at any pan/zoom with no void. **EXPAND grows the plot from the center** (+2 ring,
+no cap), eating into the woods. The tilt is fixed, but you can **rotate by hand** (two-finger twist),
+**pinch-zoom (1×–4×) and pan/roam** the surrounding forest. **CUSTOMIZE** shows tile gridlines.
 **Lighting is flat sky-ambient** — nothing is shaded by view angle. Roads lie flat; **fences are real
 low-poly 3D** — upright post meshes (brighter sky-lit top) joined by **raised 3D rails** to any
 adjacent fence (wood↔dark↔stone), keeping a solid footprint from every angle; a fence can stand **on
@@ -87,14 +87,19 @@ top of a road** (flowers can't). **Flowers and forest trees are flat billboards*
 drifting in to **visit a flower** then leaving. The SHOP sells **4 road** + **3 fence** materials
 (5 coins each). The wallet shows a **plain 2D gold coin**.
 
-**New in v11 — peek, camera & backgrounds:** a bottom-left **peek** button hides *all* HUD for a clean
-view; next to it a **camera mode** lets you frame any angle and **screenshot** the garden
-(`RepaintBoundary` → PNG). The shot can be **set as the garden section's static backdrop** (persisted
-via `path_provider`) or **saved/shared** to use as a phone wallpaper (`share_plus`). Separately,
-**Settings → HOME SCREEN** toggles **`CLEAN | GARDEN`**: GARDEN renders a dimmed **live** garden
-(critters wandering, wallpaper-engine style) behind the pomodoro timer — the engine doubling as a live
-backdrop. (No OS live-wallpaper service: iOS has no API and Android would need native code that breaks
-the no-Mac CI; the static photo is shown only in the garden section, never behind the running timer.)
+**Peek, camera & wallpaper:** a bottom-left **peek** button hides *all* HUD (full-bleed, system bars
+matched); a **camera mode** frames + **screenshots** the garden (`RepaintBoundary` → PNG). The shot →
+**SET AS LIVE WALLPAPER** (sets the Android home-screen wallpaper via `wallpaper_manager_flutter`,
+Android-only — hidden on iOS), **set as the garden's static backdrop** (`path_provider`), or **save/share**
+(`share_plus`). **Settings → HOME SCREEN `CLEAN | GARDEN`** renders the full-strength **live** garden behind
+the timer (scrim only behind the text). On-scene HUD icons sit on themed chips so they recolor with the theme
+and stay visible. *(True animated OS live wallpaper is a future version; iOS keeps Save/Share.)*
+
+**Theming & stats:** the **status + navigation bars match the theme** (`SystemChrome`) and the **white tap
+ripple is gone** (`NoSplash`). **Labels can be renamed** (long-press; migrates color/selection/past stats).
+**Stats** has a **DAILY/WEEKLY/MONTHLY/YEARLY/ALL-TIME** period selector that all charts redraw for; the **pie**
+has slice separators, the **line is tappable** (callout: bucket + total + per-label), and **DAILY** draws one
+line per label. The SHOP sells **4 road** + **3 fence** materials (5 coins each); the wallet is a plain 2D coin.
 
 Korean uses the bundled **Galmuri11** pixel font (OFL, scaled up). The launcher icon is regenerated via
 `flutter_launcher_icons` so the pixel tomato survives scaffolding.

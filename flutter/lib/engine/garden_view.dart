@@ -17,7 +17,8 @@ class GardenView extends StatefulWidget {
   final void Function(int tileIndex) onTapTile;
   final int groundColor;
   final int soilColor;
-  final int uiColor; // controls (recenter) tint
+  final int uiColor; // controls tint (theme onSurface)
+  final int panelColor; // chip background behind the on-scene controls (#4)
   final String lang;
   final String Function(String key) tr;
 
@@ -45,6 +46,7 @@ class GardenView extends StatefulWidget {
     required this.groundColor,
     required this.soilColor,
     required this.uiColor,
+    required this.panelColor,
     required this.lang,
     required this.tr,
     this.onPeek,
@@ -106,12 +108,27 @@ class _GardenViewState extends State<GardenView> with SingleTickerProviderStateM
     _yawAtStart = _cam.yaw;
   }
 
-  /// Clamp pan against the WHOLE world (claimed plot + forest margin), since the
-  /// painter sizes the projector to the world.
+  /// Clamp pan to the plot's roam radius (the forest fills the rest of the screen).
   void _clampWorld() {
-    final cols = widget.garden.cols, rows = widget.garden.rows;
-    final m = forestMargin(cols, rows);
-    _cam.clamp(cols + 2 * m, rows + 2 * m, _lastSize);
+    _cam.clamp(widget.garden.cols, widget.garden.rows, _lastSize);
+  }
+
+  /// An on-scene control on a themed chip, so it recolors with the theme (#4)
+  /// AND stays readable on the dark forest scene in every theme.
+  Widget _chip(Color ui, IconData icon, String tip, VoidCallback? onTap, Key? key) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Color(widget.panelColor).withValues(alpha: 0.85),
+        border: Border.all(color: ui.withValues(alpha: 0.5), width: 2),
+      ),
+      child: IconButton(
+        key: key,
+        icon: Icon(icon, size: 20, color: ui),
+        tooltip: tip,
+        visualDensity: VisualDensity.compact,
+        onPressed: onTap,
+      ),
+    );
   }
 
   void _onScaleUpdate(ScaleUpdateDetails d) {
@@ -126,16 +143,11 @@ class _GardenViewState extends State<GardenView> with SingleTickerProviderStateM
 
   void _onTapUp(TapUpDetails d) {
     if (!widget.customizing || _lastSize == Size.zero) return;
-    final cols = widget.garden.cols, rows = widget.garden.rows;
-    final m = forestMargin(cols, rows);
-    final wCols = cols + 2 * m, wRows = rows + 2 * m;
-    final p = Projector.fit(wCols, wRows, _cam, _lastSize);
-    final wi = p.tileAt(d.localPosition);
-    if (wi < 0) return;
-    // map the tapped world tile to a claimed tile (forest tiles aren't plantable)
-    final w = WorldGrid(cols: cols, rows: rows, margin: m);
-    final ci = w.claimedIndex(wi % wCols, wi ~/ wCols);
-    if (ci >= 0) widget.onTapTile(ci);
+    // the projector is plot-sized again, so tileAt returns the claimed index
+    // directly; taps on the surrounding forest fall outside and are ignored.
+    final p = Projector.fit(widget.garden.cols, widget.garden.rows, _cam, _lastSize);
+    final index = p.tileAt(d.localPosition);
+    if (index >= 0) widget.onTapTile(index);
   }
 
   GardenPainter _painter() => GardenPainter(
@@ -180,35 +192,24 @@ class _GardenViewState extends State<GardenView> with SingleTickerProviderStateM
               Positioned(
                 right: 6,
                 bottom: 4,
-                child: IconButton(
-                  icon: Icon(Icons.center_focus_strong, size: 22, color: ui),
-                  tooltip: widget.tr('recenter'),
-                  onPressed: () => setState(_cam.reset),
-                ),
+                child: _chip(ui, Icons.center_focus_strong, widget.tr('recenter'),
+                    () => setState(_cam.reset), null),
               ),
               // peek — hide all HUD, just the garden
               if (widget.onPeek != null)
                 Positioned(
                   left: 6,
                   bottom: 4,
-                  child: IconButton(
-                    key: const Key('peekButton'),
-                    icon: Icon(Icons.visibility, size: 22, color: ui),
-                    tooltip: widget.tr('peek'),
-                    onPressed: widget.onPeek,
-                  ),
+                  child: _chip(ui, Icons.visibility, widget.tr('peek'), widget.onPeek,
+                      const Key('peekButton')),
                 ),
               // camera — frame & screenshot the garden
               if (widget.onCamera != null)
                 Positioned(
-                  left: 46,
+                  left: 50,
                   bottom: 4,
-                  child: IconButton(
-                    key: const Key('cameraButton'),
-                    icon: Icon(Icons.photo_camera, size: 22, color: ui),
-                    tooltip: widget.tr('camera'),
-                    onPressed: widget.onCamera,
-                  ),
+                  child: _chip(ui, Icons.photo_camera, widget.tr('camera'), widget.onCamera,
+                      const Key('cameraButton')),
                 ),
             ],
           ],

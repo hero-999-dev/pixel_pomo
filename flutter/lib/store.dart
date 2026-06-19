@@ -53,6 +53,7 @@ class AppStore extends ChangeNotifier {
 
   // Stats view state.
   ChartMode chartMode = ChartMode.bar;
+  StatPeriod statPeriod = StatPeriod.monthly;
   int viewYear = DateTime.now().year;
   int viewMonth = DateTime.now().month;
   bool customizing = false;
@@ -270,6 +271,28 @@ class AppStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  void renameLabel(String oldLabel, String raw) {
+    final updated = Labels.rename(labels, oldLabel, raw);
+    if (updated == labels) return;
+    final newName = updated.firstWhere(
+        (l) => !labels.any((o) => o.toUpperCase() == l.toUpperCase()),
+        orElse: () => oldLabel);
+    labels = updated;
+    final oldU = oldLabel.toUpperCase();
+    if (labelColors.containsKey(oldU)) {
+      labelColors[newName.toUpperCase()] = labelColors.remove(oldU)!;
+      _saveLabelColors();
+    }
+    if (currentLabel.toUpperCase() == oldU) currentLabel = newName;
+    records = [
+      for (final r in records)
+        r.label.toUpperCase() == oldU ? SessionRecord(r.epochDay, r.minutes, newName) : r
+    ];
+    _saveStats();
+    _saveLabels();
+    notifyListeners();
+  }
+
   void setLabelColor(String label, int color) {
     labelColors[label.toUpperCase()] = color;
     _saveLabelColors();
@@ -355,6 +378,11 @@ class AppStore extends ChangeNotifier {
 
   void setChartMode(ChartMode m) {
     chartMode = m;
+    notifyListeners();
+  }
+
+  void setStatPeriod(StatPeriod p) {
+    statPeriod = p;
     notifyListeners();
   }
 

@@ -71,7 +71,7 @@ void main() {
       }
     });
 
-    test('fit fills the portrait viewport and centres the plot', () {
+    test('fit frames the plot as a clearing with a forest margin, centred', () {
       final cam = GardenCamera();
       const size = Size(360, 720);
       final p = Projector.fit(4, 6, cam, size);
@@ -79,40 +79,52 @@ void main() {
       final cs = p.corners();
       final minX = cs.map((o) => o.dx).reduce(math.min);
       final maxX = cs.map((o) => o.dx).reduce(math.max);
-      // the 4-wide plot spans essentially the full width at fit-zoom
-      expect(maxX - minX, greaterThan(size.width * 0.8));
+      // the plot takes a big chunk but leaves a forest margin (clearing, #1)
+      expect(maxX - minX, greaterThan(size.width * 0.4));
+      expect(maxX - minX, lessThan(size.width * 0.85));
     });
   });
 
-  group('WorldGrid claimed vs forest', () {
-    test('claimed window is centred inside the forest margin', () {
-      const w = WorldGrid(cols: 4, rows: 6, margin: 2);
-      expect(w.worldCols, 8);
-      expect(w.worldRows, 10);
-      // corners are forest
-      expect(w.isClaimed(0, 0), false);
-      expect(w.isClaimed(7, 9), false);
-      // centre 4x6 block (cols 2..5, rows 2..7) is claimed
-      expect(w.isClaimed(2, 2), true);
-      expect(w.isClaimed(5, 7), true);
-      expect(w.isClaimed(1, 2), false); // just outside claimed, in margin
-      // claimed index round-trips: world (5,7) → claimed (3,5) → 5*4+3 = 23
-      expect(w.claimedIndex(2, 2), 0);
-      expect(w.claimedIndex(5, 7), 23);
-      expect(w.claimedIndex(0, 0), -1);
-    });
-
-    test('forest stays a constant-thickness ring as the plot grows', () {
-      const before = WorldGrid(cols: 4, rows: 6, margin: 2);
-      const after = WorldGrid(cols: 6, rows: 8, margin: 2);
-      // forest is always a `margin`-thick border around the claimed centre, so
-      // each EXPAND converts the inner forest ring to grass while the woods stay.
-      expect(before.worldCols - before.cols, 2 * before.margin);
-      expect(after.worldCols - after.cols, 2 * after.margin);
-      expect(after.cols, before.cols + 2); // claimed grew by one ring
-      // the claimed window stays centred (top-left claimed tile is at margin)
-      expect(before.isClaimed(before.margin, before.margin), true);
-      expect(after.isClaimed(after.margin, after.margin), true);
+  group('CritterSystem no stuck critters (v12)', () {
+    test('a critter always despawns within its max lifetime', () {
+      final sys = CritterSystem(7);
+      final flowers = [const Offset(0, 0)];
+      for (var i = 0; i < 4000; i++) {
+        sys.step(0.05, 6, flowers); // 200s total
+      }
+      expect(sys.critters.length, lessThanOrEqualTo(CritterSystem.maxActive));
+      for (final c in sys.critters) {
+        expect(c.life, lessThanOrEqualTo(Critter.maxLife + 0.2));
+      }
     });
   });
+
+  group('Projector forest fill (v12)', () {
+    test('gridAt inverts ground for fractional coords at several yaws', () {
+      const cols = 4, rows = 6, t = 40.0;
+      const center = Offset(200, 400);
+      for (final yaw in [0.0, 0.7, -1.3]) {
+        final p = Projector(cols, rows, t, center, yaw);
+        for (final g in [const Offset(0, 0), const Offset(2.5, 3.5), const Offset(-3, 8)]) {
+          // gridOfD treats (g.dx,g.dy) as (col,row); gridAt must invert back to it
+          final screen = p.projectGrid(p.gridOfD(g.dx, g.dy));
+          final back = p.gridAt(screen);
+          expect(back.dx, closeTo(g.dx, 1e-6));
+          expect(back.dy, closeTo(g.dy, 1e-6));
+        }
+      }
+    });
+
+    test('visibleTileBounds spans beyond the claimed plot to fill the screen', () {
+      final cam = GardenCamera();
+      const size = Size(360, 720);
+      final p = Projector.fit(4, 6, cam, size);
+      final b = p.visibleTileBounds(size);
+      expect(b.minC <= 0 && b.maxC >= 3, true);
+      expect(b.minR <= 0 && b.maxR >= 5, true);
+      expect(b.minC < 0 || b.maxC > 3, true);
+      expect(b.minR < 0 || b.maxR > 5, true);
+    });
+  });
+
 }
