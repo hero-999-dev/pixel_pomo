@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'camera.dart';
 import 'engine/garden_engine.dart';
@@ -46,11 +47,27 @@ class PixelPomoApp extends StatelessWidget {
           duration: const Duration(seconds: 2),
         ));
     };
-    return MaterialApp(
-      title: 'Pixel Pomo',
-      debugShowCheckedModeBanner: false,
-      scaffoldMessengerKey: messengerKey,
-      home: HomeScreen(store),
+    return AnimatedBuilder(
+      animation: store,
+      builder: (context, _) {
+        final th = store.theme;
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: systemOverlayFor(th),
+          child: MaterialApp(
+            title: 'Pixel Pomo',
+            debugShowCheckedModeBanner: false,
+            scaffoldMessengerKey: messengerKey,
+            theme: ThemeData(
+              useMaterial3: false,
+              scaffoldBackgroundColor: col(th.bg),
+              splashFactory: NoSplash.splashFactory, // #12 no white ripple
+              splashColor: Colors.transparent,
+              highlightColor: Colors.transparent,
+            ),
+            home: HomeScreen(store),
+          ),
+        );
+      },
     );
   }
 }
@@ -128,7 +145,14 @@ class HomeScreen extends StatelessWidget {
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.all(24),
-                    child: Column(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+                      // a soft scrim behind the timer keeps text legible over the
+                      // full-strength live garden, without dimming the whole scene (#7)
+                      decoration: s.homeGardenBackdrop
+                          ? BoxDecoration(color: col(th.bg).withValues(alpha: 0.55))
+                          : null,
+                      child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(modeText, style: pixelStyle(lang, 22, col(modeColor), spacing: 2)),
@@ -165,6 +189,7 @@ class HomeScreen extends StatelessWidget {
                             style: pixelStyle(lang, 12, col(th.onSurfaceDim))),
                       ],
                     ),
+                    ),
                   ),
                 ),
               ],
@@ -182,20 +207,19 @@ class HomeScreen extends StatelessWidget {
       future: gardenSprites(),
       builder: (context, snap) {
         if (!snap.hasData) return const SizedBox.shrink();
-        return Opacity(
-          opacity: 0.45,
-          child: GardenView(
-            garden: s.garden,
-            sprites: snap.data!,
-            customizing: false,
-            onTapTile: (_) {},
-            groundColor: _gardenGround,
-            soilColor: _gardenSoil,
-            uiColor: th.onSurface,
-            lang: lang,
-            tr: (k) => t(lang, k),
-            interactive: false,
-          ),
+        // full strength — no dimming wash (#7); the timer gets its own scrim
+        return GardenView(
+          garden: s.garden,
+          sprites: snap.data!,
+          customizing: false,
+          onTapTile: (_) {},
+          groundColor: _gardenGround,
+          soilColor: _gardenSoil,
+          uiColor: th.onSurface,
+          panelColor: th.panel,
+          lang: lang,
+          tr: (k) => t(lang, k),
+          interactive: false,
         );
       },
     );
@@ -369,6 +393,7 @@ class _LabelScreenState extends State<LabelScreen> {
     final lang = s.lang;
     return overlayScaffold(context, s, t(lang, 'label'), [
       for (final label in s.labels) _labelRow(context, s, th, lang, label),
+      Text(t(lang, 'renameHint'), style: pixelStyle(lang, 8, col(th.onSurfaceDim))),
       const SizedBox(height: 8),
       Row(
         children: [
@@ -407,14 +432,47 @@ class _LabelScreenState extends State<LabelScreen> {
           Swatch(color: s.labelColorOf(label), border: th.onSurfaceDim, size: 24, onTap: () => _pickColor(context, s, label)),
           const SizedBox(width: 12),
           Expanded(
-            child: selected
-                ? primaryBtn(th, lang, '> $label', () => s.selectLabel(label))
-                : secondaryBtn(th, lang, label, () => s.selectLabel(label)),
+            child: GestureDetector(
+              onLongPress: () => _renameLabel(context, s, label),
+              child: selected
+                  ? primaryBtn(th, lang, '> $label', () => s.selectLabel(label))
+                  : secondaryBtn(th, lang, label, () => s.selectLabel(label)),
+            ),
           ),
           IconButton(
             icon: Icon(Icons.delete, color: col(th.onSurfaceDim)),
             onPressed: () => _confirmDelete(context, s, label),
           ),
+        ],
+      ),
+    );
+  }
+
+  void _renameLabel(BuildContext context, AppStore s, String label) {
+    final th = s.theme;
+    final lang = s.lang;
+    final ctrl = TextEditingController(text: label);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: col(th.panel),
+        title: Text(t(lang, 'renameTitle'), style: pixelStyle(lang, 12, col(th.onSurface))),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          textCapitalization: TextCapitalization.characters,
+          maxLength: 12,
+          style: pixelStyle(lang, 12, col(th.onSurface)),
+          decoration: InputDecoration(counterText: '', filled: true, fillColor: col(th.bg)),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(t(lang, 'no'), style: pixelStyle(lang, 11, col(th.onSurfaceDim)))),
+          TextButton(
+              onPressed: () {
+                s.renameLabel(label, ctrl.text);
+                Navigator.pop(ctx);
+              },
+              child: Text(t(lang, 'save'), style: pixelStyle(lang, 11, col(th.accent)))),
         ],
       ),
     );
@@ -474,10 +532,29 @@ class StatsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final th = s.theme;
     final lang = s.lang;
-    final totals = StatsAggregator.aggregate(s.records, DateTime.now());
-    final byLabel = StatsAggregator.byLabelInMonth(s.records, s.viewYear, s.viewMonth);
-    final series = StatsAggregator.dailySeries(s.records, s.viewYear, s.viewMonth);
-    final monthTitle = '${monthName(lang, s.viewMonth)} ${s.viewYear}';
+    final now = DateTime.now();
+    final totals = StatsAggregator.aggregate(s.records, now);
+    final byLabel = StatsAggregator.byLabelInWindow(s.records, now, s.statPeriod);
+    final series = StatsAggregator.seriesFor(s.records, now, s.statPeriod);
+    final multiLine = s.statPeriod == StatPeriod.daily;
+    final labelLines = multiLine
+        ? [
+            for (final ls in StatsAggregator.labelSeriesFor(s.records, now, s.statPeriod))
+              LabelLine(ls.label, s.labelColorOf(ls.label), ls.values)
+          ]
+        : null;
+
+    Widget periodBtn(String text, StatPeriod p) {
+      final sel = s.statPeriod == p;
+      return Expanded(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: sel
+              ? primaryBtn(th, lang, text, () => s.setStatPeriod(p), fontSize: 8, padding: const EdgeInsets.all(8))
+              : secondaryBtn(th, lang, text, () => s.setStatPeriod(p), fontSize: 8, padding: const EdgeInsets.all(8)),
+        ),
+      );
+    }
 
     Widget chartBtn(String text, ChartMode m) {
       final sel = s.chartMode == m;
@@ -503,29 +580,30 @@ class StatsScreen extends StatelessWidget {
         );
 
     return overlayScaffold(context, s, t(lang, 'stats'), [
-      Row(
-        children: [
-          secondaryBtn(th, lang, '<', () => s.shiftMonth(-1), fontSize: 13, padding: const EdgeInsets.all(12)),
-          Expanded(child: Center(child: Text(monthTitle, style: pixelStyle(lang, 12, col(th.onSurface))))),
-          PixelButton(
-              text: '>', fill: th.panel, border: th.onSurfaceDim, textColor: th.onSurface, shadow: th.shadow,
-              lang: lang, fontSize: 13, padding: const EdgeInsets.all(12),
-              opacity: s.canGoNextMonth ? 1 : 0.35, onTap: () => s.shiftMonth(1)),
-        ],
-      ),
+      Row(children: [
+        periodBtn(t(lang, 'pDaily'), StatPeriod.daily),
+        periodBtn(t(lang, 'pWeekly'), StatPeriod.weekly),
+        periodBtn(t(lang, 'pMonthly'), StatPeriod.monthly),
+        periodBtn(t(lang, 'pYearly'), StatPeriod.yearly),
+        periodBtn(t(lang, 'pAll'), StatPeriod.allTime),
+      ]),
       const SizedBox(height: 12),
       Row(children: [chartBtn(t(lang, 'chartBar'), ChartMode.bar), chartBtn(t(lang, 'chartLine'), ChartMode.line), chartBtn(t(lang, 'chartPie'), ChartMode.pie)]),
       const SizedBox(height: 16),
       SizedBox(
-        height: 190,
+        height: 200,
         child: StatsChart(
           entries: [for (final e in byLabel) ChartEntry(e.key, e.value, s.labelColorOf(e.key))],
-          daySeries: series,
+          series: series,
+          labelLines: labelLines,
+          multiLine: multiLine,
           mode: s.chartMode,
           lang: lang,
           axisColor: th.onSurfaceDim,
           textColor: th.onSurface,
           lineColor: th.accent,
+          panelColor: th.panel,
+          panelBorder: th.onSurfaceDim,
         ),
       ),
       const SizedBox(height: 16),
@@ -535,7 +613,7 @@ class StatsScreen extends StatelessWidget {
       statRow(t(lang, 'year'), totals.year),
       statRow(t(lang, 'all'), totals.all),
       const SizedBox(height: 16),
-      Text(tf(lang, 'byLabelMonth', [monthTitle]), style: pixelStyle(lang, 11, col(th.onSurfaceDim))),
+      Text(t(lang, 'byLabel'), style: pixelStyle(lang, 11, col(th.onSurfaceDim))),
       const SizedBox(height: 12),
       if (byLabel.isEmpty)
         Text(t(lang, 'chartNoData'), style: pixelStyle(lang, 9, col(th.onSurfaceDim)))
@@ -675,6 +753,18 @@ class _GardenScreenState extends State<GardenScreen> {
         backgroundColor: col(th.panel),
         title: Text(t(lang, 'camera'), style: pixelStyle(lang, 12, col(th.onSurface))),
         children: [
+          // SET AS LIVE WALLPAPER — sets the phone's home-screen wallpaper to the
+          // captured frame (Android only; iOS has no API, so the option is hidden).
+          if (Platform.isAndroid)
+            SimpleDialogOption(
+              onPressed: () async {
+                final ok = await setPhoneWallpaper(bytes);
+                if (ctx.mounted) Navigator.pop(ctx);
+                if (ok) s.messenger?.call('wallpaperSet');
+                _exitCamera();
+              },
+              child: Text(t(lang, 'setLiveWallpaper'), style: pixelStyle(lang, 11, col(th.onSurface))),
+            ),
           SimpleDialogOption(
             onPressed: () async {
               final path = await saveBackdropPng(bytes);
@@ -710,9 +800,17 @@ class _GardenScreenState extends State<GardenScreen> {
     // not actively customizing or framing a new shot.
     final showStatic = s.gardenBackdropPath != null && !_camera && !s.customizing;
 
-    return Scaffold(
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      // while peeking, let the forest run edge-to-edge behind transparent bars (#5)
+      value: _hudHidden
+          ? const SystemUiOverlayStyle(
+              statusBarColor: Colors.transparent, systemNavigationBarColor: Colors.transparent)
+          : systemOverlayFor(th),
+      child: Scaffold(
       backgroundColor: col(th.bg),
       body: SafeArea(
+        top: !_hudHidden,
+        bottom: !_hudHidden,
         child: Column(
           children: [
             if (!_hudHidden)
@@ -755,6 +853,7 @@ class _GardenScreenState extends State<GardenScreen> {
                           groundColor: _gardenGround,
                           soilColor: _gardenSoil,
                           uiColor: th.onSurface,
+                          panelColor: th.panel,
                           lang: lang,
                           tr: (k) => t(lang, k),
                           captureKey: _captureKey,
@@ -801,6 +900,7 @@ class _GardenScreenState extends State<GardenScreen> {
               ),
           ],
         ),
+      ),
       ),
     );
   }
