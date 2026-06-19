@@ -1,11 +1,33 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'logic.dart';
 import 'store.dart';
 
 /// ARGB int → Flutter [Color].
 Color col(int argb) => Color(argb);
+
+/// True if [argb] is a light color (perceived luminance) — used to choose
+/// contrasting system-bar icon brightness (#2) and on-scene contrast.
+bool isLightColor(int argb) {
+  final r = (argb >> 16) & 0xFF, g = (argb >> 8) & 0xFF, b = argb & 0xFF;
+  return (0.299 * r + 0.587 * g + 0.114 * b) > 140;
+}
+
+/// System status + navigation bars colored to the theme background, with icon
+/// brightness that contrasts it (#2).
+SystemUiOverlayStyle systemOverlayFor(PixelTheme th) {
+  final light = isLightColor(th.bg);
+  final iconBrightness = light ? Brightness.dark : Brightness.light;
+  return SystemUiOverlayStyle(
+    statusBarColor: col(th.bg),
+    statusBarIconBrightness: iconBrightness,
+    statusBarBrightness: light ? Brightness.light : Brightness.dark, // iOS
+    systemNavigationBarColor: col(th.bg),
+    systemNavigationBarIconBrightness: iconBrightness,
+  );
+}
 
 /// The pixel font. Press Start 2P has no Hangul, so Korean uses Galmuri11 — a
 /// pixel font (OFL) that covers Korean while keeping the retro look.

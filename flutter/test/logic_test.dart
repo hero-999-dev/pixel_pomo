@@ -1,7 +1,26 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pixel_pomo/logic.dart';
+import 'package:pixel_pomo/pixel.dart';
 
 void main() {
+  group('theme system-bar brightness', () {
+    test('isLightColor splits light vs dark backgrounds', () {
+      expect(isLightColor(0xFFF7EFDD), true); // latte cream
+      expect(isLightColor(0xFFF2F2F4), true); // light
+      expect(isLightColor(0xFF161616), false); // dark
+      expect(isLightColor(0xFF1E1E2E), false); // mocha
+    });
+
+    test('systemOverlayFor colors bars to bg and picks icon brightness', () {
+      final dark = systemOverlayFor(Themes.dark);
+      expect(dark.systemNavigationBarColor, const Color(0xFF161616));
+      expect(dark.statusBarIconBrightness, Brightness.light); // light icons on dark bg
+      final light = systemOverlayFor(Themes.light);
+      expect(light.statusBarIconBrightness, Brightness.dark);
+    });
+  });
+
   group('PomodoroEngine', () {
     test('initial state', () {
       final e = PomodoroEngine();
