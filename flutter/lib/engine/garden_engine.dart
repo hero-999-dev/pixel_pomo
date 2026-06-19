@@ -262,11 +262,16 @@ enum _CState { approach, hover, leave }
 /// coordinates** — so it rotates/zooms with the map — entering from a plot edge,
 /// flying to a flower, hovering as if sniffing, then leaving and despawning.
 class Critter {
+  /// Hard cap on how long a critter may live, in seconds, regardless of state —
+  /// guarantees one can never get stuck (e.g. among the trees) forever (#3).
+  static const double maxLife = 18.0;
+
   final String kind;
   Offset pos; // garden coords (tile units)
   Offset target; // garden coords
   _CState state = _CState.approach;
   double timer = 0;
+  double life = 0; // total seconds alive
   final double speed; // tiles/sec
   final double phase; // flight-wobble offset
   final double hoverFor;
@@ -304,11 +309,14 @@ class CritterSystem {
       }
     }
     for (final c in critters) {
+      c.life += d;
       _stepOne(c, d, half);
     }
+    // despawn on exit OR once past the hard lifetime cap, so none can stick (#3)
     critters.removeWhere((c) =>
-        c.state == _CState.leave &&
-        (c.pos.dx.abs() > half + 0.5 || c.pos.dy.abs() > half + 0.5));
+        c.life > Critter.maxLife ||
+        (c.state == _CState.leave &&
+            (c.pos.dx.abs() > half + 0.5 || c.pos.dy.abs() > half + 0.5)));
   }
 
   void _spawn(double half, List<Offset> flowers) {
@@ -351,7 +359,10 @@ class CritterSystem {
         }
         break;
       case _CState.leave:
-        if (dist > 0.01) c.pos += to / dist * c.speed * 1.4 * dt;
+        // always progress, even if the exit target is ~where we already are,
+        // so a critter can never freeze in place (#3)
+        final dir = dist > 1e-3 ? to / dist : const Offset(1, 0);
+        c.pos += dir * c.speed * 1.4 * dt;
         break;
     }
   }
