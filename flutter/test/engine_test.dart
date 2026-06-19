@@ -85,6 +85,20 @@ void main() {
     });
   });
 
+  group('CritterSystem no stuck critters (v12)', () {
+    test('a critter always despawns within its max lifetime', () {
+      final sys = CritterSystem(7);
+      final flowers = [const Offset(0, 0)];
+      for (var i = 0; i < 4000; i++) {
+        sys.step(0.05, 6, flowers); // 200s total
+      }
+      expect(sys.critters.length, lessThanOrEqualTo(CritterSystem.maxActive));
+      for (final c in sys.critters) {
+        expect(c.life, lessThanOrEqualTo(Critter.maxLife + 0.2));
+      }
+    });
+  });
+
   group('Projector forest fill (v12)', () {
     test('gridAt inverts ground for fractional coords at several yaws', () {
       const cols = 4, rows = 6, t = 40.0;
