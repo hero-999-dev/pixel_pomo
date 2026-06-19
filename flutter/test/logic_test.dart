@@ -82,6 +82,21 @@ void main() {
       expect(math.values.length, 7);
       expect(math.values.last, 60);
     });
+
+    test('anchorFor shifts the window back by period units, never future', () {
+      // monthly offset 1 → previous month window (no records in May 2026)
+      final prevMonth = StatsAggregator.byLabelInWindow(records, now, StatPeriod.monthly, 1);
+      expect(prevMonth, isEmpty);
+      // daily offset 2 → 2026-06-15 (Mon), which has the 40-min MATH record
+      final twoDaysAgo = StatsAggregator.byLabelInWindow(records, now, StatPeriod.daily, 2);
+      expect(twoDaysAgo.fold<int>(0, (a, e) => a + e.value), 40);
+      // yearly offset 1 → 2025, which has the 25-min record
+      final lastYear = StatsAggregator.byLabelInWindow(records, now, StatPeriod.yearly, 1);
+      expect(lastYear.fold<int>(0, (a, e) => a + e.value), 25);
+      // seriesFor honours offset too (prev month series is all-zero)
+      final s = StatsAggregator.seriesFor(records, now, StatPeriod.monthly, 1);
+      expect(s.totals.every((v) => v == 0), true);
+    });
   });
 
   group('PomodoroEngine', () {
