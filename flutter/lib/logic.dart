@@ -467,6 +467,25 @@ int epochDayOf(DateTime d) =>
 DateTime dateOfEpochDay(int e) =>
     DateTime.fromMillisecondsSinceEpoch(e * 86400000, isUtc: true);
 
+enum StatPeriod { daily, weekly, monthly, yearly, allTime }
+
+/// Per-x-bucket chart data for a [StatPeriod] window: total minutes, x tick
+/// labels, and the per-label breakdown for each bucket (used by the tappable
+/// line callout).
+class StatSeries {
+  final List<int> totals;
+  final List<String> tickLabels;
+  final List<List<MapEntry<String, int>>> byLabel;
+  const StatSeries(this.totals, this.tickLabels, this.byLabel);
+}
+
+/// One label's series across the buckets (daily multi-line chart).
+class LabelSeries {
+  final String label;
+  final List<int> values;
+  const LabelSeries(this.label, this.values);
+}
+
 class StatsAggregator {
   static StatTotals aggregate(List<SessionRecord> records, DateTime today) {
     final todayE = epochDayOf(today);
@@ -528,6 +547,127 @@ class StatsAggregator {
       out[dom] += r.minutes < 0 ? 0 : r.minutes;
     }
     return out;
+  }
+
+  /// Inclusive [startEpochDay, endEpochDay] window for a period relative to [now].
+  static (int, int) windowDays(DateTime now, StatPeriod p) {
+    final todayE = epochDayOf(now);
+    switch (p) {
+      case StatPeriod.daily:
+        return (todayE, todayE);
+      case StatPeriod.weekly:
+        final monday = todayE - (now.weekday - 1);
+        return (monday, monday + 6);
+      case StatPeriod.monthly:
+        final first = epochDayOf(DateTime(now.year, now.month, 1));
+        final lastDay = DateTime(now.year, now.month + 1, 0).day;
+        return (first, first + lastDay - 1);
+      case StatPeriod.yearly:
+        return (epochDayOf(DateTime(now.year, 1, 1)), epochDayOf(DateTime(now.year, 12, 31)));
+      case StatPeriod.allTime:
+        return (-100000000, todayE);
+    }
+  }
+
+  /// By-label totals (desc) within a period's window.
+  static List<MapEntry<String, int>> byLabelInWindow(
+      List<SessionRecord> records, DateTime now, StatPeriod p) {
+    final (lo, hi) = windowDays(now, p);
+    final map = <String, int>{};
+    for (final r in records) {
+      if (r.epochDay < lo || r.epochDay > hi) continue;
+      map[r.label] = (map[r.label] ?? 0) + (r.minutes < 0 ? 0 : r.minutes);
+    }
+    final list = map.entries.where((e) => e.value > 0).toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    return list;
+  }
+
+  /// Time-series (per bucket) for a period: totals, x tick labels, and the
+  /// per-bucket by-label breakdown.
+  static StatSeries seriesFor(List<SessionRecord> records, DateTime now, StatPeriod p) {
+    late int n;
+    late int Function(SessionRecord) idx;
+    late List<String> ticks;
+    switch (p) {
+      case StatPeriod.daily:
+        n = 7;
+        final endE = epochDayOf(now);
+        idx = (r) => r.epochDay - (endE - 6);
+        ticks = [for (var i = 0; i < 7; i++) '${dateOfEpochDay(endE - 6 + i).day}'];
+        break;
+      case StatPeriod.weekly:
+        n = 7;
+        final mon = epochDayOf(now) - (now.weekday - 1);
+        idx = (r) => r.epochDay - mon;
+        ticks = [for (var i = 0; i < 7; i++) '${dateOfEpochDay(mon + i).day}'];
+        break;
+      case StatPeriod.monthly:
+        n = DateTime(now.year, now.month + 1, 0).day;
+        idx = (r) {
+          final d = dateOfEpochDay(r.epochDay);
+          return (d.year == now.year && d.month == now.month) ? d.day - 1 : -1;
+        };
+        ticks = [for (var i = 1; i <= n; i++) '$i'];
+        break;
+      case StatPeriod.yearly:
+        n = 12;
+        idx = (r) {
+          final d = dateOfEpochDay(r.epochDay);
+          return d.year == now.year ? d.month - 1 : -1;
+        };
+        ticks = [for (var i = 1; i <= 12; i++) '$i'];
+        break;
+      case StatPeriod.allTime:
+        var minY = now.year;
+        for (final r in records) {
+          final y = dateOfEpochDay(r.epochDay).year;
+          if (y < minY) minY = y;
+        }
+        n = now.year - minY + 1;
+        idx = (r) => dateOfEpochDay(r.epochDay).year - minY;
+        ticks = [for (var i = 0; i < n; i++) '${minY + i}'];
+        break;
+    }
+    final totals = List<int>.filled(n, 0);
+    final maps = List.generate(n, (_) => <String, int>{});
+    for (final r in records) {
+      final i = idx(r);
+      if (i < 0 || i >= n) continue;
+      final m = r.minutes < 0 ? 0 : r.minutes;
+      totals[i] += m;
+      maps[i][r.label] = (maps[i][r.label] ?? 0) + m;
+    }
+    final byLabel = [
+      for (final m in maps)
+        (m.entries.where((e) => e.value > 0).toList()
+          ..sort((a, b) => b.value.compareTo(a.value)))
+    ];
+    return StatSeries(totals, ticks, byLabel);
+  }
+
+  /// One series per label across the period's buckets (daily multi-line).
+  static List<LabelSeries> labelSeriesFor(
+      List<SessionRecord> records, DateTime now, StatPeriod p) {
+    final s = seriesFor(records, now, p);
+    final n = s.totals.length;
+    final totalByLabel = <String, int>{};
+    for (final bucket in s.byLabel) {
+      for (final e in bucket) {
+        totalByLabel[e.key] = (totalByLabel[e.key] ?? 0) + e.value;
+      }
+    }
+    final labels = totalByLabel.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    return [
+      for (final l in labels)
+        LabelSeries(l.key, [
+          for (var i = 0; i < n; i++)
+            s.byLabel[i]
+                .firstWhere((e) => e.key == l.key, orElse: () => MapEntry(l.key, 0))
+                .value
+        ])
+    ];
   }
 
   static String formatMinutes(int min) {

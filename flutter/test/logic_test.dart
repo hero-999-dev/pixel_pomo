@@ -21,6 +21,69 @@ void main() {
     });
   });
 
+  group('StatsAggregator periods (v12)', () {
+    final now = DateTime(2026, 6, 17, 12); // Wed
+    int day(int y, int m, int d) => epochDayOf(DateTime(y, m, d));
+    final records = [
+      SessionRecord(day(2026, 6, 17), 60, 'MATH'), // today
+      SessionRecord(day(2026, 6, 17), 30, 'CODING'), // today
+      SessionRecord(day(2026, 6, 15), 40, 'MATH'), // Mon this week
+      SessionRecord(day(2026, 6, 10), 50, 'READING'), // earlier this month
+      SessionRecord(day(2026, 3, 4), 90, 'MATH'), // earlier this year
+      SessionRecord(day(2025, 12, 1), 25, 'MATH'), // last year
+    ];
+
+    test('byLabelInWindow daily = today only', () {
+      final r = StatsAggregator.byLabelInWindow(records, now, StatPeriod.daily);
+      expect(r.map((e) => e.key).toList(), ['MATH', 'CODING']);
+      expect(r.first.value, 60);
+    });
+
+    test('byLabelInWindow weekly = Mon..Sun of this week', () {
+      final total = StatsAggregator.byLabelInWindow(records, now, StatPeriod.weekly)
+          .fold<int>(0, (a, e) => a + e.value);
+      expect(total, 60 + 30 + 40);
+    });
+
+    test('byLabelInWindow monthly / yearly / allTime sum correctly', () {
+      int sum(StatPeriod p) => StatsAggregator.byLabelInWindow(records, now, p)
+          .fold<int>(0, (a, e) => a + e.value);
+      expect(sum(StatPeriod.monthly), 60 + 30 + 40 + 50);
+      expect(sum(StatPeriod.yearly), 60 + 30 + 40 + 50 + 90);
+      expect(sum(StatPeriod.allTime), 60 + 30 + 40 + 50 + 90 + 25);
+    });
+
+    test('seriesFor monthly has one bucket per day with today populated', () {
+      final s = StatsAggregator.seriesFor(records, now, StatPeriod.monthly);
+      expect(s.totals.length, 30);
+      expect(s.totals[16], 90); // day 17 → index 16 → 60+30
+      expect(s.byLabel[16].length, 2);
+    });
+
+    test('seriesFor daily has 7 buckets ending today', () {
+      final s = StatsAggregator.seriesFor(records, now, StatPeriod.daily);
+      expect(s.totals.length, 7);
+      expect(s.totals.last, 90);
+    });
+
+    test('seriesFor yearly has 12 month buckets; allTime per year', () {
+      final y = StatsAggregator.seriesFor(records, now, StatPeriod.yearly);
+      expect(y.totals.length, 12);
+      expect(y.totals[5], 180); // June = 60+30+40+50
+      final a = StatsAggregator.seriesFor(records, now, StatPeriod.allTime);
+      expect(a.totals.length, 2);
+      expect(a.totals.last, 60 + 30 + 40 + 50 + 90);
+      expect(a.totals.first, 25);
+    });
+
+    test('labelSeriesFor daily gives one series per label over 7 days', () {
+      final ls = StatsAggregator.labelSeriesFor(records, now, StatPeriod.daily);
+      final math = ls.firstWhere((s) => s.label == 'MATH');
+      expect(math.values.length, 7);
+      expect(math.values.last, 60);
+    });
+  });
+
   group('PomodoroEngine', () {
     test('initial state', () {
       final e = PomodoroEngine();
