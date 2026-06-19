@@ -145,7 +145,14 @@ class HomeScreen extends StatelessWidget {
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.all(24),
-                    child: Column(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+                      // a soft scrim behind the timer keeps text legible over the
+                      // full-strength live garden, without dimming the whole scene (#7)
+                      decoration: s.homeGardenBackdrop
+                          ? BoxDecoration(color: col(th.bg).withValues(alpha: 0.55))
+                          : null,
+                      child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(modeText, style: pixelStyle(lang, 22, col(modeColor), spacing: 2)),
@@ -182,6 +189,7 @@ class HomeScreen extends StatelessWidget {
                             style: pixelStyle(lang, 12, col(th.onSurfaceDim))),
                       ],
                     ),
+                    ),
                   ),
                 ),
               ],
@@ -199,21 +207,19 @@ class HomeScreen extends StatelessWidget {
       future: gardenSprites(),
       builder: (context, snap) {
         if (!snap.hasData) return const SizedBox.shrink();
-        return Opacity(
-          opacity: 0.45,
-          child: GardenView(
-            garden: s.garden,
-            sprites: snap.data!,
-            customizing: false,
-            onTapTile: (_) {},
-            groundColor: _gardenGround,
-            soilColor: _gardenSoil,
-            uiColor: th.onSurface,
-            panelColor: th.panel,
-            lang: lang,
-            tr: (k) => t(lang, k),
-            interactive: false,
-          ),
+        // full strength — no dimming wash (#7); the timer gets its own scrim
+        return GardenView(
+          garden: s.garden,
+          sprites: snap.data!,
+          customizing: false,
+          onTapTile: (_) {},
+          groundColor: _gardenGround,
+          soilColor: _gardenSoil,
+          uiColor: th.onSurface,
+          panelColor: th.panel,
+          lang: lang,
+          tr: (k) => t(lang, k),
+          interactive: false,
         );
       },
     );
