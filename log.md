@@ -5,6 +5,52 @@ Each entry notes the **prompt** (what you asked for) and the **changes** made.
 
 ---
 
+## v12 — screen-filling forest, theming polish, stats rework (Flutter, 0.12.0+13)
+**Date:** 2026-06-19
+
+**Prompt (Flutter, feedback photos in `feedback & guides/Feedback/Version 10-11v Feedback/`):** 12 items.
+**(1)** drop the small 4×6-plot look — the forest should fill the *whole* screen (no dark void, trees not
+floating); the garden is a clearing you roam. **(2)** the system status/nav bars don't match the theme
+(top gray, bottom black). **(3)** a critter once got stuck among the trees — find & fix. **(4)** garden-section
+icons don't recolor with the theme like the main menu. **(5)** when peeking, the top/bottom bars don't match
+the map. **(6)** rename "SET AS BACKDROP" → "SET AS LIVE WALLPAPER" and actually set the phone wallpaper (with
+a permission prompt). **(7)** in garden home-mode the theme color washes out the garden — make it transparent.
+**(8)** add label renaming. **(9)** pie slices of the same color blend — add a separator line. **(10)** tapping
+a line-chart point should show the day + minutes + which subjects. **(11)** add DAILY/WEEKLY/MONTHLY/YEARLY/
+ALL-TIME above BAR/LINE/PIE to compare. **(12)** remove the white tap animation (or theme it). **Decisions
+(AskUserQuestion):** forest fills the screen, garden is a clearing you grow into; live wallpaper = rename +
+set the Android **static** phone wallpaper now (true *animated* live wallpaper is a future v13; iOS keeps
+Save/Share, no wallpaper API); stats period = a time window all charts redraw for (replaces the ◀month▶
+navigator); DAILY line = **per-label multi-line**; all 12 in one v12; ship APK + IPA.
+
+**Changes (all in `flutter/`):**
+- **(#1) Forest fills the screen** — the engine no longer uses a fixed `WorldGrid` margin (deleted). `Projector`
+  gained `gridAt`/`gridOfD`/`visibleTileBounds`; the painter draws a tree billboard on **every visible tile
+  outside the claimed plot** (depth-sorted, contact-shadowed), so the woods fill the screen at any pan/zoom.
+  `Projector.fit` now leaves a forest margin (`kFitMargin`) so the plot reads as a clearing; pan clamp widened
+  to a roam radius. Plot-sized projector again → taps map straight to the claimed tile.
+- **(#2/#12) Theme polish** — `systemOverlayFor(theme)` + `isLightColor` (pixel.dart) drive `SystemChrome` via
+  an `AnnotatedRegion`, so status+nav bars match the theme bg with contrasting icons. `MaterialApp` got a
+  `ThemeData` with `NoSplash.splashFactory` + transparent splash/highlight → no white ripple.
+- **(#3) Stuck critter** — `Critter.maxLife` (18s) hard-despawn regardless of state + `leave` always uses a
+  nonzero heading; covered by an engine test that steps a critter past its lifetime.
+- **(#4/#5) Garden HUD** — peek/camera/recenter icons sit on themed `panel` chips (recolor *and* stay visible
+  on the dark scene); peeking goes full-bleed (`SafeArea(top/bottom:false)`) with transparent system bars.
+- **(#6) Live wallpaper** — dialog action renamed **SET AS LIVE WALLPAPER**; new `camera.setPhoneWallpaper`
+  sets the Android home-screen wallpaper via **`wallpaper_manager_flutter`** (new dep), behind
+  `Platform.isAndroid` (option hidden on iOS; the in-app static backdrop + Save/Share stay).
+- **(#7) Home backdrop** — dropped `Opacity(0.45)`; the live garden shows full-strength with a soft scrim only
+  behind the timer block for legibility.
+- **(#8) Label rename** — `Labels.rename` (pure) + `AppStore.renameLabel` migrates the color, current
+  selection, **and past stat records**; long-press a label row opens a rename dialog.
+- **(#9/#10/#11) Stats rework** — new pure aggregators `byLabelInWindow`/`seriesFor`/`labelSeriesFor` +
+  `StatPeriod`; `StatsScreen` gained a 5-button **period selector** (replaces the month navigator) feeding
+  bar/line/pie. Pie wedges now get a separator stroke. The line chart is **tappable** (callout: bucket +
+  total + per-label). DAILY draws **one line per label** over the last 7 days.
+- **Tests: 42** (28 logic + 8 engine + smoke); smoke exercises period/chart taps, label rename, peek/camera.
+  `flutter analyze` clean; debug APK builds with the new plugin.
+- **Docs:** TESTING.md, README.md, flutter/README.md, prompt.md updated; version → **0.12.0+13**.
+
 ## v11 — full-screen rectangular garden world + peek/camera/background (Flutter, 0.11.0+12)
 **Date:** 2026-06-18
 
