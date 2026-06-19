@@ -127,10 +127,20 @@ The Dart port carries its own tests, gating the **`build-flutter.yml`** macOS pi
 **3.44.2 / Dart 3.12.2** and green in CI.
 
 ```bash
-cd flutter && flutter analyze && flutter test   # 31 tests
+cd flutter && flutter analyze && flutter test   # 42 tests
 ```
 
-- **`test/logic_test.dart` (24)** — pure-logic parity with the Kotlin edge suite:
+**v12 additions:** `logic_test` gained the **theme system-bar brightness** group (`isLightColor`,
+`systemOverlayFor` color the bars to the theme bg with contrasting icons — #2), the **stats period
+aggregators** group (`byLabelInWindow`/`seriesFor`/`labelSeriesFor` for daily/weekly/monthly/yearly/all-time
+windows + per-bucket by-label, #10/#11), and **`Labels.rename`** (normalize, reject empty/dupe/missing, #8).
+`engine_test` gained **`Projector.gridAt`/`visibleTileBounds`** (the forest-fill visible-range math, #1) and a
+**critter max-lifetime despawn** test (#3); the old `WorldGrid` group was removed with the class. The smoke test
+now also taps the **stats period + chart types** and **long-press label rename**. Pie separators, the line
+callout, the screen-filling forest, themed system bars/HUD, the un-dimmed backdrop, and the Android wallpaper
+set are **visual / device-verified** (the wallpaper call is Android-only and isn't invoked in tests).
+
+- **`test/logic_test.dart` (33)** — pure-logic parity with the Kotlin edge suite:
   `PomodoroEngine` state machine + progress clamp + `1ms→00:01` round-up; `Economy`
   `coinsFor`/`upgradeCost`; `Garden` plant/grow + codec round-trip; `Labels` normalize (strip +
   cap 12), dedup, keep ≥1; `LabelColors` default + codec; `Stats` monthTotal / byLabelInMonth /
@@ -142,14 +152,15 @@ cd flutter && flutter analyze && flutter test   # 31 tests
   `isRoad`/`isFence`; `costOf` = **5** objects / **10** flowers; ids round-trip. **Tile-layering (#2):**
   a fence stands on a road (`groundAt`=road + `propAt`=fence survive the codec); a road slides under a
   fence but clears a flower; a flower refuses to plant on a road.
-- **`test/engine_test.dart` (7)** — low-poly 3D geometry + **v11 rectangular/world** math (TDD).
+- **`test/engine_test.dart` (8)** — low-poly 3D geometry + rectangular/forest math (TDD).
   `Projector.projectElevated` raises a point **straight up by `e·t`, no horizontal shift, identical across
   five yaws** (sun-free vertical); `boxCorners` returns **8 corners**, top directly above base by `height·t`,
-  **real footprint width from every angle** (fixes the "fence → thin antenna" bug). **v11:** the **rectangular
+  **real footprint width from every angle** (fixes the "fence → thin antenna" bug). The **rectangular
   `Projector` tile mapping** round-trips `tileAt(projectGrid(gridOf(c,r))) == r*cols+c` for a **non-square 4×6
-  plot across four yaws**, and `Projector.fit` **fills the portrait viewport** centering the plot. **`WorldGrid`**
-  classifies claimed-vs-forest tiles: a centered 4×6 claim inside a margin-2 border (8×10 world), `claimedIndex`
-  round-trip, and the **forest stays a constant-thickness ring** as the plot grows (the inner ring converts to grass).
+  plot across four yaws**, and `Projector.fit` frames the plot as a **clearing with a forest margin**. **v12
+  forest fill:** `gridAt` inverts `ground` for fractional coords at several yaws, and `visibleTileBounds`
+  **spans beyond the plot to cover the screen** (so the forest never leaves a void). **v12 critters:** a critter
+  **always despawns within `Critter.maxLife`** (stepped 200s past spawn) — no more stuck bugs (#3).
 - **`test/widget_smoke_test.dart` (1)** — boots the **real** app via `PixelPomoApp(store)`
   and opens **every** overlay (settings, garden, stats, theme, labels, **and the shop via the
   gold-coin button keyed `shopButton`**), asserting `START` renders, each panel shows, closes
@@ -162,18 +173,19 @@ cd flutter && flutter analyze && flutter test   # 31 tests
   `GARDEN`→`CLEAN`** (`ensureVisible` first, so the tap really lands and leaves no live-backdrop ticker running).
 
 **Garden engine note (visual, partly unit-tested):** the renderer math in `lib/engine/garden_engine.dart`
-— `Projector` fit + yaw + tile↔screen inverse (`projectGrid`/`tileAt`), `GardenCamera.clamp` pan bounding,
-**garden-space** `CritterSystem`, the critter travel-heading atlas pick (`frameForAngle`), the **low-poly 3D
-fence** primitives `projectElevated` + `boxCorners` feeding the post/rail mesh, and **new in v11** the
-**`WorldGrid`** claimed/forest split — are covered by `engine_test.dart`. **v11 full-screen world (#1):** the
-projector is sized to the **whole world** (claimed plot + a margin-2 forest border), so the 2.5D scene **fills
-the screen**; unclaimed tiles draw a `tree.png` billboard (depth-sorted with flowers/fences) over a dark
-forest floor, and EXPAND converts the inner ring to grass — replacing the old flat screen-space forest blit.
-Lighting is flat sky-ambient; **flowers are single billboards**, **only critters** use an 8-frame atlas. The
-**peek** + **camera mode** (screenshot via a `RepaintBoundary`/`captureKey`) + **static backdrop**
-(`Image.file`) + **live home backdrop** (`GardenView(interactive:false)` behind the timer) are **visual**,
-verified by eye on-device / `flutter run`. *(An offscreen golden harness was tried but `toImage` hangs
-headlessly here; capture/the rendered world are previewed on-device, and the geometry underneath is unit-pinned.)*
+— `Projector` fit + yaw + tile↔screen inverse (`projectGrid`/`tileAt`/`gridAt`), `GardenCamera.clamp` roam
+bounding, **garden-space** `CritterSystem`, the low-poly 3D fence primitives `projectElevated` + `boxCorners`,
+and the **`visibleTileBounds`** forest-fill range — are covered by `engine_test.dart`. **v12 full-screen forest
+(#1):** the projector is sized to the **claimed plot** (framed as a clearing via `kFitMargin`), and the painter
+stamps a `tree.png` billboard on **every visible tile outside the plot** (depth-sorted, contact-shadowed) over
+a dark forest floor, so the woods fill the screen at any pan/zoom (no void, no floating) — replacing v11's fixed
+`WorldGrid` margin (deleted). Lighting is flat sky-ambient; **flowers are single billboards**, **only critters**
+use an 8-frame atlas. The **themed system bars / no-splash** (#2/#12), **themed HUD chips** + **full-bleed peek**
+(#4/#5), **pie separators** (#9), **tappable line + daily multi-line** (#10), **period selector** (#11),
+**un-dimmed home backdrop** (#7), **peek/camera**, **static backdrop**, and the **Android live-wallpaper set**
+(#6, `wallpaper_manager_flutter`, Android-only) are **visual**, verified by eye on-device / `flutter run`.
+*(An offscreen golden harness was tried but `toImage` hangs headlessly here; the rendered world / charts / camera
+are previewed on-device, and the geometry + aggregators underneath are unit-pinned.)*
 
 **Known gap:** no on-device iOS UI automation (the runner builds an *unsigned* `.ipa`; it
 isn't booted in a simulator). The widget test exercises the same screens on the Flutter
