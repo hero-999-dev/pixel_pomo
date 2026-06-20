@@ -17,6 +17,7 @@ void main() {
     await tester.pumpWidget(PixelPomoApp(store));
     await tester.pumpAndSettle();
     expect(find.text('START'), findsOneWidget);
+    expect(find.text('FOCUS'), findsWidgets); // WORK → FOCUS (#4)
 
     Future<void> openClose(IconData icon, String title) async {
       await tester.tap(find.byIcon(icon));
@@ -36,6 +37,7 @@ void main() {
     await tester.tap(find.byIcon(Icons.settings));
     await tester.pumpAndSettle();
     expect(find.text('GARDEN'), findsWidgets); // the gardenMode button
+    expect(find.text('AUTO-START BREAK'), findsWidgets); // the auto-break toggle (#4)
     await tester.ensureVisible(find.text('GARDEN').last);
     await tester.tap(find.text('GARDEN').last);
     await tester.pump();
