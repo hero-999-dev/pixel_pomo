@@ -198,11 +198,10 @@ class HomeScreen extends StatelessWidget {
               if (garden) Positioned.fill(child: _liveBackdrop(th, lang)),
               SafeArea(
                 child: garden
-                    // garden mode: session up top in the empty band, timer docked
-                    // at the bottom over the full-strength garden (#5)
+                    // garden mode: SESSION centered in the top bar between the icon
+                    // groups, timer docked at the bottom over the full garden (#3, #5)
                     ? Column(children: [
-                        _topBar(context, th, lang),
-                        sessionText,
+                        _topBar(context, th, lang, center: sessionText),
                         const Spacer(),
                         Padding(
                           padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
@@ -259,6 +258,11 @@ class HomeScreen extends StatelessWidget {
   // left = theme/garden/stats · right = settings/store/coin (#4). [center] holds the
   // SESSION indicator in garden mode, sitting between the two icon groups (#3, v14).
   Widget _topBar(BuildContext context, PixelTheme th, String lang, {Widget? center}) {
+    // over the live garden wallpaper, give the coin count a hard pixel shadow for
+    // legibility — same treatment as the timer text (#5), no scrim box.
+    final shadows = s.homeGardenBackdrop
+        ? const [Shadow(offset: Offset(2, 2), color: Color(0xCC000000))]
+        : const <Shadow>[];
     Widget icon(String name, VoidCallback onTap, Key key) => IconButton(
           key: key,
           icon: Image.asset('assets/icon/icon_$name.png', width: 30, height: 30, filterQuality: FilterQuality.none),
@@ -271,7 +275,7 @@ class HomeScreen extends StatelessWidget {
         icon('garden', () => openPanel(context, s, () => GardenScreen(s)), const Key('gardenButton')),
         icon('stats', () => openPanel(context, s, () => StatsScreen(s)), const Key('statsButton')),
         const Spacer(),
-        if (center != null) ...[center, const Spacer()],
+        if (center != null) ...[Flexible(child: center), const Spacer()],
         icon('settings', () => openPanel(context, s, () => SettingsScreen(s)), const Key('settingsButton')),
         icon('store', () => openPanel(context, s, () => ShopScreen(s)), const Key('storeButton')),
         GestureDetector(
@@ -282,7 +286,7 @@ class HomeScreen extends StatelessWidget {
             child: Row(children: [
               const GoldCoin(size: 28),
               const SizedBox(width: 6),
-              Text('${s.coins}', style: pixelStyle(lang, 14, col(th.onSurface))),
+              Text('${s.coins}', style: pixelStyle(lang, 14, col(th.onSurface)).copyWith(shadows: shadows)),
             ]),
           ),
         ),
