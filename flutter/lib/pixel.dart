@@ -201,22 +201,13 @@ class ChartEntry {
   const ChartEntry(this.label, this.value, this.color);
 }
 
-/// One per-label line (daily multi-line mode).
-class LabelLine {
-  final String label;
-  final int color;
-  final List<int> values;
-  const LabelLine(this.label, this.color, this.values);
-}
-
-/// Bar / line / pie chart for the selected stats period. Line mode is tappable:
-/// tapping a bucket shows its total + per-label breakdown (#10). DAILY draws one
-/// line per label (#10 multi-line); other periods draw one total line.
+/// Bar / TREND / pie chart for the selected stats period. TREND mode draws one
+/// progress line (daily = cumulative; else per-bucket totals) and is tappable —
+/// the tap shows the bucket's FOCUS total + the period AVG (#2).
 class StatsChart extends StatefulWidget {
   final List<ChartEntry> entries; // by-label for bar/pie
   final StatSeries series; // totals + tick labels + per-bucket by-label
-  final List<LabelLine>? labelLines; // non-null + multiLine → daily per-label
-  final bool multiLine;
+  final int average; // period average bucket (trend callout AVG)
   final ChartMode mode;
   final String lang;
   final int axisColor, textColor, lineColor, panelColor, panelBorder;
@@ -225,8 +216,7 @@ class StatsChart extends StatefulWidget {
     super.key,
     required this.entries,
     required this.series,
-    required this.labelLines,
-    required this.multiLine,
+    required this.average,
     required this.mode,
     required this.lang,
     required this.axisColor,
@@ -323,8 +313,13 @@ class _ChartPainter extends CustomPainter {
   String _cap(String s) => s.length <= 12 ? s : s.substring(0, 12);
   String _fmt(int min) => StatsAggregator.formatMinutes(min);
 
-  String _total() {
-    const m = {'en': 'TOTAL', 'tr': 'TOPLAM', 'pl': 'RAZEM', 'de': 'GESAMT', 'ko': '합계', 'it': 'TOTALE'};
+  String _focus() {
+    const m = {'en': 'FOCUS', 'tr': 'ODAK', 'pl': 'SKUPIENIE', 'de': 'FOKUS', 'ko': '집중', 'it': 'FOCUS'};
+    return m[c.lang] ?? m['en']!;
+  }
+
+  String _avg() {
+    const m = {'en': 'AVG', 'tr': 'ORT', 'pl': 'ŚR', 'de': 'DSCHN', 'ko': '평균', 'it': 'MEDIA'};
     return m[c.lang] ?? m['en']!;
   }
 
@@ -364,54 +359,27 @@ class _ChartPainter extends CustomPainter {
     final plotW = w - padL - padR, plotH = h - padTop - padBottom;
     final totals = c.series.totals;
     final n = totals.length;
-    final lines = (c.multiLine && c.labelLines != null && c.labelLines!.isNotEmpty)
-        ? c.labelLines!
-        : null;
-    final maxVal = math.max(
-        1,
-        lines == null
-            ? totals.reduce(math.max)
-            : lines.expand((l) => l.values).fold(1, math.max));
+    final maxVal = math.max(1, totals.isEmpty ? 1 : totals.reduce(math.max));
     final axis = Paint()..color = col(c.axisColor)..strokeWidth = 2;
     canvas.drawLine(Offset(padL, padTop + plotH), Offset(padL + plotW, padTop + plotH), axis);
     double x(int i) => padL + plotW * (n <= 1 ? 0 : i / (n - 1));
     double y(int v) => padTop + plotH * (1 - v / maxVal);
 
-    void drawSeries(List<int> vals, int color) {
-      final path = Path();
-      for (var i = 0; i < vals.length; i++) {
-        final px = x(i), py = y(vals[i]);
-        i == 0 ? path.moveTo(px, py) : path.lineTo(px, py);
-      }
-      canvas.drawPath(
-          path, Paint()..color = col(color)..style = PaintingStyle.stroke..strokeWidth = 2.5);
-      final dot = Paint()..color = col(color);
-      for (var i = 0; i < vals.length; i++) {
-        canvas.drawCircle(Offset(x(i), y(vals[i])), 2, dot);
-      }
+    final path = Path();
+    for (var i = 0; i < n; i++) {
+      final px = x(i), py = y(totals[i]);
+      i == 0 ? path.moveTo(px, py) : path.lineTo(px, py);
     }
-
-    if (lines == null) {
-      drawSeries(totals, c.lineColor);
-    } else {
-      for (final l in lines) {
-        drawSeries(l.values, l.color);
-      }
+    canvas.drawPath(
+        path, Paint()..color = col(c.lineColor)..style = PaintingStyle.stroke..strokeWidth = 2.5);
+    final dot = Paint()..color = col(c.lineColor);
+    for (var i = 0; i < n; i++) {
+      canvas.drawCircle(Offset(x(i), y(totals[i])), 2, dot);
     }
 
     if (c.series.tickLabels.isNotEmpty) {
       _text(canvas, c.series.tickLabels.first, padL, h - 4, 7, c.textColor);
       _text(canvas, c.series.tickLabels.last, padL + plotW, h - 4, 7, c.textColor, align: TextAlign.right);
-    }
-
-    // daily multi-line legend (#2) — a colored dash + label per series
-    if (lines != null) {
-      var lyy = padTop;
-      for (final l in lines) {
-        canvas.drawRect(Rect.fromLTWH(padL, lyy + 2, 10, 3), Paint()..color = col(l.color));
-        _text(canvas, _cap(l.label), padL + 14, lyy + 9, 6, c.textColor);
-        lyy += 9;
-      }
     }
 
     final s = sel;
@@ -423,15 +391,18 @@ class _ChartPainter extends CustomPainter {
       _text(canvas, c.series.tickLabels[s], sx, h - 4, 7, c.lineColor, align: TextAlign.center);
       final detail = c.series.byLabel[s];
       final rows = <(String, String)>[
-        (_total(), _fmt(totals[s])),
+        (c.series.tickLabels[s], ''),
+        (_focus(), _fmt(totals[s])),
+        (_avg(), _fmt(c.average)),
         for (final e in detail) (_cap(e.key), _fmt(e.value)),
       ];
-      _callout(canvas, w, sx, padTop + 4, rows);
+      _callout(canvas, w, h, sx, rows);
     }
   }
 
-  /// A bordered callout with right-aligned values (#2), reused by the line tap.
-  void _callout(Canvas canvas, double w, double anchorX, double top, List<(String, String)> rows) {
+  /// A bordered callout with right-aligned values (#2), clamped fully inside the
+  /// chart so the text never spills outside the plot.
+  void _callout(Canvas canvas, double w, double h, double anchorX, List<(String, String)> rows) {
     const fs = 7.0, pad = 4.0, lh = 11.0, gap = 8.0;
     double colW(String s) {
       final tp = TextPainter(
@@ -447,9 +418,8 @@ class _ChartPainter extends CustomPainter {
     }
     final boxW = lW + gap + rW + pad * 2;
     final boxH = rows.length * lh + pad * 2;
-    var left = anchorX + 6;
-    if (left + boxW > w) left = anchorX - 6 - boxW;
-    if (left < 0) left = 0;
+    final left = (anchorX + 6).clamp(0.0, math.max(0.0, w - boxW)).toDouble();
+    final top = (12.0).clamp(0.0, math.max(0.0, h - boxH)).toDouble(); // stay inside the chart
     final rect = Rect.fromLTWH(left, top, boxW, boxH);
     canvas.drawRect(rect, Paint()..color = col(c.panelColor));
     canvas.drawRect(rect, Paint()..style = PaintingStyle.stroke..strokeWidth = 1..color = col(c.panelBorder));
