@@ -102,7 +102,8 @@ class AppStore extends ChangeNotifier {
     records = StatsCodec.decode(_prefs.getString(_kStats));
     coins = _prefs.getInt(_kCoins) ?? 0;
     owned = _decodeOwned(_prefs.getString(_kOwned));
-    garden = Garden.decode(_prefs.getString(_kGarden));
+    garden = Garden.decode(_prefs.getString(_kGarden))
+        .atLeast(Economy.baseGardenCols, Economy.baseGardenRows); // migrate to the bigger base (#7)
     gardenBackdropPath = _prefs.getString(_kBackdrop);
     homeGardenBackdrop = _prefs.getBool(_kHomeMode) ?? false;
     autoBreak = _prefs.getBool(_kAutoBreak) ?? true;
