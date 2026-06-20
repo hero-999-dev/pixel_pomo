@@ -195,6 +195,16 @@ class AppStore extends ChangeNotifier {
 
   void reset() {
     _timer?.cancel();
+    // cancelling a started focus session still pays out the time spent (#6)
+    if (engine.mode == Mode.work && engine.timeLeftMillis < engine.workMillis) {
+      final spent = Economy.elapsedFocusMinutes(workMin, engine.timeLeftMillis);
+      if (spent > 0) {
+        records.add(SessionRecord(epochDayOf(DateTime.now()), spent, currentLabel));
+        _saveStats();
+        coins += Economy.coinsFor(spent);
+        _saveWallet();
+      }
+    }
     engine.reset();
     notifyListeners();
   }
