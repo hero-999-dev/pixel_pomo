@@ -234,33 +234,37 @@ now Flutter-exclusive and richer** than the native grid (see below) — keep the
   **`homeGardenBackdrop`** + **`statPeriod`/`statOffset`** + **`autoBreak`/`awaitingBreakPrompt`**;
   **`renameLabel`** migrates color/current/past records; **`reset()` pays out spent focus minutes** on
   cancel) · `lib/pixel.dart` (pixel widgets + chart painters; `fontFor('ko')`→Galmuri11 ×1.5;
-  `isLightColor`/`systemOverlayFor` for system bars) · `lib/icons.dart` (**`IconBank`/`MenuIcon`** slice the
-  custom pixel icon sheets) · `lib/camera.dart` (`captureBoundary`; `sharePng` via `share_plus`;
-  **`setPhoneWallpaper`** via `wallpaper_manager_flutter`, Android-only) · `lib/main.dart` (all screens;
-  custom top bar **theme/garden/stats · settings/store/coin**; **FOCUS** + auto-break; `StatsScreen` period
-  selector **+ ◀▶ history navigator**; stateful `ShopScreen` **flowers/outer/inner/pets** tabs).
+  `isLightColor`/`systemOverlayFor` for system bars) · `lib/camera.dart` (`captureBoundary`; `sharePng` via
+  `share_plus`; **`setPhoneWallpaper`** via `wallpaper_manager_flutter`, Android-only) · `lib/main.dart` (all
+  screens; custom top bar **theme/garden/stats · settings/store/coin** rendered from **generated transparent
+  PNG icons** via `Image.asset` — in garden mode **SESSION** sits centered between the two icon groups; **FOCUS**
+  + auto-break; `StatsScreen` period selector **+ ◀▶ history navigator**; stateful `ShopScreen`
+  **flowers/outer/inner/pets** tabs).
 - **Stats** (`StatsAggregator`): `anchorFor(now,period,offset)` + an `offset` arg on
   `byLabelInWindow`/`seriesFor`/`labelSeriesFor` browse earlier periods (never the future). Charts: **bar
-  tops in minutes**, **pie** lists full (≤12) labels with **right-aligned %**, **line tap** shows a callout
-  (`TOTAL` + per-label, right-aligned; the selected tick drawn on the bottom axis), DAILY = per-label
-  multi-line + legend. `Economy.elapsedFocusMinutes(workMin,timeLeftMillis)` = spent minutes on cancel.
+  tops in minutes**, **pie** lists full (≤12) labels with **right-aligned %**, and a **TREND** line (was LINE):
+  **DAILY** is the day **filling up hour by hour** (`dailyCumulative`, cumulative at 00/04/08/12/16/20/24 from
+  per-session **`minuteOfDay`** timestamps), other periods are per-bucket totals; a **tap callout** (clamped
+  fully inside the plot, no overflow) shows the bucket + **FOCUS** + **AVG** + per-label. The totals block under
+  the chart is period-contextual **CURRENT / AVERAGE / BEST** in TREND mode (`periodStats`), else
+  today/week/month/year/all. `SessionRecord.minuteOfDay` is encoded as a 4th codec field; legacy 3-field rows
+  still decode. `Economy.elapsedFocusMinutes(workMin,timeLeftMillis)` = spent minutes on cancel.
 - **Labels** (`Labels.rename` pure: normalize, reject empty/dupe/missing) — long-press a label row to
   rename it. **Stats rework:** `StatPeriod {daily,weekly,monthly,yearly,allTime}` + pure
   `StatsAggregator.byLabelInWindow`/`seriesFor`/`labelSeriesFor`; `StatsScreen` has a 5-button **period
-  selector** (replaces the month navigator) feeding BAR/PIE (by-label in window) + LINE (time series,
-  tappable callout = bucket+total+per-label; **DAILY = one line per label** over 7 days). The **pie**
+  selector** (replaces the month navigator) feeding BAR/PIE (by-label in window) + **TREND** (time series,
+  tappable callout = bucket+focus+avg+per-label; **DAILY = the day's cumulative curve** by hour). The **pie**
   strokes each wedge so same-colored slices separate (#9).
 - **Custom garden engine** `lib/engine/garden_engine.dart` + `garden_view.dart`: a small
   purpose-built renderer (no Flame/Unity), **fixed 2.5D tilt** (`kVy`) but a **hand-controllable
   yaw** — two-finger twist rotates the view like Google Maps. **Pinch-zoom (1×–4×) + pan, both
-  clamped** (roam radius — you can pan into the woods). **Full-screen forest (#1):** `Projector` is
-  **rectangular `cols × rows`**, sized to the **claimed plot** and framed as a **clearing** via
-  `kFitMargin` (forest visible around it). The painter computes the on-screen tile range with
-  `Projector.gridAt` + `visibleTileBounds` and stamps a `tree.png` billboard on **every visible tile
-  outside the plot** (depth-sorted with flowers/fences, contact-shadowed) over a dark forest floor — so
-  the woods fill the screen at any pan/zoom (no void, no floating). **EXPAND grows the plot from the
-  center**, eating into the woods. Taps map straight to the claimed tile (forest isn't plantable). The
-  ground
+  clamped to the world edge**. **Bounded forest world (v14, #4):** `Projector` is **rectangular `cols × rows`**,
+  sized to fit the **whole world** — the garden **plus a fixed `kForestBorder` ring** (`worldOf`) — so the forest
+  frames the plot with a **defined edge** and fills the portrait screen (no infinite roam). The painter stamps
+  varied forest props on the **border ring only** (`isGardenTile` separates plot from border; depth-sorted with
+  flowers/fences, contact-shadowed) over a dark forest floor; `GardenCamera.clamp` keeps pan inside the world.
+  **EXPAND grows the plot from the center**, eating into the border. Taps map straight to the claimed tile
+  (forest isn't plantable). The ground
   (grass + flat roads) is drawn through a yaw+squash **affine**. **Flat sky-ambient lighting (no sun):** nothing is
   shaded by view angle, so rotating the garden never sweeps a fake sun across it. **Fences are real
   low-poly 3D** — `Projector.projectElevated` (vertical maps straight up by `e·t`, same for every
@@ -283,18 +287,21 @@ now Flutter-exclusive and richer** than the native grid (see below) — keep the
   (`setPhoneWallpaper` sets the Android home-screen wallpaper via `wallpaper_manager_flutter`, behind
   `Platform.isAndroid` — hidden on iOS) or **save/share**. **Settings → HOME SCREEN `CLEAN | GARDEN`**:
   GARDEN renders the **full-strength** non-interactive live `GardenView` behind the timer; in garden mode
-  the **session sits up top and the timer block docks at the bottom** (text shadows, no scrim). *(True
-  animated OS live wallpaper = **v14**, a native Android `WallpaperService`.)*
-- **Varied forest (v13):** `forestPropAt(c,r)` deterministically scatters **20 `tree_NN` + 10 `bush_NN` +
-  5 `rock_NN`** (with grass gaps) over the unclaimed tiles so the woods look natural, not one repeated tree.
+  **SESSION sits centered in the top bar** between the icon groups and the timer block docks at the bottom (text
+  + coin-count shadows for legibility, no scrim). *(True animated OS live wallpaper = a later native Android
+  `WallpaperService`.)*
+- **Varied forest:** `forestPropAt(c,r)` deterministically scatters **20 `tree_NN` + 10 `bush_NN` +
+  5 `rock_NN`** (with grass gaps) over the **forest border ring** so the woods look natural, not one repeated tree.
 - **App-wide theming:** `systemOverlayFor(theme)` + `isLightColor` drive `SystemChrome` via an
   `AnnotatedRegion` so the **status + nav bars match the theme** (#2); `MaterialApp` uses a `ThemeData`
   with `NoSplash.splashFactory` so there's **no white tap ripple** (#12).
-- **Art as data:** crisp **PNGs in `assets/objects/`** (grass, coin, 4 roads, 3 fences, 10 flowers, **20
-  trees + 10 bushes + 5 rocks** for the forest, all single-frame; only the 3 critters are 8-frame atlases),
-  plus the user's **menu icon sheets** in `assets/icon/` (sliced at runtime), emitted by the
-  dependency-free `tools/gen_objects.py` (`make_atlas`/`spin_frame` still build the **critter** strips;
-  `spin_frame` does a `|cos|` squash only — **no** view-dependent shading, so light is flat). Fences
+- **Art as data:** crisp **PNGs in `assets/objects/`** (**calm low-speckle grass**, coin, 4 roads, 3 fences,
+  10 flowers, **20 trees + 10 bushes + 5 rocks** for the forest, all single-frame; only the 3 critters are
+  8-frame atlases), plus **5 generated transparent 32×32 menu icons** (`icon_{theme,garden,stats,settings,store}`)
+  in `assets/icon/` — built pixel-by-pixel on a blank canvas with a dark `outline()` (replacing the old
+  sheet-slicer, which rendered as dark boxes), all emitted by the dependency-free `tools/gen_objects.py`
+  (`make_atlas`/`spin_frame` still build the **critter** strips; `spin_frame` does a `|cos|` squash only —
+  **no** view-dependent shading, so light is flat). Fences
   render as 3D meshes in the garden, so their single-frame PNG is only a **shop/place thumbnail**.
   Garden flower frames get a **dark outline** (10×10 canvas) so plants separate from the grass.
 - **Fonts:** Press Start 2P (Latin) + **Galmuri11** (`assets/fonts/`, OFL pixel font with full
@@ -304,12 +311,14 @@ now Flutter-exclusive and richer** than the native grid (see below) — keep the
   so the real logo is baked in instead of the Flutter default.
 - `test/logic_test.dart` (pure parity + placeables + **rectangular garden** grow/cost/decode + **base 10×16 +
   `atLeast` migration** + overlay layering + theme `isLightColor`/`systemOverlayFor` + **stats period
-  aggregators + `anchorFor`/offset** + `Labels.rename` + **`elapsedFocusMinutes`**) + `test/engine_test.dart`
-  (low-poly 3D `projectElevated`/`boxCorners`; rectangular tile round-trip + clearing fit;
-  `gridAt`/`visibleTileBounds`; critter `maxLife`; **`forestPropAt`** variety) + `test/widget_smoke_test.dart`
-  (boots the app, opens every overlay via the **custom-icon keys**, exercises peek/camera/home-mode + **stats
-  period/nav/chart taps** + label rename + **store tabs**; `runAsync` loads sprite PNGs). All gate CI.
-  **46 tests.** Dep: **`wallpaper_manager_flutter`** (Android-only).
+  aggregators + `anchorFor`/offset** + `Labels.rename` + **`elapsedFocusMinutes`** + **`SessionRecord` timestamp
+  codec** (4-field + legacy 3-field) + **trend** (`dailyCumulative` hourly + `periodStats` current/avg/best)) +
+  `test/engine_test.dart` (low-poly 3D `projectElevated`/`boxCorners`; rectangular tile round-trip; `gridAt`;
+  critter `maxLife`; **`forestPropAt`** variety; **bounded world** `worldOf`/`isGardenTile`/world-clamp) +
+  `test/widget_smoke_test.dart` (boots the app, opens every overlay via the **icon keys**, exercises
+  peek/camera/home-mode + **stats period/nav/chart taps incl. TREND + CURRENT/AVG/BEST** + label rename +
+  **store tabs**; `runAsync` loads sprite PNGs). All gate CI. **50 tests.** Dep:
+  **`wallpaper_manager_flutter`** (Android-only).
 - **Only the portable parts are committed** (`lib/`, `pubspec.yaml`, `assets/`, `tools/`, `test/`).
   `ios/` + `android/` are generated by CI via `flutter create` (see `flutter/.gitignore`).
 - CI: **`.github/workflows/build-flutter.yml`** runs on a **macOS runner**, scaffolds the

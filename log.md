@@ -5,6 +5,50 @@ Each entry notes the **prompt** (what you asked for) and the **changes** made.
 
 ---
 
+## v14 — transparent icons, stats TREND, bounded forest world, calmer garden (Flutter, 0.14.0+15)
+**Date:** 2026-06-20
+
+**Prompt (Flutter, feedback in `feedback & guides/Feedback/Version 13v Feedback/`):** 7 items.
+**(1)** the v13 menu icons render as **dark navy boxes** — the sheet slicer kept the sheet's non-transparent
+background; generate proper **transparent 32×32 pixel icons** instead. **(2)** redesign the LINE chart into a
+**TREND**: DAILY = the day filling up **hour by hour** (cumulative at 00,04,08,12,16,20,24); WEEKLY/MONTHLY/
+YEARLY/ALL = per-bucket totals; replace the TODAY/WEEK/MONTH/YEAR/ALL block with period-contextual
+**CURRENT / AVERAGE / BEST**; and fix the **callout text spilling outside the chart**. **(4)** the forest should
+be **fixed/bounded** (not infinite), fill the portrait screen, with the garden growing toward its edges.
+**(5)** the forest renders **over the top/bottom HUD text** (unreadable) — it should sit **under** them.
+**(6)** **simplify the garden grass** (too patchwork/quilt-like). **(7)** remove the shop **FLOWERS-tab help text**.
+**Decisions (AskUserQuestion):** add **per-session timestamps** so the daily trend is real hourly data;
+CURRENT/AVG/BEST live **only on the TREND page**; a **bounded world** the garden grows into; **generate** clean
+transparent icons procedurally. **Correction:** keep the home garden-mode **wallpaper** style (garden behind the
+timer) — only move **SESSION into the top bar**, centered between the icon groups.
+
+**Changes (8 tasks, all in `flutter/`):**
+- **(#2) Session timestamps** — `SessionRecord.minuteOfDay`; `StatsCodec` encodes a 4th field and still decodes
+  legacy 3-field rows (labels are comma-free, so part-count disambiguates); `store` stamps `minuteOfDay` on
+  every recorded/cancelled session.
+- **(#2) Trend aggregators** — `StatsAggregator.dailyCumulative(records, now, [offset])` (7 cumulative points at
+  hours 0/4/8/12/16/20/24) and `periodStats(...) → (current, average, best)` bucketed by the period unit; pure,
+  no `dart:math`.
+- **(#2) Stats TREND UI** — LINE renders/labels as **TREND**; DAILY uses the cumulative series, other periods the
+  per-bucket totals; the tap callout adds **FOCUS** + **AVG** rows and is **clamped fully inside the plot** so text
+  never overflows; the totals block shows **CURRENT/AVG/BEST** in trend mode, the old today/week/month/year/all
+  otherwise.
+- **(#1) Transparent icons** — `gen_objects.py` builds 5 **transparent 32×32** menu icons (theme/garden/stats/
+  settings/store) pixel-by-pixel on a blank canvas with a dark `outline()`; the top bar renders them via
+  `Image.asset`. Deleted `lib/icons.dart` (`IconBank`/`MenuIcon`/`menuIcons`) and the broken `menu_sheet.png`/
+  `store_sheet.png`.
+- **(#4) Bounded forest world** — `kForestBorder=4`, `worldOf`, `isGardenTile`; `Projector.fit` sizes the whole
+  world (garden + border ring) to the screen; the painter draws forest only on the fixed border ring; pan is
+  **clamped to the world edge** (no infinite roam). Removed the now-dead `visibleTileBounds`.
+- **(#3/#5) Garden HUD** — **SESSION** moved into the garden-mode **top bar**, centered between the icon groups;
+  the coin count gets a hard pixel **shadow** over the wallpaper (matching the timer) for legibility. (The garden
+  screen's HUD already sits on the themed background and the `GardenView` is clipped to its box, so no bleed.)
+- **(#6) Calmer grass** — `grass_grid` is now one base green with only **sparse, low-contrast speckle** (no bright
+  olive, no hard tufts); plants keep their dark outline to separate.
+- **(#7) Shop cleanup** — dropped the FLOWERS-tab help line (`shopHelp` string kept, unused).
+- **Tests: 50** (logic + engine `bounded forest world` + smoke `TREND`/`CURRENT`). analyze clean; debug APK builds.
+- **Docs:** TESTING.md, README.md, flutter/README.md, prompt.md updated; version → **0.14.0+15**.
+
 ## v13 — stats polish, main-screen rework, store categories, bigger garden + forest (Flutter, 0.13.0+14)
 **Date:** 2026-06-20
 
