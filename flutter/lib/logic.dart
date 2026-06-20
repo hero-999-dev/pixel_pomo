@@ -484,7 +484,8 @@ class SessionRecord {
   final int epochDay;
   final int minutes;
   final String label;
-  const SessionRecord(this.epochDay, this.minutes, this.label);
+  final int? minuteOfDay; // 0..1439 start-of-session; null = legacy (#2)
+  const SessionRecord(this.epochDay, this.minutes, this.label, {this.minuteOfDay});
 }
 
 class StatTotals {
@@ -731,8 +732,9 @@ class StatsAggregator {
 }
 
 class StatsCodec {
-  static String encode(List<SessionRecord> records) =>
-      records.map((r) => '${r.epochDay},${r.minutes},${r.label}').join('\n');
+  static String encode(List<SessionRecord> records) => records
+      .map((r) => '${r.epochDay},${r.minutes},${r.minuteOfDay ?? ''},${r.label}')
+      .join('\n');
 
   static List<SessionRecord> decode(String? text) {
     final out = <SessionRecord>[];
@@ -743,9 +745,18 @@ class StatsCodec {
       if (parts.length < 3) continue;
       final day = int.tryParse(parts[0].trim());
       final min = int.tryParse(parts[1].trim());
-      final label = parts.sublist(2).join(',').trim();
-      if (day == null || min == null || label.isEmpty) continue;
-      out.add(SessionRecord(day, min, label));
+      if (day == null || min == null) continue;
+      int? minute;
+      String label;
+      if (parts.length >= 4) {
+        // new format: day,min,minOfDay,label (labels are comma-free)
+        minute = int.tryParse(parts[2].trim());
+        label = parts.sublist(3).join(',').trim();
+      } else {
+        label = parts.sublist(2).join(',').trim(); // legacy day,min,label
+      }
+      if (label.isEmpty) continue;
+      out.add(SessionRecord(day, min, label, minuteOfDay: minute));
     }
     return out;
   }

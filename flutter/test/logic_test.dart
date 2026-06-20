@@ -99,6 +99,24 @@ void main() {
     });
   });
 
+  group('SessionRecord timestamp codec (v14)', () {
+    test('4-field round-trip + legacy 3-field decode', () {
+      final recs = [
+        const SessionRecord(100, 60, 'MATH', minuteOfDay: 480),
+        const SessionRecord(100, 30, 'CODING'), // no time
+      ];
+      final decoded = StatsCodec.decode(StatsCodec.encode(recs));
+      expect(decoded[0].minuteOfDay, 480);
+      expect(decoded[0].label, 'MATH');
+      expect(decoded[1].minuteOfDay, isNull);
+      // legacy rows (3 fields) still parse, minuteOfDay null
+      final legacy = StatsCodec.decode('100,60,MATH\n100,30,CODING');
+      expect(legacy.length, 2);
+      expect(legacy[0].minuteOfDay, isNull);
+      expect(legacy[0].label, 'MATH');
+    });
+  });
+
   group('PomodoroEngine', () {
     test('initial state', () {
       final e = PomodoroEngine();
