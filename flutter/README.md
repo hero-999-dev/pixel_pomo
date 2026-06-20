@@ -13,9 +13,9 @@ flutter/
 ├── assets/
 │   ├── fonts/            # PressStart2P (Latin) + Galmuri11 (OFL pixel Hangul, for Korean)
 │   ├── objects/          # 24 sprites: grass/forest/tree/coin + 4 roads + 3 fences + 10 flowers (single-frame) + 3 critters (8-frame atlases)
-│   └── icon/             # app_icon.png + app_icon_fg.png (the pixel-tomato launcher icon)
+│   └── icon/             # app_icon.png + app_icon_fg.png (launcher) + 5 generated transparent menu icons (icon_theme/garden/stats/settings/store)
 ├── tools/
-│   ├── gen_objects.py    # regenerates assets/objects/*.png (no Pillow needed)
+│   ├── gen_objects.py    # regenerates assets/objects/*.png + the 5 menu icons (no Pillow needed)
 │   └── gen_icon.py       # regenerates the launcher icon PNGs
 ├── lib/
 │   ├── logic.dart        # pure port + Placeables (4 roads + 3 fences; road+fence tile-layering)
@@ -24,12 +24,12 @@ flutter/
 │   ├── pixel.dart        # pixel widgets + chart painter + flower sprites; fontFor('ko')→Galmuri11
 │   ├── camera.dart       # garden screenshot (RepaintBoundary→PNG) + save (path_provider) + share (share_plus)
 │   ├── engine/
-│   │   ├── garden_engine.dart  # full-screen 2.5D renderer: rectangular Projector, WorldGrid (claimed+forest), low-poly 3D fence mesh, flat lighting, flower/tree billboards, critter atlas
+│   │   ├── garden_engine.dart  # bounded-world 2.5D renderer: rectangular Projector + kForestBorder ring, low-poly 3D fence mesh, flat lighting, flower/tree billboards, critter atlas
 │   │   └── garden_view.dart    # gesture/ticker widget: pinch-zoom + pan + two-finger rotate; peek/camera buttons; RepaintBoundary capture; interactive flag
 │   └── main.dart         # screens: timer (+optional live garden backdrop) + theme/garden/stats/settings/shop/label overlays
 └── test/
     ├── logic_test.dart        # Dart edge tests (gate the Flutter CI)
-    ├── engine_test.dart       # geometry: projectElevated + boxCorners + rectangular Projector + WorldGrid
+    ├── engine_test.dart       # geometry: projectElevated + boxCorners + rectangular Projector + bounded forest world
     └── widget_smoke_test.dart # boots the app, opens every overlay incl. the live garden (peek/camera/home-mode)
 ```
 
@@ -74,11 +74,12 @@ with the Kotlin original.
 
 **Flutter-exclusive garden** (richer than the native grid): a **full-screen, portrait, 2.5D world**
 drawn by a tiny custom engine (`lib/engine/`) — no Unity/Flame. A **rectangular `cols × rows` claimed
-plot (starts 4×6)** is the grass **clearing**; the **forest fills the rest of the screen** — the painter
-stamps a tree billboard on every visible tile outside the plot (grounded with a contact shadow), so the
-woods cover the screen at any pan/zoom with no void. **EXPAND grows the plot from the center** (+2 ring,
-no cap), eating into the woods. The tilt is fixed, but you can **rotate by hand** (two-finger twist),
-**pinch-zoom (1×–4×) and pan/roam** the surrounding forest. **CUSTOMIZE** shows tile gridlines.
+plot** is the grass **clearing**, framed by a **bounded forest world** — the projector fits the garden
+**plus a fixed `kForestBorder` ring** (`worldOf`), and the painter stamps forest props on that **border ring
+only** (grounded with a contact shadow), giving the garden a **defined forest edge** that fills the portrait
+screen. **EXPAND grows the plot from the center** (+2 ring, no cap), eating into the border. The tilt is
+fixed, but you can **rotate by hand** (two-finger twist) and **pinch-zoom (1×–4×) + pan**, all **clamped to
+the world edge** (no infinite roam). **CUSTOMIZE** shows tile gridlines.
 **Lighting is flat sky-ambient** — nothing is shaded by view angle. Roads lie flat; **fences are real
 low-poly 3D** — upright post meshes (brighter sky-lit top) joined by **raised 3D rails** to any
 adjacent fence (wood↔dark↔stone), keeping a solid footprint from every angle; a fence can stand **on
@@ -87,19 +88,23 @@ top of a road** (flowers can't). **Flowers and forest trees are flat billboards*
 drifting in to **visit a flower** then leaving. The SHOP sells **4 road** + **3 fence** materials
 (5 coins each). The wallet shows a **plain 2D gold coin**.
 
-**Garden size & forest (v13):** the plot is a **ratio-aware 10×16** (fills the portrait screen; `Garden.atLeast`
-migrates older saves), and the forest is **varied** — `forestPropAt(c,r)` deterministically scatters **20 trees +
-10 bushes + 5 rocks** (with grass gaps) instead of one repeated tree.
+**Garden size & forest:** the plot is a **ratio-aware 10×16** (fills the portrait screen; `Garden.atLeast`
+migrates older saves), and the forest border is **varied** — `forestPropAt(c,r)` deterministically scatters
+**20 trees + 10 bushes + 5 rocks** (with grass gaps) instead of one repeated tree. **(v14)** the world is now
+**bounded** (`worldOf`/`isGardenTile`/`kForestBorder`), and the **grass tile is calmer** — one base green with
+sparse low-contrast speckle, no patchwork.
 
 **Peek, camera & wallpaper:** a bottom-left **peek** button hides *all* HUD (full-bleed, system bars
 matched); a **camera mode** frames + **screenshots** the garden. The shot → **SET AS LIVE WALLPAPER** (sets the
 Android home-screen wallpaper via `wallpaper_manager_flutter`, Android-only — hidden on iOS) or **save/share**
 (`share_plus`). **Settings → HOME SCREEN `CLEAN | GARDEN`** renders the full-strength **live** garden behind the
-timer — in garden mode the **session sits up top and the timer docks at the bottom** (no scrim, text shadows).
-*(True animated OS live wallpaper is **v14**; iOS keeps Save/Share.)*
+timer — in garden mode **SESSION sits centered in the top bar** between the icon groups and the timer docks at
+the bottom (no scrim; text + coin-count shadows for legibility). *(A true animated OS live wallpaper remains a
+later milestone; iOS keeps Save/Share.)*
 
-**Top bar, timer & store (v13):** custom **pixel icons** (sliced from the user's sheets in `lib/icons.dart`) —
-**theme/garden/stats · settings/store/coin**. The timer mode reads **FOCUS**; **SWITCH MODE** is gone (a focus
+**Top bar, timer & store:** **generated transparent 32×32 pixel icons** (`gen_objects.py` builds them on a blank
+canvas with a dark outline; rendered via `Image.asset` — they replaced the v13 sheet-slicer that showed as dark
+boxes) — **theme/garden/stats · settings/store/coin**. The timer mode reads **FOCUS**; **SWITCH MODE** is gone (a focus
 session **auto-starts the break**, or with **Settings → AUTO-START BREAK off** asks first). **Cancelling a
 started session pays out the spent minutes.** The **shop** has tabs **FLOWERS / OUTER DECOR / INNER DECOR /
 PETS** (last two coming soon).
@@ -107,8 +112,9 @@ PETS** (last two coming soon).
 **Theming & stats:** the **status + navigation bars match the theme** (`SystemChrome`); **no white tap ripple**.
 **Labels rename** (long-press). **Stats** has a **DAILY/WEEKLY/MONTHLY/YEARLY/ALL-TIME** selector **plus a ◀▶
 history navigator** to browse earlier periods; **bar tops show minutes**, the **pie** lists full labels with
-right-aligned %, the **line is tappable** (callout: `TOTAL` + per-label, the day on the bottom axis), and
-**DAILY** draws one line per label with a legend.
+right-aligned %, and the **TREND** line is tappable (callout: bucket + **FOCUS** + **AVG** + per-label, **clamped
+inside the plot**). **DAILY** is the day **filling up hour by hour** (cumulative from per-session timestamps);
+other periods show per-bucket totals, and the block under the chart is **CURRENT / AVERAGE / BEST**.
 
 Korean uses the bundled **Galmuri11** pixel font (OFL, scaled up). The launcher icon is regenerated via
 `flutter_launcher_icons` so the pixel tomato survives scaffolding.
