@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'camera.dart';
 import 'engine/garden_engine.dart';
 import 'engine/garden_view.dart';
+import 'icons.dart';
 import 'logic.dart';
 import 'pixel.dart';
 import 'store.dart';
@@ -23,6 +24,9 @@ Widget objectThumb(String id, double size) {
 /// SpriteBank is loaded once and shared across garden opens.
 Future<SpriteBank>? _spritesFuture;
 Future<SpriteBank> gardenSprites() => _spritesFuture ??= SpriteBank.load();
+
+Future<IconBank>? _iconsFuture;
+Future<IconBank> menuIcons() => _iconsFuture ??= IconBank.load();
 
 final GlobalKey<ScaffoldMessengerState> messengerKey = GlobalKey<ScaffoldMessengerState>();
 
@@ -241,34 +245,42 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _iconBtn(IconData icon, int color, VoidCallback onTap) =>
-      IconButton(icon: Icon(icon, color: col(color), size: 28), onPressed: onTap);
-
   Widget _topBar(BuildContext context, PixelTheme th, String lang) {
+    // custom pixel icons (#3): left = theme/garden/stats · right = settings/store/coin (#4)
+    Widget iconBtn(IconBank? bank, int sheetCol, bool fromStore, VoidCallback onTap, Key? key) {
+      final child = bank == null
+          ? const SizedBox(width: 30, height: 30)
+          : MenuIcon(fromStore ? bank.store : bank.menu, sheetCol, size: 30);
+      return IconButton(key: key, icon: child, onPressed: onTap);
+    }
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      child: Row(
-        children: [
-          _iconBtn(Icons.palette, th.onSurface, () => openPanel(context, s, () => ThemeScreen(s))),
-          _iconBtn(Icons.local_florist, th.onSurface, () => openPanel(context, s, () => GardenScreen(s))),
-          const Spacer(),
-          _iconBtn(Icons.bar_chart, th.onSurface, () => openPanel(context, s, () => StatsScreen(s))),
-          _iconBtn(Icons.settings, th.onSurface, () => openPanel(context, s, () => SettingsScreen(s))),
-          GestureDetector(
-            key: const Key('shopButton'),
-            onTap: () => openPanel(context, s, () => ShopScreen(s)),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Row(
-                children: [
-                  const GoldCoin(size: 32),
-                  const SizedBox(width: 8),
+      child: FutureBuilder<IconBank>(
+        future: menuIcons(),
+        builder: (context, snap) {
+          final bank = snap.data;
+          return Row(children: [
+            iconBtn(bank, 0, false, () => openPanel(context, s, () => ThemeScreen(s)), const Key('themeButton')),
+            iconBtn(bank, 1, false, () => openPanel(context, s, () => GardenScreen(s)), const Key('gardenButton')),
+            iconBtn(bank, 2, false, () => openPanel(context, s, () => StatsScreen(s)), const Key('statsButton')),
+            const Spacer(),
+            iconBtn(bank, 3, false, () => openPanel(context, s, () => SettingsScreen(s)), const Key('settingsButton')),
+            iconBtn(bank, 4, true, () => openPanel(context, s, () => ShopScreen(s)), const Key('storeButton')),
+            GestureDetector(
+              key: const Key('shopButton'),
+              onTap: () => openPanel(context, s, () => ShopScreen(s)),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: Row(children: [
+                  const GoldCoin(size: 28),
+                  const SizedBox(width: 6),
                   Text('${s.coins}', style: pixelStyle(lang, 14, col(th.onSurface))),
-                ],
+                ]),
               ),
             ),
-          ),
-        ],
+          ]);
+        },
       ),
     );
   }
