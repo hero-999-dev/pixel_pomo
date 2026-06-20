@@ -902,15 +902,6 @@ class _GardenScreenState extends State<GardenScreen> {
             ),
           SimpleDialogOption(
             onPressed: () async {
-              final path = await saveBackdropPng(bytes);
-              s.setGardenBackdrop(path);
-              if (ctx.mounted) Navigator.pop(ctx);
-              _exitCamera();
-            },
-            child: Text(t(lang, 'setBackdrop'), style: pixelStyle(lang, 11, col(th.onSurface))),
-          ),
-          SimpleDialogOption(
-            onPressed: () async {
               await sharePng(bytes, 'pixel_pomo_garden.png');
               if (ctx.mounted) Navigator.pop(ctx);
             },
@@ -931,9 +922,6 @@ class _GardenScreenState extends State<GardenScreen> {
     final th = s.theme;
     final lang = s.lang;
     final cost = Economy.upgradeCost(s.garden.cols, s.garden.rows);
-    // the static photo replaces the live scene in the garden section only when
-    // not actively customizing or framing a new shot.
-    final showStatic = s.gardenBackdropPath != null && !_camera && !s.customizing;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       // while peeking, let the forest run edge-to-edge behind transparent bars (#5)
@@ -970,11 +958,9 @@ class _GardenScreenState extends State<GardenScreen> {
                 child: Text(t(lang, 'gardenHelp'), style: pixelStyle(lang, 8, col(th.onSurfaceDim))),
               ),
             if (!_hudHidden) const SizedBox(height: 8),
-            // the live 2.5D scene (or the static photo) fills the remaining space
+            // the live 2.5D scene fills the remaining space
             Expanded(
-              child: showStatic
-                  ? _staticBackdrop(s, th, lang)
-                  : FutureBuilder<SpriteBank>(
+              child: FutureBuilder<SpriteBank>(
                       future: gardenSprites(),
                       builder: (context, snap) {
                         if (!snap.hasData) {
@@ -1037,35 +1023,6 @@ class _GardenScreenState extends State<GardenScreen> {
         ),
       ),
       ),
-    );
-  }
-
-  /// The captured static photo as the garden section's backdrop, with controls
-  /// to retake (camera) or clear it (back to the live garden).
-  Widget _staticBackdrop(AppStore s, PixelTheme th, String lang) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Image.file(File(s.gardenBackdropPath!), fit: BoxFit.cover, filterQuality: FilterQuality.none),
-        Positioned(
-          left: 6,
-          bottom: 4,
-          child: IconButton(
-            key: const Key('cameraButton'),
-            icon: Icon(Icons.photo_camera, size: 22, color: col(th.onSurface)),
-            tooltip: t(lang, 'camera'),
-            onPressed: _enterCamera,
-          ),
-        ),
-        Positioned(
-          right: 6,
-          bottom: 4,
-          child: TextButton(
-            onPressed: () => s.setGardenBackdrop(null),
-            child: Text(t(lang, 'clearBackdrop'), style: pixelStyle(lang, 9, col(th.onSurface))),
-          ),
-        ),
-      ],
     );
   }
 
