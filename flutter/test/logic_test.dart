@@ -402,4 +402,22 @@ void main() {
       expect(TestData.seedCoins, 1000);
     });
   });
+
+  group('WallpaperCam framing codec (v15)', () {
+    test('encodes 4 fields and round-trips', () {
+      const w = WallpaperCam(0.5, 1.5, -0.25, 0.1);
+      expect(w.encode(), '0.5,1.5,-0.25,0.1');
+      final back = WallpaperCam.decode(w.encode());
+      expect(back.yaw, closeTo(0.5, 1e-9));
+      expect(back.zoom, closeTo(1.5, 1e-9));
+      expect(back.panXFrac, closeTo(-0.25, 1e-9));
+      expect(back.panYFrac, closeTo(0.1, 1e-9));
+    });
+
+    test('decode tolerates null/garbage with a sane default', () {
+      expect(WallpaperCam.decode(null).zoom, 1.0);
+      expect(WallpaperCam.decode('').yaw, 0.0);
+      expect(WallpaperCam.decode('x,y').zoom, 1.0); // malformed -> default
+    });
+  });
 }
