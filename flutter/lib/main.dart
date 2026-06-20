@@ -743,49 +743,78 @@ class StatsScreen extends StatelessWidget {
 
 // ---- shop -------------------------------------------------------------------
 
-class ShopScreen extends StatelessWidget {
+class ShopScreen extends StatefulWidget {
   final AppStore s;
   const ShopScreen(this.s, {super.key});
+  @override
+  State<ShopScreen> createState() => _ShopScreenState();
+}
+
+class _ShopScreenState extends State<ShopScreen> {
+  int _tab = 0; // 0 flowers · 1 outer decor · 2 inner decor · 3 pets (#6)
 
   @override
   Widget build(BuildContext context) {
+    final s = widget.s;
     final th = s.theme;
     final lang = s.lang;
-    return overlayScaffold(context, s, t(lang, 'shop'), [
-      Text(t(lang, 'shopHelp'), style: pixelStyle(lang, 9, col(th.onSurfaceDim))),
-      const SizedBox(height: 20),
-      for (final f in Flowers.all)
-        Padding(
-          padding: const EdgeInsets.only(bottom: 14),
-          child: Row(
-            children: [
-              FlowerSprite(flower: f, size: 40),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(f.nameIn(lang), style: pixelStyle(lang, 12, col(th.onSurface))),
-                    const SizedBox(height: 6),
-                    Text(tf(lang, 'owned', [s.owned[f.id] ?? 0]), style: pixelStyle(lang, 8, col(th.onSurfaceDim))),
-                  ],
-                ),
-              ),
-              PixelButton(
-                text: '${t(lang, 'buy')} ${Economy.flowerCost}',
-                fill: th.accent, border: th.onSurface, textColor: th.onAccent, shadow: th.shadow,
-                lang: lang, fontSize: 11, padding: const EdgeInsets.all(12),
-                opacity: s.coins >= Economy.flowerCost ? 1 : 0.45,
-                onTap: () => s.buyFlower(f),
-              ),
-            ],
+    Widget tabBtn(String text, int i) => Expanded(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            child: _tab == i
+                ? primaryBtn(th, lang, text, () => setState(() => _tab = i), fontSize: 8, padding: const EdgeInsets.all(8))
+                : secondaryBtn(th, lang, text, () => setState(() => _tab = i), fontSize: 8, padding: const EdgeInsets.all(8)),
           ),
+        );
+    return overlayScaffold(context, s, t(lang, 'shop'), [
+      Row(children: [
+        tabBtn(t(lang, 'catFlowers'), 0),
+        tabBtn(t(lang, 'catOuter'), 1),
+        tabBtn(t(lang, 'catInner'), 2),
+        tabBtn(t(lang, 'catPets'), 3),
+      ]),
+      const SizedBox(height: 16),
+      if (_tab == 0) ...[
+        Text(t(lang, 'shopHelp'), style: pixelStyle(lang, 9, col(th.onSurfaceDim))),
+        const SizedBox(height: 12),
+        for (final f in Flowers.all) _flowerRow(s, th, lang, f),
+      ] else if (_tab == 1) ...[
+        for (final id in Placeables.objectIds) _objectRow(s, th, lang, id),
+      ] else
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 40),
+          child: Center(child: Text(t(lang, 'comingSoon'), style: pixelStyle(lang, 12, col(th.onSurfaceDim)))),
         ),
-      const SizedBox(height: 8),
-      Text(t(lang, 'shopObjects'), style: pixelStyle(lang, 12, col(th.onSurfaceDim))),
-      const SizedBox(height: 14),
-      for (final id in Placeables.objectIds) _objectRow(s, th, lang, id),
     ]);
+  }
+
+  Widget _flowerRow(AppStore s, PixelTheme th, String lang, Flower f) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Row(
+        children: [
+          FlowerSprite(flower: f, size: 40),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(f.nameIn(lang), style: pixelStyle(lang, 12, col(th.onSurface))),
+                const SizedBox(height: 6),
+                Text(tf(lang, 'owned', [s.owned[f.id] ?? 0]), style: pixelStyle(lang, 8, col(th.onSurfaceDim))),
+              ],
+            ),
+          ),
+          PixelButton(
+            text: '${t(lang, 'buy')} ${Economy.flowerCost}',
+            fill: th.accent, border: th.onSurface, textColor: th.onAccent, shadow: th.shadow,
+            lang: lang, fontSize: 11, padding: const EdgeInsets.all(12),
+            opacity: s.coins >= Economy.flowerCost ? 1 : 0.45,
+            onTap: () => s.buyFlower(f),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _objectRow(AppStore s, PixelTheme th, String lang, String id) {
