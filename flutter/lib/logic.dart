@@ -721,6 +721,63 @@ class StatsAggregator {
     ];
   }
 
+  /// Cumulative focus minutes through the anchored day at hours [0,4,8,12,16,20,24]
+  /// (legacy records without a [SessionRecord.minuteOfDay] are not placed on the curve).
+  static StatSeries dailyCumulative(List<SessionRecord> records, DateTime now, [int offset = 0]) {
+    final a = anchorFor(now, StatPeriod.daily, offset);
+    final dayE = epochDayOf(a);
+    const hours = [0, 4, 8, 12, 16, 20, 24];
+    final totals = List<int>.filled(hours.length, 0);
+    for (final r in records) {
+      if (r.epochDay != dayE || r.minuteOfDay == null) continue;
+      final m = r.minutes < 0 ? 0 : r.minutes;
+      for (var i = 0; i < hours.length; i++) {
+        if (r.minuteOfDay! <= hours[i] * 60) totals[i] += m; // counted once that hour is reached
+      }
+    }
+    final ticks = [for (final h in hours) h.toString().padLeft(2, '0')];
+    return StatSeries(totals, ticks, [for (final _ in hours) const <MapEntry<String, int>>[]]);
+  }
+
+  /// (current, average, best) period totals across all history for the trend
+  /// comparison block. Buckets by the period's unit; average is over non-empty buckets.
+  static (int, int, int) periodStats(
+      List<SessionRecord> records, DateTime now, StatPeriod p, [int offset = 0]) {
+    int keyOf(int epochDay) {
+      final d = dateOfEpochDay(epochDay);
+      switch (p) {
+        case StatPeriod.daily:
+          return epochDay;
+        case StatPeriod.weekly:
+          return epochDay - (d.weekday - 1); // Monday epoch-day
+        case StatPeriod.monthly:
+          return d.year * 12 + d.month;
+        case StatPeriod.yearly:
+        case StatPeriod.allTime:
+          return d.year;
+      }
+    }
+
+    final buckets = <int, int>{};
+    for (final r in records) {
+      final k = keyOf(r.epochDay);
+      buckets[k] = (buckets[k] ?? 0) + (r.minutes < 0 ? 0 : r.minutes);
+    }
+    final a = anchorFor(now, p, offset);
+    final (lo, hi) = windowDays(a, p);
+    var current = 0;
+    for (final r in records) {
+      if (r.epochDay >= lo && r.epochDay <= hi) current += r.minutes < 0 ? 0 : r.minutes;
+    }
+    if (buckets.isEmpty) return (current, 0, 0);
+    var best = 0, sum = 0;
+    for (final v in buckets.values) {
+      if (v > best) best = v;
+      sum += v;
+    }
+    return (current, sum ~/ buckets.length, best);
+  }
+
   static String formatMinutes(int min) {
     final safe = min < 0 ? 0 : min;
     final h = safe ~/ 60;
