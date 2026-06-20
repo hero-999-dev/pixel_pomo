@@ -1,12 +1,11 @@
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:wallpaper_manager_flutter/wallpaper_manager_flutter.dart';
 
 /// Camera helpers for the garden section: screenshot the live scene, persist it
 /// as a static backdrop, or hand it to the system share sheet. Kept out of
@@ -43,13 +42,16 @@ Future<void> sharePng(Uint8List bytes, String filename) async {
   await Share.shareXFiles([XFile(file.path)]);
 }
 
-/// Set the captured PNG as the phone's HOME-screen wallpaper (Android only, #6).
-/// Returns false on non-Android (the caller hides the button there). The true
-/// *animated* live wallpaper is a future version; this sets the framed still.
-Future<bool> setPhoneWallpaper(Uint8List bytes) async {
-  if (!Platform.isAndroid) return false;
-  final dir = await getTemporaryDirectory();
-  final file = File('${dir.path}/pixel_pomo_wallpaper.png');
-  await file.writeAsBytes(bytes, flush: true);
-  return WallpaperManagerFlutter().setWallpaper(file, WallpaperManagerFlutter.homeScreen);
+const _wallpaperChannel = MethodChannel('pixel_pomo/wallpaper');
+
+/// Open Android's live-wallpaper picker for our GardenWallpaperService, which
+/// renders the live garden at the framing the user saved (v15). The caller hides
+/// the button on iOS; here we just invoke the channel and return false on error
+/// (on iOS there's no handler → MissingPluginException → false).
+Future<bool> setLiveWallpaper() async {
+  try {
+    return await _wallpaperChannel.invokeMethod<bool>('setLiveWallpaper') ?? false;
+  } catch (_) {
+    return false;
+  }
 }
