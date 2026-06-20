@@ -91,14 +91,15 @@ Reintroduce a **fixed-border world** (revert the infinite `visibleTileBounds` fo
   framed world over time. `Projector.fit` keeps the world framed; `visibleTileBounds`-based infinite drawing
   is removed. A pure `WorldGrid`-style helper (`worldOf` + `isGardenTile`) is unit-tested.
 
-### D. Garden HUD readability (#5)
+### D. Garden HUD + session placement (#5)
 
-The forest must sit **under** the top and bottom HUD, not over the text:
-- **Home garden-mode:** stop using a full-screen `Positioned.fill` garden. Lay it out as **top band (icons +
-  SESSION) on solid `theme.bg`** → **`Expanded` garden scene (the only place the forest shows)** → **bottom
-  band (timer block) on solid `theme.bg`**. The garden is a clean middle window; the text bands are solid.
+- **Home garden-mode:** **keep the existing garden-behind wallpaper style** (`Positioned.fill`, full-screen)
+  — the user prefers it. The only change: move the **SESSION `n/N`** indicator **into the top bar, centered
+  between the left (theme/garden/stats) and right (settings/store/coin) icon groups** (replacing the spacer),
+  with a text shadow for legibility over the scene. The timer block stays docked at the bottom with its
+  shadows. (Clean mode is unchanged: SESSION stays at the bottom under the timer.)
 - **Garden screen:** wrap the top (GARDEN title + EXPAND) and bottom (CUSTOMIZE/CLOSE) rows in a `Container`
-  with `color: theme.bg` so the scene can't bleed under them.
+  with `color: theme.bg` so the forest scene can't bleed under them and the text stays readable.
 
 ### E. Calmer grass (#6)
 
