@@ -148,6 +148,12 @@ void main() {
   });
 
   group('Economy + Garden', () {
+    test('elapsedFocusMinutes counts spent time on cancel', () {
+      expect(Economy.elapsedFocusMinutes(25, 14 * 60 * 1000), 11); // 25-min, 14 left → 11
+      expect(Economy.elapsedFocusMinutes(25, 25 * 60 * 1000), 0); // untouched → 0
+      expect(Economy.elapsedFocusMinutes(25, 0), 25); // finished → 25
+    });
+
     test('coinsFor / upgradeCost (rectangular)', () {
       expect(Economy.coinsFor(4), 0);
       expect(Economy.coinsFor(25), 5);
