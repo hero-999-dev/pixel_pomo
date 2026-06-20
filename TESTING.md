@@ -127,8 +127,19 @@ The Dart port carries its own tests, gating the **`build-flutter.yml`** macOS pi
 **3.44.2 / Dart 3.12.2** and green in CI.
 
 ```bash
-cd flutter && flutter analyze && flutter test   # 46 tests
+cd flutter && flutter analyze && flutter test   # 50 tests
 ```
+
+**v14 additions:** `logic_test` gained a **`SessionRecord` timestamp codec** group (the 4-field encode +
+**backward-compatible** decode of legacy 3-field rows — #2) and a **`StatsAggregator` trend** group
+(`dailyCumulative` 7-point hourly cumulative + `periodStats` → **current/average/best** bucketed per period —
+#2). `engine_test` gained a **`bounded forest world`** group (`worldOf` adds the fixed `kForestBorder` ring;
+`isGardenTile` classifies plot vs. border; `GardenCamera.clamp` keeps pan inside the world edge — #4), and the
+`Projector.fit` test now asserts the plot is **framed inside the bounded world** (not most of the screen). The
+smoke test taps **TREND** and asserts the **CURRENT/AVG/BEST** block, and still taps every top-bar icon — now
+backed by **`Image.asset`** transparent icons rather than the deleted sheet slicer. The **generated transparent
+icons**, the **TREND line + clamped callout**, the **bounded forest framing**, the **SESSION-in-top-bar** layout,
+and the **calmer grass** are **visual / device-verified**.
 
 **v13 additions:** `logic_test` gained **`StatsAggregator.anchorFor` + offset** (browse previous
 day/week/month/year, never the future — #1), **`Economy.elapsedFocusMinutes`** (spent-time payout on cancel —
@@ -150,7 +161,7 @@ now also taps the **stats period + chart types** and **long-press label rename**
 callout, the screen-filling forest, themed system bars/HUD, the un-dimmed backdrop, and the Android wallpaper
 set are **visual / device-verified** (the wallpaper call is Android-only and isn't invoked in tests).
 
-- **`test/logic_test.dart` (33)** — pure-logic parity with the Kotlin edge suite:
+- **`test/logic_test.dart` (39)** — pure-logic parity with the Kotlin edge suite:
   `PomodoroEngine` state machine + progress clamp + `1ms→00:01` round-up; `Economy`
   `coinsFor`/`upgradeCost`; `Garden` plant/grow + codec round-trip; `Labels` normalize (strip +
   cap 12), dedup, keep ≥1; `LabelColors` default + codec; `Stats` monthTotal / byLabelInMonth /
@@ -162,15 +173,16 @@ set are **visual / device-verified** (the wallpaper call is Android-only and isn
   `isRoad`/`isFence`; `costOf` = **5** objects / **10** flowers; ids round-trip. **Tile-layering (#2):**
   a fence stands on a road (`groundAt`=road + `propAt`=fence survive the codec); a road slides under a
   fence but clears a flower; a flower refuses to plant on a road.
-- **`test/engine_test.dart` (8)** — low-poly 3D geometry + rectangular/forest math (TDD).
+- **`test/engine_test.dart` (10)** — low-poly 3D geometry + rectangular/forest math (TDD).
   `Projector.projectElevated` raises a point **straight up by `e·t`, no horizontal shift, identical across
   five yaws** (sun-free vertical); `boxCorners` returns **8 corners**, top directly above base by `height·t`,
   **real footprint width from every angle** (fixes the "fence → thin antenna" bug). The **rectangular
   `Projector` tile mapping** round-trips `tileAt(projectGrid(gridOf(c,r))) == r*cols+c` for a **non-square 4×6
-  plot across four yaws**, and `Projector.fit` frames the plot as a **clearing with a forest margin**. **v12
-  forest fill:** `gridAt` inverts `ground` for fractional coords at several yaws, and `visibleTileBounds`
-  **spans beyond the plot to cover the screen** (so the forest never leaves a void). **v12 critters:** a critter
-  **always despawns within `Critter.maxLife`** (stepped 200s past spawn) — no more stuck bugs (#3).
+  plot across four yaws**, and `Projector.fit` frames the plot **inside the bounded world**. `gridAt` inverts
+  `ground` for fractional coords at several yaws. **v14 bounded world:** `worldOf` adds the fixed
+  `kForestBorder` ring, `isGardenTile` classifies plot vs. border, and `GardenCamera.clamp` keeps pan inside
+  the world edge. **Critters:** a critter **always despawns within `Critter.maxLife`** (stepped 200s past
+  spawn) — no more stuck bugs (#3).
 - **`test/widget_smoke_test.dart` (1)** — boots the **real** app via `PixelPomoApp(store)`
   and opens **every** overlay (settings, garden, stats, theme, labels, **and the shop via the
   gold-coin button keyed `shopButton`**), asserting `START` renders, each panel shows, closes
@@ -183,13 +195,14 @@ set are **visual / device-verified** (the wallpaper call is Android-only and isn
   `GARDEN`→`CLEAN`** (`ensureVisible` first, so the tap really lands and leaves no live-backdrop ticker running).
 
 **Garden engine note (visual, partly unit-tested):** the renderer math in `lib/engine/garden_engine.dart`
-— `Projector` fit + yaw + tile↔screen inverse (`projectGrid`/`tileAt`/`gridAt`), `GardenCamera.clamp` roam
-bounding, **garden-space** `CritterSystem`, the low-poly 3D fence primitives `projectElevated` + `boxCorners`,
-and the **`visibleTileBounds`** forest-fill range — are covered by `engine_test.dart`. **v12 full-screen forest
-(#1):** the projector is sized to the **claimed plot** (framed as a clearing via `kFitMargin`), and the painter
-stamps a `tree.png` billboard on **every visible tile outside the plot** (depth-sorted, contact-shadowed) over
-a dark forest floor, so the woods fill the screen at any pan/zoom (no void, no floating) — replacing v11's fixed
-`WorldGrid` margin (deleted). Lighting is flat sky-ambient; **flowers are single billboards**, **only critters**
+— `Projector` fit + yaw + tile↔screen inverse (`projectGrid`/`tileAt`/`gridAt`), `GardenCamera.clamp`
+world-edge bounding, **garden-space** `CritterSystem`, the low-poly 3D fence primitives `projectElevated` +
+`boxCorners`, and the **bounded-world** helpers (`worldOf`/`isGardenTile`) — are covered by `engine_test.dart`.
+**v14 bounded forest (#4):** the projector is sized to the **whole world** (garden + a fixed `kForestBorder`
+ring), the painter stamps varied forest props (`tree/bush/rock_NN`) on the **border ring only** (depth-sorted,
+contact-shadowed) over a dark forest floor, and pan is **clamped to the world edge** — a framed garden with a
+defined forest edge, no infinite roam. (Superseded v12's screen-filling infinite forest + v11's fixed
+`WorldGrid`, both deleted.) Lighting is flat sky-ambient; **flowers are single billboards**, **only critters**
 use an 8-frame atlas. The **themed system bars / no-splash** (#2/#12), **themed HUD chips** + **full-bleed peek**
 (#4/#5), **pie separators** (#9), **tappable line + daily multi-line** (#10), **period selector** (#11),
 **un-dimmed home backdrop** (#7), **peek/camera**, **static backdrop**, and the **Android live-wallpaper set**

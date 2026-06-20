@@ -484,7 +484,8 @@ class SessionRecord {
   final int epochDay;
   final int minutes;
   final String label;
-  const SessionRecord(this.epochDay, this.minutes, this.label);
+  final int? minuteOfDay; // 0..1439 start-of-session; null = legacy (#2)
+  const SessionRecord(this.epochDay, this.minutes, this.label, {this.minuteOfDay});
 }
 
 class StatTotals {
@@ -720,6 +721,63 @@ class StatsAggregator {
     ];
   }
 
+  /// Cumulative focus minutes through the anchored day at hours [0,4,8,12,16,20,24]
+  /// (legacy records without a [SessionRecord.minuteOfDay] are not placed on the curve).
+  static StatSeries dailyCumulative(List<SessionRecord> records, DateTime now, [int offset = 0]) {
+    final a = anchorFor(now, StatPeriod.daily, offset);
+    final dayE = epochDayOf(a);
+    const hours = [0, 4, 8, 12, 16, 20, 24];
+    final totals = List<int>.filled(hours.length, 0);
+    for (final r in records) {
+      if (r.epochDay != dayE || r.minuteOfDay == null) continue;
+      final m = r.minutes < 0 ? 0 : r.minutes;
+      for (var i = 0; i < hours.length; i++) {
+        if (r.minuteOfDay! <= hours[i] * 60) totals[i] += m; // counted once that hour is reached
+      }
+    }
+    final ticks = [for (final h in hours) h.toString().padLeft(2, '0')];
+    return StatSeries(totals, ticks, [for (final _ in hours) const <MapEntry<String, int>>[]]);
+  }
+
+  /// (current, average, best) period totals across all history for the trend
+  /// comparison block. Buckets by the period's unit; average is over non-empty buckets.
+  static (int, int, int) periodStats(
+      List<SessionRecord> records, DateTime now, StatPeriod p, [int offset = 0]) {
+    int keyOf(int epochDay) {
+      final d = dateOfEpochDay(epochDay);
+      switch (p) {
+        case StatPeriod.daily:
+          return epochDay;
+        case StatPeriod.weekly:
+          return epochDay - (d.weekday - 1); // Monday epoch-day
+        case StatPeriod.monthly:
+          return d.year * 12 + d.month;
+        case StatPeriod.yearly:
+        case StatPeriod.allTime:
+          return d.year;
+      }
+    }
+
+    final buckets = <int, int>{};
+    for (final r in records) {
+      final k = keyOf(r.epochDay);
+      buckets[k] = (buckets[k] ?? 0) + (r.minutes < 0 ? 0 : r.minutes);
+    }
+    final a = anchorFor(now, p, offset);
+    final (lo, hi) = windowDays(a, p);
+    var current = 0;
+    for (final r in records) {
+      if (r.epochDay >= lo && r.epochDay <= hi) current += r.minutes < 0 ? 0 : r.minutes;
+    }
+    if (buckets.isEmpty) return (current, 0, 0);
+    var best = 0, sum = 0;
+    for (final v in buckets.values) {
+      if (v > best) best = v;
+      sum += v;
+    }
+    return (current, sum ~/ buckets.length, best);
+  }
+
   static String formatMinutes(int min) {
     final safe = min < 0 ? 0 : min;
     final h = safe ~/ 60;
@@ -731,8 +789,9 @@ class StatsAggregator {
 }
 
 class StatsCodec {
-  static String encode(List<SessionRecord> records) =>
-      records.map((r) => '${r.epochDay},${r.minutes},${r.label}').join('\n');
+  static String encode(List<SessionRecord> records) => records
+      .map((r) => '${r.epochDay},${r.minutes},${r.minuteOfDay ?? ''},${r.label}')
+      .join('\n');
 
   static List<SessionRecord> decode(String? text) {
     final out = <SessionRecord>[];
@@ -743,9 +802,18 @@ class StatsCodec {
       if (parts.length < 3) continue;
       final day = int.tryParse(parts[0].trim());
       final min = int.tryParse(parts[1].trim());
-      final label = parts.sublist(2).join(',').trim();
-      if (day == null || min == null || label.isEmpty) continue;
-      out.add(SessionRecord(day, min, label));
+      if (day == null || min == null) continue;
+      int? minute;
+      String label;
+      if (parts.length >= 4) {
+        // new format: day,min,minOfDay,label (labels are comma-free)
+        minute = int.tryParse(parts[2].trim());
+        label = parts.sublist(3).join(',').trim();
+      } else {
+        label = parts.sublist(2).join(',').trim(); // legacy day,min,label
+      }
+      if (label.isEmpty) continue;
+      out.add(SessionRecord(day, min, label, minuteOfDay: minute));
     }
     return out;
   }
