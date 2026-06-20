@@ -157,64 +157,79 @@ class HomeScreen extends StatelessWidget {
             );
           });
         }
+        final garden = s.homeGardenBackdrop;
+        // in garden mode the timer is drawn over the live scene, so give its text
+        // a hard pixel shadow for legibility instead of a scrim box (#5/#7)
+        final shadows = garden
+            ? const [Shadow(offset: Offset(2, 2), color: Color(0xCC000000))]
+            : const <Shadow>[];
+        final timerBlock = Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(modeText, style: pixelStyle(lang, 22, col(modeColor), spacing: 2).copyWith(shadows: shadows)),
+            const SizedBox(height: 16),
+            secondaryBtn(th, lang, s.currentLabel, () => openPanel(context, s, () => LabelScreen(s)),
+                fontSize: 11, padding: const EdgeInsets.all(10)),
+            const SizedBox(height: 28),
+            Text(e.formattedTime(), style: pixelStyle(lang, 48, col(th.onSurface)).copyWith(shadows: shadows)),
+            const SizedBox(height: 32),
+            PixelProgress(
+                percent: e.progressPercent(),
+                track: th.panel,
+                border: th.onSurfaceDim,
+                fill: e.isFinished ? th.accent : th.phaseColor(e.mode)),
+            const SizedBox(height: 36),
+            Row(children: [
+              Expanded(
+                  child: primaryBtn(th, lang, t(lang, e.isRunning ? 'pause' : 'start'),
+                      s.toggleStartPause, fontSize: 14, padding: const EdgeInsets.all(16))),
+              const SizedBox(width: 16),
+              Expanded(
+                  child: secondaryBtn(th, lang, t(lang, 'reset'), s.reset,
+                      fontSize: 14, padding: const EdgeInsets.all(16))),
+            ]),
+          ],
+        );
+        final sessionText = Text(tf(lang, 'session', [e.session, e.totalSessions]),
+            style: pixelStyle(lang, 12, col(garden ? th.onSurface : th.onSurfaceDim)).copyWith(shadows: shadows));
+
         return Scaffold(
           backgroundColor: col(th.bg),
           body: Stack(
             children: [
               // live garden behind the timer when HOME mode = GARDEN (#3)
-              if (s.homeGardenBackdrop) Positioned.fill(child: _liveBackdrop(th, lang)),
+              if (garden) Positioned.fill(child: _liveBackdrop(th, lang)),
               SafeArea(
-                child: Column(
-                  children: [
-                    _topBar(context, th, lang),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-                      // a soft scrim behind the timer keeps text legible over the
-                      // full-strength live garden, without dimming the whole scene (#7)
-                      decoration: s.homeGardenBackdrop
-                          ? BoxDecoration(color: col(th.bg).withValues(alpha: 0.55))
-                          : null,
-                      child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(modeText, style: pixelStyle(lang, 22, col(modeColor), spacing: 2)),
-                        const SizedBox(height: 16),
-                        secondaryBtn(th, lang, s.currentLabel, () => openPanel(context, s, () => LabelScreen(s)),
-                            fontSize: 11, padding: const EdgeInsets.all(10)),
-                        const SizedBox(height: 28),
-                        Text(e.formattedTime(), style: pixelStyle(lang, 48, col(th.onSurface))),
-                        const SizedBox(height: 32),
-                        PixelProgress(
-                            percent: e.progressPercent(),
-                            track: th.panel,
-                            border: th.onSurfaceDim,
-                            fill: e.isFinished ? th.accent : th.phaseColor(e.mode)),
-                        const SizedBox(height: 36),
-                        Row(
-                          children: [
-                            Expanded(
-                                child: primaryBtn(th, lang, t(lang, e.isRunning ? 'pause' : 'start'),
-                                    s.toggleStartPause, fontSize: 14, padding: const EdgeInsets.all(16))),
-                            const SizedBox(width: 16),
-                            Expanded(
-                                child: secondaryBtn(th, lang, t(lang, 'reset'), s.reset,
-                                    fontSize: 14, padding: const EdgeInsets.all(16))),
-                          ],
+                child: garden
+                    // garden mode: session up top in the empty band, timer docked
+                    // at the bottom over the full-strength garden (#5)
+                    ? Column(children: [
+                        _topBar(context, th, lang),
+                        sessionText,
+                        const Spacer(),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                          child: timerBlock,
                         ),
-                        const SizedBox(height: 24),
-                        Text(tf(lang, 'session', [e.session, e.totalSessions]),
-                            style: pixelStyle(lang, 12, col(th.onSurfaceDim))),
-                      ],
-                    ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+                      ])
+                    // clean mode: the centered timer (today's layout)
+                    : Column(children: [
+                        _topBar(context, th, lang),
+                        Expanded(
+                          child: Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(24),
+                              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                                timerBlock,
+                                const SizedBox(height: 24),
+                                sessionText,
+                              ]),
+                            ),
+                          ),
+                        ),
+                      ]),
+              ),
             ],
           ),
         );
