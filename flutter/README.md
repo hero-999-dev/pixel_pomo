@@ -56,7 +56,7 @@ flutter create --org com.pixelpomo --project-name pixel_pomo --platforms=ios,and
 git checkout -- pubspec.yaml lib && rm -f test/widget_test.dart analysis_options.yaml
 flutter pub get
 flutter analyze
-flutter test       # logic_test.dart + engine_test.dart + widget_smoke_test.dart (42)
+flutter test       # logic_test.dart + engine_test.dart + widget_smoke_test.dart (46)
 flutter run        # or: flutter build apk / flutter build ios --no-codesign
 ```
 
@@ -87,19 +87,28 @@ top of a road** (flowers can't). **Flowers and forest trees are flat billboards*
 drifting in to **visit a flower** then leaving. The SHOP sells **4 road** + **3 fence** materials
 (5 coins each). The wallet shows a **plain 2D gold coin**.
 
-**Peek, camera & wallpaper:** a bottom-left **peek** button hides *all* HUD (full-bleed, system bars
-matched); a **camera mode** frames + **screenshots** the garden (`RepaintBoundary` → PNG). The shot →
-**SET AS LIVE WALLPAPER** (sets the Android home-screen wallpaper via `wallpaper_manager_flutter`,
-Android-only — hidden on iOS), **set as the garden's static backdrop** (`path_provider`), or **save/share**
-(`share_plus`). **Settings → HOME SCREEN `CLEAN | GARDEN`** renders the full-strength **live** garden behind
-the timer (scrim only behind the text). On-scene HUD icons sit on themed chips so they recolor with the theme
-and stay visible. *(True animated OS live wallpaper is a future version; iOS keeps Save/Share.)*
+**Garden size & forest (v13):** the plot is a **ratio-aware 10×16** (fills the portrait screen; `Garden.atLeast`
+migrates older saves), and the forest is **varied** — `forestPropAt(c,r)` deterministically scatters **20 trees +
+10 bushes + 5 rocks** (with grass gaps) instead of one repeated tree.
 
-**Theming & stats:** the **status + navigation bars match the theme** (`SystemChrome`) and the **white tap
-ripple is gone** (`NoSplash`). **Labels can be renamed** (long-press; migrates color/selection/past stats).
-**Stats** has a **DAILY/WEEKLY/MONTHLY/YEARLY/ALL-TIME** period selector that all charts redraw for; the **pie**
-has slice separators, the **line is tappable** (callout: bucket + total + per-label), and **DAILY** draws one
-line per label. The SHOP sells **4 road** + **3 fence** materials (5 coins each); the wallet is a plain 2D coin.
+**Peek, camera & wallpaper:** a bottom-left **peek** button hides *all* HUD (full-bleed, system bars
+matched); a **camera mode** frames + **screenshots** the garden. The shot → **SET AS LIVE WALLPAPER** (sets the
+Android home-screen wallpaper via `wallpaper_manager_flutter`, Android-only — hidden on iOS) or **save/share**
+(`share_plus`). **Settings → HOME SCREEN `CLEAN | GARDEN`** renders the full-strength **live** garden behind the
+timer — in garden mode the **session sits up top and the timer docks at the bottom** (no scrim, text shadows).
+*(True animated OS live wallpaper is **v14**; iOS keeps Save/Share.)*
+
+**Top bar, timer & store (v13):** custom **pixel icons** (sliced from the user's sheets in `lib/icons.dart`) —
+**theme/garden/stats · settings/store/coin**. The timer mode reads **FOCUS**; **SWITCH MODE** is gone (a focus
+session **auto-starts the break**, or with **Settings → AUTO-START BREAK off** asks first). **Cancelling a
+started session pays out the spent minutes.** The **shop** has tabs **FLOWERS / OUTER DECOR / INNER DECOR /
+PETS** (last two coming soon).
+
+**Theming & stats:** the **status + navigation bars match the theme** (`SystemChrome`); **no white tap ripple**.
+**Labels rename** (long-press). **Stats** has a **DAILY/WEEKLY/MONTHLY/YEARLY/ALL-TIME** selector **plus a ◀▶
+history navigator** to browse earlier periods; **bar tops show minutes**, the **pie** lists full labels with
+right-aligned %, the **line is tappable** (callout: `TOTAL` + per-label, the day on the bottom axis), and
+**DAILY** draws one line per label with a legend.
 
 Korean uses the bundled **Galmuri11** pixel font (OFL, scaled up). The launcher icon is regenerated via
 `flutter_launcher_icons` so the pixel tomato survives scaffolding.

@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'camera.dart';
 import 'engine/garden_engine.dart';
 import 'engine/garden_view.dart';
+import 'icons.dart';
 import 'logic.dart';
 import 'pixel.dart';
 import 'store.dart';
@@ -23,6 +24,9 @@ Widget objectThumb(String id, double size) {
 /// SpriteBank is loaded once and shared across garden opens.
 Future<SpriteBank>? _spritesFuture;
 Future<SpriteBank> gardenSprites() => _spritesFuture ??= SpriteBank.load();
+
+Future<IconBank>? _iconsFuture;
+Future<IconBank> menuIcons() => _iconsFuture ??= IconBank.load();
 
 final GlobalKey<ScaffoldMessengerState> messengerKey = GlobalKey<ScaffoldMessengerState>();
 
@@ -81,8 +85,9 @@ PixelButton primaryBtn(PixelTheme th, String lang, String text, VoidCallback? on
         lang: lang, onTap: onTap, fontSize: fontSize, padding: padding, opacity: opacity);
 
 PixelButton secondaryBtn(PixelTheme th, String lang, String text, VoidCallback? onTap,
-        {double fontSize = 13, EdgeInsets padding = const EdgeInsets.all(14), double opacity = 1}) =>
+        {double fontSize = 13, EdgeInsets padding = const EdgeInsets.all(14), double opacity = 1, Key? key}) =>
     PixelButton(
+        key: key,
         text: text, fill: th.panel, border: th.onSurfaceDim, textColor: th.onSurface, shadow: th.shadow,
         lang: lang, onTap: onTap, fontSize: fontSize, padding: padding, opacity: opacity);
 
@@ -132,69 +137,99 @@ class HomeScreen extends StatelessWidget {
             ? t(lang, 'allDone')
             : (e.mode == Mode.work ? t(lang, 'work') : t(lang, 'break'));
         final modeColor = e.isFinished ? th.accent : th.phaseColor(e.mode);
+        // auto-break off: ask before starting the break (#4)
+        if (s.awaitingBreakPrompt) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!s.awaitingBreakPrompt) return;
+            s.awaitingBreakPrompt = false; // guard against re-entry
+            showDialog(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                backgroundColor: col(th.panel),
+                title: Text(t(lang, 'startBreakTitle'), style: pixelStyle(lang, 12, col(th.onSurface))),
+                actions: [
+                  TextButton(onPressed: () { Navigator.pop(ctx); s.confirmBreak(false); },
+                      child: Text(t(lang, 'no'), style: pixelStyle(lang, 11, col(th.onSurfaceDim)))),
+                  TextButton(onPressed: () { Navigator.pop(ctx); s.confirmBreak(true); },
+                      child: Text(t(lang, 'yes'), style: pixelStyle(lang, 11, col(th.accent)))),
+                ],
+              ),
+            );
+          });
+        }
+        final garden = s.homeGardenBackdrop;
+        // in garden mode the timer is drawn over the live scene, so give its text
+        // a hard pixel shadow for legibility instead of a scrim box (#5/#7)
+        final shadows = garden
+            ? const [Shadow(offset: Offset(2, 2), color: Color(0xCC000000))]
+            : const <Shadow>[];
+        final timerBlock = Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(modeText, style: pixelStyle(lang, 22, col(modeColor), spacing: 2).copyWith(shadows: shadows)),
+            const SizedBox(height: 16),
+            secondaryBtn(th, lang, s.currentLabel, () => openPanel(context, s, () => LabelScreen(s)),
+                fontSize: 11, padding: const EdgeInsets.all(10)),
+            const SizedBox(height: 28),
+            Text(e.formattedTime(), style: pixelStyle(lang, 48, col(th.onSurface)).copyWith(shadows: shadows)),
+            const SizedBox(height: 32),
+            PixelProgress(
+                percent: e.progressPercent(),
+                track: th.panel,
+                border: th.onSurfaceDim,
+                fill: e.isFinished ? th.accent : th.phaseColor(e.mode)),
+            const SizedBox(height: 36),
+            Row(children: [
+              Expanded(
+                  child: primaryBtn(th, lang, t(lang, e.isRunning ? 'pause' : 'start'),
+                      s.toggleStartPause, fontSize: 14, padding: const EdgeInsets.all(16))),
+              const SizedBox(width: 16),
+              Expanded(
+                  child: secondaryBtn(th, lang, t(lang, 'reset'), s.reset,
+                      fontSize: 14, padding: const EdgeInsets.all(16))),
+            ]),
+          ],
+        );
+        final sessionText = Text(tf(lang, 'session', [e.session, e.totalSessions]),
+            style: pixelStyle(lang, 12, col(garden ? th.onSurface : th.onSurfaceDim)).copyWith(shadows: shadows));
+
         return Scaffold(
           backgroundColor: col(th.bg),
           body: Stack(
             children: [
               // live garden behind the timer when HOME mode = GARDEN (#3)
-              if (s.homeGardenBackdrop) Positioned.fill(child: _liveBackdrop(th, lang)),
+              if (garden) Positioned.fill(child: _liveBackdrop(th, lang)),
               SafeArea(
-                child: Column(
-                  children: [
-                    _topBar(context, th, lang),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-                      // a soft scrim behind the timer keeps text legible over the
-                      // full-strength live garden, without dimming the whole scene (#7)
-                      decoration: s.homeGardenBackdrop
-                          ? BoxDecoration(color: col(th.bg).withValues(alpha: 0.55))
-                          : null,
-                      child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(modeText, style: pixelStyle(lang, 22, col(modeColor), spacing: 2)),
-                        const SizedBox(height: 16),
-                        secondaryBtn(th, lang, s.currentLabel, () => openPanel(context, s, () => LabelScreen(s)),
-                            fontSize: 11, padding: const EdgeInsets.all(10)),
-                        const SizedBox(height: 28),
-                        Text(e.formattedTime(), style: pixelStyle(lang, 48, col(th.onSurface))),
-                        const SizedBox(height: 32),
-                        PixelProgress(
-                            percent: e.progressPercent(),
-                            track: th.panel,
-                            border: th.onSurfaceDim,
-                            fill: e.isFinished ? th.accent : th.phaseColor(e.mode)),
-                        const SizedBox(height: 36),
-                        Row(
-                          children: [
-                            Expanded(
-                                child: primaryBtn(th, lang, t(lang, e.isRunning ? 'pause' : 'start'),
-                                    s.toggleStartPause, fontSize: 14, padding: const EdgeInsets.all(16))),
-                            const SizedBox(width: 16),
-                            Expanded(
-                                child: secondaryBtn(th, lang, t(lang, 'reset'), s.reset,
-                                    fontSize: 14, padding: const EdgeInsets.all(16))),
-                          ],
+                child: garden
+                    // garden mode: session up top in the empty band, timer docked
+                    // at the bottom over the full-strength garden (#5)
+                    ? Column(children: [
+                        _topBar(context, th, lang),
+                        sessionText,
+                        const Spacer(),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                          child: timerBlock,
                         ),
-                        const SizedBox(height: 24),
-                        GestureDetector(
-                          onTap: s.switchMode,
-                          child: Text(t(lang, 'switchMode'), style: pixelStyle(lang, 10, col(th.onSurfaceDim))),
+                      ])
+                    // clean mode: the centered timer (today's layout)
+                    : Column(children: [
+                        _topBar(context, th, lang),
+                        Expanded(
+                          child: Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(24),
+                              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                                timerBlock,
+                                const SizedBox(height: 24),
+                                sessionText,
+                              ]),
+                            ),
+                          ),
                         ),
-                        const SizedBox(height: 24),
-                        Text(tf(lang, 'session', [e.session, e.totalSessions]),
-                            style: pixelStyle(lang, 12, col(th.onSurfaceDim))),
-                      ],
-                    ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+                      ]),
+              ),
             ],
           ),
         );
@@ -225,34 +260,42 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _iconBtn(IconData icon, int color, VoidCallback onTap) =>
-      IconButton(icon: Icon(icon, color: col(color), size: 28), onPressed: onTap);
-
   Widget _topBar(BuildContext context, PixelTheme th, String lang) {
+    // custom pixel icons (#3): left = theme/garden/stats · right = settings/store/coin (#4)
+    Widget iconBtn(IconBank? bank, int sheetCol, bool fromStore, VoidCallback onTap, Key? key) {
+      final child = bank == null
+          ? const SizedBox(width: 30, height: 30)
+          : MenuIcon(fromStore ? bank.store : bank.menu, sheetCol, size: 30);
+      return IconButton(key: key, icon: child, onPressed: onTap);
+    }
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      child: Row(
-        children: [
-          _iconBtn(Icons.palette, th.onSurface, () => openPanel(context, s, () => ThemeScreen(s))),
-          _iconBtn(Icons.local_florist, th.onSurface, () => openPanel(context, s, () => GardenScreen(s))),
-          const Spacer(),
-          _iconBtn(Icons.bar_chart, th.onSurface, () => openPanel(context, s, () => StatsScreen(s))),
-          _iconBtn(Icons.settings, th.onSurface, () => openPanel(context, s, () => SettingsScreen(s))),
-          GestureDetector(
-            key: const Key('shopButton'),
-            onTap: () => openPanel(context, s, () => ShopScreen(s)),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Row(
-                children: [
-                  const GoldCoin(size: 32),
-                  const SizedBox(width: 8),
+      child: FutureBuilder<IconBank>(
+        future: menuIcons(),
+        builder: (context, snap) {
+          final bank = snap.data;
+          return Row(children: [
+            iconBtn(bank, 0, false, () => openPanel(context, s, () => ThemeScreen(s)), const Key('themeButton')),
+            iconBtn(bank, 1, false, () => openPanel(context, s, () => GardenScreen(s)), const Key('gardenButton')),
+            iconBtn(bank, 2, false, () => openPanel(context, s, () => StatsScreen(s)), const Key('statsButton')),
+            const Spacer(),
+            iconBtn(bank, 3, false, () => openPanel(context, s, () => SettingsScreen(s)), const Key('settingsButton')),
+            iconBtn(bank, 4, true, () => openPanel(context, s, () => ShopScreen(s)), const Key('storeButton')),
+            GestureDetector(
+              key: const Key('shopButton'),
+              onTap: () => openPanel(context, s, () => ShopScreen(s)),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: Row(children: [
+                  const GoldCoin(size: 28),
+                  const SizedBox(width: 6),
                   Text('${s.coins}', style: pixelStyle(lang, 14, col(th.onSurface))),
-                ],
+                ]),
               ),
             ),
-          ),
-        ],
+          ]);
+        },
       ),
     );
   }
@@ -314,6 +357,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 lang: lang,
                 fontSize: 11,
                 onTap: () => s.setHomeGardenBackdrop(on),
+              ),
+            ),
+          ],
+        ],
+      ),
+      const SizedBox(height: 24),
+      Text(t(lang, 'autoBreak'), style: pixelStyle(lang, 12, col(th.onSurfaceDim))),
+      const SizedBox(height: 12),
+      Row(
+        children: [
+          for (final on in const [true, false]) ...[
+            if (!on) const SizedBox(width: 12),
+            Expanded(
+              child: PixelButton(
+                text: on ? 'ON' : 'OFF',
+                fill: s.autoBreak == on ? th.accent : th.panel,
+                border: s.autoBreak == on ? th.onSurface : th.onSurfaceDim,
+                textColor: s.autoBreak == on ? th.onAccent : th.onSurface,
+                shadow: th.shadow,
+                lang: lang,
+                fontSize: 11,
+                onTap: () => s.setAutoBreak(on),
               ),
             ),
           ],
@@ -534,12 +599,12 @@ class StatsScreen extends StatelessWidget {
     final lang = s.lang;
     final now = DateTime.now();
     final totals = StatsAggregator.aggregate(s.records, now);
-    final byLabel = StatsAggregator.byLabelInWindow(s.records, now, s.statPeriod);
-    final series = StatsAggregator.seriesFor(s.records, now, s.statPeriod);
+    final byLabel = StatsAggregator.byLabelInWindow(s.records, now, s.statPeriod, s.statOffset);
+    final series = StatsAggregator.seriesFor(s.records, now, s.statPeriod, s.statOffset);
     final multiLine = s.statPeriod == StatPeriod.daily;
     final labelLines = multiLine
         ? [
-            for (final ls in StatsAggregator.labelSeriesFor(s.records, now, s.statPeriod))
+            for (final ls in StatsAggregator.labelSeriesFor(s.records, now, s.statPeriod, s.statOffset))
               LabelLine(ls.label, s.labelColorOf(ls.label), ls.values)
           ]
         : null;
@@ -589,6 +654,27 @@ class StatsScreen extends StatelessWidget {
       ]),
       const SizedBox(height: 12),
       Row(children: [chartBtn(t(lang, 'chartBar'), ChartMode.bar), chartBtn(t(lang, 'chartLine'), ChartMode.line), chartBtn(t(lang, 'chartPie'), ChartMode.pie)]),
+      // history navigator — browse previous day/week/month/year (#1)
+      if (s.statPeriod != StatPeriod.allTime) ...[
+        const SizedBox(height: 10),
+        Row(children: [
+          SizedBox(
+            width: 52,
+            child: secondaryBtn(th, lang, '<', () => s.shiftStatOffset(1),
+                key: const Key('statPrev'), fontSize: 13, padding: const EdgeInsets.all(10)),
+          ),
+          Expanded(child: Center(child: Text(_periodLabel(s, lang),
+              style: pixelStyle(lang, 11, col(th.onSurface))))),
+          SizedBox(
+            width: 52,
+            child: PixelButton(
+                text: '>', fill: th.panel, border: th.onSurfaceDim, textColor: th.onSurface, shadow: th.shadow,
+                lang: lang, fontSize: 13, padding: const EdgeInsets.all(10),
+                opacity: s.statOffset > 0 ? 1 : 0.35,
+                onTap: () => s.shiftStatOffset(-1)),
+          ),
+        ]),
+      ],
       const SizedBox(height: 16),
       SizedBox(
         height: 200,
@@ -633,53 +719,102 @@ class StatsScreen extends StatelessWidget {
           ),
     ]);
   }
+
+  /// Label for the history navigator, matching the selected period's granularity.
+  String _periodLabel(AppStore s, String lang) {
+    final now = DateTime.now();
+    final a = StatsAggregator.anchorFor(now, s.statPeriod, s.statOffset);
+    switch (s.statPeriod) {
+      case StatPeriod.daily:
+        return '${monthName(lang, a.month)} ${a.day}';
+      case StatPeriod.weekly:
+        final (lo, hi) = StatsAggregator.windowDays(a, StatPeriod.weekly);
+        final loD = dateOfEpochDay(lo), hiD = dateOfEpochDay(hi);
+        return '${loD.day}–${hiD.day} ${monthName(lang, hiD.month)}';
+      case StatPeriod.monthly:
+        return '${monthName(lang, a.month)} ${a.year}';
+      case StatPeriod.yearly:
+        return '${a.year}';
+      case StatPeriod.allTime:
+        return t(lang, 'pAll');
+    }
+  }
 }
 
 // ---- shop -------------------------------------------------------------------
 
-class ShopScreen extends StatelessWidget {
+class ShopScreen extends StatefulWidget {
   final AppStore s;
   const ShopScreen(this.s, {super.key});
+  @override
+  State<ShopScreen> createState() => _ShopScreenState();
+}
+
+class _ShopScreenState extends State<ShopScreen> {
+  int _tab = 0; // 0 flowers · 1 outer decor · 2 inner decor · 3 pets (#6)
 
   @override
   Widget build(BuildContext context) {
+    final s = widget.s;
     final th = s.theme;
     final lang = s.lang;
-    return overlayScaffold(context, s, t(lang, 'shop'), [
-      Text(t(lang, 'shopHelp'), style: pixelStyle(lang, 9, col(th.onSurfaceDim))),
-      const SizedBox(height: 20),
-      for (final f in Flowers.all)
-        Padding(
-          padding: const EdgeInsets.only(bottom: 14),
-          child: Row(
-            children: [
-              FlowerSprite(flower: f, size: 40),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(f.nameIn(lang), style: pixelStyle(lang, 12, col(th.onSurface))),
-                    const SizedBox(height: 6),
-                    Text(tf(lang, 'owned', [s.owned[f.id] ?? 0]), style: pixelStyle(lang, 8, col(th.onSurfaceDim))),
-                  ],
-                ),
-              ),
-              PixelButton(
-                text: '${t(lang, 'buy')} ${Economy.flowerCost}',
-                fill: th.accent, border: th.onSurface, textColor: th.onAccent, shadow: th.shadow,
-                lang: lang, fontSize: 11, padding: const EdgeInsets.all(12),
-                opacity: s.coins >= Economy.flowerCost ? 1 : 0.45,
-                onTap: () => s.buyFlower(f),
-              ),
-            ],
+    Widget tabBtn(String text, int i) => Expanded(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            child: _tab == i
+                ? primaryBtn(th, lang, text, () => setState(() => _tab = i), fontSize: 8, padding: const EdgeInsets.all(8))
+                : secondaryBtn(th, lang, text, () => setState(() => _tab = i), fontSize: 8, padding: const EdgeInsets.all(8)),
           ),
+        );
+    return overlayScaffold(context, s, t(lang, 'shop'), [
+      Row(children: [
+        tabBtn(t(lang, 'catFlowers'), 0),
+        tabBtn(t(lang, 'catOuter'), 1),
+        tabBtn(t(lang, 'catInner'), 2),
+        tabBtn(t(lang, 'catPets'), 3),
+      ]),
+      const SizedBox(height: 16),
+      if (_tab == 0) ...[
+        Text(t(lang, 'shopHelp'), style: pixelStyle(lang, 9, col(th.onSurfaceDim))),
+        const SizedBox(height: 12),
+        for (final f in Flowers.all) _flowerRow(s, th, lang, f),
+      ] else if (_tab == 1) ...[
+        for (final id in Placeables.objectIds) _objectRow(s, th, lang, id),
+      ] else
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 40),
+          child: Center(child: Text(t(lang, 'comingSoon'), style: pixelStyle(lang, 12, col(th.onSurfaceDim)))),
         ),
-      const SizedBox(height: 8),
-      Text(t(lang, 'shopObjects'), style: pixelStyle(lang, 12, col(th.onSurfaceDim))),
-      const SizedBox(height: 14),
-      for (final id in Placeables.objectIds) _objectRow(s, th, lang, id),
     ]);
+  }
+
+  Widget _flowerRow(AppStore s, PixelTheme th, String lang, Flower f) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Row(
+        children: [
+          FlowerSprite(flower: f, size: 40),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(f.nameIn(lang), style: pixelStyle(lang, 12, col(th.onSurface))),
+                const SizedBox(height: 6),
+                Text(tf(lang, 'owned', [s.owned[f.id] ?? 0]), style: pixelStyle(lang, 8, col(th.onSurfaceDim))),
+              ],
+            ),
+          ),
+          PixelButton(
+            text: '${t(lang, 'buy')} ${Economy.flowerCost}',
+            fill: th.accent, border: th.onSurface, textColor: th.onAccent, shadow: th.shadow,
+            lang: lang, fontSize: 11, padding: const EdgeInsets.all(12),
+            opacity: s.coins >= Economy.flowerCost ? 1 : 0.45,
+            onTap: () => s.buyFlower(f),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _objectRow(AppStore s, PixelTheme th, String lang, String id) {
@@ -767,15 +902,6 @@ class _GardenScreenState extends State<GardenScreen> {
             ),
           SimpleDialogOption(
             onPressed: () async {
-              final path = await saveBackdropPng(bytes);
-              s.setGardenBackdrop(path);
-              if (ctx.mounted) Navigator.pop(ctx);
-              _exitCamera();
-            },
-            child: Text(t(lang, 'setBackdrop'), style: pixelStyle(lang, 11, col(th.onSurface))),
-          ),
-          SimpleDialogOption(
-            onPressed: () async {
               await sharePng(bytes, 'pixel_pomo_garden.png');
               if (ctx.mounted) Navigator.pop(ctx);
             },
@@ -796,9 +922,6 @@ class _GardenScreenState extends State<GardenScreen> {
     final th = s.theme;
     final lang = s.lang;
     final cost = Economy.upgradeCost(s.garden.cols, s.garden.rows);
-    // the static photo replaces the live scene in the garden section only when
-    // not actively customizing or framing a new shot.
-    final showStatic = s.gardenBackdropPath != null && !_camera && !s.customizing;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       // while peeking, let the forest run edge-to-edge behind transparent bars (#5)
@@ -835,11 +958,9 @@ class _GardenScreenState extends State<GardenScreen> {
                 child: Text(t(lang, 'gardenHelp'), style: pixelStyle(lang, 8, col(th.onSurfaceDim))),
               ),
             if (!_hudHidden) const SizedBox(height: 8),
-            // the live 2.5D scene (or the static photo) fills the remaining space
+            // the live 2.5D scene fills the remaining space
             Expanded(
-              child: showStatic
-                  ? _staticBackdrop(s, th, lang)
-                  : FutureBuilder<SpriteBank>(
+              child: FutureBuilder<SpriteBank>(
                       future: gardenSprites(),
                       builder: (context, snap) {
                         if (!snap.hasData) {
@@ -902,35 +1023,6 @@ class _GardenScreenState extends State<GardenScreen> {
         ),
       ),
       ),
-    );
-  }
-
-  /// The captured static photo as the garden section's backdrop, with controls
-  /// to retake (camera) or clear it (back to the live garden).
-  Widget _staticBackdrop(AppStore s, PixelTheme th, String lang) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Image.file(File(s.gardenBackdropPath!), fit: BoxFit.cover, filterQuality: FilterQuality.none),
-        Positioned(
-          left: 6,
-          bottom: 4,
-          child: IconButton(
-            key: const Key('cameraButton'),
-            icon: Icon(Icons.photo_camera, size: 22, color: col(th.onSurface)),
-            tooltip: t(lang, 'camera'),
-            onPressed: _enterCamera,
-          ),
-        ),
-        Positioned(
-          right: 6,
-          bottom: 4,
-          child: TextButton(
-            onPressed: () => s.setGardenBackdrop(null),
-            child: Text(t(lang, 'clearBackdrop'), style: pixelStyle(lang, 9, col(th.onSurface))),
-          ),
-        ),
-      ],
     );
   }
 
