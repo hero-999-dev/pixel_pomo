@@ -248,8 +248,8 @@ class Placeables {
 class Economy {
   static const flowerCost = 10;
   static const objectCost = 5; // roads + fences
-  static const baseGardenCols = 4;
-  static const baseGardenRows = 6;
+  static const baseGardenCols = 10; // ratio-aware, fills the portrait screen (#7)
+  static const baseGardenRows = 16;
   static int coinsFor(int minutes) => minutes <= 0 ? 0 : minutes ~/ 5;
 
   /// Whole focus minutes spent so far in a [workMin] session with [timeLeftMillis]
@@ -333,6 +333,16 @@ class Garden {
       remapped[(r + 1) * nc + (c + 1)] = id;
     });
     return Garden(cols: nc, rows: nr, tiles: remapped);
+  }
+
+  /// Grow (centred, +2/+2 per step) until at least [cols]×[rows]. Migrates older,
+  /// smaller saved gardens to the new bigger base, keeping plantings centred (#7).
+  Garden atLeast(int cols, int rows) {
+    var g = this;
+    while (g.cols < cols || g.rows < rows) {
+      g = g.grow();
+    }
+    return g;
   }
 
   int countPlanted(String flowerId) => tiles.values.where((v) {
