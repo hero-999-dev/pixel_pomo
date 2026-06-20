@@ -6,7 +6,6 @@ import 'package:flutter/services.dart';
 import 'camera.dart';
 import 'engine/garden_engine.dart';
 import 'engine/garden_view.dart';
-import 'icons.dart';
 import 'logic.dart';
 import 'pixel.dart';
 import 'store.dart';
@@ -24,9 +23,6 @@ Widget objectThumb(String id, double size) {
 /// SpriteBank is loaded once and shared across garden opens.
 Future<SpriteBank>? _spritesFuture;
 Future<SpriteBank> gardenSprites() => _spritesFuture ??= SpriteBank.load();
-
-Future<IconBank>? _iconsFuture;
-Future<IconBank> menuIcons() => _iconsFuture ??= IconBank.load();
 
 final GlobalKey<ScaffoldMessengerState> messengerKey = GlobalKey<ScaffoldMessengerState>();
 
@@ -260,43 +256,37 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _topBar(BuildContext context, PixelTheme th, String lang) {
-    // custom pixel icons (#3): left = theme/garden/stats · right = settings/store/coin (#4)
-    Widget iconBtn(IconBank? bank, int sheetCol, bool fromStore, VoidCallback onTap, Key? key) {
-      final child = bank == null
-          ? const SizedBox(width: 30, height: 30)
-          : MenuIcon(fromStore ? bank.store : bank.menu, sheetCol, size: 30);
-      return IconButton(key: key, icon: child, onPressed: onTap);
-    }
-
+  // left = theme/garden/stats · right = settings/store/coin (#4). [center] holds the
+  // SESSION indicator in garden mode, sitting between the two icon groups (#3, v14).
+  Widget _topBar(BuildContext context, PixelTheme th, String lang, {Widget? center}) {
+    Widget icon(String name, VoidCallback onTap, Key key) => IconButton(
+          key: key,
+          icon: Image.asset('assets/icon/icon_$name.png', width: 30, height: 30, filterQuality: FilterQuality.none),
+          onPressed: onTap,
+        );
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      child: FutureBuilder<IconBank>(
-        future: menuIcons(),
-        builder: (context, snap) {
-          final bank = snap.data;
-          return Row(children: [
-            iconBtn(bank, 0, false, () => openPanel(context, s, () => ThemeScreen(s)), const Key('themeButton')),
-            iconBtn(bank, 1, false, () => openPanel(context, s, () => GardenScreen(s)), const Key('gardenButton')),
-            iconBtn(bank, 2, false, () => openPanel(context, s, () => StatsScreen(s)), const Key('statsButton')),
-            const Spacer(),
-            iconBtn(bank, 3, false, () => openPanel(context, s, () => SettingsScreen(s)), const Key('settingsButton')),
-            iconBtn(bank, 4, true, () => openPanel(context, s, () => ShopScreen(s)), const Key('storeButton')),
-            GestureDetector(
-              key: const Key('shopButton'),
-              onTap: () => openPanel(context, s, () => ShopScreen(s)),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                child: Row(children: [
-                  const GoldCoin(size: 28),
-                  const SizedBox(width: 6),
-                  Text('${s.coins}', style: pixelStyle(lang, 14, col(th.onSurface))),
-                ]),
-              ),
-            ),
-          ]);
-        },
-      ),
+      child: Row(children: [
+        icon('theme', () => openPanel(context, s, () => ThemeScreen(s)), const Key('themeButton')),
+        icon('garden', () => openPanel(context, s, () => GardenScreen(s)), const Key('gardenButton')),
+        icon('stats', () => openPanel(context, s, () => StatsScreen(s)), const Key('statsButton')),
+        const Spacer(),
+        if (center != null) ...[center, const Spacer()],
+        icon('settings', () => openPanel(context, s, () => SettingsScreen(s)), const Key('settingsButton')),
+        icon('store', () => openPanel(context, s, () => ShopScreen(s)), const Key('storeButton')),
+        GestureDetector(
+          key: const Key('shopButton'),
+          onTap: () => openPanel(context, s, () => ShopScreen(s)),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            child: Row(children: [
+              const GoldCoin(size: 28),
+              const SizedBox(width: 6),
+              Text('${s.coins}', style: pixelStyle(lang, 14, col(th.onSurface))),
+            ]),
+          ),
+        ),
+      ]),
     );
   }
 }
