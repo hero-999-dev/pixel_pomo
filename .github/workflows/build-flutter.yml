@@ -52,6 +52,13 @@ jobs:
         working-directory: flutter
         run: dart run flutter_launcher_icons
 
+      # android/ is regenerated above, so our native live-wallpaper files (the
+      # WallpaperService + channel) live in flutter/android_overlay/ and get
+      # copied in + the manifest patched here (idempotent). Android-only (#v15).
+      - name: Apply Android native overlay (live wallpaper)
+        working-directory: flutter
+        run: python3 android_overlay/apply_overlay.py
+
       - name: Analyze (non-blocking)
         working-directory: flutter
         run: flutter analyze || true

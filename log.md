@@ -5,6 +5,41 @@ Each entry notes the **prompt** (what you asked for) and the **changes** made.
 
 ---
 
+## v15 — true animated Android live wallpaper (Flutter, 0.15.0+16)
+**Date:** 2026-06-20
+
+**Prompt:** "do the live wallpaper update as we talked" — the long-deferred true animated Android live
+wallpaper (a native `WallpaperService` rendering the garden), then continue refining the v14 visual details.
+**Brainstorming decisions:** render approach **A1 — native Kotlin Canvas** (no embedded Flutter engine: there's
+no supported API to draw into a wallpaper surface, it's fragile across the moving `stable` channel and heavy in
+a background process). The wallpaper shows the user's **real** garden (reads the same saved data + sprites) and
+reproduces the **angle the user frames in camera mode** (yaw/zoom/pan). Entry point: **camera mode** —
+**SET LIVE WALLPAPER · CAPTURE · CANCEL**. The static `wallpaper_manager_flutter` path is retired. Android-only
+(iOS has no API; keeps Save/Share).
+
+**Changes (8 tasks):**
+- **(T1) Framing model** — pure `WallpaperCam(yaw, zoom, panXFrac, panYFrac)` in `logic.dart` (encode/decode a
+  compact string; pan stored as a fraction of the tile size so it reproduces across surface sizes);
+  `AppStore.setWallpaperCamera(...)` persists pref `wallpaper_cam`.
+- **(T2) Channel + cleanup** — `camera.dart` `setLiveWallpaper()` invokes `MethodChannel('pixel_pomo/wallpaper')`;
+  removed `setPhoneWallpaper` and the **`wallpaper_manager_flutter`** dependency + its capture-dialog option.
+- **(T3) Camera-mode UI** — `GardenView` now takes a parent-owned `GardenCamera` so `_GardenScreenState` can read
+  the live framing; the camera-mode bar is **SET LIVE WALLPAPER · CAPTURE · CANCEL** (wallpaper button Android-only),
+  whose handler normalizes pan by the projector tile size, persists the framing, and opens the picker.
+- **(T4–T6) Native overlay** (`flutter/android_overlay/`, copied into the CI-regenerated `android/` by
+  `apply_overlay.py`, which idempotently patches the manifest): `MainActivity.kt` (the channel fires
+  `ACTION_CHANGE_LIVE_WALLPAPER` for our service / `isActive`), `GardenWallpaperService.kt` (Choreographer render
+  loop, ~30 fps, **stops when not visible**, re-reads the garden on visibility, parallax via `onOffsetsChanged`),
+  `GardenData.kt` (reads `flutter.garden`/`flutter.theme_id`/`flutter.wallpaper_cam` from `FlutterSharedPreferences`,
+  mirrors `Garden.decode`/`Placeables.split`, loads sprites from `flutter_assets`), `GardenRenderer.kt` (ports the
+  `Projector` math incl. yaw + a **64-bit `forestPropAt` mirror** so the forest border matches the in-app view;
+  draws forest floor → bounded forest border → grass clearing → roads → swaying flower billboards → drifting bee).
+- **(T7) CI** — `build-flutter.yml` runs `apply_overlay.py` after scaffolding (Android-only; CI stays green).
+- **Tests: 53** (41 logic incl. `WallpaperCam`; 10 engine; new `wallpaper_channel_test`; smoke). analyze clean;
+  debug APK builds with the patched manifest (`GardenWallpaperService` + `BIND_WALLPAPER` + `live_wallpaper`).
+  The native render + on-device wallpaper-set are **device-verified** (CI runs `flutter test` only).
+- **Docs:** TESTING.md, README.md, flutter/README.md, prompt.md updated; version → **0.15.0+16**.
+
 ## v14 — transparent icons, stats TREND, bounded forest world, calmer garden (Flutter, 0.14.0+15)
 **Date:** 2026-06-20
 
