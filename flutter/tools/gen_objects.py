@@ -176,6 +176,71 @@ def tree_grid():
     return g
 
 
+# ---- forest variety (#5): many trees + bushes + rocks, scattered -------------
+
+def _tree_variant(seed):
+    rnd = (seed * 1103515245 + 12345) & 0x7fffffff
+    def rb(n):
+        nonlocal rnd
+        rnd = (rnd * 1103515245 + 12345) & 0x7fffffff
+        return rnd % n
+    g = blank(16, 16)
+    greens = ["1E4D27", "2A6B33", "246B2E", "17401F", "327A3B", "1B5526"]
+    canopy = hexrgb(greens[rb(len(greens))]) + (255,)
+    canopy2 = hexrgb(greens[rb(len(greens))]) + (255,)
+    trunk = hexrgb("3A2A18") + (255,)
+    rad = 4.0 + rb(3)                # 4..6
+    cx, cy = 7.5, 5.0 + rb(2)
+    squash = 1.05 + rb(3) * 0.12
+    for r in range(16):
+        for c in range(16):
+            if (c - cx) ** 2 + ((r - cy) * squash) ** 2 <= rad * rad:
+                g[r][c] = canopy2 if (r + c + rb(2)) % 2 else canopy
+    for r in range(int(cy + rad - 1), 16):
+        if 0 <= r < 16:
+            g[r][7] = trunk
+            g[r][8] = trunk
+    return g
+
+
+def _bush_variant(seed):
+    rnd = (seed * 2654435761 + 40503) & 0x7fffffff
+    def rb(n):
+        nonlocal rnd
+        rnd = (rnd * 1103515245 + 12345) & 0x7fffffff
+        return rnd % n
+    g = blank(16, 16)
+    greens = ["2A6B33", "327A3B", "246B2E", "3C8A45"]
+    a = hexrgb(greens[rb(len(greens))]) + (255,)
+    b = hexrgb(greens[rb(len(greens))]) + (255,)
+    rad = 3.0 + rb(2)
+    cx, cy = 7.5, 10.0
+    for r in range(16):
+        for c in range(16):
+            if (c - cx) ** 2 + ((r - cy) * 1.3) ** 2 <= rad * rad:
+                g[r][c] = b if (r + c) % 2 else a
+    return g
+
+
+def _rock_variant(seed):
+    rnd = (seed * 40503 + 12345) & 0x7fffffff
+    def rb(n):
+        nonlocal rnd
+        rnd = (rnd * 1103515245 + 12345) & 0x7fffffff
+        return rnd % n
+    g = blank(16, 16)
+    grays = ["6E6E6E", "7C7C7C", "5E5E5E", "888888"]
+    a = hexrgb(grays[rb(len(grays))]) + (255,)
+    b = hexrgb("4A4A4A") + (255,)
+    rad = 2.5 + rb(2)
+    cx, cy = 7.5, 11.0
+    for r in range(16):
+        for c in range(16):
+            if (c - cx) ** 2 + ((r - cy) * 1.4) ** 2 <= rad * rad:
+                g[r][c] = b if r > cy else a   # darker bottom
+    return g
+
+
 # ---- flowers: render the same char-grids the Dart FlowerSprite uses ----------
 
 GREEN = hexrgb("46A03C")
@@ -487,6 +552,13 @@ def main():
     write_png(os.path.join(OUT, "grass.png"), upscale(grass_grid(), SCALE))
     write_png(os.path.join(OUT, "forest.png"), upscale(forest_grid(), SCALE))
     write_png(os.path.join(OUT, "tree.png"), upscale(tree_grid(), SCALE))
+    # forest variety (#5): 20 trees + 10 bushes + 5 rocks
+    for i in range(20):
+        write_png(os.path.join(OUT, f"tree_{i:02d}.png"), upscale(_tree_variant(i + 1), SCALE))
+    for i in range(10):
+        write_png(os.path.join(OUT, f"bush_{i:02d}.png"), upscale(_bush_variant(i + 1), SCALE))
+    for i in range(5):
+        write_png(os.path.join(OUT, f"rock_{i:02d}.png"), upscale(_rock_variant(i + 1), SCALE))
     write_png(os.path.join(OUT, "coin.png"), upscale(coin_grid(), SCALE))
     for rid, fn in ROADS.items():
         write_png(os.path.join(OUT, f"{rid}.png"), upscale(fn(), SCALE))

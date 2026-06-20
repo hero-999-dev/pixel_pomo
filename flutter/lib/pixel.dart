@@ -320,8 +320,24 @@ class _ChartPainter extends CustomPainter {
     return m[c.lang] ?? m['en']!;
   }
 
-  String _short(String s) => s.length <= 6 ? s : s.substring(0, 6);
+  String _cap(String s) => s.length <= 12 ? s : s.substring(0, 12);
   String _fmt(int min) => StatsAggregator.formatMinutes(min);
+
+  String _total() {
+    const m = {'en': 'TOTAL', 'tr': 'TOPLAM', 'pl': 'RAZEM', 'de': 'GESAMT', 'ko': '합계', 'it': 'TOTALE'};
+    return m[c.lang] ?? m['en']!;
+  }
+
+  /// Draw rows as two columns: left label, right value right-aligned to [right].
+  void _alignedRows(Canvas canvas, List<(String, String)> rows, double left,
+      double top, double right, {double fs = 7, double lh = 11}) {
+    var ty = top + lh;
+    for (final (l, r) in rows) {
+      _text(canvas, l, left, ty, fs, c.textColor);
+      _text(canvas, r, right, ty, fs, c.textColor, align: TextAlign.right);
+      ty += lh;
+    }
+  }
 
   void _bars(Canvas canvas, double w, double h) {
     const padL = 8.0, padR = 8.0, padTop = 10.0, padBottom = 26.0;
@@ -338,8 +354,8 @@ class _ChartPainter extends CustomPainter {
       final barH = plotH * (e.value / maxVal);
       fill.color = col(e.color);
       canvas.drawRect(Rect.fromLTWH(cx - barW / 2, padTop + plotH - barH, barW, barH), fill);
-      _text(canvas, _short(e.label), cx, h - 14, 7, c.textColor, align: TextAlign.center);
-      _text(canvas, _fmt(e.value), cx, padTop + plotH - barH - 3, 7, c.textColor, align: TextAlign.center);
+      _text(canvas, _cap(e.label), cx, h - 14, 7, c.textColor, align: TextAlign.center);
+      _text(canvas, '${e.value}', cx, padTop + plotH - barH - 3, 7, c.textColor, align: TextAlign.center); // minutes (#1)
     }
   }
 
@@ -388,48 +404,61 @@ class _ChartPainter extends CustomPainter {
       _text(canvas, c.series.tickLabels.last, padL + plotW, h - 4, 7, c.textColor, align: TextAlign.right);
     }
 
+    // daily multi-line legend (#2) — a colored dash + label per series
+    if (lines != null) {
+      var lyy = padTop;
+      for (final l in lines) {
+        canvas.drawRect(Rect.fromLTWH(padL, lyy + 2, 10, 3), Paint()..color = col(l.color));
+        _text(canvas, _cap(l.label), padL + 14, lyy + 9, 6, c.textColor);
+        lyy += 9;
+      }
+    }
+
     final s = sel;
     if (s != null && s >= 0 && s < n) {
       final sx = x(s);
       canvas.drawLine(Offset(sx, padTop), Offset(sx, padTop + plotH),
           Paint()..color = col(c.axisColor)..strokeWidth = 1);
+      // selected bucket's tick at the bottom axis, highlighted (#2)
+      _text(canvas, c.series.tickLabels[s], sx, h - 4, 7, c.lineColor, align: TextAlign.center);
       final detail = c.series.byLabel[s];
-      final lines2 = <String>[
-        '${c.series.tickLabels[s]} · ${_fmt(totals[s])}',
-        for (final e in detail) '${_short(e.key)} ${_fmt(e.value)}',
+      final rows = <(String, String)>[
+        (_total(), _fmt(totals[s])),
+        for (final e in detail) (_cap(e.key), _fmt(e.value)),
       ];
-      _callout(canvas, w, sx, padTop + 4, lines2);
+      _callout(canvas, w, sx, padTop + 4, rows);
     }
   }
 
-  void _callout(Canvas canvas, double w, double anchorX, double top, List<String> lines) {
-    const fs = 7.0, pad = 4.0, lh = 11.0;
-    var maxW = 0.0;
-    for (final s in lines) {
+  /// A bordered callout with right-aligned values (#2), reused by the line tap.
+  void _callout(Canvas canvas, double w, double anchorX, double top, List<(String, String)> rows) {
+    const fs = 7.0, pad = 4.0, lh = 11.0, gap = 8.0;
+    double colW(String s) {
       final tp = TextPainter(
         text: TextSpan(text: s, style: pixelStyle(c.lang, fs, col(c.textColor))),
         textDirection: TextDirection.ltr,
       )..layout();
-      maxW = math.max(maxW, tp.width);
+      return tp.width;
     }
-    final boxW = maxW + pad * 2;
-    final boxH = lines.length * lh + pad * 2;
+    var lW = 0.0, rW = 0.0;
+    for (final (l, r) in rows) {
+      lW = math.max(lW, colW(l));
+      rW = math.max(rW, colW(r));
+    }
+    final boxW = lW + gap + rW + pad * 2;
+    final boxH = rows.length * lh + pad * 2;
     var left = anchorX + 6;
     if (left + boxW > w) left = anchorX - 6 - boxW;
     if (left < 0) left = 0;
     final rect = Rect.fromLTWH(left, top, boxW, boxH);
     canvas.drawRect(rect, Paint()..color = col(c.panelColor));
     canvas.drawRect(rect, Paint()..style = PaintingStyle.stroke..strokeWidth = 1..color = col(c.panelBorder));
-    var ty = top + pad + lh;
-    for (final s in lines) {
-      _text(canvas, s, left + pad, ty, fs, c.textColor);
-      ty += lh;
-    }
+    _alignedRows(canvas, rows, left + pad, top + pad - lh, left + boxW - pad, fs: fs, lh: lh);
   }
 
   void _pie(Canvas canvas, double w, double h) {
     final total = c.entries.fold<int>(0, (a, e) => a + e.value).toDouble();
-    final legendW = w * 0.42;
+    final legendW = w * 0.5; // wider so full (≤12-char) labels fit (#1)
     final dia = math.min(h - 16, (w - legendW) - 16);
     final cx = 8 + (w - legendW - 8) / 2, cy = h / 2;
     final rect = Rect.fromCircle(center: Offset(cx, cy), radius: dia / 2);
@@ -446,13 +475,16 @@ class _ChartPainter extends CustomPainter {
       canvas.drawArc(rect, start, sweep, true, sep); // wedge outline separates same-colored slices
       start += sweep;
     }
-    final lx = w - legendW + 6;
-    var ly = cy - (c.entries.length * 13) / 2 + 8;
+    // legend: swatch + full label left, % right-aligned to a common edge (#1)
+    final lx = w - legendW + 4;
+    final rightEdge = w - 4;
+    var ly = cy - (c.entries.length * 13) / 2;
     for (final e in c.entries) {
       fill.color = col(e.color);
-      canvas.drawRect(Rect.fromLTWH(lx, ly - 7, 8, 8), fill);
+      canvas.drawRect(Rect.fromLTWH(lx, ly + 2, 8, 8), fill);
       final pct = (100 * e.value / total).round();
-      _text(canvas, '${_short(e.label)} $pct%', lx + 12, ly + 1, 7, c.textColor);
+      _text(canvas, _cap(e.label), lx + 12, ly + 11, 7, c.textColor);
+      _text(canvas, '$pct%', rightEdge, ly + 11, 7, c.textColor, align: TextAlign.right);
       ly += 13;
     }
   }
