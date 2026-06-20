@@ -772,8 +772,6 @@ class _ShopScreenState extends State<ShopScreen> {
       ]),
       const SizedBox(height: 16),
       if (_tab == 0) ...[
-        Text(t(lang, 'shopHelp'), style: pixelStyle(lang, 9, col(th.onSurfaceDim))),
-        const SizedBox(height: 12),
         for (final f in Flowers.all) _flowerRow(s, th, lang, f),
       ] else if (_tab == 1) ...[
         for (final id in Placeables.objectIds) _objectRow(s, th, lang, id),
