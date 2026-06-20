@@ -399,31 +399,22 @@ def flower_png_grid(petal_hex, center_hex, chars):
 # ---- grass tile (seamless, subtle speckle) -----------------------------------
 
 def grass_grid():
-    # Brighter, more textured field (closer to the feedback inspiration) so plant
-    # greens read against it — paired with the dark plant outline in flower_png_grid.
-    base = hexrgb("5BA838")
-    d1 = hexrgb("4F9A30")
-    d2 = hexrgb("3E7F2A")    # darker blade tufts
-    l1 = hexrgb("6FC04A")
-    olive = hexrgb("BBD37A")
+    # A calm field: one base green with only sparse, low-contrast speckle so it
+    # doesn't read as a patchwork quilt (#6). No bright olive, no hard tufts —
+    # plants keep their dark outline (flower_png_grid) to separate from it.
+    base = hexrgb("57A636")
+    d1 = hexrgb("4F9A30")   # subtle darker
+    l1 = hexrgb("63B23E")   # subtle lighter
     g = [[base + (255,) for _ in range(16)] for _ in range(16)]
     seed = 1234567
     for r in range(16):
         for c in range(16):
             seed = (seed * 1103515245 + 12345) & 0x7FFFFFFF
-            v = seed % 14
+            v = seed % 30
             if v == 0:
                 g[r][c] = d1 + (255,)
             elif v == 1:
                 g[r][c] = l1 + (255,)
-            elif v == 2:
-                g[r][c] = olive + (255,)
-    # a couple of little grass tufts
-    for (br, bc) in ((3, 4), (10, 11)):
-        for (dr, dc) in ((0, 0), (1, -1), (1, 1), (2, 0)):
-            rr, cc = br + dr, bc + dc
-            if 0 <= rr < 16 and 0 <= cc < 16:
-                g[rr][cc] = d2 + (255,)
     return g
 
 
