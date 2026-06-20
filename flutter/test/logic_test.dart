@@ -162,8 +162,24 @@ void main() {
       expect(Economy.upgradeCost(6, 8), 29);
     });
 
-    test('garden starts 4x6 and grows as a centred ring', () {
-      const g = Garden();
+    test('garden base is 10x16; atLeast migrates a smaller plot keeping plantings', () {
+      expect(Economy.baseGardenCols, 10);
+      expect(Economy.baseGardenRows, 16);
+      const def = Garden();
+      expect(def.cols, 10);
+      expect(def.rows, 16);
+      // a saved 4x6 with a flower migrates into >=10x16, centred, nothing lost
+      final small = const Garden(cols: 4, rows: 6).plant(5, 'gul');
+      final big = small.atLeast(10, 16);
+      expect(big.cols >= 10 && big.rows >= 16, true);
+      expect(big.countPlanted('gul'), 1);
+      // already-big plots are returned unchanged
+      final already = const Garden(cols: 12, rows: 18);
+      expect(already.atLeast(10, 16).cols, 12);
+    });
+
+    test('garden grows as a centred ring', () {
+      const g = Garden(cols: 4, rows: 6);
       expect(g.cols, 4);
       expect(g.rows, 6);
       expect(g.tileCount, 24);
@@ -195,7 +211,7 @@ void main() {
     });
 
     test('garden grows with no cap; stays centred', () {
-      var g = const Garden().plant(0, 'gul'); // (0,0)
+      var g = const Garden(cols: 4, rows: 6).plant(0, 'gul'); // (0,0)
       for (var i = 0; i < 10; i++) {
         g = g.grow();
       }
