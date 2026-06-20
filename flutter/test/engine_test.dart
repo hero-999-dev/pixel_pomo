@@ -99,6 +99,35 @@ void main() {
     });
   });
 
+  group('forest variety (v13)', () {
+    test('forestPropAt is deterministic, in-range, with gaps', () {
+      var trees = 0, bushes = 0, rocks = 0, gaps = 0;
+      for (var c = -20; c < 20; c++) {
+        for (var r = -20; r < 20; r++) {
+          final id = forestPropAt(c, r);
+          expect(forestPropAt(c, r), id); // stable
+          if (id == null) {
+            gaps++;
+            continue;
+          }
+          if (id.startsWith('tree_')) {
+            trees++;
+            expect(int.parse(id.substring(5)) < kForestTrees, true);
+          } else if (id.startsWith('bush_')) {
+            bushes++;
+            expect(int.parse(id.substring(5)) < kForestBushes, true);
+          } else if (id.startsWith('rock_')) {
+            rocks++;
+            expect(int.parse(id.substring(5)) < kForestRocks, true);
+          } else {
+            fail('unexpected $id');
+          }
+        }
+      }
+      expect(trees > bushes && bushes > rocks && gaps > 0, true);
+    });
+  });
+
   group('Projector forest fill (v12)', () {
     test('gridAt inverts ground for fractional coords at several yaws', () {
       const cols = 4, rows = 6, t = 40.0;
