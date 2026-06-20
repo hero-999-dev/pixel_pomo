@@ -181,21 +181,21 @@ colors**, **stats charts + month navigation** (#10), and a seeded **test fixture
 continues in parallel until the Flutter port is verified at parity on-device.
 
 The Flutter build has a **Flutter-exclusive living garden**: a **full-screen, portrait 2.5D world**
-drawn by a tiny custom engine (`flutter/lib/engine/`, no Unity/Flame). A **rectangular `cols × rows`
-plot (starts 4×6)** is the grass **clearing**, and the **forest fills the rest of the screen** (a tree
-on every visible tile outside the plot, grounded with a shadow — no void, at any pan/zoom). **EXPAND
-grows the plot from the center**, eating into the woods. You **rotate by hand** (two-finger twist),
-**pinch-zoom + pan/roam**; **CUSTOMIZE shows gridlines**. Roads lie flat, **fences are low-poly 3D**
-posts+rails, flowers and trees are depth-sorted billboards; **bee/butterfly/ladybug** drift in to visit
-a flower (and can't get stuck — they hard-despawn). A **peek** button hides all HUD (full-bleed, bars
-matched); a **camera mode** frames + screenshots the garden to **SET AS LIVE WALLPAPER** (sets the
-Android home-screen wallpaper, Android-only), set as a **static backdrop**, or **save/share**.
-**Settings → HOME SCREEN `CLEAN | GARDEN`** puts the full-strength **live** garden behind the timer.
-The whole app **themes its system bars** and has **no white tap ripple**; **labels can be renamed**;
-and **Stats** has a **DAILY/WEEKLY/MONTHLY/YEARLY/ALL-TIME** selector with separated pie slices, a
-**tappable** line chart, and a per-label daily multi-line. The SHOP sells **4 roads + 3 fences**;
-Korean uses **Galmuri11** (OFL); the icon is baked in via `flutter_launcher_icons`. Each build
-publishes a permanent **`flutter-vN`** GitHub release.
+drawn by a tiny custom engine (`flutter/lib/engine/`, no Unity/Flame). A **ratio-aware `cols × rows`
+plot (starts 10×16, fills the portrait screen)** is the grass **clearing**, and a **varied forest fills
+the rest of the screen** — `forestPropAt` scatters **20 trees + 10 bushes + 5 rocks** (with grass gaps,
+grounded, no void at any pan/zoom). **EXPAND grows the plot from the center**; you **rotate/pinch/pan-roam**;
+**bee/butterfly/ladybug** drift in to visit flowers. Custom **pixel icons** make the top bar
+**theme/garden/stats · settings/store/coin**; the timer reads **FOCUS** and **auto-starts the break**
+(or asks first, per a Settings toggle); **cancelling a started session pays out the spent minutes**.
+A **peek** button hides all HUD; **camera mode** screenshots the garden to **SET AS LIVE WALLPAPER**
+(Android) or **save/share**. **Settings → HOME SCREEN `CLEAN | GARDEN`** puts the full-strength **live**
+garden behind the timer (session up top, timer docked at the bottom). The app **themes its system bars**
+with **no white tap ripple**; **labels rename**; the **shop** has **flowers / outer / inner / pets** tabs;
+and **Stats** has a **DAILY…ALL-TIME** selector **+ a ◀▶ history navigator**, bar tops in **minutes**, a
+full-label right-aligned **pie**, and a **tappable** line (callout + per-label daily multi-line).
+Korean uses **Galmuri11** (OFL); the icon is baked in via `flutter_launcher_icons`. Each build publishes
+a permanent **`flutter-vN`** GitHub release. *(True animated OS live wallpaper is **v14**.)*
 
 To make that port a single clean pass rather than a moving target, **all app logic is kept
 in pure, framework-free classes** (`PomodoroEngine`, `Labels`, `Stats*`, `Economy`,
