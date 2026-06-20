@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -883,18 +881,8 @@ class _GardenScreenState extends State<GardenScreen> {
         backgroundColor: col(th.panel),
         title: Text(t(lang, 'camera'), style: pixelStyle(lang, 12, col(th.onSurface))),
         children: [
-          // SET AS LIVE WALLPAPER — sets the phone's home-screen wallpaper to the
-          // captured frame (Android only; iOS has no API, so the option is hidden).
-          if (Platform.isAndroid)
-            SimpleDialogOption(
-              onPressed: () async {
-                final ok = await setPhoneWallpaper(bytes);
-                if (ctx.mounted) Navigator.pop(ctx);
-                if (ok) s.messenger?.call('wallpaperSet');
-                _exitCamera();
-              },
-              child: Text(t(lang, 'setLiveWallpaper'), style: pixelStyle(lang, 11, col(th.onSurface))),
-            ),
+          // The captured still goes to Share/Save; the *live* wallpaper is set
+          // separately from camera mode (SET LIVE WALLPAPER), not from this frame.
           SimpleDialogOption(
             onPressed: () async {
               await sharePng(bytes, 'pixel_pomo_garden.png');

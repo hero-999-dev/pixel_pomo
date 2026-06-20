@@ -12,7 +12,6 @@ dependencies:
   shared_preferences: ^2.2.2
   share_plus: ^10.1.2
   path_provider: ^2.1.4
-  wallpaper_manager_flutter: ^1.0.1 # Android-only; called behind Platform.isAndroid (#6)
 
 dev_dependencies:
   flutter_test:
