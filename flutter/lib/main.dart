@@ -133,6 +133,26 @@ class HomeScreen extends StatelessWidget {
             ? t(lang, 'allDone')
             : (e.mode == Mode.work ? t(lang, 'work') : t(lang, 'break'));
         final modeColor = e.isFinished ? th.accent : th.phaseColor(e.mode);
+        // auto-break off: ask before starting the break (#4)
+        if (s.awaitingBreakPrompt) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!s.awaitingBreakPrompt) return;
+            s.awaitingBreakPrompt = false; // guard against re-entry
+            showDialog(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                backgroundColor: col(th.panel),
+                title: Text(t(lang, 'startBreakTitle'), style: pixelStyle(lang, 12, col(th.onSurface))),
+                actions: [
+                  TextButton(onPressed: () { Navigator.pop(ctx); s.confirmBreak(false); },
+                      child: Text(t(lang, 'no'), style: pixelStyle(lang, 11, col(th.onSurfaceDim)))),
+                  TextButton(onPressed: () { Navigator.pop(ctx); s.confirmBreak(true); },
+                      child: Text(t(lang, 'yes'), style: pixelStyle(lang, 11, col(th.accent)))),
+                ],
+              ),
+            );
+          });
+        }
         return Scaffold(
           backgroundColor: col(th.bg),
           body: Stack(
@@ -179,11 +199,6 @@ class HomeScreen extends StatelessWidget {
                                 child: secondaryBtn(th, lang, t(lang, 'reset'), s.reset,
                                     fontSize: 14, padding: const EdgeInsets.all(16))),
                           ],
-                        ),
-                        const SizedBox(height: 24),
-                        GestureDetector(
-                          onTap: s.switchMode,
-                          child: Text(t(lang, 'switchMode'), style: pixelStyle(lang, 10, col(th.onSurfaceDim))),
                         ),
                         const SizedBox(height: 24),
                         Text(tf(lang, 'session', [e.session, e.totalSessions]),
@@ -315,6 +330,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 lang: lang,
                 fontSize: 11,
                 onTap: () => s.setHomeGardenBackdrop(on),
+              ),
+            ),
+          ],
+        ],
+      ),
+      const SizedBox(height: 24),
+      Text(t(lang, 'autoBreak'), style: pixelStyle(lang, 12, col(th.onSurfaceDim))),
+      const SizedBox(height: 12),
+      Row(
+        children: [
+          for (final on in const [true, false]) ...[
+            if (!on) const SizedBox(width: 12),
+            Expanded(
+              child: PixelButton(
+                text: on ? 'ON' : 'OFF',
+                fill: s.autoBreak == on ? th.accent : th.panel,
+                border: s.autoBreak == on ? th.onSurface : th.onSurfaceDim,
+                textColor: s.autoBreak == on ? th.onAccent : th.onSurface,
+                shadow: th.shadow,
+                lang: lang,
+                fontSize: 11,
+                onTap: () => s.setAutoBreak(on),
               ),
             ),
           ],
