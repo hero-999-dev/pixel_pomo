@@ -71,7 +71,7 @@ void main() {
       }
     });
 
-    test('fit frames the plot as a clearing with a forest margin, centred', () {
+    test('fit frames the plot inside the bounded forest world, centred', () {
       final cam = GardenCamera();
       const size = Size(360, 720);
       final p = Projector.fit(4, 6, cam, size);
@@ -79,9 +79,10 @@ void main() {
       final cs = p.corners();
       final minX = cs.map((o) => o.dx).reduce(math.min);
       final maxX = cs.map((o) => o.dx).reduce(math.max);
-      // the plot takes a big chunk but leaves a forest margin (clearing, #1)
-      expect(maxX - minX, greaterThan(size.width * 0.4));
-      expect(maxX - minX, lessThan(size.width * 0.85));
+      // the world is plot + a kForestBorder ring each side, so the plot is a
+      // framed clearing taking a defined slice of the screen, not most of it (#4)
+      expect(maxX - minX, greaterThan(size.width * 0.2));
+      expect(maxX - minX, lessThan(size.width * 0.5));
     });
   });
 
@@ -144,16 +145,29 @@ void main() {
       }
     });
 
-    test('visibleTileBounds spans beyond the claimed plot to fill the screen', () {
-      final cam = GardenCamera();
-      const size = Size(360, 720);
-      final p = Projector.fit(4, 6, cam, size);
-      final b = p.visibleTileBounds(size);
-      expect(b.minC <= 0 && b.maxC >= 3, true);
-      expect(b.minR <= 0 && b.maxR >= 5, true);
-      expect(b.minC < 0 || b.maxC > 3, true);
-      expect(b.minR < 0 || b.maxR > 5, true);
-    });
   });
 
+  group('bounded forest world (v14)', () {
+    test('worldOf adds a fixed border; isGardenTile classifies', () {
+      final (wc, wr) = worldOf(10, 16);
+      expect(wc, 10 + 2 * kForestBorder);
+      expect(wr, 16 + 2 * kForestBorder);
+      expect(isGardenTile(0, 0, 10, 16), true); // garden plot is 0..cols-1
+      expect(isGardenTile(9, 15, 10, 16), true);
+      expect(isGardenTile(-1, 0, 10, 16), false); // forest border
+      expect(isGardenTile(10, 0, 10, 16), false);
+      expect(isGardenTile(-kForestBorder - 1, 0, 10, 16), false); // beyond the border
+    });
+
+    test('clamp keeps pan inside the world; never past the forest edge', () {
+      const size = Size(360, 720);
+      final cam = GardenCamera(panX: 1e6, panY: 1e6); // shove way out
+      cam.clamp(10, 16, size);
+      final p = Projector.fit(10, 16, cam, size);
+      final maxX = math.max(0.0, (10 / 2 + kForestBorder) * p.t - size.width / 2);
+      final maxY = math.max(0.0, (16 / 2 + kForestBorder) * p.t * kVy - size.height / 2);
+      expect(cam.panX, closeTo(maxX, 1e-6));
+      expect(cam.panY, closeTo(maxY, 1e-6));
+    });
+  });
 }
