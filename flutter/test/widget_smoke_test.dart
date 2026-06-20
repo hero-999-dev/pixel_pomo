@@ -17,9 +17,10 @@ void main() {
     await tester.pumpWidget(PixelPomoApp(store));
     await tester.pumpAndSettle();
     expect(find.text('START'), findsOneWidget);
+    expect(find.text('FOCUS'), findsWidgets); // WORK → FOCUS (#4)
 
-    Future<void> openClose(IconData icon, String title) async {
-      await tester.tap(find.byIcon(icon));
+    Future<void> openClose(Key key, String title) async {
+      await tester.tap(find.byKey(key));
       await tester.pumpAndSettle();
       expect(find.text(title), findsWidgets);
       final close = find.text('CLOSE');
@@ -29,13 +30,15 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    await openClose(Icons.settings, 'SAVE');
+    expect(find.byKey(const Key('storeButton')), findsOneWidget); // custom store icon (#3,#4)
+    await openClose(const Key('settingsButton'), 'SAVE');
 
     // home-screen mode toggle: flip to GARDEN then back to CLEAN (so later
     // pumpAndSettle calls don't hit the live-backdrop ticker).
-    await tester.tap(find.byIcon(Icons.settings));
+    await tester.tap(find.byKey(const Key('settingsButton')));
     await tester.pumpAndSettle();
     expect(find.text('GARDEN'), findsWidgets); // the gardenMode button
+    expect(find.text('AUTO-START BREAK'), findsWidgets); // the auto-break toggle (#4)
     await tester.ensureVisible(find.text('GARDEN').last);
     await tester.tap(find.text('GARDEN').last);
     await tester.pump();
@@ -53,7 +56,7 @@ void main() {
     // The garden runs a live animation ticker (the bugs), so pumpAndSettle would
     // never settle — drive it with fixed pumps long enough to finish the push/pop
     // route transitions (~300ms), then settle the home (ticker is disposed by then).
-    await tester.tap(find.byIcon(Icons.local_florist));
+    await tester.tap(find.byKey(const Key('gardenButton')));
     await tester.pump(); // push begins; the FutureBuilder mounts & subscribes
     await tester.pump(const Duration(milliseconds: 450)); // finish push
     // Decoding the object PNGs is real async, which fake-async pump() can't
@@ -93,10 +96,14 @@ void main() {
     await tester.pumpAndSettle();
 
     // stats: period selector + chart types (no crash)
-    await tester.tap(find.byIcon(Icons.bar_chart));
+    await tester.tap(find.byKey(const Key('statsButton')));
     await tester.pumpAndSettle();
     expect(find.text('STATS'), findsWidgets);
     await tester.tap(find.text('DAILY'));
+    await tester.pumpAndSettle();
+    // history navigator: browse one period back (#1)
+    expect(find.byKey(const Key('statPrev')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('statPrev')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('LINE'));
     await tester.pumpAndSettle();
@@ -108,12 +115,16 @@ void main() {
     await tester.tap(statsClose);
     await tester.pumpAndSettle();
 
-    await openClose(Icons.palette, 'THEME');
+    await openClose(const Key('themeButton'), 'THEME');
 
     // Shop opens from the gold-coin wallet button (no longer a Material icon).
     await tester.tap(find.byKey(const Key('shopButton')));
     await tester.pumpAndSettle();
     expect(find.text('SHOP'), findsWidgets);
+    // store categories (#6): switch to the OUTER DECOR tab
+    expect(find.text('OUTER DECOR'), findsWidgets);
+    await tester.tap(find.text('OUTER DECOR'));
+    await tester.pumpAndSettle();
     final shopClose = find.text('CLOSE');
     await tester.ensureVisible(shopClose);
     await tester.pumpAndSettle();

@@ -22,8 +22,8 @@ class AppStore extends ChangeNotifier {
   static const _kCoins = 'coins';
   static const _kOwned = 'owned_flowers';
   static const _kGarden = 'garden';
-  static const _kBackdrop = 'garden_backdrop_path'; // static camera photo (#2)
   static const _kHomeMode = 'home_garden_backdrop'; // live garden behind timer (#3)
+  static const _kAutoBreak = 'auto_break'; // auto-start break after focus (#4)
   static const _kSeeded = 'test_seeded_v5';
 
   late SharedPreferences _prefs;
@@ -43,17 +43,20 @@ class AppStore extends ChangeNotifier {
   Map<String, int> owned = {};
   Garden garden = const Garden();
 
-  /// Camera-captured static photo shown in the garden section (#2); null = live.
-  String? gardenBackdropPath;
-
   /// Home-screen mode: false = clean pomodoro, true = live garden behind it (#3).
   bool homeGardenBackdrop = false;
+
+  /// Auto-start the break when a focus session ends (#4). When off, the home
+  /// screen asks first via [awaitingBreakPrompt].
+  bool autoBreak = true;
+  bool awaitingBreakPrompt = false;
 
   late PomodoroEngine engine;
 
   // Stats view state.
   ChartMode chartMode = ChartMode.bar;
   StatPeriod statPeriod = StatPeriod.monthly;
+  int statOffset = 0; // periods back from now (history navigator, #1)
   int viewYear = DateTime.now().year;
   int viewMonth = DateTime.now().month;
   bool customizing = false;
@@ -95,9 +98,10 @@ class AppStore extends ChangeNotifier {
     records = StatsCodec.decode(_prefs.getString(_kStats));
     coins = _prefs.getInt(_kCoins) ?? 0;
     owned = _decodeOwned(_prefs.getString(_kOwned));
-    garden = Garden.decode(_prefs.getString(_kGarden));
-    gardenBackdropPath = _prefs.getString(_kBackdrop);
+    garden = Garden.decode(_prefs.getString(_kGarden))
+        .atLeast(Economy.baseGardenCols, Economy.baseGardenRows); // migrate to the bigger base (#7)
     homeGardenBackdrop = _prefs.getBool(_kHomeMode) ?? false;
+    autoBreak = _prefs.getBool(_kAutoBreak) ?? true;
 
     _seedOnce();
     engine = _buildEngine();
@@ -179,7 +183,27 @@ class AppStore extends ChangeNotifier {
     final finished = engine.finishPhase();
     if (finished == Mode.work) _recordWork();
     messenger?.call(finished == Mode.work ? 'workDone' : 'breakDone');
-    if (!engine.isFinished) {
+    if (engine.isFinished) {
+      notifyListeners();
+    } else if (finished == Mode.work && !autoBreak) {
+      // pause before the break and ask the user first (#4)
+      awaitingBreakPrompt = true;
+      notifyListeners();
+    } else {
+      start();
+    }
+  }
+
+  void setAutoBreak(bool v) {
+    autoBreak = v;
+    _prefs.setBool(_kAutoBreak, v);
+    notifyListeners();
+  }
+
+  /// Resolve the "start the break?" prompt (auto-break off path).
+  void confirmBreak(bool startNow) {
+    awaitingBreakPrompt = false;
+    if (startNow) {
       start();
     } else {
       notifyListeners();
@@ -194,6 +218,16 @@ class AppStore extends ChangeNotifier {
 
   void reset() {
     _timer?.cancel();
+    // cancelling a started focus session still pays out the time spent (#6)
+    if (engine.mode == Mode.work && engine.timeLeftMillis < engine.workMillis) {
+      final spent = Economy.elapsedFocusMinutes(workMin, engine.timeLeftMillis);
+      if (spent > 0) {
+        records.add(SessionRecord(epochDayOf(DateTime.now()), spent, currentLabel));
+        _saveStats();
+        coins += Economy.coinsFor(spent);
+        _saveWallet();
+      }
+    }
     engine.reset();
     notifyListeners();
   }
@@ -341,17 +375,6 @@ class AppStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Set (or clear) the camera-captured static backdrop for the garden section.
-  void setGardenBackdrop(String? path) {
-    gardenBackdropPath = path;
-    if (path == null) {
-      _prefs.remove(_kBackdrop);
-    } else {
-      _prefs.setString(_kBackdrop, path);
-    }
-    notifyListeners();
-  }
-
   /// Toggle the home screen between clean pomodoro and a live garden backdrop.
   void setHomeGardenBackdrop(bool v) {
     homeGardenBackdrop = v;
@@ -383,6 +406,14 @@ class AppStore extends ChangeNotifier {
 
   void setStatPeriod(StatPeriod p) {
     statPeriod = p;
+    statOffset = 0; // a fresh period starts at "now"
+    notifyListeners();
+  }
+
+  void shiftStatOffset(int d) {
+    final next = statOffset + d;
+    if (next < 0) return; // can't browse the future
+    statOffset = next;
     notifyListeners();
   }
 
