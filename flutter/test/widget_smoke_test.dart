@@ -121,6 +121,10 @@ void main() {
     await tester.tap(find.byKey(const Key('shopButton')));
     await tester.pumpAndSettle();
     expect(find.text('SHOP'), findsWidgets);
+    // store categories (#6): switch to the OUTER DECOR tab
+    expect(find.text('OUTER DECOR'), findsWidgets);
+    await tester.tap(find.text('OUTER DECOR'));
+    await tester.pumpAndSettle();
     final shopClose = find.text('CLOSE');
     await tester.ensureVisible(shopClose);
     await tester.pumpAndSettle();
