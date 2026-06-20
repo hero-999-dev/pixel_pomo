@@ -392,6 +392,31 @@ class Garden {
   }
 }
 
+// ---- live wallpaper framing -------------------------------------------------
+
+/// The camera framing the user chose for the live wallpaper: rotation [yaw]
+/// (radians), [zoom], and pan as a fraction of the projector tile size so it
+/// reproduces across the camera-preview vs. wallpaper surface sizes. Persisted as
+/// a compact "yaw,zoom,panXFrac,panYFrac" string and read natively (v15).
+class WallpaperCam {
+  final double yaw, zoom, panXFrac, panYFrac;
+  const WallpaperCam(this.yaw, this.zoom, this.panXFrac, this.panYFrac);
+
+  static const WallpaperCam none = WallpaperCam(0, 1, 0, 0);
+
+  String encode() => '$yaw,$zoom,$panXFrac,$panYFrac';
+
+  static WallpaperCam decode(String? s) {
+    if (s == null || s.isEmpty) return none;
+    final p = s.split(',');
+    if (p.length != 4) return none;
+    final y = double.tryParse(p[0]), z = double.tryParse(p[1]);
+    final px = double.tryParse(p[2]), py = double.tryParse(p[3]);
+    if (y == null || z == null || px == null || py == null) return none;
+    return WallpaperCam(y, z, px, py);
+  }
+}
+
 // ---- focus labels + colors --------------------------------------------------
 
 class Labels {

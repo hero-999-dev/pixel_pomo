@@ -127,8 +127,18 @@ The Dart port carries its own tests, gating the **`build-flutter.yml`** macOS pi
 **3.44.2 / Dart 3.12.2** and green in CI.
 
 ```bash
-cd flutter && flutter analyze && flutter test   # 50 tests
+cd flutter && flutter analyze && flutter test   # 53 tests
 ```
+
+**v15 additions:** `logic_test` gained a **`WallpaperCam` framing codec** group (encode 4 fields +
+round-trip; tolerant decode of null/garbage — the live-wallpaper framing the native side reads). New
+**`test/wallpaper_channel_test.dart`** mocks `MethodChannel('pixel_pomo/wallpaper')` and asserts
+`setLiveWallpaper()` invokes the `setLiveWallpaper` method. The **native live wallpaper is device-verified**:
+the macOS CI runs `flutter test` only (Dart), not Gradle/JUnit, so the Kotlin `WallpaperService` /
+`GardenRenderer` / `GardenData` (which mirror `Garden.decode` / `Placeables.split` / `Projector` / `forestPropAt`)
+and the on-device wallpaper-set are verified on the user's phone. The existing **garden-codec round-trip** tests
+pin the format the Kotlin `GardenData` parser mirrors. The camera-mode **SET LIVE WALLPAPER** button is
+Android-only (`Platform.isAndroid`), so it doesn't render in the host widget test — device-verified too.
 
 **v14 additions:** `logic_test` gained a **`SessionRecord` timestamp codec** group (the 4-field encode +
 **backward-compatible** decode of legacy 3-field rows — #2) and a **`StatsAggregator` trend** group

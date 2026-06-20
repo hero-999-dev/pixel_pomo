@@ -9,7 +9,7 @@ Only the **portable** parts live here and are committed:
 
 ```
 flutter/
-├── pubspec.yaml          # deps (shared_preferences, share_plus, path_provider, wallpaper_manager_flutter [Android]), pixel font, flutter_launcher_icons
+├── pubspec.yaml          # deps (shared_preferences, share_plus, path_provider), pixel font, flutter_launcher_icons
 ├── assets/
 │   ├── fonts/            # PressStart2P (Latin) + Galmuri11 (OFL pixel Hangul, for Korean)
 │   ├── objects/          # 24 sprites: grass/forest/tree/coin + 4 roads + 3 fences + 10 flowers (single-frame) + 3 critters (8-frame atlases)
@@ -17,6 +17,8 @@ flutter/
 ├── tools/
 │   ├── gen_objects.py    # regenerates assets/objects/*.png + the 5 menu icons (no Pillow needed)
 │   └── gen_icon.py       # regenerates the launcher icon PNGs
+├── android_overlay/      # native live-wallpaper files (Kotlin WallpaperService + channel + res), copied into the
+│   └── ...               #   CI-regenerated android/ by apply_overlay.py (which patches AndroidManifest.xml)
 ├── lib/
 │   ├── logic.dart        # pure port + Placeables (4 roads + 3 fences; road+fence tile-layering)
 │   ├── strings.dart      # the six UI languages (en/tr/pl/de/ko/it) + month names
@@ -94,13 +96,18 @@ migrates older saves), and the forest border is **varied** — `forestPropAt(c,r
 **bounded** (`worldOf`/`isGardenTile`/`kForestBorder`), and the **grass tile is calmer** — one base green with
 sparse low-contrast speckle, no patchwork.
 
-**Peek, camera & wallpaper:** a bottom-left **peek** button hides *all* HUD (full-bleed, system bars
-matched); a **camera mode** frames + **screenshots** the garden. The shot → **SET AS LIVE WALLPAPER** (sets the
-Android home-screen wallpaper via `wallpaper_manager_flutter`, Android-only — hidden on iOS) or **save/share**
-(`share_plus`). **Settings → HOME SCREEN `CLEAN | GARDEN`** renders the full-strength **live** garden behind the
-timer — in garden mode **SESSION sits centered in the top bar** between the icon groups and the timer docks at
-the bottom (no scrim; text + coin-count shadows for legibility). *(A true animated OS live wallpaper remains a
-later milestone; iOS keeps Save/Share.)*
+**Peek, camera & live wallpaper:** a bottom-left **peek** button hides *all* HUD (full-bleed, system bars
+matched); **camera mode** lets you frame an **angle** (rotate/zoom/pan, tilt fixed) and then either
+**SET LIVE WALLPAPER** or **CAPTURE** a still. **CAPTURE** → **save/share** (`share_plus`). **SET LIVE WALLPAPER**
+(Android only, hidden on iOS) saves that framing (`WallpaperCam`, pan normalized by tile size) and opens Android's
+live-wallpaper picker for a native **`GardenWallpaperService`** that re-renders your saved garden at that angle —
+swaying plants, a drifting bee, parallax — stopping when it isn't visible and re-reading your garden when it is.
+The native files live in **`android_overlay/`** and are copied into the CI-regenerated `android/` (manifest
+patched) by **`apply_overlay.py`**; it reads the same `SharedPreferences` (`flutter.garden`/`theme_id`/
+`wallpaper_cam`) and the same sprite PNGs, so no state or art is duplicated. **Settings → HOME SCREEN
+`CLEAN | GARDEN`** renders the full-strength **live** garden behind the timer — in garden mode **SESSION sits
+centered in the top bar** and the timer docks at the bottom (no scrim; text + coin-count shadows for legibility).
+*(iOS has no live-wallpaper API and keeps Save/Share.)*
 
 **Top bar, timer & store:** **generated transparent 32×32 pixel icons** (`gen_objects.py` builds them on a blank
 canvas with a dark outline; rendered via `Image.asset` — they replaced the v13 sheet-slicer that showed as dark

@@ -75,8 +75,9 @@ class PixelPomoApp extends StatelessWidget {
 // ---- shared button helpers --------------------------------------------------
 
 PixelButton primaryBtn(PixelTheme th, String lang, String text, VoidCallback? onTap,
-        {double fontSize = 13, EdgeInsets padding = const EdgeInsets.all(14), double opacity = 1}) =>
+        {double fontSize = 13, EdgeInsets padding = const EdgeInsets.all(14), double opacity = 1, Key? key}) =>
     PixelButton(
+        key: key,
         text: text, fill: th.accent, border: th.onSurface, textColor: th.onAccent, shadow: th.shadow,
         lang: lang, onTap: onTap, fontSize: fontSize, padding: padding, opacity: opacity);
 
@@ -860,6 +861,9 @@ class _GardenScreenState extends State<GardenScreen> {
   bool _peek = false; // hide all HUD, just the garden (#2)
   bool _camera = false; // framing a screenshot (#2)
   final GlobalKey _captureKey = GlobalKey();
+  // owned here (not inside GardenView) so we can read the framing the user picks
+  // in camera mode and reproduce it in the live wallpaper (v15).
+  final GardenCamera _wallpaperCam = GardenCamera();
 
   bool get _hudHidden => _peek || _camera;
 
@@ -883,18 +887,8 @@ class _GardenScreenState extends State<GardenScreen> {
         backgroundColor: col(th.panel),
         title: Text(t(lang, 'camera'), style: pixelStyle(lang, 12, col(th.onSurface))),
         children: [
-          // SET AS LIVE WALLPAPER — sets the phone's home-screen wallpaper to the
-          // captured frame (Android only; iOS has no API, so the option is hidden).
-          if (Platform.isAndroid)
-            SimpleDialogOption(
-              onPressed: () async {
-                final ok = await setPhoneWallpaper(bytes);
-                if (ctx.mounted) Navigator.pop(ctx);
-                if (ok) s.messenger?.call('wallpaperSet');
-                _exitCamera();
-              },
-              child: Text(t(lang, 'setLiveWallpaper'), style: pixelStyle(lang, 11, col(th.onSurface))),
-            ),
+          // The captured still goes to Share/Save; the *live* wallpaper is set
+          // separately from camera mode (SET LIVE WALLPAPER), not from this frame.
           SimpleDialogOption(
             onPressed: () async {
               await sharePng(bytes, 'pixel_pomo_garden.png');
@@ -909,6 +903,25 @@ class _GardenScreenState extends State<GardenScreen> {
         ],
       ),
     );
+  }
+
+  /// Save the angle the user framed in camera mode and open Android's live-
+  /// wallpaper picker for our GardenWallpaperService (v15). Pan is stored as a
+  /// fraction of the tile size so it reproduces at the wallpaper's surface size.
+  Future<void> _setLiveWallpaper() async {
+    final s = widget.s;
+    final size = MediaQuery.of(context).size;
+    final p = Projector.fit(s.garden.cols, s.garden.rows, _wallpaperCam, size);
+    final t = p.t == 0 ? 1.0 : p.t;
+    s.setWallpaperCamera(
+        _wallpaperCam.yaw, _wallpaperCam.zoom, _wallpaperCam.panX / t, _wallpaperCam.panY / t);
+    final ok = await setLiveWallpaper();
+    if (!mounted) return;
+    if (ok) {
+      _exitCamera();
+    } else {
+      s.messenger?.call('wallpaperFailed');
+    }
   }
 
   @override
@@ -974,6 +987,7 @@ class _GardenScreenState extends State<GardenScreen> {
                           tr: (k) => t(lang, k),
                           captureKey: _captureKey,
                           cameraMode: _camera,
+                          camera: _wallpaperCam,
                           onPeek: () => setState(() => _peek = !_peek),
                           onCamera: _enterCamera,
                         );
@@ -985,14 +999,22 @@ class _GardenScreenState extends State<GardenScreen> {
                 padding: const EdgeInsets.all(16),
                 child: Row(
                   children: [
+                    // set the live wallpaper at the framed angle (Android only — iOS has no API)
+                    if (Platform.isAndroid) ...[
+                      Expanded(
+                        child: primaryBtn(th, lang, t(lang, 'setLiveWallpaper'), _setLiveWallpaper,
+                            key: const Key('setWallpaperButton'), fontSize: 9, padding: const EdgeInsets.all(14)),
+                      ),
+                      const SizedBox(width: 10),
+                    ],
                     Expanded(
-                      child: primaryBtn(th, lang, t(lang, 'capture'), _capture,
-                          padding: const EdgeInsets.all(16)),
+                      child: secondaryBtn(th, lang, t(lang, 'capture'), _capture,
+                          fontSize: 9, padding: const EdgeInsets.all(14)),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: secondaryBtn(th, lang, t(lang, 'cancel'), _exitCamera,
-                          padding: const EdgeInsets.all(16)),
+                          fontSize: 9, padding: const EdgeInsets.all(14)),
                     ),
                   ],
                 ),

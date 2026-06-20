@@ -188,15 +188,18 @@ world** — a fixed border ring of **20 trees + 10 bushes + 5 rocks** (with gras
 **rotate/pinch/pan** (clamped to the world edge); **bee/butterfly/ladybug** drift in to visit flowers.
 **Generated transparent pixel icons** make the top bar **theme/garden/stats · settings/store/coin**; the
 timer reads **FOCUS** and **auto-starts the break** (or asks first, per a Settings toggle); **cancelling a
-started session pays out the spent minutes**. A **peek** button hides all HUD; **camera mode** screenshots the
-garden to **SET AS LIVE WALLPAPER** (Android) or **save/share**. **Settings → HOME SCREEN `CLEAN | GARDEN`**
+started session pays out the spent minutes**. A **peek** button hides all HUD; **camera mode** lets you frame any
+**angle** (rotate/zoom/pan) and either **SET LIVE WALLPAPER** — a real **animated Android live wallpaper** of your
+planted garden at that angle (swaying plants, a drifting bee, parallax) — or **CAPTURE** a still to **save/share**.
+**Settings → HOME SCREEN `CLEAN | GARDEN`**
 puts the full-strength **live** garden behind the timer, with **SESSION centered in the top bar** and the timer
 docked at the bottom. The app **themes its system bars** with **no white tap ripple**; **labels rename**; the
 **shop** has **flowers / outer / inner / pets** tabs; and **Stats** has a **DAILY…ALL-TIME** selector **+ a ◀▶
 history navigator**, bar tops in **minutes**, a full-label right-aligned **pie**, and a **TREND** line — DAILY
 fills up **hour by hour**, other periods show per-bucket totals with **CURRENT / AVERAGE / BEST**.
 Korean uses **Galmuri11** (OFL); the icon is baked in via `flutter_launcher_icons`. Each build publishes
-a permanent **`flutter-vN`** GitHub release. *(A true animated OS live wallpaper remains a later milestone.)*
+a permanent **`flutter-vN`** GitHub release. *(The Android **live wallpaper** is a native `WallpaperService`
+that re-renders your saved garden at the framing you picked; iOS has no API and keeps Save/Share.)*
 
 To make that port a single clean pass rather than a moving target, **all app logic is kept
 in pure, framework-free classes** (`PomodoroEngine`, `Labels`, `Stats*`, `Economy`,
