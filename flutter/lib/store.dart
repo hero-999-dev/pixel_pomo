@@ -222,7 +222,9 @@ class AppStore extends ChangeNotifier {
     if (engine.mode == Mode.work && engine.timeLeftMillis < engine.workMillis) {
       final spent = Economy.elapsedFocusMinutes(workMin, engine.timeLeftMillis);
       if (spent > 0) {
-        records.add(SessionRecord(epochDayOf(DateTime.now()), spent, currentLabel));
+        final now = DateTime.now();
+        records.add(SessionRecord(epochDayOf(now), spent, currentLabel,
+            minuteOfDay: now.hour * 60 + now.minute));
         _saveStats();
         coins += Economy.coinsFor(spent);
         _saveWallet();
@@ -241,7 +243,9 @@ class AppStore extends ChangeNotifier {
   void toggleStartPause() => engine.isRunning ? pause() : start();
 
   void _recordWork() {
-    records.add(SessionRecord(epochDayOf(DateTime.now()), workMin, currentLabel));
+    final now = DateTime.now();
+    records.add(SessionRecord(epochDayOf(now), workMin, currentLabel,
+        minuteOfDay: now.hour * 60 + now.minute));
     _saveStats();
     coins += Economy.coinsFor(workMin);
     _saveWallet();
