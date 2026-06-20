@@ -37,6 +37,10 @@ class GardenView extends StatefulWidget {
   /// When false the view ignores gestures (used as a live backdrop).
   final bool interactive;
 
+  /// When provided, the parent owns the camera so it can read the current
+  /// framing (yaw/zoom/pan) — used to set the live wallpaper (v15).
+  final GardenCamera? camera;
+
   const GardenView({
     super.key,
     required this.garden,
@@ -54,6 +58,7 @@ class GardenView extends StatefulWidget {
     this.captureKey,
     this.cameraMode = false,
     this.interactive = true,
+    this.camera,
   });
 
   @override
@@ -61,7 +66,7 @@ class GardenView extends StatefulWidget {
 }
 
 class _GardenViewState extends State<GardenView> with SingleTickerProviderStateMixin {
-  final GardenCamera _cam = GardenCamera();
+  late final GardenCamera _cam = widget.camera ?? GardenCamera();
   final CritterSystem _critters = CritterSystem();
   final ValueNotifier<int> _frame = ValueNotifier(0);
 
