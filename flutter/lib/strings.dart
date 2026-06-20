@@ -32,6 +32,7 @@ const Map<String, Map<String, String>> _s = {
     'peek': 'HIDE UI', 'camera': 'CAMERA', 'capture': 'CAPTURE', 'share': 'SAVE / SHARE',
     'setBackdrop': 'SET AS BACKDROP', 'clearBackdrop': 'CLEAR BACKDROP', 'cancel': 'CANCEL',
     'setLiveWallpaper': 'SET AS LIVE WALLPAPER', 'wallpaperSet': 'WALLPAPER SET',
+    'wallpaperFailed': "Couldn't open the wallpaper picker.",
     'homeMode': 'HOME SCREEN', 'clean': 'CLEAN', 'gardenMode': 'GARDEN',
   },
   'tr': {
@@ -64,6 +65,7 @@ const Map<String, Map<String, String>> _s = {
     'peek': 'GİZLE', 'camera': 'KAMERA', 'capture': 'ÇEK', 'share': 'KAYDET / PAYLAŞ',
     'setBackdrop': 'ARKA PLAN YAP', 'clearBackdrop': 'ARKA PLANI SİL', 'cancel': 'İPTAL',
     'setLiveWallpaper': 'CANLI DUVAR KAĞIDI YAP', 'wallpaperSet': 'DUVAR KAĞIDI AYARLANDI',
+    'wallpaperFailed': 'Duvar kağıdı seçici açılamadı.',
     'homeMode': 'ANA EKRAN', 'clean': 'SADE', 'gardenMode': 'BAHÇE',
   },
   'pl': {
@@ -96,6 +98,7 @@ const Map<String, Map<String, String>> _s = {
     'peek': 'UKRYJ UI', 'camera': 'APARAT', 'capture': 'ZRÓB', 'share': 'ZAPISZ / UDOSTĘPNIJ',
     'setBackdrop': 'USTAW TŁO', 'clearBackdrop': 'USUŃ TŁO', 'cancel': 'ANULUJ',
     'setLiveWallpaper': 'USTAW TAPETĘ', 'wallpaperSet': 'USTAWIONO TAPETĘ',
+    'wallpaperFailed': 'Nie można otworzyć wyboru tapety.',
     'homeMode': 'EKRAN GŁÓWNY', 'clean': 'CZYSTY', 'gardenMode': 'OGRÓD',
   },
   'de': {
@@ -128,6 +131,7 @@ const Map<String, Map<String, String>> _s = {
     'peek': 'UI AUS', 'camera': 'KAMERA', 'capture': 'AUFNAHME', 'share': 'SPEICHERN / TEILEN',
     'setBackdrop': 'ALS HINTERGRUND', 'clearBackdrop': 'HINTERGRUND LÖSCHEN', 'cancel': 'ABBRECHEN',
     'setLiveWallpaper': 'ALS LIVE-HINTERGRUND', 'wallpaperSet': 'HINTERGRUND GESETZT',
+    'wallpaperFailed': 'Hintergrund-Auswahl ließ sich nicht öffnen.',
     'homeMode': 'STARTBILDSCHIRM', 'clean': 'SCHLICHT', 'gardenMode': 'GARTEN',
   },
   'ko': {
@@ -160,6 +164,7 @@ const Map<String, Map<String, String>> _s = {
     'peek': 'UI 숨기기', 'camera': '카메라', 'capture': '촬영', 'share': '저장 / 공유',
     'setBackdrop': '배경으로', 'clearBackdrop': '배경 지우기', 'cancel': '취소',
     'setLiveWallpaper': '라이브 배경화면으로', 'wallpaperSet': '배경화면 설정됨',
+    'wallpaperFailed': '배경화면 선택을 열 수 없습니다.',
     'homeMode': '홈 화면', 'clean': '심플', 'gardenMode': '정원',
   },
   'it': {
@@ -192,6 +197,7 @@ const Map<String, Map<String, String>> _s = {
     'peek': 'NASCONDI UI', 'camera': 'FOTOCAMERA', 'capture': 'SCATTA', 'share': 'SALVA / CONDIVIDI',
     'setBackdrop': 'IMPOSTA SFONDO', 'clearBackdrop': 'RIMUOVI SFONDO', 'cancel': 'ANNULLA',
     'setLiveWallpaper': 'IMPOSTA SFONDO LIVE', 'wallpaperSet': 'SFONDO IMPOSTATO',
+    'wallpaperFailed': 'Impossibile aprire il selettore sfondi.',
     'homeMode': 'SCHERMATA', 'clean': 'PULITO', 'gardenMode': 'GIARDINO',
   },
 };
