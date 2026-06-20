@@ -252,6 +252,14 @@ class Economy {
   static const baseGardenRows = 6;
   static int coinsFor(int minutes) => minutes <= 0 ? 0 : minutes ~/ 5;
 
+  /// Whole focus minutes spent so far in a [workMin] session with [timeLeftMillis]
+  /// remaining (uses the displayed ceil-minutes, so 14 left in a 25 reads as 11).
+  static int elapsedFocusMinutes(int workMin, int timeLeftMillis) {
+    final leftMin = (timeLeftMillis + 59999) ~/ 60000; // ceil
+    final spent = workMin - leftMin;
+    return spent < 0 ? 0 : spent;
+  }
+
   /// EXPAND price — rises with the plot's perimeter so each ring costs more.
   static int upgradeCost(int cols, int rows) => 2 * (cols + rows) + 1;
 
