@@ -35,6 +35,16 @@ const int kDirFrames = 8;
 /// Forest sprite pool sizes — must match the counts emitted by tools/gen_objects.py.
 const int kForestTrees = 20, kForestBushes = 10, kForestRocks = 5;
 
+/// A fixed forest border (in tiles) framing the garden on every side. The world
+/// is the garden plus this border; the projector fits the whole world to the
+/// screen, so the forest fills it with a defined edge you can't roam past (#4).
+const int kForestBorder = 4;
+
+(int, int) worldOf(int cols, int rows) => (cols + 2 * kForestBorder, rows + 2 * kForestBorder);
+
+/// Is garden tile (c,r) inside the plantable plot (true) or the forest border (false)?
+bool isGardenTile(int c, int r, int cols, int rows) => c >= 0 && c < cols && r >= 0 && r < rows;
+
 int _hash2(int c, int r) {
   var h = (c * 73856093) ^ (r * 19349663);
   h ^= h >> 13;
@@ -151,14 +161,16 @@ class GardenCamera {
     yaw = 0;
   }
 
-  /// Bound pan to a roam radius around the plot: you can wander into the
-  /// surrounding forest (#1) but can't lose the garden. The forest fills the
-  /// screen wherever you go, so there's no void to clamp against.
+  /// Bound pan to the world edge: you can wander into the surrounding forest
+  /// border but can't pan past it into the void (#4). The world is the garden
+  /// plus a fixed [kForestBorder] ring on every side.
   void clamp(int cols, int rows, Size size) {
     final p = Projector.fit(cols, rows, this, size);
-    final roam = math.max(cols, rows).toDouble();
-    final maxX = (cols / 2 + roam) * p.t;
-    final maxY = (rows / 2 + roam) * p.t * kVy;
+    final b = kForestBorder.toDouble();
+    final halfWx = (cols / 2 + b) * p.t; // world half-width in px
+    final halfWy = (rows / 2 + b) * p.t * kVy; // world half-height in px
+    final maxX = math.max(0.0, halfWx - size.width / 2);
+    final maxY = math.max(0.0, halfWy - size.height / 2);
     panX = panX.clamp(-maxX, maxX);
     panY = panY.clamp(-maxY, maxY);
   }
@@ -180,13 +192,12 @@ class Projector {
 
   Projector(this.cols, this.rows, this.t, this.center, this.yaw);
 
-  /// Fit a rectangular plot into the viewport leaving a forest margin around it,
-  /// so the garden reads as a clearing in the woods (#1): the extra `+kFitMargin`
-  /// tiles on each axis are the visible forest border at zoom 1.
-  static const double kFitMargin = 3.0;
+  /// Fit the whole world (garden + the [kForestBorder] ring on each side) into
+  /// the viewport, so the forest fills the screen with a defined edge (#4). The
+  /// extra `+0.5` is a half-tile of breathing room at the frame.
   factory Projector.fit(int cols, int rows, GardenCamera cam, Size size) {
-    final fitW = size.width / (cols + kFitMargin);
-    final fitH = size.height / ((rows + kFitMargin) * kVy);
+    final fitW = size.width / (cols + 2 * kForestBorder + 0.5);
+    final fitH = size.height / ((rows + 2 * kForestBorder + 0.5) * kVy);
     final t = math.min(fitW, fitH) * cam.zoom;
     return Projector(cols, rows, t,
         Offset(size.width / 2 + cam.panX, size.height / 2 + cam.panY), cam.yaw);
@@ -227,23 +238,6 @@ class Projector {
     final gx = dx * _cos + dy * _sin;
     final gy = -dx * _sin + dy * _cos;
     return Offset(gx + (cols - 1) / 2.0, gy + (rows - 1) / 2.0);
-  }
-
-  /// Integer tile range (1-tile bleed) covering the screen, so every visible
-  /// tile outside the claimed plot can be painted as forest (no void).
-  ({int minC, int maxC, int minR, int maxR}) visibleTileBounds(Size size) {
-    final corners = [
-      gridAt(const Offset(0, 0)),
-      gridAt(Offset(size.width, 0)),
-      gridAt(Offset(size.width, size.height)),
-      gridAt(Offset(0, size.height)),
-    ];
-    var minC = double.infinity, maxC = -double.infinity, minR = double.infinity, maxR = -double.infinity;
-    for (final c in corners) {
-      minC = math.min(minC, c.dx); maxC = math.max(maxC, c.dx);
-      minR = math.min(minR, c.dy); maxR = math.max(maxR, c.dy);
-    }
-    return (minC: minC.floor() - 1, maxC: maxC.ceil() + 1, minR: minR.floor() - 1, maxR: maxR.ceil() + 1);
   }
 
   int tileAt(Offset p) {
@@ -510,12 +504,11 @@ class GardenPainter extends CustomPainter {
     //     on every VISIBLE tile outside the claimed plot (so the woods fill the
     //     screen — no void) + claimed props. Fences are low-poly 3D posts; trees
     //     and flowers are flat billboards grounded with a contact shadow.
-    final b = p.visibleTileBounds(size);
+    const border = kForestBorder;
     final standing = <(double, int, int, String)>[]; // (depthY, col, row, id)
-    for (var r = b.minR; r <= b.maxR; r++) {
-      for (var c = b.minC; c <= b.maxC; c++) {
-        final claimed = c >= 0 && c < _cols && r >= 0 && r < _rows;
-        if (claimed) {
+    for (var r = -border; r < _rows + border; r++) {
+      for (var c = -border; c < _cols + border; c++) {
+        if (isGardenTile(c, r, _cols, _rows)) {
           final prop = garden.propAt(r * _cols + c);
           if (prop != null) standing.add((p.ground(c, r).dy, c, r, prop));
         } else {
