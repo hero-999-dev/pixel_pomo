@@ -22,7 +22,6 @@ class AppStore extends ChangeNotifier {
   static const _kCoins = 'coins';
   static const _kOwned = 'owned_flowers';
   static const _kGarden = 'garden';
-  static const _kBackdrop = 'garden_backdrop_path'; // static camera photo (#2)
   static const _kHomeMode = 'home_garden_backdrop'; // live garden behind timer (#3)
   static const _kAutoBreak = 'auto_break'; // auto-start break after focus (#4)
   static const _kSeeded = 'test_seeded_v5';
@@ -43,9 +42,6 @@ class AppStore extends ChangeNotifier {
   int coins = 0;
   Map<String, int> owned = {};
   Garden garden = const Garden();
-
-  /// Camera-captured static photo shown in the garden section (#2); null = live.
-  String? gardenBackdropPath;
 
   /// Home-screen mode: false = clean pomodoro, true = live garden behind it (#3).
   bool homeGardenBackdrop = false;
@@ -104,7 +100,6 @@ class AppStore extends ChangeNotifier {
     owned = _decodeOwned(_prefs.getString(_kOwned));
     garden = Garden.decode(_prefs.getString(_kGarden))
         .atLeast(Economy.baseGardenCols, Economy.baseGardenRows); // migrate to the bigger base (#7)
-    gardenBackdropPath = _prefs.getString(_kBackdrop);
     homeGardenBackdrop = _prefs.getBool(_kHomeMode) ?? false;
     autoBreak = _prefs.getBool(_kAutoBreak) ?? true;
 
@@ -377,17 +372,6 @@ class AppStore extends ChangeNotifier {
 
   void toggleCustomizing() {
     customizing = !customizing;
-    notifyListeners();
-  }
-
-  /// Set (or clear) the camera-captured static backdrop for the garden section.
-  void setGardenBackdrop(String? path) {
-    gardenBackdropPath = path;
-    if (path == null) {
-      _prefs.remove(_kBackdrop);
-    } else {
-      _prefs.setString(_kBackdrop, path);
-    }
     notifyListeners();
   }
 
