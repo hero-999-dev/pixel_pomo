@@ -32,6 +32,29 @@ const double kVy = 0.60;
 /// Flowers are single billboards and fences are 3D meshes — neither uses this.
 const int kDirFrames = 8;
 
+/// Forest sprite pool sizes — must match the counts emitted by tools/gen_objects.py.
+const int kForestTrees = 20, kForestBushes = 10, kForestRocks = 5;
+
+int _hash2(int c, int r) {
+  var h = (c * 73856093) ^ (r * 19349663);
+  h ^= h >> 13;
+  return h & 0x7fffffff;
+}
+
+/// Deterministic, varied forest prop for an unclaimed tile (or null = grass gap).
+/// Weighting: mostly trees, some bushes, few rocks, occasional gap — stable so
+/// the forest never shimmers between frames (#5).
+String? forestPropAt(int c, int r) {
+  final h = _hash2(c, r);
+  final bucket = h % 100;
+  final pick = h ~/ 100;
+  String id(String kind, int n) => '${kind}_${(pick % n).toString().padLeft(2, '0')}';
+  if (bucket < 18) return null; // grass gap
+  if (bucket < 80) return id('tree', kForestTrees);
+  if (bucket < 95) return id('bush', kForestBushes);
+  return id('rock', kForestRocks);
+}
+
 /// Flat ambient palette per fence id as `(side, top, rail)`. The top face is a
 /// touch brighter than the sides — light from the sky, baked to the geometry, so
 /// it stays put as the camera yaws (a fixed sky glow, never a directional sun).
@@ -76,6 +99,7 @@ class SpriteBank {
   ui.Image? grass() => images['grass'];
   ui.Image? forest() => images['forest'];
   ui.Image? tree() => images['tree'];
+  ui.Image? forestProp(String id) => images[id]; // tree_NN / bush_NN / rock_NN
   ui.Image? object(String id) => images[id]; // roads
   ui.Image? flower(String id) => images['flower_$id'];
   ui.Image? critter(String kind) => images[kind];
@@ -92,6 +116,12 @@ class SpriteBank {
       grab('grass', 'grass.png'),
       grab('forest', 'forest.png'),
       grab('tree', 'tree.png'),
+      for (var i = 0; i < kForestTrees; i++)
+        grab('tree_${i.toString().padLeft(2, '0')}', 'tree_${i.toString().padLeft(2, '0')}.png'),
+      for (var i = 0; i < kForestBushes; i++)
+        grab('bush_${i.toString().padLeft(2, '0')}', 'bush_${i.toString().padLeft(2, '0')}.png'),
+      for (var i = 0; i < kForestRocks; i++)
+        grab('rock_${i.toString().padLeft(2, '0')}', 'rock_${i.toString().padLeft(2, '0')}.png'),
       for (final k in CritterSystem.kinds) grab(k, '$k.png'),
       for (final id in Placeables.roadIds) grab(id, '$id.png'),
       // fences render as low-poly 3D meshes, not sprites; their PNGs are only
@@ -480,7 +510,6 @@ class GardenPainter extends CustomPainter {
     //     on every VISIBLE tile outside the claimed plot (so the woods fill the
     //     screen — no void) + claimed props. Fences are low-poly 3D posts; trees
     //     and flowers are flat billboards grounded with a contact shadow.
-    const treeTag = '__tree__';
     final b = p.visibleTileBounds(size);
     final standing = <(double, int, int, String)>[]; // (depthY, col, row, id)
     for (var r = b.minR; r <= b.maxR; r++) {
@@ -490,15 +519,20 @@ class GardenPainter extends CustomPainter {
           final prop = garden.propAt(r * _cols + c);
           if (prop != null) standing.add((p.ground(c, r).dy, c, r, prop));
         } else {
-          standing.add((p.ground(c, r).dy, c, r, treeTag));
+          // a varied forest prop (tree/bush/rock) or a grass gap (#5)
+          final fp = forestPropAt(c, r);
+          if (fp != null) standing.add((p.ground(c, r).dy, c, r, fp));
         }
       }
     }
     standing.sort((a, b2) => a.$1.compareTo(b2.$1));
     for (final (_, c, r, id) in standing) {
       final anchor = p.ground(c, r);
-      if (id == treeTag) {
-        _paintBillboard(canvas, sprites.tree(), anchor, p.t, height: 1.25, width: 1.1);
+      final claimed = c >= 0 && c < _cols && r >= 0 && r < _rows;
+      if (!claimed) {
+        final isRock = id.startsWith('rock_');
+        _paintBillboard(canvas, sprites.forestProp(id), anchor, p.t,
+            height: isRock ? 0.6 : 1.2, width: isRock ? 0.8 : 1.05);
       } else if (Placeables.isFence(id)) {
         _paintFencePost(canvas, p, c, r, id);
       } else {

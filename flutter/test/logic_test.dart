@@ -82,6 +82,21 @@ void main() {
       expect(math.values.length, 7);
       expect(math.values.last, 60);
     });
+
+    test('anchorFor shifts the window back by period units, never future', () {
+      // monthly offset 1 → previous month window (no records in May 2026)
+      final prevMonth = StatsAggregator.byLabelInWindow(records, now, StatPeriod.monthly, 1);
+      expect(prevMonth, isEmpty);
+      // daily offset 2 → 2026-06-15 (Mon), which has the 40-min MATH record
+      final twoDaysAgo = StatsAggregator.byLabelInWindow(records, now, StatPeriod.daily, 2);
+      expect(twoDaysAgo.fold<int>(0, (a, e) => a + e.value), 40);
+      // yearly offset 1 → 2025, which has the 25-min record
+      final lastYear = StatsAggregator.byLabelInWindow(records, now, StatPeriod.yearly, 1);
+      expect(lastYear.fold<int>(0, (a, e) => a + e.value), 25);
+      // seriesFor honours offset too (prev month series is all-zero)
+      final s = StatsAggregator.seriesFor(records, now, StatPeriod.monthly, 1);
+      expect(s.totals.every((v) => v == 0), true);
+    });
   });
 
   group('PomodoroEngine', () {
@@ -133,6 +148,12 @@ void main() {
   });
 
   group('Economy + Garden', () {
+    test('elapsedFocusMinutes counts spent time on cancel', () {
+      expect(Economy.elapsedFocusMinutes(25, 14 * 60 * 1000), 11); // 25-min, 14 left → 11
+      expect(Economy.elapsedFocusMinutes(25, 25 * 60 * 1000), 0); // untouched → 0
+      expect(Economy.elapsedFocusMinutes(25, 0), 25); // finished → 25
+    });
+
     test('coinsFor / upgradeCost (rectangular)', () {
       expect(Economy.coinsFor(4), 0);
       expect(Economy.coinsFor(25), 5);
@@ -141,8 +162,24 @@ void main() {
       expect(Economy.upgradeCost(6, 8), 29);
     });
 
-    test('garden starts 4x6 and grows as a centred ring', () {
-      const g = Garden();
+    test('garden base is 10x16; atLeast migrates a smaller plot keeping plantings', () {
+      expect(Economy.baseGardenCols, 10);
+      expect(Economy.baseGardenRows, 16);
+      const def = Garden();
+      expect(def.cols, 10);
+      expect(def.rows, 16);
+      // a saved 4x6 with a flower migrates into >=10x16, centred, nothing lost
+      final small = const Garden(cols: 4, rows: 6).plant(5, 'gul');
+      final big = small.atLeast(10, 16);
+      expect(big.cols >= 10 && big.rows >= 16, true);
+      expect(big.countPlanted('gul'), 1);
+      // already-big plots are returned unchanged
+      final already = const Garden(cols: 12, rows: 18);
+      expect(already.atLeast(10, 16).cols, 12);
+    });
+
+    test('garden grows as a centred ring', () {
+      const g = Garden(cols: 4, rows: 6);
       expect(g.cols, 4);
       expect(g.rows, 6);
       expect(g.tileCount, 24);
@@ -174,7 +211,7 @@ void main() {
     });
 
     test('garden grows with no cap; stays centred', () {
-      var g = const Garden().plant(0, 'gul'); // (0,0)
+      var g = const Garden(cols: 4, rows: 6).plant(0, 'gul'); // (0,0)
       for (var i = 0; i < 10; i++) {
         g = g.grow();
       }
