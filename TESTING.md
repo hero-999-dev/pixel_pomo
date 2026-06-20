@@ -127,8 +127,18 @@ The Dart port carries its own tests, gating the **`build-flutter.yml`** macOS pi
 **3.44.2 / Dart 3.12.2** and green in CI.
 
 ```bash
-cd flutter && flutter analyze && flutter test   # 42 tests
+cd flutter && flutter analyze && flutter test   # 46 tests
 ```
+
+**v13 additions:** `logic_test` gained **`StatsAggregator.anchorFor` + offset** (browse previous
+day/week/month/year, never the future — #1), **`Economy.elapsedFocusMinutes`** (spent-time payout on cancel —
+#6), and the **garden base 10×16 + `Garden.atLeast`** migration that grows older saves to the bigger base
+keeping plantings centred (#7). `engine_test` gained **`forestPropAt`** (deterministic, in-range, weighted
+trees>bushes>rocks with grass gaps — #5). The smoke test now taps the **stats ◀ history navigator**, asserts
+**FOCUS** + the **AUTO-START BREAK** toggle, taps the **store** icon and the **OUTER DECOR** tab, and uses the
+new top-bar **icon keys** (`themeButton`/`gardenButton`/`statsButton`/`settingsButton`/`storeButton`). The bar
+minutes, pie/line label layout, daily legend, custom pixel icons (sliced from the sheets), bigger garden, varied
+forest, garden-mode layout, and the auto-break dialog are **visual / device-verified**.
 
 **v12 additions:** `logic_test` gained the **theme system-bar brightness** group (`isLightColor`,
 `systemOverlayFor` color the bars to the theme bg with contrasting icons — #2), the **stats period
