@@ -24,6 +24,7 @@ class AppStore extends ChangeNotifier {
   static const _kGarden = 'garden';
   static const _kHomeMode = 'home_garden_backdrop'; // live garden behind timer (#3)
   static const _kAutoBreak = 'auto_break'; // auto-start break after focus (#4)
+  static const _kWallpaperCam = 'wallpaper_cam'; // live-wallpaper framing (v15)
   static const _kSeeded = 'test_seeded_v5';
 
   late SharedPreferences _prefs;
@@ -45,6 +46,9 @@ class AppStore extends ChangeNotifier {
 
   /// Home-screen mode: false = clean pomodoro, true = live garden behind it (#3).
   bool homeGardenBackdrop = false;
+
+  /// The camera framing the live wallpaper reproduces (set from camera mode, v15).
+  WallpaperCam wallpaperCam = WallpaperCam.none;
 
   /// Auto-start the break when a focus session ends (#4). When off, the home
   /// screen asks first via [awaitingBreakPrompt].
@@ -102,6 +106,7 @@ class AppStore extends ChangeNotifier {
         .atLeast(Economy.baseGardenCols, Economy.baseGardenRows); // migrate to the bigger base (#7)
     homeGardenBackdrop = _prefs.getBool(_kHomeMode) ?? false;
     autoBreak = _prefs.getBool(_kAutoBreak) ?? true;
+    wallpaperCam = WallpaperCam.decode(_prefs.getString(_kWallpaperCam));
 
     _seedOnce();
     engine = _buildEngine();
@@ -149,6 +154,12 @@ class AppStore extends ChangeNotifier {
 
   void _saveLabelColors() => _prefs.setString(_kLabelColors, LabelColors.encode(labelColors));
   void _saveStats() => _prefs.setString(_kStats, StatsCodec.encode(records));
+
+  /// Persist the framing the live wallpaper should reproduce (v15).
+  void setWallpaperCamera(double yaw, double zoom, double panXFrac, double panYFrac) {
+    wallpaperCam = WallpaperCam(yaw, zoom, panXFrac, panYFrac);
+    _prefs.setString(_kWallpaperCam, wallpaperCam.encode());
+  }
   void _saveWallet() {
     _prefs.setInt(_kCoins, coins);
     _prefs.setString(_kOwned, _encodeOwned(owned));
