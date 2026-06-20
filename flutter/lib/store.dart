@@ -24,6 +24,7 @@ class AppStore extends ChangeNotifier {
   static const _kGarden = 'garden';
   static const _kBackdrop = 'garden_backdrop_path'; // static camera photo (#2)
   static const _kHomeMode = 'home_garden_backdrop'; // live garden behind timer (#3)
+  static const _kAutoBreak = 'auto_break'; // auto-start break after focus (#4)
   static const _kSeeded = 'test_seeded_v5';
 
   late SharedPreferences _prefs;
@@ -48,6 +49,11 @@ class AppStore extends ChangeNotifier {
 
   /// Home-screen mode: false = clean pomodoro, true = live garden behind it (#3).
   bool homeGardenBackdrop = false;
+
+  /// Auto-start the break when a focus session ends (#4). When off, the home
+  /// screen asks first via [awaitingBreakPrompt].
+  bool autoBreak = true;
+  bool awaitingBreakPrompt = false;
 
   late PomodoroEngine engine;
 
@@ -99,6 +105,7 @@ class AppStore extends ChangeNotifier {
     garden = Garden.decode(_prefs.getString(_kGarden));
     gardenBackdropPath = _prefs.getString(_kBackdrop);
     homeGardenBackdrop = _prefs.getBool(_kHomeMode) ?? false;
+    autoBreak = _prefs.getBool(_kAutoBreak) ?? true;
 
     _seedOnce();
     engine = _buildEngine();
@@ -180,7 +187,27 @@ class AppStore extends ChangeNotifier {
     final finished = engine.finishPhase();
     if (finished == Mode.work) _recordWork();
     messenger?.call(finished == Mode.work ? 'workDone' : 'breakDone');
-    if (!engine.isFinished) {
+    if (engine.isFinished) {
+      notifyListeners();
+    } else if (finished == Mode.work && !autoBreak) {
+      // pause before the break and ask the user first (#4)
+      awaitingBreakPrompt = true;
+      notifyListeners();
+    } else {
+      start();
+    }
+  }
+
+  void setAutoBreak(bool v) {
+    autoBreak = v;
+    _prefs.setBool(_kAutoBreak, v);
+    notifyListeners();
+  }
+
+  /// Resolve the "start the break?" prompt (auto-break off path).
+  void confirmBreak(bool startNow) {
+    awaitingBreakPrompt = false;
+    if (startNow) {
       start();
     } else {
       notifyListeners();

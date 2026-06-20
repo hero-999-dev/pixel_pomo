@@ -3,9 +3,10 @@
 
 const Map<String, Map<String, String>> _s = {
   'en': {
-    'work': 'WORK', 'break': 'BREAK', 'start': 'START', 'pause': 'PAUSE', 'reset': 'RESET',
+    'work': 'FOCUS', 'break': 'BREAK', 'start': 'START', 'pause': 'PAUSE', 'reset': 'RESET',
+    'autoBreak': 'AUTO-START BREAK', 'startBreakTitle': 'Start the break?',
     'switchMode': '>> SWITCH MODE', 'session': 'SESSION {0} / {1}', 'allDone': 'ALL DONE!',
-    'workDone': 'WORK DONE!', 'breakDone': 'BREAK OVER!',
+    'workDone': 'FOCUS DONE!', 'breakDone': 'BREAK OVER!',
     'settings': 'SETTINGS', 'theme': 'THEME', 'save': 'SAVE', 'close': 'CLOSE',
     'study': 'STUDY (MIN)', 'breakMin': 'BREAK (MIN)', 'sessions': 'SESSIONS',
     'settingsSaved': 'SETTINGS SAVED', 'language': 'LANGUAGE',
@@ -32,9 +33,10 @@ const Map<String, Map<String, String>> _s = {
     'homeMode': 'HOME SCREEN', 'clean': 'CLEAN', 'gardenMode': 'GARDEN',
   },
   'tr': {
-    'work': 'ÇALIŞ', 'break': 'MOLA', 'start': 'BAŞLAT', 'pause': 'DURAKLAT', 'reset': 'SIFIRLA',
+    'work': 'ODAK', 'break': 'MOLA', 'start': 'BAŞLAT', 'pause': 'DURAKLAT', 'reset': 'SIFIRLA',
+    'autoBreak': 'MOLAYI OTOMATİK BAŞLAT', 'startBreakTitle': 'Molayı başlat?',
     'switchMode': '>> MOD DEĞİŞTİR', 'session': 'SEANS {0} / {1}', 'allDone': 'BİTTİ!',
-    'workDone': 'ÇALIŞMA BİTTİ!', 'breakDone': 'MOLA BİTTİ!',
+    'workDone': 'ODAK BİTTİ!', 'breakDone': 'MOLA BİTTİ!',
     'settings': 'AYARLAR', 'theme': 'TEMA', 'save': 'KAYDET', 'close': 'KAPAT',
     'study': 'ÇALIŞMA (DK)', 'breakMin': 'MOLA (DK)', 'sessions': 'SEANS',
     'settingsSaved': 'AYARLAR KAYDEDİLDİ', 'language': 'DİL',
@@ -61,9 +63,10 @@ const Map<String, Map<String, String>> _s = {
     'homeMode': 'ANA EKRAN', 'clean': 'SADE', 'gardenMode': 'BAHÇE',
   },
   'pl': {
-    'work': 'PRACA', 'break': 'PRZERWA', 'start': 'START', 'pause': 'PAUZA', 'reset': 'RESET',
+    'work': 'SKUPIENIE', 'break': 'PRZERWA', 'start': 'START', 'pause': 'PAUZA', 'reset': 'RESET',
+    'autoBreak': 'AUTO-START PRZERWY', 'startBreakTitle': 'Zacząć przerwę?',
     'switchMode': '>> ZMIEŃ TRYB', 'session': 'SESJA {0} / {1}', 'allDone': 'GOTOWE!',
-    'workDone': 'KONIEC PRACY!', 'breakDone': 'KONIEC PRZERWY!',
+    'workDone': 'KONIEC SKUPIENIA!', 'breakDone': 'KONIEC PRZERWY!',
     'settings': 'USTAWIENIA', 'theme': 'MOTYW', 'save': 'ZAPISZ', 'close': 'ZAMKNIJ',
     'study': 'PRACA (MIN)', 'breakMin': 'PRZERWA (MIN)', 'sessions': 'SESJE',
     'settingsSaved': 'ZAPISANO', 'language': 'JĘZYK',
@@ -90,9 +93,10 @@ const Map<String, Map<String, String>> _s = {
     'homeMode': 'EKRAN GŁÓWNY', 'clean': 'CZYSTY', 'gardenMode': 'OGRÓD',
   },
   'de': {
-    'work': 'ARBEIT', 'break': 'PAUSE', 'start': 'START', 'pause': 'PAUSE', 'reset': 'ZURÜCK',
+    'work': 'FOKUS', 'break': 'PAUSE', 'start': 'START', 'pause': 'PAUSE', 'reset': 'ZURÜCK',
+    'autoBreak': 'PAUSE AUTOMATISCH', 'startBreakTitle': 'Pause starten?',
     'switchMode': '>> MODUS WECHSELN', 'session': 'RUNDE {0} / {1}', 'allDone': 'FERTIG!',
-    'workDone': 'ARBEIT FERTIG!', 'breakDone': 'PAUSE VORBEI!',
+    'workDone': 'FOKUS FERTIG!', 'breakDone': 'PAUSE VORBEI!',
     'settings': 'EINSTELLUNGEN', 'theme': 'THEMA', 'save': 'SPEICHERN', 'close': 'SCHLIESSEN',
     'study': 'ARBEIT (MIN)', 'breakMin': 'PAUSE (MIN)', 'sessions': 'RUNDEN',
     'settingsSaved': 'GESPEICHERT', 'language': 'SPRACHE',
@@ -120,6 +124,7 @@ const Map<String, Map<String, String>> _s = {
   },
   'ko': {
     'work': '집중', 'break': '휴식', 'start': '시작', 'pause': '일시정지', 'reset': '초기화',
+    'autoBreak': '휴식 자동 시작', 'startBreakTitle': '휴식을 시작할까요?',
     'switchMode': '>> 모드 전환', 'session': '세션 {0} / {1}', 'allDone': '완료!',
     'workDone': '집중 완료!', 'breakDone': '휴식 끝!',
     'settings': '설정', 'theme': '테마', 'save': '저장', 'close': '닫기',
@@ -148,9 +153,10 @@ const Map<String, Map<String, String>> _s = {
     'homeMode': '홈 화면', 'clean': '심플', 'gardenMode': '정원',
   },
   'it': {
-    'work': 'LAVORO', 'break': 'PAUSA', 'start': 'AVVIA', 'pause': 'PAUSA', 'reset': 'AZZERA',
+    'work': 'FOCUS', 'break': 'PAUSA', 'start': 'AVVIA', 'pause': 'PAUSA', 'reset': 'AZZERA',
+    'autoBreak': 'AVVIO AUTO PAUSA', 'startBreakTitle': 'Iniziare la pausa?',
     'switchMode': '>> CAMBIA MODO', 'session': 'SESSIONE {0} / {1}', 'allDone': 'FATTO!',
-    'workDone': 'LAVORO FINITO!', 'breakDone': 'PAUSA FINITA!',
+    'workDone': 'FOCUS FINITO!', 'breakDone': 'PAUSA FINITA!',
     'settings': 'IMPOSTAZIONI', 'theme': 'TEMA', 'save': 'SALVA', 'close': 'CHIUDI',
     'study': 'LAVORO (MIN)', 'breakMin': 'PAUSA (MIN)', 'sessions': 'SESSIONI',
     'settingsSaved': 'SALVATE', 'language': 'LINGUA',
