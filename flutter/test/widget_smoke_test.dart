@@ -105,8 +105,9 @@ void main() {
     expect(find.byKey(const Key('statPrev')), findsOneWidget);
     await tester.tap(find.byKey(const Key('statPrev')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('LINE'));
+    await tester.tap(find.text('TREND'));
     await tester.pumpAndSettle();
+    expect(find.textContaining('CURRENT'), findsWidgets); // trend current/avg/best block (#2)
     await tester.tap(find.text('PIE'));
     await tester.pumpAndSettle();
     final statsClose = find.text('CLOSE');
