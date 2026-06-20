@@ -235,7 +235,7 @@ now Flutter-exclusive and richer** than the native grid (see below) — keep the
   **`renameLabel`** migrates color/current/past records; **`reset()` pays out spent focus minutes** on
   cancel) · `lib/pixel.dart` (pixel widgets + chart painters; `fontFor('ko')`→Galmuri11 ×1.5;
   `isLightColor`/`systemOverlayFor` for system bars) · `lib/camera.dart` (`captureBoundary`; `sharePng` via
-  `share_plus`; **`setPhoneWallpaper`** via `wallpaper_manager_flutter`, Android-only) · `lib/main.dart` (all
+  `share_plus`; **`setLiveWallpaper`** via `MethodChannel('pixel_pomo/wallpaper')` → native picker) · `lib/main.dart` (all
   screens; custom top bar **theme/garden/stats · settings/store/coin** rendered from **generated transparent
   PNG icons** via `Image.asset` — in garden mode **SESSION** sits centered between the two icon groups; **FOCUS**
   + auto-break; `StatsScreen` period selector **+ ◀▶ history navigator**; stateful `ShopScreen`
@@ -282,14 +282,25 @@ now Flutter-exclusive and richer** than the native grid (see below) — keep the
 - **Peek + camera + wallpaper:** `GardenView` has a bottom-left **peek** button (`peekButton`, hides
   all `GardenScreen` HUD — peeking goes **full-bleed** with transparent system bars) and a **camera**
   button (`cameraButton`, clean framing — yaw/zoom/pan, tilt fixed). On-scene icons sit on **themed
-  `panel` chips** so they recolor with the theme and stay readable on the dark scene. The painter is
-  wrapped in a `RepaintBoundary` (`captureKey`); CAPTURE (`lib/camera.dart`) → **SET AS LIVE WALLPAPER**
-  (`setPhoneWallpaper` sets the Android home-screen wallpaper via `wallpaper_manager_flutter`, behind
-  `Platform.isAndroid` — hidden on iOS) or **save/share**. **Settings → HOME SCREEN `CLEAN | GARDEN`**:
-  GARDEN renders the **full-strength** non-interactive live `GardenView` behind the timer; in garden mode
-  **SESSION sits centered in the top bar** between the icon groups and the timer block docks at the bottom (text
-  + coin-count shadows for legibility, no scrim). *(True animated OS live wallpaper = a later native Android
-  `WallpaperService`.)*
+  `panel` chips** so they recolor with the theme and stay readable on the dark scene. Camera mode shows
+  **SET LIVE WALLPAPER · CAPTURE · CANCEL**: **CAPTURE** screenshots the `RepaintBoundary` (`captureKey`) →
+  **save/share**; **SET LIVE WALLPAPER** (Android only, hidden on iOS) saves the framing (`AppStore.setWallpaperCamera`
+  → `WallpaperCam`, pan normalized by the projector tile size) and calls `camera.setLiveWallpaper()` →
+  `MethodChannel('pixel_pomo/wallpaper')` → native `MainActivity` fires `ACTION_CHANGE_LIVE_WALLPAPER` for our
+  **`GardenWallpaperService`** (a true **animated Android live wallpaper**, see below). **Settings → HOME SCREEN
+  `CLEAN | GARDEN`**: GARDEN renders the **full-strength** non-interactive live `GardenView` behind the timer; in
+  garden mode **SESSION sits centered in the top bar** and the timer docks at the bottom (text + coin-count shadows,
+  no scrim).
+- **Android live wallpaper (native, `flutter/android_overlay/`):** since CI regenerates `android/` via `flutter
+  create`, the native files are committed in `android_overlay/` and copied in (+ manifest patched) by
+  **`apply_overlay.py`** (a CI step + run locally). `GardenWallpaperService` (Kotlin `WallpaperService`) runs a
+  **Choreographer** loop (~30 fps, **stops when not visible**, re-reads on visibility, parallax via
+  `onOffsetsChanged`); `GardenData` reads `flutter.garden`/`flutter.theme_id`/`flutter.wallpaper_cam` from
+  `FlutterSharedPreferences` (mirrors `Garden.decode`/`Placeables.split`) and loads sprites from `flutter_assets`;
+  `GardenRenderer` ports the `Projector` math (incl. yaw) + a **64-bit `forestPropAt` mirror** so the forest border
+  matches the in-app view, drawing forest floor → border ring → grass clearing → roads → swaying flower billboards
+  → a drifting bee. No render duplication beyond this simplified scene; no embedded Flutter engine (no supported
+  wallpaper-surface API). iOS has no live-wallpaper API and keeps Save/Share.
 - **Varied forest:** `forestPropAt(c,r)` deterministically scatters **20 `tree_NN` + 10 `bush_NN` +
   5 `rock_NN`** (with grass gaps) over the **forest border ring** so the woods look natural, not one repeated tree.
 - **App-wide theming:** `systemOverlayFor(theme)` + `isLightColor` drive `SystemChrome` via an
@@ -312,13 +323,14 @@ now Flutter-exclusive and richer** than the native grid (see below) — keep the
 - `test/logic_test.dart` (pure parity + placeables + **rectangular garden** grow/cost/decode + **base 10×16 +
   `atLeast` migration** + overlay layering + theme `isLightColor`/`systemOverlayFor` + **stats period
   aggregators + `anchorFor`/offset** + `Labels.rename` + **`elapsedFocusMinutes`** + **`SessionRecord` timestamp
-  codec** (4-field + legacy 3-field) + **trend** (`dailyCumulative` hourly + `periodStats` current/avg/best)) +
-  `test/engine_test.dart` (low-poly 3D `projectElevated`/`boxCorners`; rectangular tile round-trip; `gridAt`;
-  critter `maxLife`; **`forestPropAt`** variety; **bounded world** `worldOf`/`isGardenTile`/world-clamp) +
-  `test/widget_smoke_test.dart` (boots the app, opens every overlay via the **icon keys**, exercises
-  peek/camera/home-mode + **stats period/nav/chart taps incl. TREND + CURRENT/AVG/BEST** + label rename +
-  **store tabs**; `runAsync` loads sprite PNGs). All gate CI. **50 tests.** Dep:
-  **`wallpaper_manager_flutter`** (Android-only).
+  codec** (4-field + legacy 3-field) + **trend** (`dailyCumulative` hourly + `periodStats` current/avg/best) +
+  **`WallpaperCam`** framing codec) + `test/engine_test.dart` (low-poly 3D `projectElevated`/`boxCorners`;
+  rectangular tile round-trip; `gridAt`; critter `maxLife`; **`forestPropAt`** variety; **bounded world**
+  `worldOf`/`isGardenTile`/world-clamp) + `test/wallpaper_channel_test.dart` (`setLiveWallpaper` invokes the
+  `pixel_pomo/wallpaper` channel) + `test/widget_smoke_test.dart` (boots the app, opens every overlay via the
+  **icon keys**, exercises peek/camera/home-mode + **stats period/nav/chart taps incl. TREND + CURRENT/AVG/BEST**
+  + label rename + **store tabs**; `runAsync` loads sprite PNGs). All gate CI. **53 tests.** The Android **live
+  wallpaper** is native Kotlin in `flutter/android_overlay/` (restored by `apply_overlay.py`) — device-verified.
 - **Only the portable parts are committed** (`lib/`, `pubspec.yaml`, `assets/`, `tools/`, `test/`).
   `ios/` + `android/` are generated by CI via `flutter create` (see `flutter/.gitignore`).
 - CI: **`.github/workflows/build-flutter.yml`** runs on a **macOS runner**, scaffolds the
