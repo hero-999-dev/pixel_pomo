@@ -600,14 +600,12 @@ class StatsScreen extends StatelessWidget {
     final now = DateTime.now();
     final totals = StatsAggregator.aggregate(s.records, now);
     final byLabel = StatsAggregator.byLabelInWindow(s.records, now, s.statPeriod, s.statOffset);
-    final series = StatsAggregator.seriesFor(s.records, now, s.statPeriod, s.statOffset);
-    final multiLine = s.statPeriod == StatPeriod.daily;
-    final labelLines = multiLine
-        ? [
-            for (final ls in StatsAggregator.labelSeriesFor(s.records, now, s.statPeriod, s.statOffset))
-              LabelLine(ls.label, s.labelColorOf(ls.label), ls.values)
-          ]
-        : null;
+    final trend = s.chartMode == ChartMode.line;
+    // TREND + DAILY shows the day filling up hour by hour; everything else is per-bucket totals.
+    final series = trend && s.statPeriod == StatPeriod.daily
+        ? StatsAggregator.dailyCumulative(s.records, now, s.statOffset)
+        : StatsAggregator.seriesFor(s.records, now, s.statPeriod, s.statOffset);
+    final stats = StatsAggregator.periodStats(s.records, now, s.statPeriod, s.statOffset);
 
     Widget periodBtn(String text, StatPeriod p) {
       final sel = s.statPeriod == p;
@@ -681,8 +679,7 @@ class StatsScreen extends StatelessWidget {
         child: StatsChart(
           entries: [for (final e in byLabel) ChartEntry(e.key, e.value, s.labelColorOf(e.key))],
           series: series,
-          labelLines: labelLines,
-          multiLine: multiLine,
+          average: stats.$2,
           mode: s.chartMode,
           lang: lang,
           axisColor: th.onSurfaceDim,
@@ -693,11 +690,17 @@ class StatsScreen extends StatelessWidget {
         ),
       ),
       const SizedBox(height: 16),
-      statRow(t(lang, 'today'), totals.today),
-      statRow(t(lang, 'week'), totals.week),
-      statRow(t(lang, 'month'), totals.month),
-      statRow(t(lang, 'year'), totals.year),
-      statRow(t(lang, 'all'), totals.all),
+      if (trend) ...[
+        statRow(t(lang, 'statCurrent'), stats.$1),
+        statRow(t(lang, 'statAverage'), stats.$2),
+        statRow(t(lang, 'statBest'), stats.$3),
+      ] else ...[
+        statRow(t(lang, 'today'), totals.today),
+        statRow(t(lang, 'week'), totals.week),
+        statRow(t(lang, 'month'), totals.month),
+        statRow(t(lang, 'year'), totals.year),
+        statRow(t(lang, 'all'), totals.all),
+      ],
       const SizedBox(height: 16),
       Text(t(lang, 'byLabel'), style: pixelStyle(lang, 11, col(th.onSurfaceDim))),
       const SizedBox(height: 12),
