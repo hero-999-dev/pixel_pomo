@@ -98,6 +98,10 @@ void main() {
     expect(find.text('STATS'), findsWidgets);
     await tester.tap(find.text('DAILY'));
     await tester.pumpAndSettle();
+    // history navigator: browse one period back (#1)
+    expect(find.byKey(const Key('statPrev')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('statPrev')));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('LINE'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('PIE'));

@@ -81,8 +81,9 @@ PixelButton primaryBtn(PixelTheme th, String lang, String text, VoidCallback? on
         lang: lang, onTap: onTap, fontSize: fontSize, padding: padding, opacity: opacity);
 
 PixelButton secondaryBtn(PixelTheme th, String lang, String text, VoidCallback? onTap,
-        {double fontSize = 13, EdgeInsets padding = const EdgeInsets.all(14), double opacity = 1}) =>
+        {double fontSize = 13, EdgeInsets padding = const EdgeInsets.all(14), double opacity = 1, Key? key}) =>
     PixelButton(
+        key: key,
         text: text, fill: th.panel, border: th.onSurfaceDim, textColor: th.onSurface, shadow: th.shadow,
         lang: lang, onTap: onTap, fontSize: fontSize, padding: padding, opacity: opacity);
 
@@ -534,12 +535,12 @@ class StatsScreen extends StatelessWidget {
     final lang = s.lang;
     final now = DateTime.now();
     final totals = StatsAggregator.aggregate(s.records, now);
-    final byLabel = StatsAggregator.byLabelInWindow(s.records, now, s.statPeriod);
-    final series = StatsAggregator.seriesFor(s.records, now, s.statPeriod);
+    final byLabel = StatsAggregator.byLabelInWindow(s.records, now, s.statPeriod, s.statOffset);
+    final series = StatsAggregator.seriesFor(s.records, now, s.statPeriod, s.statOffset);
     final multiLine = s.statPeriod == StatPeriod.daily;
     final labelLines = multiLine
         ? [
-            for (final ls in StatsAggregator.labelSeriesFor(s.records, now, s.statPeriod))
+            for (final ls in StatsAggregator.labelSeriesFor(s.records, now, s.statPeriod, s.statOffset))
               LabelLine(ls.label, s.labelColorOf(ls.label), ls.values)
           ]
         : null;
@@ -589,6 +590,27 @@ class StatsScreen extends StatelessWidget {
       ]),
       const SizedBox(height: 12),
       Row(children: [chartBtn(t(lang, 'chartBar'), ChartMode.bar), chartBtn(t(lang, 'chartLine'), ChartMode.line), chartBtn(t(lang, 'chartPie'), ChartMode.pie)]),
+      // history navigator — browse previous day/week/month/year (#1)
+      if (s.statPeriod != StatPeriod.allTime) ...[
+        const SizedBox(height: 10),
+        Row(children: [
+          SizedBox(
+            width: 52,
+            child: secondaryBtn(th, lang, '<', () => s.shiftStatOffset(1),
+                key: const Key('statPrev'), fontSize: 13, padding: const EdgeInsets.all(10)),
+          ),
+          Expanded(child: Center(child: Text(_periodLabel(s, lang),
+              style: pixelStyle(lang, 11, col(th.onSurface))))),
+          SizedBox(
+            width: 52,
+            child: PixelButton(
+                text: '>', fill: th.panel, border: th.onSurfaceDim, textColor: th.onSurface, shadow: th.shadow,
+                lang: lang, fontSize: 13, padding: const EdgeInsets.all(10),
+                opacity: s.statOffset > 0 ? 1 : 0.35,
+                onTap: () => s.shiftStatOffset(-1)),
+          ),
+        ]),
+      ],
       const SizedBox(height: 16),
       SizedBox(
         height: 200,
@@ -632,6 +654,26 @@ class StatsScreen extends StatelessWidget {
             ),
           ),
     ]);
+  }
+
+  /// Label for the history navigator, matching the selected period's granularity.
+  String _periodLabel(AppStore s, String lang) {
+    final now = DateTime.now();
+    final a = StatsAggregator.anchorFor(now, s.statPeriod, s.statOffset);
+    switch (s.statPeriod) {
+      case StatPeriod.daily:
+        return '${monthName(lang, a.month)} ${a.day}';
+      case StatPeriod.weekly:
+        final (lo, hi) = StatsAggregator.windowDays(a, StatPeriod.weekly);
+        final loD = dateOfEpochDay(lo), hiD = dateOfEpochDay(hi);
+        return '${loD.day}–${hiD.day} ${monthName(lang, hiD.month)}';
+      case StatPeriod.monthly:
+        return '${monthName(lang, a.month)} ${a.year}';
+      case StatPeriod.yearly:
+        return '${a.year}';
+      case StatPeriod.allTime:
+        return t(lang, 'pAll');
+    }
   }
 }
 
