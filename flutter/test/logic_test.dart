@@ -99,6 +99,40 @@ void main() {
     });
   });
 
+  group('StatsAggregator trend (v14)', () {
+    final now = DateTime(2026, 6, 17, 23); // late today so all of today's hours are past
+    int day(int y, int m, int d) => epochDayOf(DateTime(y, m, d));
+    final recs = [
+      SessionRecord(day(2026, 6, 17), 25, 'MATH', minuteOfDay: 8 * 60), // 08:00
+      SessionRecord(day(2026, 6, 17), 75, 'CODING', minuteOfDay: 12 * 60), // 12:00
+      SessionRecord(day(2026, 6, 17), 40, 'MATH'), // legacy (ignored on curve)
+      SessionRecord(day(2026, 6, 10), 60, 'MATH'), // earlier this month
+      SessionRecord(day(2026, 6, 9), 120, 'MATH'), // prev week
+    ];
+
+    test('dailyCumulative is monotonic, hours bucketed, legacy ignored', () {
+      final s = StatsAggregator.dailyCumulative(recs, now);
+      expect(s.totals.length, 7); // [0,4,8,12,16,20,24]
+      expect(s.totals[0], 0); // before 08:00
+      expect(s.totals[2], 25); // by 08:00 → 25
+      expect(s.totals[3], 100); // by 12:00 → 25+75
+      expect(s.totals.last, 100); // legacy 40 not on the hourly curve
+      for (var i = 1; i < s.totals.length; i++) {
+        expect(s.totals[i] >= s.totals[i - 1], true); // monotonic
+      }
+    });
+
+    test('periodStats current/average/best per period', () {
+      final (cur, avg, best) = StatsAggregator.periodStats(recs, now, StatPeriod.weekly);
+      expect(cur, 140); // this week = 25+75+40
+      expect(best, 180); // prev week (6/9 120 + 6/10 60) beats this week's 140
+      expect(avg, 160); // (140 + 180) / 2
+      final (dCur, _, dBest) = StatsAggregator.periodStats(recs, now, StatPeriod.daily);
+      expect(dCur, 140);
+      expect(dBest, 140);
+    });
+  });
+
   group('SessionRecord timestamp codec (v14)', () {
     test('4-field round-trip + legacy 3-field decode', () {
       final recs = [
