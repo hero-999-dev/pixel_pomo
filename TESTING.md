@@ -130,6 +130,12 @@ The Dart port carries its own tests, gating the **`build-flutter.yml`** macOS pi
 cd flutter && flutter analyze && flutter test   # 53 tests
 ```
 
+**v17:** no new tests (count stays **53**). Two **native `GardenRenderer`** fixes, **device-verified**: forest
+props rendered as **only shadows** because `isFlower()` mis-classified `tree_/bush_/rock_` ids and looked them
+up as the nonexistent `flower_tree_NN.png` — fixed by excluding those prefixes; and the screen-space sine **bee**
+was replaced with a garden-space flower-visiting bee (`frameForAngle` facing) like the in-app `CritterSystem`.
+These are pure-Kotlin wallpaper rendering, outside the `flutter test` (Dart) gate.
+
 **v16:** no new tests (count stays **53**). The live-wallpaper **picker fix** (native `MainActivity` now calls
 `startActivity` in a try/catch instead of guarding with `resolveActivity`, which returns null on Android 11+
 under package visibility) is **device-verified**, and moving **SET LIVE WALLPAPER** from the camera bar into the

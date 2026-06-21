@@ -5,6 +5,25 @@ Each entry notes the **prompt** (what you asked for) and the **changes** made.
 
 ---
 
+## v17 — live wallpaper render fixes: forest shows + critter-like bee (Flutter, 0.17.0+18)
+**Date:** 2026-06-21
+
+**Prompt (device feedback on v16):** the wallpaper works, but (1) the **forest props don't show — only their
+shadows**, and (2) there's a **bee randomly swinging around** that doesn't behave like the in-app critters.
+
+**Changes (native `GardenRenderer.kt`):**
+- **(1) Forest renders** — the bug was `isFlower()`: it only excluded `road_`/`fence_`, so forest ids
+  (`tree_NN`/`bush_NN`/`rock_NN`) were treated as flowers and looked up as the **nonexistent
+  `flower_tree_NN.png`** → null bitmap → only the contact shadow drew. `isFlower` now also excludes
+  `tree_`/`bush_`/`rock_`, so forest props load by their own filename (the bee always worked because it loads
+  `bee.png` directly).
+- **(2) Critter-like bee** — replaced the screen-space sine sway with a bee that flies **between planted
+  flowers in garden space** (projected through the same `Projector`), hovers at each, then picks the next
+  (random garden point if no flowers), facing its heading via a `frameForAngle` mirror over the 8-frame `bee`
+  atlas — the same feel as the in-app `CritterSystem`. Refactored `ground()` into `gridXY` + `projGrid` helpers.
+- **Tests: 53** (unchanged; native render). analyze clean; debug APK builds. The render is **device-verified**.
+  Version → **0.17.0+18**.
+
 ## v16 — live wallpaper fixes: picker opens + button moved into the capture sheet (Flutter, 0.16.0+17)
 **Date:** 2026-06-21
 
