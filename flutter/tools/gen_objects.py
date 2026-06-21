@@ -301,88 +301,8 @@ def outline(grid, hexcol):
     return grid
 
 
-# ---- menu icons (transparent 32x32, #1) -------------------------------------
-# v13's icons were sliced from a sheet whose navy background wasn't transparent,
-# so they rendered as dark boxes. These build each icon pixel-by-pixel on a blank
-# (fully transparent) canvas instead, then add a dark outline with `outline()`.
-
-def _px(g, x, y, hexcol):
-    if 0 <= y < len(g) and 0 <= x < len(g[0]):
-        g[y][x] = hexrgb(hexcol) + (255,)
-
-
-def _rect(g, x0, y0, x1, y1, hexcol):
-    for y in range(y0, y1 + 1):
-        for x in range(x0, x1 + 1):
-            _px(g, x, y, hexcol)
-
-
-def _disc(g, cx, cy, rad, hexcol):
-    for y in range(len(g)):
-        for x in range(len(g[0])):
-            if (x - cx) ** 2 + (y - cy) ** 2 <= rad * rad:
-                _px(g, x, y, hexcol)
-
-
-def icon_stats_grid():
-    g = blank(32, 32)
-    _rect(g, 7, 4, 25, 28, "E8E0CC")            # clipboard board
-    _rect(g, 12, 2, 19, 5, "8A8A8A")            # clip
-    _rect(g, 10, 16, 13, 24, "2BB39A")          # bars
-    _rect(g, 15, 11, 18, 24, "7A4FE0")
-    _rect(g, 20, 18, 23, 24, "F2C94C")
-    return outline(g, "23202B")
-
-
-def icon_settings_grid():
-    g = blank(32, 32)
-    _disc(g, 12, 12, 8, "9AA0A6")               # gear body
-    for (x, y) in ((12, 2), (12, 22), (2, 12), (22, 12)):
-        _rect(g, x - 2, y - 2, x + 2, y + 2, "9AA0A6")  # teeth
-    _disc(g, 12, 12, 3, "2E3138")               # hub
-    for i in range(11):                          # wrench shaft
-        _px(g, 17 + i, 17 + i, "B7BCC2")
-        _px(g, 18 + i, 17 + i, "B7BCC2")
-    _disc(g, 27, 27, 3, "B7BCC2")               # wrench head
-    _disc(g, 28, 28, 1, "2E3138")
-    return outline(g, "23202B")
-
-
-def icon_garden_grid():
-    g = blank(32, 32)
-    _rect(g, 7, 21, 25, 28, "7A4A24")           # planter
-    _rect(g, 7, 19, 25, 21, "5E3A1C")           # rim
-    for (x, c) in ((11, "E5484D"), (16, "F2C94C"), (21, "C24FE0")):
-        _rect(g, x, 12, x, 21, "46A03C")        # stem
-        _disc(g, x, 10, 3, c)                   # bloom
-    return outline(g, "23202B")
-
-
-def icon_theme_grid():
-    g = blank(32, 32)
-    _disc(g, 13, 17, 9, "E8D9B0")               # palette
-    for y in range(32):                          # thumb hole (clear back to transparent)
-        for x in range(32):
-            if (x - 17) ** 2 + (y - 21) ** 2 <= 4:
-                g[y][x] = (0, 0, 0, 0)
-    for (x, y, c) in ((9, 14, "E5484D"), (13, 11, "F2C94C"), (17, 13, "2A7DE1"), (10, 20, "46A03C")):
-        _disc(g, x, y, 1, c)                     # paint blobs
-    for i in range(8):                           # brush handle
-        _px(g, 20 + i, 8 + i, "7A4A24")
-    _rect(g, 26, 14, 28, 16, "C9CDD2")          # ferrule
-    return outline(g, "23202B")
-
-
-def icon_store_grid():
-    g = blank(32, 32)
-    _rect(g, 6, 7, 25, 12, "FBEFD8")            # canopy base (cream)
-    for x in range(6, 26, 4):                    # red stripes
-        _rect(g, x, 7, x + 1, 12, "D23A3A")
-    _rect(g, 6, 20, 25, 26, "8A5A2C")           # counter
-    _rect(g, 7, 12, 8, 20, "6E4520")            # posts
-    _rect(g, 23, 12, 24, 20, "6E4520")
-    _disc(g, 15, 23, 2, "F2C94C")               # coin on the counter
-    return outline(g, "23202B")
+# NB: the menu icons (assets/icon/icon_*.png) are no longer generated here — they
+# come from tools/extract_icons.py (the user's ChatGPT art, navy keyed out) (#v18).
 
 
 def flower_png_grid(petal_hex, center_hex, chars):
@@ -646,20 +566,8 @@ def main():
             os.remove(p)
     n = len(FLOWERS) + len(CRITTERS) + len(FENCES) + len(ROADS) + 4  # +grass +forest +tree +coin
     print("wrote", n, "sprites to", os.path.abspath(OUT), f"(FRAMES={FRAMES})")
-
-    # transparent menu icons (#1) — replace the old sheet slicer
-    ICON_OUT = os.path.join(os.path.dirname(OUT), "icon")
-    os.makedirs(ICON_OUT, exist_ok=True)
-    for name, fn in (("theme", icon_theme_grid), ("garden", icon_garden_grid),
-                     ("stats", icon_stats_grid), ("settings", icon_settings_grid),
-                     ("store", icon_store_grid)):
-        write_png(os.path.join(ICON_OUT, f"icon_{name}.png"), upscale(fn(), 8))
-    # drop the broken sheets (rendered as dark boxes)
-    for old in ("menu_sheet.png", "store_sheet.png"):
-        p = os.path.join(ICON_OUT, old)
-        if os.path.exists(p):
-            os.remove(p)
-    print("wrote 5 menu icons to", os.path.abspath(ICON_OUT))
+    # NB: the menu icons in assets/icon/ now come from tools/extract_icons.py
+    # (the user's ChatGPT art, navy keyed to transparent) — NOT generated here (#v18).
 
 
 if __name__ == "__main__":
