@@ -235,7 +235,7 @@ void main() {
       expect(already.atLeast(10, 20).rows, 22);
     });
 
-    test('garden grows as a centred ring', () {
+    test('garden grows centred, taller faster than wider (+2 cols / +4 rows, #v19)', () {
       const g = Garden(cols: 4, rows: 6);
       expect(g.cols, 4);
       expect(g.rows, 6);
@@ -243,14 +243,14 @@ void main() {
 
       // plant at (col 1, row 2) = index 2*4+1 = 9
       final grown = g.plant(9, 'lale').grow();
-      expect(grown.cols, 6);
-      expect(grown.rows, 8);
-      // (1,2) drifts to (2,3) = 3*6+2 = 20
-      expect(grown.propAt(20), 'lale');
+      expect(grown.cols, 6); // +2 wide
+      expect(grown.rows, 10); // +4 tall
+      // (1,2) drifts to (2,4) = 4*6+2 = 26
+      expect(grown.propAt(26), 'lale');
       final decoded = Garden.decode(grown.encode());
       expect(decoded.cols, 6);
-      expect(decoded.rows, 8);
-      expect(decoded.propAt(20), 'lale');
+      expect(decoded.rows, 10);
+      expect(decoded.propAt(26), 'lale');
       expect(decoded.tiles, grown.tiles);
     });
 
@@ -267,16 +267,16 @@ void main() {
       expect(d.propAt(9), 'lale');
     });
 
-    test('garden grows with no cap; stays centred', () {
+    test('garden grows with no cap; stays centred (taller, #v19)', () {
       var g = const Garden(cols: 4, rows: 6).plant(0, 'gul'); // (0,0)
       for (var i = 0; i < 10; i++) {
         g = g.grow();
       }
-      expect(g.cols, 4 + 20);
-      expect(g.rows, 6 + 20);
+      expect(g.cols, 4 + 20); // 10 × +2 cols
+      expect(g.rows, 6 + 40); // 10 × +4 rows
       expect(g.countPlanted('gul'), 1); // nothing lost
-      // (0,0) drifts +10/+10 → (10,10) = 10*g.cols + 10
-      expect(g.propAt(10 * g.cols + 10), 'gul');
+      // (0,0) drifts +10 cols / +20 rows → (10,20) = 20*g.cols + 10
+      expect(g.propAt(20 * g.cols + 10), 'gul');
     });
   });
 
