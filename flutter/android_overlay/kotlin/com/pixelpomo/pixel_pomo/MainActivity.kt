@@ -22,18 +22,23 @@ class MainActivity : FlutterActivity() {
 
     private fun openLiveWallpaperPicker(): Boolean {
         val component = ComponentName(this, GardenWallpaperService::class.java)
-        // Preferred: jump straight to our wallpaper's preview.
-        val direct = Intent(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER)
-            .putExtra(WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT, component)
-        if (direct.resolveActivity(packageManager) != null) {
-            startActivity(direct); return true
+        // Launch directly in a try/catch instead of guarding with resolveActivity():
+        // on Android 11+ resolveActivity() returns null under package visibility even
+        // though the system picker handles these intents, which made the picker never
+        // open (#v16). Preferred: jump straight to our wallpaper's preview.
+        try {
+            startActivity(Intent(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER)
+                .putExtra(WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT, component))
+            return true
+        } catch (e: Exception) {
+            // fall through to the generic live-wallpaper chooser
         }
-        // Fallback: the generic live-wallpaper chooser.
-        val chooser = Intent(WallpaperManager.ACTION_LIVE_WALLPAPER_CHOOSER)
-        if (chooser.resolveActivity(packageManager) != null) {
-            startActivity(chooser); return true
+        return try {
+            startActivity(Intent(WallpaperManager.ACTION_LIVE_WALLPAPER_CHOOSER))
+            true
+        } catch (e: Exception) {
+            false
         }
-        return false
     }
 
     private fun isOurWallpaperActive(): Boolean {

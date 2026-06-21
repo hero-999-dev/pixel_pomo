@@ -887,8 +887,6 @@ class _GardenScreenState extends State<GardenScreen> {
         backgroundColor: col(th.panel),
         title: Text(t(lang, 'camera'), style: pixelStyle(lang, 12, col(th.onSurface))),
         children: [
-          // The captured still goes to Share/Save; the *live* wallpaper is set
-          // separately from camera mode (SET LIVE WALLPAPER), not from this frame.
           SimpleDialogOption(
             onPressed: () async {
               await sharePng(bytes, 'pixel_pomo_garden.png');
@@ -896,6 +894,15 @@ class _GardenScreenState extends State<GardenScreen> {
             },
             child: Text(t(lang, 'share'), style: pixelStyle(lang, 11, col(th.onSurface))),
           ),
+          // set the live wallpaper at the framed angle, below save/share (#v16, Android only)
+          if (Platform.isAndroid)
+            SimpleDialogOption(
+              onPressed: () async {
+                if (ctx.mounted) Navigator.pop(ctx);
+                await _setLiveWallpaper();
+              },
+              child: Text(t(lang, 'setLiveWallpaper'), style: pixelStyle(lang, 11, col(th.onSurface))),
+            ),
           SimpleDialogOption(
             onPressed: () => Navigator.pop(ctx),
             child: Text(t(lang, 'cancel'), style: pixelStyle(lang, 11, col(th.accent))),
@@ -999,22 +1006,15 @@ class _GardenScreenState extends State<GardenScreen> {
                 padding: const EdgeInsets.all(16),
                 child: Row(
                   children: [
-                    // set the live wallpaper at the framed angle (Android only — iOS has no API)
-                    if (Platform.isAndroid) ...[
-                      Expanded(
-                        child: primaryBtn(th, lang, t(lang, 'setLiveWallpaper'), _setLiveWallpaper,
-                            key: const Key('setWallpaperButton'), fontSize: 9, padding: const EdgeInsets.all(14)),
-                      ),
-                      const SizedBox(width: 10),
-                    ],
+                    // CAPTURE opens the save/share/set-live-wallpaper sheet (#v16)
                     Expanded(
-                      child: secondaryBtn(th, lang, t(lang, 'capture'), _capture,
-                          fontSize: 9, padding: const EdgeInsets.all(14)),
+                      child: primaryBtn(th, lang, t(lang, 'capture'), _capture,
+                          padding: const EdgeInsets.all(16)),
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: secondaryBtn(th, lang, t(lang, 'cancel'), _exitCamera,
-                          fontSize: 9, padding: const EdgeInsets.all(14)),
+                          padding: const EdgeInsets.all(16)),
                     ),
                   ],
                 ),
