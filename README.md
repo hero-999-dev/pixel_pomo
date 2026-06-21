@@ -182,7 +182,7 @@ continues in parallel until the Flutter port is verified at parity on-device.
 
 The Flutter build has a **Flutter-exclusive living garden**: a **full-screen, portrait 2.5D world**
 drawn by a tiny custom engine (`flutter/lib/engine/`, no Unity/Flame). A **portrait `cols × rows` plot
-(starts 10×20)** is the grass **clearing** — scattered with a few **wild decorative blooms** — framed by a
+(starts 10×20)** is the grass **clearing** — dotted with a few **flat white daisies** — framed by a
 **screen-filling forest** (**20 trees + 10 bushes + 5 rocks**, drawn on every visible tile so the woods cover
 the whole portrait screen). **EXPAND grows the plot from the center**; you **rotate/pinch/pan** (bounded to a
 roam radius — wander into the woods, but the garden's never lost); **bee/butterfly/ladybug** drift in to visit
@@ -198,8 +198,8 @@ docked at the bottom. The app **themes its system bars** with **no white tap rip
 history navigator**, bar tops in **minutes**, a full-label right-aligned **pie**, and a **TREND** line — DAILY
 fills up **hour by hour**, other periods show per-bucket totals with **CURRENT / AVERAGE / BEST**.
 Korean uses **Galmuri11** (OFL); the icon is baked in via `flutter_launcher_icons`. Each build publishes
-a permanent **`flutter-vN`** GitHub release. *(The Android **live wallpaper** is a native `WallpaperService`
-that re-renders your saved garden at the framing you picked; iOS has no API and keeps Save/Share.)*
+a permanent **`flutter-vN`** GitHub release. *(The Android **live wallpaper** hosts a Flutter engine that renders
+the **real garden** — the exact same view as the app — at the framing you picked; iOS has no API and keeps Save/Share.)*
 
 To make that port a single clean pass rather than a moving target, **all app logic is kept
 in pure, framework-free classes** (`PomodoroEngine`, `Labels`, `Stats*`, `Economy`,

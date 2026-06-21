@@ -542,8 +542,8 @@ class GardenPainter extends CustomPainter {
       } else if (Placeables.isFence(id)) {
         _paintFencePost(canvas, p, c, r, id);
       } else {
-        final sway = math.sin(time * 1.6 + c * 7 + r) * 1.4;
-        _paintBillboard(canvas, sprites.flower(id), anchor, p.t, sway: sway);
+        // flowers stand still — no wind sway (#v20 item 2)
+        _paintBillboard(canvas, sprites.flower(id), anchor, p.t);
       }
     }
 
@@ -565,21 +565,25 @@ class GardenPainter extends CustomPainter {
     for (var r = 0; r < _rows; r++) {
       for (var c = 0; c < _cols; c++) {
         if (garden.tiles.containsKey(r * _cols + c)) continue; // skip planted/road
-        if (_grassFlowerHash(c, r) % 100 >= 8) continue; // ~8% of empty tiles — sparse
+        if (_grassFlowerHash(c, r) % 100 >= 5) continue; // ~5% of empty tiles — sparse
         _paintBloom(canvas, p.ground(c, r), p.t);
       }
     }
   }
 
+  /// A small **flat** pixel daisy lying on the grass (white petals + yellow eye) —
+  /// not a billboard object; matches the 2D flowered-grass look the user sent (#v20).
   void _paintBloom(Canvas canvas, Offset a, double t) {
-    final s = t * 0.10;
-    final center = a.translate(0, -s * 1.5); // sit just above the ground
+    final s = t * 0.085;
     final white = Paint()..color = const Color(0xFFFFFFFF);
-    for (var k = 0; k < 5; k++) {
-      final ang = k * 2 * math.pi / 5;
-      canvas.drawCircle(center.translate(math.cos(ang) * s, math.sin(ang) * s * kVy), s * 0.6, white);
-    }
-    canvas.drawCircle(center, s * 0.5, Paint()..color = const Color(0xFFF2C94C)); // yellow eye
+    final eye = Paint()..color = const Color(0xFFF2C94C);
+    void px(double dx, double dy, Paint p) => canvas.drawRect(
+        Rect.fromCenter(center: a.translate(dx, dy * kVy), width: s, height: s * kVy), p);
+    px(0, -s, white); // petals, flattened onto the ground by kVy
+    px(0, s, white);
+    px(-s, 0, white);
+    px(s, 0, white);
+    px(0, 0, eye); // yellow centre
   }
 
   void _paintRoads(Canvas canvas) {
