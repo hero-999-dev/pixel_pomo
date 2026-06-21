@@ -307,7 +307,8 @@ now Flutter-exclusive and richer** than the native grid (see below) — keep the
   `WallpaperService`) drives a **Choreographer render loop** that re-draws the saved garden on the wallpaper
   `Surface` via `GardenData` (reads the garden/theme/framing from `FlutterSharedPreferences`, loads the sprites
   from `flutter_assets/`) + `GardenRenderer` (Kotlin `Canvas` port of the garden painter: same isometric ground,
-  real road/fence sprites, billboards, flat daisies, a single-shape bee). It re-reads the saved garden on each
+  real road sprites, **low-poly 3D fence meshes** (posts + linking rails, like the app), billboards, flat daisies,
+  a single-shape bee). It re-reads the saved garden on each
   visibility-on so new plantings show up, and stops drawing when hidden (battery). **(#v20** a `FlutterEngine`-hosted
   variant that ran the actual `GardenView` was tried for a 1:1 match but black-screened on device — the
   Flutter→wallpaper-surface path is unsupported — so it was reverted and the native renderer improved instead.)

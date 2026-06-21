@@ -133,7 +133,8 @@ cd flutter && flutter analyze && flutter test   # 55 tests
 **v20:** count stays **55** (visual/native). The wallpaper is the **native `GardenRenderer`** (a `FlutterEngine`-
 hosted variant that ran the actual `GardenView` was tried for a 1:1 match but black-screened on device — an
 unsupported path — so it was reverted and the native renderer improved): **real road sprites** (were gray
-squares) and a **single-shape bee** that no longer morphs with the camera — both **device-verified**. The
+squares), **low-poly 3D fence meshes** (posts + linking rails, ported from the app's `boxCorners`/`_paintFenceRails`
+— were flat billboard cards), and a **single-shape bee** that no longer morphs with the camera — all **device-verified**. The
 **no-wind** flowers, **flat white daisies** (app painter + native renderer), **single-shape critters**, and the
 redrawn **coin** are visual too.
 
