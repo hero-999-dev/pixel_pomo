@@ -31,9 +31,12 @@ class GardenRenderer(private val data: GardenData) {
     private var t = 1.0; private var cx = 0.0; private var cy = 0.0
     private var cosY = 1.0; private var sinY = 0.0; private var cols = 10; private var rows = 16
 
-    // bee state in centered garden coords — flies between planted flowers, hovers,
-    // then picks the next, like the in-app CritterSystem (#v17).
-    private var beeReady = false
+    // bee lifecycle (#v19): a gap with NO bee, then it flies in from the top edge,
+    // visits a few flowers, leaves off the top, then gaps again — like the in-app
+    // CritterSystem, so there isn't always a bug on screen.
+    private var beeAlive = false
+    private var beeTimer = 3.0      // seconds until the next spawn (while absent)
+    private var beeVisitsLeft = 0  // <0 means it's leaving
     private var beeGx = 0.0; private var beeGy = 0.0
     private var beeTx = 0.0; private var beeTy = 0.0
     private var beeHover = 0.0
@@ -138,12 +141,8 @@ class GardenRenderer(private val data: GardenData) {
             (x + hs).toFloat(), (y + hs * KVY).toFloat(), paint)
     }
 
-    // a few wild blooms on empty grass tiles — mirrors the in-app _paintGrassFlowers
-    // (64-bit hash so the same tiles bloom in-app and on the wallpaper) (#v18).
-    private val bloomColors = intArrayOf(
-        Color.rgb(0xFF, 0xFF, 0xFF), Color.rgb(0xF2, 0xC9, 0x4C),
-        Color.rgb(0xF4, 0xA6, 0xC0), Color.rgb(0xC9, 0xA6, 0xF0))
-
+    // sparse white daisies on empty grass tiles — mirrors the in-app
+    // _paintGrassFlowers (64-bit hash so the same tiles bloom both places) (#v19).
     private fun grassFlowerHash(c: Int, r: Int): Int {
         var h = (c.toLong() * 0x1f1f1f1f) xor (r.toLong() * 0x2c2c2c2c) xor 0x5bd1e995L
         h = h xor (h shr 15)
@@ -155,26 +154,24 @@ class GardenRenderer(private val data: GardenData) {
             for (c in 0 until cols) {
                 val idx = r * cols + c
                 if (data.groundAt(idx) != null || data.propAt(idx) != null) continue // only empty grass
-                val h = grassFlowerHash(c, r)
-                if (h % 100 >= 14) continue
-                val petal = bloomColors[(h / 100) % bloomColors.size]
+                if (grassFlowerHash(c, r) % 100 >= 8) continue // ~8% — sparse
                 val (x, y) = ground(c, r)
-                drawBloom(canvas, x, y, petal)
+                drawBloom(canvas, x, y)
             }
         }
     }
 
-    private fun drawBloom(canvas: Canvas, x: Double, y: Double, petal: Int) {
-        val s = t * 0.11
+    private fun drawBloom(canvas: Canvas, x: Double, y: Double) {
+        val s = t * 0.10
         val cyc = y - s * 1.5
-        paint.color = petal
+        paint.color = Color.WHITE
         for (k in 0 until 5) {
             val ang = k * 2 * Math.PI / 5
             canvas.drawCircle((x + cos(ang) * s).toFloat(), (cyc + sin(ang) * s * KVY).toFloat(),
-                (s * 0.62).toFloat(), paint)
+                (s * 0.6).toFloat(), paint)
         }
-        paint.color = Color.rgb(0xE0, 0x90, 0x2C)
-        canvas.drawCircle(x.toFloat(), cyc.toFloat(), (s * 0.55).toFloat(), paint)
+        paint.color = Color.rgb(0xF2, 0xC9, 0x4C)
+        canvas.drawCircle(x.toFloat(), cyc.toFloat(), (s * 0.5).toFloat(), paint)
     }
 
     private fun billboard(canvas: Canvas, bmp: Bitmap?, x: Double, y: Double, heightTiles: Double) {
@@ -187,31 +184,50 @@ class GardenRenderer(private val data: GardenData) {
         canvas.drawBitmap(bmp, null, RectF(left, top, (left + pw).toFloat(), (top + ph).toFloat()), paint)
     }
 
-    // A bee that flies between planted flowers in garden space, hovering at each
-    // (mirrors the in-app CritterSystem feel + frameForAngle facing) instead of a
-    // screen-space sine sway (#v17).
+    // A bee with a come-and-go lifecycle: a gap with no bug, then it flies in from
+    // the top, visits a few flowers, leaves off the top, then gaps again — like the
+    // in-app CritterSystem (frameForAngle facing). Not always on screen (#v19).
     private fun updateBee(canvas: Canvas, timeSec: Double, flowers: List<Pair<Double, Double>>) {
         val bmp = data.bitmap("bee") ?: return
         val dt = (if (lastT == 0.0) 0.0 else timeSec - lastT).coerceIn(0.0, 0.1)
         lastT = timeSec
-        if (!beeReady) {
-            beeReady = true
-            val s0 = nextTarget(flowers)
-            beeGx = s0.first; beeGy = s0.second; beeTx = beeGx; beeTy = beeGy; beeHover = 1.0
+
+        val topEdge = -rows / 2.0 - 2.0
+        if (!beeAlive) {
+            beeTimer -= dt
+            if (beeTimer > 0.0) return // absent during the gap — nothing drawn
+            beeAlive = true
+            beeVisitsLeft = 2 + Random.nextInt(3) // visit 2–4 spots
+            beeGx = Random.nextDouble(-cols / 2.0, cols / 2.0); beeGy = topEdge - 1.0 // enter from the top
+            val t0 = nextTarget(flowers); beeTx = t0.first; beeTy = t0.second
+            beeHover = 0.0
         }
+
         val dx = beeTx - beeGx; val dy = beeTy - beeGy
         val dist = sqrt(dx * dx + dy * dy)
-        if (dist < 0.12) {
+        if (dist < 0.15) {
             beeHover -= dt
             if (beeHover <= 0.0) {
-                val nt = nextTarget(flowers); beeTx = nt.first; beeTy = nt.second
-                beeHover = 1.0 + Random.nextDouble() * 1.5
+                beeVisitsLeft--
+                if (beeVisitsLeft <= 0) { // done visiting → head off the top edge
+                    beeTx = Random.nextDouble(-cols / 2.0, cols / 2.0); beeTy = topEdge - 2.0
+                    beeVisitsLeft = -1
+                } else {
+                    val nt = nextTarget(flowers); beeTx = nt.first; beeTy = nt.second
+                    beeHover = 1.0 + Random.nextDouble() * 1.5
+                }
             }
         } else {
-            val speed = 2.2 // tiles/sec
+            val speed = 2.4 // tiles/sec
             beeGx += dx / dist * speed * dt
             beeGy += dy / dist * speed * dt
         }
+        if (beeVisitsLeft < 0 && beeGy <= topEdge) { // left the scene → despawn, gap before next
+            beeAlive = false
+            beeTimer = 5.0 + Random.nextDouble() * 9.0 // 5–14s with no bug
+            return
+        }
+
         val (sx, sy) = projGrid(beeGx, beeGy)
         val (ax, ay) = projGrid(beeGx + dx, beeGy + dy) // look-ahead → screen-space heading
         val frame = if (dist < 0.15) 0 else frameForAngle(atan2(ay - sy, ax - sx))

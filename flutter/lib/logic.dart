@@ -132,8 +132,14 @@ class Themes {
       bg: 0xFFF7EFDD, panel: 0xFFFFFBF0, accent: 0xFFD20F39, work: 0xFF40A02B,
       breakColor: 0xFF1E66F5, onSurface: 0xFF4C4F69, onSurfaceDim: 0xFF8A7F6A,
       onAccent: 0xFFFFFFFF, shadow: 0xFFD9CBB0);
+  // a green "matcha" theme matching the garden, in the Catppuccin family (#v19)
+  static const matcha = PixelTheme(
+      id: 'matcha', displayName: 'MATCHA',
+      bg: 0xFF1A2420, panel: 0xFF2A3A30, accent: 0xFFA6E3A1, work: 0xFF94D977,
+      breakColor: 0xFF89DCEB, onSurface: 0xFFCAD9C4, onSurfaceDim: 0xFF9DB09A,
+      onAccent: 0xFF1A2420, shadow: 0xFF0F1611);
 
-  static const all = [dark, light, mocha, frappe, latte];
+  static const all = [dark, light, mocha, frappe, latte, matcha];
   static const fallback = dark;
 
   static PixelTheme byId(String? id) {
@@ -321,16 +327,17 @@ class Garden {
     return Garden(cols: cols, rows: rows, tiles: next);
   }
 
-  /// Expand by one tile on every side (a ring), so the plot grows **centred** —
-  /// existing tiles shift by (+1 col, +1 row) into the larger grid.
+  /// Expand the plot, centred, growing **taller faster than wider** (+2 cols /
+  /// +4 rows) so it keeps reading as a portrait garden as it grows (#v19).
+  /// Existing tiles shift by (+1 col, +2 rows) into the larger grid.
   Garden grow() {
     final nc = cols + 2;
-    final nr = rows + 2;
+    final nr = rows + 4;
     final remapped = <int, String>{};
     tiles.forEach((index, id) {
       final r = index ~/ cols;
       final c = index % cols;
-      remapped[(r + 1) * nc + (c + 1)] = id;
+      remapped[(r + 2) * nc + (c + 1)] = id;
     });
     return Garden(cols: nc, rows: nr, tiles: remapped);
   }
@@ -708,6 +715,7 @@ class StatsAggregator {
           final y = dateOfEpochDay(r.epochDay).year;
           if (y < minY) minY = y;
         }
+        if (minY < 2025) minY = 2025; // never show years before 2025 (#v19)
         n = now0.year - minY + 1;
         idx = (r) => dateOfEpochDay(r.epochDay).year - minY;
         ticks = [for (var i = 0; i < n; i++) '${minY + i}'];

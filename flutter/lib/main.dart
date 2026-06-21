@@ -160,6 +160,9 @@ class HomeScreen extends StatelessWidget {
         final shadows = garden
             ? const [Shadow(offset: Offset(2, 2), color: Color(0xCC000000))]
             : const <Shadow>[];
+        // over the dark garden the foreground text must be LIGHT — on light themes
+        // th.onSurface is dark and was unreadable / looked "darkened" (#v19 #6).
+        final overGarden = garden ? const Color(0xFFF4F4F4) : col(th.onSurface);
         final timerBlock = Column(
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
@@ -169,7 +172,7 @@ class HomeScreen extends StatelessWidget {
             secondaryBtn(th, lang, s.currentLabel, () => openPanel(context, s, () => LabelScreen(s)),
                 fontSize: 11, padding: const EdgeInsets.all(10)),
             const SizedBox(height: 28),
-            Text(e.formattedTime(), style: pixelStyle(lang, 48, col(th.onSurface)).copyWith(shadows: shadows)),
+            Text(e.formattedTime(), style: pixelStyle(lang, 48, overGarden).copyWith(shadows: shadows)),
             const SizedBox(height: 32),
             PixelProgress(
                 percent: e.progressPercent(),
@@ -189,7 +192,7 @@ class HomeScreen extends StatelessWidget {
           ],
         );
         final sessionText = Text(tf(lang, 'session', [e.session, e.totalSessions]),
-            style: pixelStyle(lang, 12, col(garden ? th.onSurface : th.onSurfaceDim)).copyWith(shadows: shadows));
+            style: pixelStyle(lang, 12, garden ? overGarden : col(th.onSurfaceDim)).copyWith(shadows: shadows));
 
         return Scaffold(
           backgroundColor: col(th.bg),
@@ -199,10 +202,15 @@ class HomeScreen extends StatelessWidget {
               if (garden) Positioned.fill(child: _liveBackdrop(th, lang)),
               SafeArea(
                 child: garden
-                    // garden mode: SESSION centered in the top bar between the icon
-                    // groups, timer docked at the bottom over the full garden (#3, #5)
+                    // garden mode: SESSION on its own centered line just below the
+                    // top bar (the icon row was too crowded to hold it — #v19), timer
+                    // docked at the bottom over the full garden
                     ? Column(children: [
-                        _topBar(context, th, lang, center: sessionText),
+                        _topBar(context, th, lang),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2, bottom: 4),
+                          child: sessionText,
+                        ),
                         const Spacer(),
                         Padding(
                           padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
@@ -256,14 +264,14 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  // left = theme/garden/stats · right = settings/store/coin (#4). [center] holds the
-  // SESSION indicator in garden mode, sitting between the two icon groups (#3, v14).
-  Widget _topBar(BuildContext context, PixelTheme th, String lang, {Widget? center}) {
-    // over the live garden wallpaper, give the coin count a hard pixel shadow for
-    // legibility — same treatment as the timer text (#5), no scrim box.
+  // left = theme/garden/stats · right = settings/store/coin (#4).
+  Widget _topBar(BuildContext context, PixelTheme th, String lang) {
+    // over the live garden wallpaper, give the coin count a hard pixel shadow +
+    // a LIGHT colour (th.onSurface is dark on light themes) for legibility (#v19 #6).
     final shadows = s.homeGardenBackdrop
         ? const [Shadow(offset: Offset(2, 2), color: Color(0xCC000000))]
         : const <Shadow>[];
+    final coinColor = s.homeGardenBackdrop ? const Color(0xFFF4F4F4) : col(th.onSurface);
     Widget icon(String name, VoidCallback onTap, Key key) => IconButton(
           key: key,
           icon: Image.asset('assets/icon/icon_$name.png', width: 30, height: 30, filterQuality: FilterQuality.none),
@@ -276,7 +284,6 @@ class HomeScreen extends StatelessWidget {
         icon('garden', () => openPanel(context, s, () => GardenScreen(s)), const Key('gardenButton')),
         icon('stats', () => openPanel(context, s, () => StatsScreen(s)), const Key('statsButton')),
         const Spacer(),
-        if (center != null) ...[Flexible(child: center), const Spacer()],
         icon('settings', () => openPanel(context, s, () => SettingsScreen(s)), const Key('settingsButton')),
         icon('store', () => openPanel(context, s, () => ShopScreen(s)), const Key('storeButton')),
         GestureDetector(
@@ -287,7 +294,7 @@ class HomeScreen extends StatelessWidget {
             child: Row(children: [
               const GoldCoin(size: 28),
               const SizedBox(width: 6),
-              Text('${s.coins}', style: pixelStyle(lang, 14, col(th.onSurface)).copyWith(shadows: shadows)),
+              Text('${s.coins}', style: pixelStyle(lang, 14, coinColor).copyWith(shadows: shadows)),
             ]),
           ),
         ),
