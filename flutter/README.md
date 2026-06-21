@@ -29,8 +29,7 @@ flutter/
 │   ├── engine/
 │   │   ├── garden_engine.dart  # 2.5D renderer: rectangular Projector + screen-filling forest (visibleTileBounds), low-poly 3D fence mesh, flat lighting, flower/tree billboards, grass blooms, critter atlas
 │   │   └── garden_view.dart    # gesture/ticker widget: pinch-zoom + pan + two-finger rotate; peek/camera buttons; RepaintBoundary capture; interactive flag
-│   ├── main.dart         # screens: timer (+optional live garden backdrop) + theme/garden/stats/settings/shop/label overlays
-│   └── wallpaper_main.dart # @vm:entry-point wallpaperMain → renders the real GardenView for the live wallpaper (#v20)
+│   └── main.dart         # screens: timer (+optional live garden backdrop) + theme/garden/stats/settings/shop/label overlays
 └── test/
     ├── logic_test.dart        # Dart edge tests (gate the Flutter CI)
     ├── engine_test.dart       # geometry: projectElevated + boxCorners + rectangular Projector + screen-filling forest + roam clamp
@@ -105,13 +104,15 @@ matched); **camera mode** lets you frame an **angle** (rotate/zoom/pan, tilt fix
 sheet: **Share** the still (`share_plus`) or **SET LIVE WALLPAPER** (Android only, hidden on iOS). **SET LIVE
 WALLPAPER** saves that framing (`WallpaperCam`, pan normalized by tile size) and opens Android's live-wallpaper
 picker (native `startActivity` — not `resolveActivity`, which returns null under Android 11+ package visibility)
-for the native **`GardenWallpaperService`**. **(#v20)** that service **hosts a `FlutterEngine`** running the
-**`wallpaperMain`** entry point (`lib/wallpaper_main.dart`) and points its renderer at the wallpaper surface — so
-the wallpaper renders the **exact same `GardenView`** as the app (real 3D fences, the real `CritterSystem`, every
-sprite) at your saved framing, **not** a simplified native re-draw. It reads the same `SharedPreferences`
-(garden/theme/`wallpaper_cam`) and the same bundled sprites, pausing the engine when it isn't visible. (Heavier on
-battery, and Flutter→wallpaper-surface is an unsupported path, so it's device-verified.) The native files live in
-**`android_overlay/`** and are copied into the CI-regenerated `android/` (manifest patched) by **`apply_overlay.py`**.
+for the native **`GardenWallpaperService`**. That service drives a **Choreographer** loop that re-draws your saved
+garden on the wallpaper surface via `GardenData` (reads garden/theme/`wallpaper_cam` from `SharedPreferences`,
+loads the bundled sprites) + `GardenRenderer` (a Kotlin `Canvas` port of the garden painter — same isometric
+ground, **real road/fence sprites**, billboards, **flat daisies**, a **single-shape bee**). It re-reads the garden
+each time it becomes visible (new plantings show up) and stops drawing when hidden (battery). **(#v20** a
+`FlutterEngine`-hosted variant that ran the actual `GardenView` for a 1:1 match was tried but **black-screened on
+device** — the Flutter→wallpaper-surface path is unsupported — so it was reverted and the native renderer improved:
+real roads, single-shape bug, no wind.) The native files live in **`android_overlay/`** and are copied into the
+CI-regenerated `android/` (manifest patched) by **`apply_overlay.py`**.
 **Settings → HOME SCREEN `CLEAN | GARDEN`** renders the full-strength **live** garden behind the timer — in garden
 mode **SESSION sits on its own line** below the top bar and the timer docks at the bottom (over-garden text is
 light for legibility). *(iOS has no live-wallpaper API and keeps Save/Share.)*

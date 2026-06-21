@@ -301,17 +301,17 @@ now Flutter-exclusive and richer** than the native grid (see below) — keep the
   `CLEAN | GARDEN`**: GARDEN renders the **full-strength** non-interactive live `GardenView` behind the timer; in
   garden mode **SESSION sits centered in the top bar** and the timer docks at the bottom (text + coin-count shadows,
   no scrim).
-- **Android live wallpaper — the REAL garden (`flutter/android_overlay/`, #v20):** since CI regenerates
-  `android/` via `flutter create`, the native files are committed in `android_overlay/` and copied in (+ manifest
-  patched) by **`apply_overlay.py`** (a CI step + run locally). `GardenWallpaperService` (Kotlin
-  `WallpaperService`) **hosts a `FlutterEngine`** running the **`wallpaperMain`** entry point
-  (`lib/wallpaper_main.dart`, `@pragma('vm:entry-point')`) and points the engine's renderer at the wallpaper
-  `Surface` (`startRenderingToSurface` + `surfaceChanged`/`setViewportMetrics`; `appIsResumed`/`appIsPaused` on
-  visibility). `wallpaperMain` loads the saved garden/theme/framing from `SharedPreferences` + `SpriteBank.load()`
-  and renders the **exact same `GardenView`** as the app (interactive:false, the real 3D fences + `CritterSystem` +
-  every sprite) at the saved `WallpaperCam` framing — so the wallpaper IS the app garden, not a re-draw. (Heavier
-  on battery, and Flutter→wallpaper-surface isn't officially supported, so it's device-verified.) iOS has no
-  live-wallpaper API and keeps Save/Share.
+- **Android live wallpaper — native renderer (`flutter/android_overlay/`, #v15, improved #v20):** since CI
+  regenerates `android/` via `flutter create`, the native files are committed in `android_overlay/` and copied in
+  (+ manifest patched) by **`apply_overlay.py`** (a CI step + run locally). `GardenWallpaperService` (Kotlin
+  `WallpaperService`) drives a **Choreographer render loop** that re-draws the saved garden on the wallpaper
+  `Surface` via `GardenData` (reads the garden/theme/framing from `FlutterSharedPreferences`, loads the sprites
+  from `flutter_assets/`) + `GardenRenderer` (Kotlin `Canvas` port of the garden painter: same isometric ground,
+  real road/fence sprites, billboards, flat daisies, a single-shape bee). It re-reads the saved garden on each
+  visibility-on so new plantings show up, and stops drawing when hidden (battery). **(#v20** a `FlutterEngine`-hosted
+  variant that ran the actual `GardenView` was tried for a 1:1 match but black-screened on device — the
+  Flutter→wallpaper-surface path is unsupported — so it was reverted and the native renderer improved instead.)
+  iOS has no live-wallpaper API and keeps Save/Share.
 - **Varied forest:** `forestPropAt(c,r)` deterministically scatters **20 `tree_NN` + 10 `bush_NN` +
   5 `rock_NN`** (with grass gaps) over the **screen-filling forest** so the woods look natural, not one repeated tree.
 - **App-wide theming:** `systemOverlayFor(theme)` + `isLightColor` drive `SystemChrome` via an

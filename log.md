@@ -5,7 +5,7 @@ Each entry notes the **prompt** (what you asked for) and the **changes** made.
 
 ---
 
-## v20 — real-garden live wallpaper + grass/coin polish (Flutter, 0.20.0+21)
+## v20 — improved native live wallpaper + grass/coin/critter polish (Flutter, 0.20.0+21)
 **Date:** 2026-06-21
 
 **Prompt (device feedback):** (1) the live wallpaper renders poorly — outer decor (roads/fences) and bugs look
@@ -15,16 +15,20 @@ same as the app"** — same structure, heavier power is fine; (4) the small flow
 is 1.png.
 
 **Changes:**
-- **(1+3) Real-garden live wallpaper** — replaced the simplified native renderer with a **`FlutterEngine` hosted
-  in `GardenWallpaperService`** running a new `wallpaperMain` entry point (`lib/wallpaper_main.dart`) that renders
-  the **actual `GardenView`** (same engine as the app: 3D fences, the real `CritterSystem`, every sprite) at the
-  saved framing, pointed at the wallpaper `Surface` (`startRenderingToSurface` + viewport metrics; resumed/paused
-  on visibility). **Deleted** the native `GardenData.kt` + `GardenRenderer.kt`. (Heavier on battery; Flutter→
-  wallpaper-surface isn't officially supported, so it's device-verified and may need tuning.) This makes items 1
-  (outer decor/bugs) moot — the wallpaper is exactly the app.
-- **(2) No wind** — flower billboards no longer sway (`_paintBillboard` sway removed).
+- **(1+3) Wallpaper — tried the real app garden, fell back to an improved native renderer.** First attempted
+  **A2**: a `FlutterEngine` hosted in `GardenWallpaperService` running a `wallpaperMain` entry point rendering the
+  actual `GardenView` pointed at the wallpaper `Surface`. It compiled but showed a **persistent black screen** on
+  device (the Flutter→wallpaper-surface path is unsupported and undebuggable without device logs — even after
+  moving the entry point into `main.dart`'s root library, the surface attach never delivered frames). Per the
+  user's choice, **reverted to the native `GardenRenderer`** and improved it instead: **roads now draw their real
+  sprites** (were gray squares), the **bug uses a single fixed facet** so it doesn't morph with the camera, plus
+  the v20 polish below. (The exact-app-engine wallpaper is parked.)
+- **(2) No wind** — flowers no longer sway (in-app `_paintBillboard` call + the native renderer's billboard loop).
 - **(4) Flat grass daisies** — replaced the billboard blooms with small **flat pixel daisies** (white petals +
-  yellow eye, squashed onto the ground by `kVy`), ~5% of empty tiles — matches the 2D flowered-grass examples.
+  yellow eye, squashed onto the ground by `kVy`), ~5% of empty tiles — matches the 2D flowered-grass examples
+  (2.jpg) — in the app painter **and** the native wallpaper renderer.
+- **Critters keep one shape** — `_paintCritters` uses a fixed atlas frame (was `frameForAngle(screen-velocity)`,
+  which morphed the bug as the camera rotated); same fix in the native bee.
 - **Coin** — `coin_grid` redrawn with a soft **upper-left diagonal highlight** (was a hard top/bottom split) to
   match `1.png`.
 - **Tests: 55** (unchanged; visual/native). analyze clean; debug APK builds. Wallpaper + garden are
