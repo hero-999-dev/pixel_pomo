@@ -130,6 +130,11 @@ The Dart port carries its own tests, gating the **`build-flutter.yml`** macOS pi
 cd flutter && flutter analyze && flutter test   # 53 tests
 ```
 
+**v16:** no new tests (count stays **53**). The live-wallpaper **picker fix** (native `MainActivity` now calls
+`startActivity` in a try/catch instead of guarding with `resolveActivity`, which returns null on Android 11+
+under package visibility) is **device-verified**, and moving **SET LIVE WALLPAPER** from the camera bar into the
+**CAPTURE** save/share sheet is a UI change to an Android-only option that the host widget test can't render.
+
 **v15 additions:** `logic_test` gained a **`WallpaperCam` framing codec** group (encode 4 fields +
 round-trip; tolerant decode of null/garbage — the live-wallpaper framing the native side reads). New
 **`test/wallpaper_channel_test.dart`** mocks `MethodChannel('pixel_pomo/wallpaper')` and asserts
