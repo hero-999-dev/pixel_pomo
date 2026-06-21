@@ -214,20 +214,25 @@ void main() {
       expect(Economy.upgradeCost(6, 8), 29);
     });
 
-    test('garden base is 10x16; atLeast migrates a smaller plot keeping plantings', () {
+    test('garden base is 10x20 (portrait); atLeast pads each axis keeping plantings', () {
       expect(Economy.baseGardenCols, 10);
-      expect(Economy.baseGardenRows, 16);
+      expect(Economy.baseGardenRows, 20);
       const def = Garden();
       expect(def.cols, 10);
-      expect(def.rows, 16);
-      // a saved 4x6 with a flower migrates into >=10x16, centred, nothing lost
+      expect(def.rows, 20);
+      // a saved 4x6 with a flower pads into >=10x20, centred, nothing lost
       final small = const Garden(cols: 4, rows: 6).plant(5, 'gul');
-      final big = small.atLeast(10, 16);
-      expect(big.cols >= 10 && big.rows >= 16, true);
+      final big = small.atLeast(10, 20);
+      expect(big.cols >= 10 && big.rows >= 20, true);
       expect(big.countPlanted('gul'), 1);
+      // a legacy WIDE plot gains rows (portrait) without widening (#v18)
+      final tall = const Garden(cols: 10, rows: 16).atLeast(10, 20);
+      expect(tall.cols, 10); // not widened
+      expect(tall.rows, 20); // padded up to portrait
       // already-big plots are returned unchanged
-      final already = const Garden(cols: 12, rows: 18);
-      expect(already.atLeast(10, 16).cols, 12);
+      final already = const Garden(cols: 12, rows: 22);
+      expect(already.atLeast(10, 20).cols, 12);
+      expect(already.atLeast(10, 20).rows, 22);
     });
 
     test('garden grows as a centred ring', () {
