@@ -5,6 +5,26 @@ Each entry notes the **prompt** (what you asked for) and the **changes** made.
 
 ---
 
+## v16 — live wallpaper fixes: picker opens + button moved into the capture sheet (Flutter, 0.16.0+17)
+**Date:** 2026-06-21
+
+**Prompt (device feedback on v15):** (1) "SET AS LIVE WALLPAPER says **couldn't open wallpaper picker**"; (2) its
+**icon height/color don't match** the CAPTURE button; (3) **remove the SET LIVE WALLPAPER button** and put it
+**in the CAPTURE sheet, below save/share**.
+
+**Changes:**
+- **(1) Picker now opens** — `MainActivity.openLiveWallpaperPicker` used to guard `startActivity` behind
+  `Intent.resolveActivity(packageManager)`, which returns **null on Android 11+ under package visibility** even
+  though the system picker handles the intent — so it always returned false → "couldn't open picker". Now it
+  **calls `startActivity` directly in a try/catch** (`ACTION_CHANGE_LIVE_WALLPAPER` for our service, falling
+  back to `ACTION_LIVE_WALLPAPER_CHOOSER`), returning false only if both throw.
+- **(2)+(3) Button relocated** — removed the **SET LIVE WALLPAPER** button from the camera-mode bar (so the bar
+  is back to **CAPTURE · CANCEL**, equal styling — fixes the height/color mismatch). **SET LIVE WALLPAPER** is now
+  an option in the **CAPTURE** save/share sheet, **below Share** (Android only), still setting the wallpaper at
+  the framing the user had in camera mode (`_setLiveWallpaper` reads `_wallpaperCam`).
+- **Tests: 53** (unchanged; the Android-only button isn't host-testable). analyze clean; debug APK builds. The
+  picker fix is **device-verified** (native intent). Version → **0.16.0+17**.
+
 ## v15 — true animated Android live wallpaper (Flutter, 0.15.0+16)
 **Date:** 2026-06-20
 
