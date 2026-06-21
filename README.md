@@ -181,12 +181,12 @@ colors**, **stats charts + month navigation** (#10), and a seeded **test fixture
 continues in parallel until the Flutter port is verified at parity on-device.
 
 The Flutter build has a **Flutter-exclusive living garden**: a **full-screen, portrait 2.5D world**
-drawn by a tiny custom engine (`flutter/lib/engine/`, no Unity/Flame). A **ratio-aware `cols × rows`
-plot (starts 10×16, fills the portrait screen)** is the grass **clearing**, framed by a **bounded forest
-world** — a fixed border ring of **20 trees + 10 bushes + 5 rocks** (with grass gaps) gives the garden a
-**defined edge** you can't roam past. **EXPAND grows the plot from the center** into that border; you
-**rotate/pinch/pan** (clamped to the world edge); **bee/butterfly/ladybug** drift in to visit flowers.
-**Generated transparent pixel icons** make the top bar **theme/garden/stats · settings/store/coin**; the
+drawn by a tiny custom engine (`flutter/lib/engine/`, no Unity/Flame). A **portrait `cols × rows` plot
+(starts 10×20)** is the grass **clearing** — scattered with a few **wild decorative blooms** — framed by a
+**screen-filling forest** (**20 trees + 10 bushes + 5 rocks**, drawn on every visible tile so the woods cover
+the whole portrait screen). **EXPAND grows the plot from the center**; you **rotate/pinch/pan** (bounded to a
+roam radius — wander into the woods, but the garden's never lost); **bee/butterfly/ladybug** drift in to visit
+flowers. The top bar **theme/garden/stats · settings/store/coin** uses **hand-drawn pixel-art icons**; the
 timer reads **FOCUS** and **auto-starts the break** (or asks first, per a Settings toggle); **cancelling a
 started session pays out the spent minutes**. A **peek** button hides all HUD; **camera mode** lets you frame any
 **angle** (rotate/zoom/pan), then **CAPTURE** opens a sheet to **share** the still or **SET LIVE WALLPAPER** — a
