@@ -29,7 +29,8 @@ flutter/
 │   ├── engine/
 │   │   ├── garden_engine.dart  # 2.5D renderer: rectangular Projector + screen-filling forest (visibleTileBounds), low-poly 3D fence mesh, flat lighting, flower/tree billboards, grass blooms, critter atlas
 │   │   └── garden_view.dart    # gesture/ticker widget: pinch-zoom + pan + two-finger rotate; peek/camera buttons; RepaintBoundary capture; interactive flag
-│   └── main.dart         # screens: timer (+optional live garden backdrop) + theme/garden/stats/settings/shop/label overlays
+│   ├── main.dart         # screens: timer (+optional live garden backdrop) + theme/garden/stats/settings/shop/label overlays
+│   └── wallpaper_main.dart # @vm:entry-point wallpaperMain → renders the real GardenView for the live wallpaper (#v20)
 └── test/
     ├── logic_test.dart        # Dart edge tests (gate the Flutter CI)
     ├── engine_test.dart       # geometry: projectElevated + boxCorners + rectangular Projector + screen-filling forest + roam clamp
@@ -104,15 +105,16 @@ matched); **camera mode** lets you frame an **angle** (rotate/zoom/pan, tilt fix
 sheet: **Share** the still (`share_plus`) or **SET LIVE WALLPAPER** (Android only, hidden on iOS). **SET LIVE
 WALLPAPER** saves that framing (`WallpaperCam`, pan normalized by tile size) and opens Android's live-wallpaper
 picker (native `startActivity` — not `resolveActivity`, which returns null under Android 11+ package visibility)
-for a native **`GardenWallpaperService`** that re-renders your saved garden at that angle —
-swaying plants, a bee that flies between your flowers (garden-space, like the in-app critters), parallax —
-stopping when it isn't visible and re-reading your garden when it is.
-The native files live in **`android_overlay/`** and are copied into the CI-regenerated `android/` (manifest
-patched) by **`apply_overlay.py`**; it reads the same `SharedPreferences` (`flutter.garden`/`theme_id`/
-`wallpaper_cam`) and the same sprite PNGs, so no state or art is duplicated. **Settings → HOME SCREEN
-`CLEAN | GARDEN`** renders the full-strength **live** garden behind the timer — in garden mode **SESSION sits
-centered in the top bar** and the timer docks at the bottom (no scrim; text + coin-count shadows for legibility).
-*(iOS has no live-wallpaper API and keeps Save/Share.)*
+for the native **`GardenWallpaperService`**. **(#v20)** that service **hosts a `FlutterEngine`** running the
+**`wallpaperMain`** entry point (`lib/wallpaper_main.dart`) and points its renderer at the wallpaper surface — so
+the wallpaper renders the **exact same `GardenView`** as the app (real 3D fences, the real `CritterSystem`, every
+sprite) at your saved framing, **not** a simplified native re-draw. It reads the same `SharedPreferences`
+(garden/theme/`wallpaper_cam`) and the same bundled sprites, pausing the engine when it isn't visible. (Heavier on
+battery, and Flutter→wallpaper-surface is an unsupported path, so it's device-verified.) The native files live in
+**`android_overlay/`** and are copied into the CI-regenerated `android/` (manifest patched) by **`apply_overlay.py`**.
+**Settings → HOME SCREEN `CLEAN | GARDEN`** renders the full-strength **live** garden behind the timer — in garden
+mode **SESSION sits on its own line** below the top bar and the timer docks at the bottom (over-garden text is
+light for legibility). *(iOS has no live-wallpaper API and keeps Save/Share.)*
 
 **Top bar, timer & store:** the **user's hand-drawn pixel-art icons** (`tools/extract_icons.py` crops the 5 cells
 from their sheet and flood-fills the navy bg to transparent; rendered via `Image.asset`) —
