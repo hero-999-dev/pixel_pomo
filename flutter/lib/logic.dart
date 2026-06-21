@@ -852,31 +852,33 @@ class TestData {
 
   static List<SessionRecord> records(DateTime today) {
     final out = <SessionRecord>[];
-    void add(DateTime date, int min, String label) =>
-        out.add(SessionRecord(epochDayOf(date), min, label));
+    // [minute] = start-of-session minute-of-day, so the DAILY trend curve has real
+    // hourly shape on the seeded data (untimestamped records don't appear on it).
+    void add(DateTime date, int min, String label, int minute) =>
+        out.add(SessionRecord(epochDayOf(date), min, label, minuteOfDay: minute));
 
-    add(today, 60, 'MATH');
-    add(today, 100, 'HISTORY');
-    add(today, 40, 'ENGLISH');
-    add(today, 160, 'CODING');
+    add(today, 60, 'MATH', 8 * 60); // 08:00
+    add(today, 100, 'HISTORY', 10 * 60 + 30); // 10:30
+    add(today, 40, 'ENGLISH', 13 * 60); // 13:00
+    add(today, 160, 'CODING', 15 * 60 + 30); // 15:30
 
-    add(today.subtract(const Duration(days: 1)), 200, 'MATH');
-    add(today.subtract(const Duration(days: 2)), 100, 'SCIENCE');
-    add(today.subtract(const Duration(days: 2)), 40, 'ENGLISH');
+    add(today.subtract(const Duration(days: 1)), 200, 'MATH', 9 * 60);
+    add(today.subtract(const Duration(days: 2)), 100, 'SCIENCE', 11 * 60);
+    add(today.subtract(const Duration(days: 2)), 40, 'ENGLISH', 16 * 60);
 
-    add(today.subtract(const Duration(days: 9)), 150, 'TURKISH');
-    add(today.subtract(const Duration(days: 14)), 150, 'TURKISH');
+    add(today.subtract(const Duration(days: 9)), 150, 'TURKISH', 14 * 60);
+    add(today.subtract(const Duration(days: 14)), 150, 'TURKISH', 19 * 60);
 
-    add(DateTime(today.year, today.month - 1, 10), 120, 'CODING');
-    add(DateTime(today.year, today.month - 1, 18), 90, 'MATH');
-    add(DateTime(today.year, today.month - 2, 6), 75, 'READING');
-    add(DateTime(today.year, today.month - 2, 22), 130, 'HISTORY');
-    add(DateTime(today.year, today.month - 3, 14), 60, 'ENGLISH');
+    add(DateTime(today.year, today.month - 1, 10), 120, 'CODING', 20 * 60);
+    add(DateTime(today.year, today.month - 1, 18), 90, 'MATH', 7 * 60 + 30);
+    add(DateTime(today.year, today.month - 2, 6), 75, 'READING', 22 * 60);
+    add(DateTime(today.year, today.month - 2, 22), 130, 'HISTORY', 12 * 60);
+    add(DateTime(today.year, today.month - 3, 14), 60, 'ENGLISH', 17 * 60);
 
-    add(DateTime(2025, 11, 12), 200, 'CODING');
-    add(DateTime(2025, 9, 5), 150, 'MATH');
-    add(DateTime(2025, 6, 20), 90, 'READING');
-    add(DateTime(2025, 3, 8), 110, 'HISTORY');
+    add(DateTime(2025, 11, 12), 200, 'CODING', 18 * 60);
+    add(DateTime(2025, 9, 5), 150, 'MATH', 9 * 60 + 30);
+    add(DateTime(2025, 6, 20), 90, 'READING', 21 * 60);
+    add(DateTime(2025, 3, 8), 110, 'HISTORY', 10 * 60);
 
     return out;
   }
