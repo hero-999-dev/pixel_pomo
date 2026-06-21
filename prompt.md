@@ -218,8 +218,9 @@ also has a **`flutter/`** directory: one **Dart** codebase that builds **both** 
 APK and an **unsigned iOS `.ipa`**. It started as a faithful port of v0.5.0; the **garden is
 now Flutter-exclusive and richer** than the native grid (see below) — keep the rest at parity.
 
-- `lib/logic.dart` — pure port of every Kotlin pure class (engine, themes, flowers, economy,
-  garden, labels, label colors, stats, test data), **plus** `Placeables`: **4 roads**
+- `lib/logic.dart` — pure port of every Kotlin pure class (engine, themes — **6 incl. a Flutter-only green
+  `matcha`** matching the garden, flowers, economy, garden, labels, label colors, stats — all-time chart starts
+  at 2025, test data), **plus** `Placeables`: **4 roads**
   (`road_concrete/wood/dirt/stone`) + **3 fences** (`fence_wood/dark/stone`), with
   `isRoad`/`isFence`/`isFlower`. **Tile layering:** a tile holds a flat **ground** (road) and a
   standing **prop** (flower or fence); a fence-on-road is stored as the composite `"road+fence"`
@@ -227,8 +228,9 @@ now Flutter-exclusive and richer** than the native grid (see below) — keep the
   (keeps both), slides a road under a fence, and **refuses flowers on roads**; `groundAt`/`propAt`
   expose the two layers; `countPlanted` counts composite components. **The garden is rectangular
   `cols × rows`, portrait base 10×20** (taller-than-wide so it reads vertical after the `kVy` squash), index =
-  `r*cols+c`; `Garden.grow()` adds a **centered ring** (+2/+2); `Garden.atLeast(c,r)` **pads each axis
-  independently** (centred) so a legacy wide plot gains rows to portrait without widening;
+  `r*cols+c`; `Garden.grow()` grows **centred, taller faster than wider** (+2 cols / +4 rows) so it stays
+  portrait; `Garden.atLeast(c,r)` **pads each axis independently** (centred) so a legacy wide plot gains rows
+  to portrait without widening;
   `Economy.upgradeCost(cols,rows)=2*(cols+rows)+1`; `decode` migrates a legacy square `size:` line.
 - `lib/strings.dart` (6 languages + month names) · `lib/store.dart` (`AppStore` ChangeNotifier
   + `shared_preferences` + wall-clock countdown; generic `buyItem(id)`, **no garden size cap**;
@@ -266,8 +268,9 @@ now Flutter-exclusive and richer** than the native grid (see below) — keep the
   tile** outside the plot (`Projector.visibleTileBounds`; `isGardenTile` separates plot from forest;
   depth-sorted with flowers/fences, contact-shadowed) over a dark forest floor, so the forest **fills the whole
   portrait screen**; `GardenCamera.clamp` bounds pan to a roam radius (wander a plot-size into the woods, no
-  infinite roam). A few **decorative blooms** (`_paintGrassFlowers`) scatter on empty grass tiles so the clearing
-  isn't bare. **EXPAND grows the plot from the center.** Taps map straight to the claimed tile
+  infinite roam). **Sparse white daisies** (`_paintGrassFlowers`, ~8% of empty tiles) dot the clearing. The
+  `GardenView` scene is wrapped in a **`ClipRect`** so zoomed forest can't paint over the HUD. **EXPAND grows the
+  plot from the center.** Taps map straight to the claimed tile
   (forest isn't plantable). The ground
   (grass + flat roads) is drawn through a yaw+squash **affine**. **Flat sky-ambient lighting (no sun):** nothing is
   shaded by view angle, so rotating the garden never sweeps a fake sun across it. **Fences are real
@@ -304,10 +307,11 @@ now Flutter-exclusive and richer** than the native grid (see below) — keep the
   `onOffsetsChanged`); `GardenData` reads `flutter.garden`/`flutter.theme_id`/`flutter.wallpaper_cam` from
   `FlutterSharedPreferences` (mirrors `Garden.decode`/`Placeables.split`) and loads sprites from `flutter_assets`;
   `GardenRenderer` ports the `Projector` math (incl. yaw) + a **64-bit `forestPropAt` mirror** so the forest border
-  matches the in-app view, drawing forest floor → border ring → grass clearing → roads → swaying flower billboards
-  (flowers use `flower_<id>`; forest/fence/road props load by their own filename — `isFlower` excludes
-  `tree_/bush_/rock_/fence_/road_`) → a **bee that flies between planted flowers in garden space** (hover +
-  `frameForAngle` facing, like the in-app `CritterSystem`). No render duplication beyond this simplified scene; no
+  matches the in-app view, drawing forest floor → screen-filling forest → grass clearing → **sparse white daisies**
+  → roads → swaying flower billboards (flowers use `flower_<id>`; forest/fence/road props load by their own
+  filename — `isFlower` excludes `tree_/bush_/rock_/fence_/road_`) → a **bee with a come-and-go lifecycle** (a gap
+  with no bug, then it flies in from the top, visits a few flowers with `frameForAngle` facing, then leaves — like
+  the in-app `CritterSystem`, not always on screen). No render duplication beyond this simplified scene; no
   embedded Flutter engine (no supported wallpaper-surface API). iOS has no live-wallpaper API and keeps Save/Share.
 - **Varied forest:** `forestPropAt(c,r)` deterministically scatters **20 `tree_NN` + 10 `bush_NN` +
   5 `rock_NN`** (with grass gaps) over the **screen-filling forest** so the woods look natural, not one repeated tree.
