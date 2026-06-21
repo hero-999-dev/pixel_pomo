@@ -21,6 +21,7 @@ class GardenWallpaperService : WallpaperService() {
 
     inner class GardenEngine : WallpaperService.Engine() {
         private var flutterEngine: FlutterEngine? = null
+        private var attached = false
 
         override fun onCreate(surfaceHolder: SurfaceHolder) {
             super.onCreate(surfaceHolder)
@@ -31,23 +32,27 @@ class GardenWallpaperService : WallpaperService() {
             engine.dartExecutor.executeDartEntrypoint(
                 DartExecutor.DartEntrypoint(loader.findAppBundlePath(), "wallpaperMain")
             )
+            // resume from the start so the framework actually pumps frames — without
+            // this the engine renders nothing and the surface stays black (#v20 fix).
+            engine.lifecycleChannel.appIsResumed()
             flutterEngine = engine
         }
 
-        override fun onSurfaceCreated(holder: SurfaceHolder) {
-            super.onSurfaceCreated(holder)
-            flutterEngine?.renderer?.startRenderingToSurface(holder.surface, false)
-        }
-
+        // Attach in onSurfaceChanged where the surface AND size are both guaranteed;
+        // set the viewport metrics (with the real devicePixelRatio) before sizing.
         override fun onSurfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
             super.onSurfaceChanged(holder, format, width, height)
             val renderer = flutterEngine?.renderer ?: return
-            renderer.surfaceChanged(width, height)
+            if (!attached) {
+                renderer.startRenderingToSurface(holder.surface, false)
+                attached = true
+            }
             val vm = FlutterRenderer.ViewportMetrics()
             vm.devicePixelRatio = resources.displayMetrics.density
             vm.width = width
             vm.height = height
             renderer.setViewportMetrics(vm)
+            renderer.surfaceChanged(width, height)
         }
 
         override fun onVisibilityChanged(visible: Boolean) {
@@ -59,7 +64,10 @@ class GardenWallpaperService : WallpaperService() {
 
         override fun onSurfaceDestroyed(holder: SurfaceHolder) {
             super.onSurfaceDestroyed(holder)
-            flutterEngine?.renderer?.stopRenderingToSurface()
+            if (attached) {
+                flutterEngine?.renderer?.stopRenderingToSurface()
+                attached = false
+            }
         }
 
         override fun onDestroy() {
