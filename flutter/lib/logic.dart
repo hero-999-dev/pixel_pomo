@@ -321,16 +321,17 @@ class Garden {
     return Garden(cols: cols, rows: rows, tiles: next);
   }
 
-  /// Expand by one tile on every side (a ring), so the plot grows **centred** —
-  /// existing tiles shift by (+1 col, +1 row) into the larger grid.
+  /// Expand the plot, centred, growing **taller faster than wider** (+2 cols /
+  /// +4 rows) so it keeps reading as a portrait garden as it grows (#v19).
+  /// Existing tiles shift by (+1 col, +2 rows) into the larger grid.
   Garden grow() {
     final nc = cols + 2;
-    final nr = rows + 2;
+    final nr = rows + 4;
     final remapped = <int, String>{};
     tiles.forEach((index, id) {
       final r = index ~/ cols;
       final c = index % cols;
-      remapped[(r + 1) * nc + (c + 1)] = id;
+      remapped[(r + 2) * nc + (c + 1)] = id;
     });
     return Garden(cols: nc, rows: nr, tiles: remapped);
   }
@@ -708,6 +709,7 @@ class StatsAggregator {
           final y = dateOfEpochDay(r.epochDay).year;
           if (y < minY) minY = y;
         }
+        if (minY < 2025) minY = 2025; // never show years before 2025 (#v19)
         n = now0.year - minY + 1;
         idx = (r) => dateOfEpochDay(r.epochDay).year - minY;
         ticks = [for (var i = 0; i < n; i++) '${minY + i}'];
