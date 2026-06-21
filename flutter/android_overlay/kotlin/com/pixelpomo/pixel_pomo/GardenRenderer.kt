@@ -8,14 +8,15 @@ import android.graphics.Path
 import android.graphics.Rect
 import android.graphics.RectF
 import kotlin.math.atan2
+import kotlin.math.ceil
 import kotlin.math.cos
+import kotlin.math.floor
 import kotlin.math.min
 import kotlin.math.sin
 import kotlin.math.sqrt
 import kotlin.random.Random
 
 private const val KVY = 0.60
-private const val BORDER = 4
 
 /**
  * Draws a calm, animated version of the garden at the framing the user saved
@@ -43,8 +44,8 @@ class GardenRenderer(private val data: GardenData) {
     fun draw(canvas: Canvas, w: Int, h: Int, timeSec: Double, xOffset: Float) {
         cols = data.cols; rows = data.rows
         val cam = data.cam
-        val fitW = w / (cols + 2.0 * BORDER + 0.5)
-        val fitH = h / ((rows + 2.0 * BORDER + 0.5) * KVY)
+        val fitW = w / (cols + 2.0) // plot-based fit + small forest margin, matches the in-app Projector (#v18)
+        val fitH = h / ((rows + 2.0) * KVY)
         t = min(fitW, fitH) * cam.zoom
         val parallax = (xOffset - 0.5) * t * 1.5 // gentle home-screen scroll
         cx = w / 2.0 + cam.panXFrac * t + parallax
@@ -53,11 +54,13 @@ class GardenRenderer(private val data: GardenData) {
 
         canvas.drawColor(Color.rgb(0x12, 0x30, 0x1A)) // forest floor
         fillClearing(canvas)
+        drawGrassFlowers(canvas) // a few wild blooms on empty grass (#v18)
 
         val items = ArrayList<Item>()
         val flowers = ArrayList<Pair<Double, Double>>() // planted-flower garden coords, for the bee
-        for (r in -BORDER until rows + BORDER) {
-            for (c in -BORDER until cols + BORDER) {
+        val vb = visibleBounds(w, h) // forest on every visible tile → fills the screen (#v18)
+        for (r in vb[2]..vb[3]) {
+            for (c in vb[0]..vb[1]) {
                 val inGarden = c in 0 until cols && r in 0 until rows
                 if (inGarden) {
                     val idx = r * cols + c
@@ -91,6 +94,23 @@ class GardenRenderer(private val data: GardenData) {
         return (cx + rx * t) to (cy + ry * t * KVY)
     }
 
+    /// Inverse of projGrid → continuous (col,row); used to find the visible tiles.
+    private fun gridAt(px: Double, py: Double): Pair<Double, Double> {
+        val dx = (px - cx) / t; val dy = (py - cy) / (t * KVY)
+        val gx = dx * cosY + dy * sinY; val gy = -dx * sinY + dy * cosY
+        return (gx + (cols - 1) / 2.0) to (gy + (rows - 1) / 2.0)
+    }
+
+    /// Tile range covering the screen [minC, maxC, minR, maxR] (1-tile bleed).
+    private fun visibleBounds(w: Int, h: Int): IntArray {
+        val cs = listOf(gridAt(0.0, 0.0), gridAt(w.toDouble(), 0.0),
+            gridAt(w.toDouble(), h.toDouble()), gridAt(0.0, h.toDouble()))
+        val xs = cs.map { it.first }; val ys = cs.map { it.second }
+        return intArrayOf(
+            floor(xs.min()).toInt() - 1, ceil(xs.max()).toInt() + 1,
+            floor(ys.min()).toInt() - 1, ceil(ys.max()).toInt() + 1)
+    }
+
     private fun ground(c: Int, r: Int): Pair<Double, Double> {
         val (gx, gy) = gridXY(c, r)
         return projGrid(gx, gy)
@@ -116,6 +136,45 @@ class GardenRenderer(private val data: GardenData) {
         val hs = (t / 2)
         canvas.drawRect((x - hs).toFloat(), (y - hs * KVY).toFloat(),
             (x + hs).toFloat(), (y + hs * KVY).toFloat(), paint)
+    }
+
+    // a few wild blooms on empty grass tiles — mirrors the in-app _paintGrassFlowers
+    // (64-bit hash so the same tiles bloom in-app and on the wallpaper) (#v18).
+    private val bloomColors = intArrayOf(
+        Color.rgb(0xFF, 0xFF, 0xFF), Color.rgb(0xF2, 0xC9, 0x4C),
+        Color.rgb(0xF4, 0xA6, 0xC0), Color.rgb(0xC9, 0xA6, 0xF0))
+
+    private fun grassFlowerHash(c: Int, r: Int): Int {
+        var h = (c.toLong() * 0x1f1f1f1f) xor (r.toLong() * 0x2c2c2c2c) xor 0x5bd1e995L
+        h = h xor (h shr 15)
+        return (h and 0x7fffffffL).toInt()
+    }
+
+    private fun drawGrassFlowers(canvas: Canvas) {
+        for (r in 0 until rows) {
+            for (c in 0 until cols) {
+                val idx = r * cols + c
+                if (data.groundAt(idx) != null || data.propAt(idx) != null) continue // only empty grass
+                val h = grassFlowerHash(c, r)
+                if (h % 100 >= 14) continue
+                val petal = bloomColors[(h / 100) % bloomColors.size]
+                val (x, y) = ground(c, r)
+                drawBloom(canvas, x, y, petal)
+            }
+        }
+    }
+
+    private fun drawBloom(canvas: Canvas, x: Double, y: Double, petal: Int) {
+        val s = t * 0.11
+        val cyc = y - s * 1.5
+        paint.color = petal
+        for (k in 0 until 5) {
+            val ang = k * 2 * Math.PI / 5
+            canvas.drawCircle((x + cos(ang) * s).toFloat(), (cyc + sin(ang) * s * KVY).toFloat(),
+                (s * 0.62).toFloat(), paint)
+        }
+        paint.color = Color.rgb(0xE0, 0x90, 0x2C)
+        canvas.drawCircle(x.toFloat(), cyc.toFloat(), (s * 0.55).toFloat(), paint)
     }
 
     private fun billboard(canvas: Canvas, bmp: Bitmap?, x: Double, y: Double, heightTiles: Double) {

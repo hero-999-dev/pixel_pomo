@@ -248,8 +248,8 @@ class Placeables {
 class Economy {
   static const flowerCost = 10;
   static const objectCost = 5; // roads + fences
-  static const baseGardenCols = 10; // ratio-aware, fills the portrait screen (#7)
-  static const baseGardenRows = 16;
+  static const baseGardenCols = 10; // taller-than-wide so it reads as a portrait
+  static const baseGardenRows = 20; // garden once the 2.5D squash (kVy) is applied (#v18)
   static int coinsFor(int minutes) => minutes <= 0 ? 0 : minutes ~/ 5;
 
   /// Whole focus minutes spent so far in a [workMin] session with [timeLeftMillis]
@@ -335,14 +335,22 @@ class Garden {
     return Garden(cols: nc, rows: nr, tiles: remapped);
   }
 
-  /// Grow (centred, +2/+2 per step) until at least [cols]×[rows]. Migrates older,
-  /// smaller saved gardens to the new bigger base, keeping plantings centred (#7).
+  /// Pad the plot (centred) up to at least [cols]×[rows], each axis independently —
+  /// so a legacy *wide* plot gains rows to read as portrait WITHOUT also widening
+  /// (symmetric grow() couldn't do that). Migration only; keeps plantings centred.
   Garden atLeast(int cols, int rows) {
-    var g = this;
-    while (g.cols < cols || g.rows < rows) {
-      g = g.grow();
-    }
-    return g;
+    final nc = this.cols > cols ? this.cols : cols;
+    final nr = this.rows > rows ? this.rows : rows;
+    if (nc == this.cols && nr == this.rows) return this;
+    final dc = (nc - this.cols) ~/ 2;
+    final dr = (nr - this.rows) ~/ 2;
+    final remapped = <int, String>{};
+    tiles.forEach((index, id) {
+      final r = index ~/ this.cols;
+      final c = index % this.cols;
+      remapped[(r + dr) * nc + (c + dc)] = id;
+    });
+    return Garden(cols: nc, rows: nr, tiles: remapped);
   }
 
   int countPlanted(String flowerId) => tiles.values.where((v) {
