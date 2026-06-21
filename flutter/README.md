@@ -102,7 +102,8 @@ sheet: **Share** the still (`share_plus`) or **SET LIVE WALLPAPER** (Android onl
 WALLPAPER** saves that framing (`WallpaperCam`, pan normalized by tile size) and opens Android's live-wallpaper
 picker (native `startActivity` — not `resolveActivity`, which returns null under Android 11+ package visibility)
 for a native **`GardenWallpaperService`** that re-renders your saved garden at that angle —
-swaying plants, a drifting bee, parallax — stopping when it isn't visible and re-reading your garden when it is.
+swaying plants, a bee that flies between your flowers (garden-space, like the in-app critters), parallax —
+stopping when it isn't visible and re-reading your garden when it is.
 The native files live in **`android_overlay/`** and are copied into the CI-regenerated `android/` (manifest
 patched) by **`apply_overlay.py`**; it reads the same `SharedPreferences` (`flutter.garden`/`theme_id`/
 `wallpaper_cam`) and the same sprite PNGs, so no state or art is duplicated. **Settings → HOME SCREEN
