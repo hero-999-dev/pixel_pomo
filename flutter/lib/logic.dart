@@ -132,8 +132,14 @@ class Themes {
       bg: 0xFFF7EFDD, panel: 0xFFFFFBF0, accent: 0xFFD20F39, work: 0xFF40A02B,
       breakColor: 0xFF1E66F5, onSurface: 0xFF4C4F69, onSurfaceDim: 0xFF8A7F6A,
       onAccent: 0xFFFFFFFF, shadow: 0xFFD9CBB0);
+  // a green "matcha" theme matching the garden, in the Catppuccin family (#v19)
+  static const matcha = PixelTheme(
+      id: 'matcha', displayName: 'MATCHA',
+      bg: 0xFF1A2420, panel: 0xFF2A3A30, accent: 0xFFA6E3A1, work: 0xFF94D977,
+      breakColor: 0xFF89DCEB, onSurface: 0xFFCAD9C4, onSurfaceDim: 0xFF9DB09A,
+      onAccent: 0xFF1A2420, shadow: 0xFF0F1611);
 
-  static const all = [dark, light, mocha, frappe, latte];
+  static const all = [dark, light, mocha, frappe, latte, matcha];
   static const fallback = dark;
 
   static PixelTheme byId(String? id) {
