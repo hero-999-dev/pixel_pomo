@@ -107,11 +107,12 @@ picker (native `startActivity` — not `resolveActivity`, which returns null und
 for the native **`GardenWallpaperService`**. That service drives a **Choreographer** loop that re-draws your saved
 garden on the wallpaper surface via `GardenData` (reads garden/theme/`wallpaper_cam` from `SharedPreferences`,
 loads the bundled sprites) + `GardenRenderer` (a Kotlin `Canvas` port of the garden painter — same isometric
-ground, **real road/fence sprites**, billboards, **flat daisies**, a **single-shape bee**). It re-reads the garden
+ground, **real road sprites**, **low-poly 3D fence meshes** (posts + linking rails, like the app), billboards,
+**flat daisies**, a **single-shape bee**). It re-reads the garden
 each time it becomes visible (new plantings show up) and stops drawing when hidden (battery). **(#v20** a
 `FlutterEngine`-hosted variant that ran the actual `GardenView` for a 1:1 match was tried but **black-screened on
 device** — the Flutter→wallpaper-surface path is unsupported — so it was reverted and the native renderer improved:
-real roads, single-shape bug, no wind.) The native files live in **`android_overlay/`** and are copied into the
+real roads, **3D fence mesh**, single-shape bug, no wind.) The native files live in **`android_overlay/`** and are copied into the
 CI-regenerated `android/` (manifest patched) by **`apply_overlay.py`**.
 **Settings → HOME SCREEN `CLEAN | GARDEN`** renders the full-strength **live** garden behind the timer — in garden
 mode **SESSION sits on its own line** below the top bar and the timer docks at the bottom (over-garden text is

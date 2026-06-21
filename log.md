@@ -21,8 +21,9 @@ is 1.png.
   device (the Flutter→wallpaper-surface path is unsupported and undebuggable without device logs — even after
   moving the entry point into `main.dart`'s root library, the surface attach never delivered frames). Per the
   user's choice, **reverted to the native `GardenRenderer`** and improved it instead: **roads now draw their real
-  sprites** (were gray squares), the **bug uses a single fixed facet** so it doesn't morph with the camera, plus
-  the v20 polish below. (The exact-app-engine wallpaper is parked.)
+  sprites** (were gray squares), **fences are real low-poly 3D meshes** (posts + linking rails, ported from the
+  app's `boxCorners`/`_paintFenceRails` — were flat billboard cards), the **bug uses a single fixed facet** so it
+  doesn't morph with the camera, plus the v20 polish below. (The exact-app-engine wallpaper is parked.)
 - **(2) No wind** — flowers no longer sway (in-app `_paintBillboard` call + the native renderer's billboard loop).
 - **(4) Flat grass daisies** — replaced the billboard blooms with small **flat pixel daisies** (white petals +
   yellow eye, squashed onto the ground by `kVy`), ~5% of empty tiles — matches the 2D flowered-grass examples
