@@ -31,6 +31,7 @@ class _WallpaperAppState extends State<_WallpaperApp> {
   SpriteBank? _sprites;
   WallpaperCam _wcam = WallpaperCam.none;
   PixelTheme _theme = Themes.dark;
+  bool _error = false;
   final GardenCamera _camera = GardenCamera();
 
   @override
@@ -40,30 +41,38 @@ class _WallpaperAppState extends State<_WallpaperApp> {
   }
 
   Future<void> _load() async {
-    final prefs = await SharedPreferences.getInstance();
-    final garden = Garden.decode(prefs.getString('garden'))
-        .atLeast(Economy.baseGardenCols, Economy.baseGardenRows);
-    final sprites = await SpriteBank.load();
-    final wcam = WallpaperCam.decode(prefs.getString('wallpaper_cam'));
-    final theme = Themes.byId(prefs.getString('theme_id'));
-    _camera.yaw = wcam.yaw;
-    _camera.zoom = wcam.zoom;
-    if (mounted) {
-      setState(() {
-        _garden = garden;
-        _sprites = sprites;
-        _wcam = wcam;
-        _theme = theme;
-      });
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final garden = Garden.decode(prefs.getString('garden'))
+          .atLeast(Economy.baseGardenCols, Economy.baseGardenRows);
+      final sprites = await SpriteBank.load();
+      final wcam = WallpaperCam.decode(prefs.getString('wallpaper_cam'));
+      final theme = Themes.byId(prefs.getString('theme_id'));
+      _camera.yaw = wcam.yaw;
+      _camera.zoom = wcam.zoom;
+      if (mounted) {
+        setState(() {
+          _garden = garden;
+          _sprites = sprites;
+          _wcam = wcam;
+          _theme = theme;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _error = true);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    // Diagnostic colours so a device report pinpoints the failure (#v20):
+    //   black  → the Flutter→surface pipeline isn't rendering at all
+    //   RED    → pipeline works but loading the garden/sprites failed
+    //   INDIGO → pipeline works, still loading
+    //   garden → fixed
     final g = _garden, s = _sprites;
-    if (g == null || s == null) {
-      return const ColoredBox(color: Color(0xFF12301A)); // forest floor while loading
-    }
+    if (_error) return const ColoredBox(color: Color(0xFFD32F2F)); // red
+    if (g == null || s == null) return const ColoredBox(color: Color(0xFF3949AB)); // indigo
     return LayoutBuilder(
       builder: (ctx, cons) {
         // reproduce the saved framing: pan was stored as a fraction of the tile size
