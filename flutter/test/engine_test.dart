@@ -71,7 +71,7 @@ void main() {
       }
     });
 
-    test('fit frames the plot inside the bounded forest world, centred', () {
+    test('fit sizes the plot to most of the screen, centred (#v18)', () {
       final cam = GardenCamera();
       const size = Size(360, 720);
       final p = Projector.fit(4, 6, cam, size);
@@ -79,10 +79,10 @@ void main() {
       final cs = p.corners();
       final minX = cs.map((o) => o.dx).reduce(math.min);
       final maxX = cs.map((o) => o.dx).reduce(math.max);
-      // the world is plot + a kForestBorder ring each side, so the plot is a
-      // framed clearing taking a defined slice of the screen, not most of it (#4)
-      expect(maxX - minX, greaterThan(size.width * 0.2));
-      expect(maxX - minX, lessThan(size.width * 0.5));
+      // plot-based fit with a small forest margin → the plot fills most of the
+      // width; the screen-filling forest covers the rest (#v18)
+      expect(maxX - minX, greaterThan(size.width * 0.5));
+      expect(maxX - minX, lessThan(size.width * 0.85));
     });
   });
 
@@ -147,25 +147,32 @@ void main() {
 
   });
 
-  group('bounded forest world (v14)', () {
-    test('worldOf adds a fixed border; isGardenTile classifies', () {
-      final (wc, wr) = worldOf(10, 16);
-      expect(wc, 10 + 2 * kForestBorder);
-      expect(wr, 16 + 2 * kForestBorder);
-      expect(isGardenTile(0, 0, 10, 16), true); // garden plot is 0..cols-1
-      expect(isGardenTile(9, 15, 10, 16), true);
-      expect(isGardenTile(-1, 0, 10, 16), false); // forest border
-      expect(isGardenTile(10, 0, 10, 16), false);
-      expect(isGardenTile(-kForestBorder - 1, 0, 10, 16), false); // beyond the border
+  group('screen-filling forest + roam clamp (#v18)', () {
+    test('isGardenTile classifies plot vs surrounding forest', () {
+      expect(isGardenTile(0, 0, 10, 20), true);
+      expect(isGardenTile(9, 19, 10, 20), true);
+      expect(isGardenTile(-1, 0, 10, 20), false); // forest
+      expect(isGardenTile(10, 0, 10, 20), false);
+      expect(isGardenTile(0, 20, 10, 20), false);
     });
 
-    test('clamp keeps pan inside the world; never past the forest edge', () {
+    test('visibleTileBounds spans beyond the plot to fill the screen', () {
+      const size = Size(360, 720);
+      final p = Projector.fit(10, 20, GardenCamera(), size);
+      final b = p.visibleTileBounds(size);
+      expect(b.minR < 0, true); // forest above the plot
+      expect(b.maxR > 19, true); // forest below the plot
+      expect(b.maxC - b.minC >= 10, true);
+    });
+
+    test('clamp bounds pan to a roam radius (no infinite roam)', () {
       const size = Size(360, 720);
       final cam = GardenCamera(panX: 1e6, panY: 1e6); // shove way out
-      cam.clamp(10, 16, size);
-      final p = Projector.fit(10, 16, cam, size);
-      final maxX = math.max(0.0, (10 / 2 + kForestBorder) * p.t - size.width / 2);
-      final maxY = math.max(0.0, (16 / 2 + kForestBorder) * p.t * kVy - size.height / 2);
+      cam.clamp(10, 20, size);
+      final p = Projector.fit(10, 20, cam, size);
+      const roam = 20.0; // max(cols, rows)
+      final maxX = (10 / 2 + roam) * p.t;
+      final maxY = (20 / 2 + roam) * p.t * kVy;
       expect(cam.panX, closeTo(maxX, 1e-6));
       expect(cam.panY, closeTo(maxY, 1e-6));
     });
