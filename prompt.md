@@ -301,8 +301,10 @@ now Flutter-exclusive and richer** than the native grid (see below) — keep the
   `FlutterSharedPreferences` (mirrors `Garden.decode`/`Placeables.split`) and loads sprites from `flutter_assets`;
   `GardenRenderer` ports the `Projector` math (incl. yaw) + a **64-bit `forestPropAt` mirror** so the forest border
   matches the in-app view, drawing forest floor → border ring → grass clearing → roads → swaying flower billboards
-  → a drifting bee. No render duplication beyond this simplified scene; no embedded Flutter engine (no supported
-  wallpaper-surface API). iOS has no live-wallpaper API and keeps Save/Share.
+  (flowers use `flower_<id>`; forest/fence/road props load by their own filename — `isFlower` excludes
+  `tree_/bush_/rock_/fence_/road_`) → a **bee that flies between planted flowers in garden space** (hover +
+  `frameForAngle` facing, like the in-app `CritterSystem`). No render duplication beyond this simplified scene; no
+  embedded Flutter engine (no supported wallpaper-surface API). iOS has no live-wallpaper API and keeps Save/Share.
 - **Varied forest:** `forestPropAt(c,r)` deterministically scatters **20 `tree_NN` + 10 `bush_NN` +
   5 `rock_NN`** (with grass gaps) over the **forest border ring** so the woods look natural, not one repeated tree.
 - **App-wide theming:** `systemOverlayFor(theme)` + `isLightColor` drive `SystemChrome` via an
