@@ -268,7 +268,8 @@ now Flutter-exclusive and richer** than the native grid (see below) — keep the
   tile** outside the plot (`Projector.visibleTileBounds`; `isGardenTile` separates plot from forest;
   depth-sorted with flowers/fences, contact-shadowed) over a dark forest floor, so the forest **fills the whole
   portrait screen**; `GardenCamera.clamp` bounds pan to a roam radius (wander a plot-size into the woods, no
-  infinite roam). **Sparse white daisies** (`_paintGrassFlowers`, ~8% of empty tiles) dot the clearing. The
+  infinite roam). **Sparse flat white pixel daisies** (`_paintGrassFlowers`/`_paintBloom`, ~5% of empty tiles,
+  petals flattened onto the ground by `kVy`) dot the clearing; flowers no longer sway. The
   `GardenView` scene is wrapped in a **`ClipRect`** so zoomed forest can't paint over the HUD. **EXPAND grows the
   plot from the center.** Taps map straight to the claimed tile
   (forest isn't plantable). The ground
@@ -300,19 +301,17 @@ now Flutter-exclusive and richer** than the native grid (see below) — keep the
   `CLEAN | GARDEN`**: GARDEN renders the **full-strength** non-interactive live `GardenView` behind the timer; in
   garden mode **SESSION sits centered in the top bar** and the timer docks at the bottom (text + coin-count shadows,
   no scrim).
-- **Android live wallpaper (native, `flutter/android_overlay/`):** since CI regenerates `android/` via `flutter
-  create`, the native files are committed in `android_overlay/` and copied in (+ manifest patched) by
-  **`apply_overlay.py`** (a CI step + run locally). `GardenWallpaperService` (Kotlin `WallpaperService`) runs a
-  **Choreographer** loop (~30 fps, **stops when not visible**, re-reads on visibility, parallax via
-  `onOffsetsChanged`); `GardenData` reads `flutter.garden`/`flutter.theme_id`/`flutter.wallpaper_cam` from
-  `FlutterSharedPreferences` (mirrors `Garden.decode`/`Placeables.split`) and loads sprites from `flutter_assets`;
-  `GardenRenderer` ports the `Projector` math (incl. yaw) + a **64-bit `forestPropAt` mirror** so the forest border
-  matches the in-app view, drawing forest floor → screen-filling forest → grass clearing → **sparse white daisies**
-  → roads → swaying flower billboards (flowers use `flower_<id>`; forest/fence/road props load by their own
-  filename — `isFlower` excludes `tree_/bush_/rock_/fence_/road_`) → a **bee with a come-and-go lifecycle** (a gap
-  with no bug, then it flies in from the top, visits a few flowers with `frameForAngle` facing, then leaves — like
-  the in-app `CritterSystem`, not always on screen). No render duplication beyond this simplified scene; no
-  embedded Flutter engine (no supported wallpaper-surface API). iOS has no live-wallpaper API and keeps Save/Share.
+- **Android live wallpaper — the REAL garden (`flutter/android_overlay/`, #v20):** since CI regenerates
+  `android/` via `flutter create`, the native files are committed in `android_overlay/` and copied in (+ manifest
+  patched) by **`apply_overlay.py`** (a CI step + run locally). `GardenWallpaperService` (Kotlin
+  `WallpaperService`) **hosts a `FlutterEngine`** running the **`wallpaperMain`** entry point
+  (`lib/wallpaper_main.dart`, `@pragma('vm:entry-point')`) and points the engine's renderer at the wallpaper
+  `Surface` (`startRenderingToSurface` + `surfaceChanged`/`setViewportMetrics`; `appIsResumed`/`appIsPaused` on
+  visibility). `wallpaperMain` loads the saved garden/theme/framing from `SharedPreferences` + `SpriteBank.load()`
+  and renders the **exact same `GardenView`** as the app (interactive:false, the real 3D fences + `CritterSystem` +
+  every sprite) at the saved `WallpaperCam` framing — so the wallpaper IS the app garden, not a re-draw. (Heavier
+  on battery, and Flutter→wallpaper-surface isn't officially supported, so it's device-verified.) iOS has no
+  live-wallpaper API and keeps Save/Share.
 - **Varied forest:** `forestPropAt(c,r)` deterministically scatters **20 `tree_NN` + 10 `bush_NN` +
   5 `rock_NN`** (with grass gaps) over the **screen-filling forest** so the woods look natural, not one repeated tree.
 - **App-wide theming:** `systemOverlayFor(theme)` + `isLightColor` drive `SystemChrome` via an

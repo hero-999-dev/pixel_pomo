@@ -130,6 +130,12 @@ The Dart port carries its own tests, gating the **`build-flutter.yml`** macOS pi
 cd flutter && flutter analyze && flutter test   # 55 tests
 ```
 
+**v20:** count stays **55** (visual/native). The big change — the live wallpaper now renders the **real garden**
+by hosting a `FlutterEngine` (running the `wallpaperMain` entry point → the actual `GardenView`) pointed at the
+wallpaper surface — is **device-verified** (Flutter→wallpaper-surface is an unsupported path; the Dart side is
+the same engine the unit/widget tests already cover). The **no-wind** flowers, **flat white daisies**, and the
+redrawn **coin** are visual too.
+
 **v19:** count stays **55**; the garden **grow** + `atLeast` tests were updated for the new **taller growth**
 (`grow()` adds +2 cols / +4 rows). Device-verified: the **ClipRect** that keeps the zoomed garden off the HUD,
 the garden-mode **SESSION** line + **light-theme** over-garden text, the new **MATCHA** theme, the redrawn

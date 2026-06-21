@@ -5,6 +5,31 @@ Each entry notes the **prompt** (what you asked for) and the **changes** made.
 
 ---
 
+## v20 — real-garden live wallpaper + grass/coin polish (Flutter, 0.20.0+21)
+**Date:** 2026-06-21
+
+**Prompt (device feedback):** (1) the live wallpaper renders poorly — outer decor (roads/fences) and bugs look
+bad; (2) the flowers look like they're **moving** — remove the wind; (3) **"I want the live wallpaper to be the
+same as the app"** — same structure, heavier power is fine; (4) the small flowers I added are wrong — I want
+**flat 2D white daisies** baked into the grass like the examples (2.jpg/3.jpg/4.png), only ~5%; the coin example
+is 1.png.
+
+**Changes:**
+- **(1+3) Real-garden live wallpaper** — replaced the simplified native renderer with a **`FlutterEngine` hosted
+  in `GardenWallpaperService`** running a new `wallpaperMain` entry point (`lib/wallpaper_main.dart`) that renders
+  the **actual `GardenView`** (same engine as the app: 3D fences, the real `CritterSystem`, every sprite) at the
+  saved framing, pointed at the wallpaper `Surface` (`startRenderingToSurface` + viewport metrics; resumed/paused
+  on visibility). **Deleted** the native `GardenData.kt` + `GardenRenderer.kt`. (Heavier on battery; Flutter→
+  wallpaper-surface isn't officially supported, so it's device-verified and may need tuning.) This makes items 1
+  (outer decor/bugs) moot — the wallpaper is exactly the app.
+- **(2) No wind** — flower billboards no longer sway (`_paintBillboard` sway removed).
+- **(4) Flat grass daisies** — replaced the billboard blooms with small **flat pixel daisies** (white petals +
+  yellow eye, squashed onto the ground by `kVy`), ~5% of empty tiles — matches the 2D flowered-grass examples.
+- **Coin** — `coin_grid` redrawn with a soft **upper-left diagonal highlight** (was a hard top/bottom split) to
+  match `1.png`.
+- **Tests: 55** (unchanged; visual/native). analyze clean; debug APK builds. Wallpaper + garden are
+  **device-verified**. Version → **0.20.0+21**.
+
 ## v19 — feedback round: garden growth, HUD clip, stats, themes, coin, daisies, wallpaper bee (Flutter, 0.19.0+20)
 **Date:** 2026-06-21
 
