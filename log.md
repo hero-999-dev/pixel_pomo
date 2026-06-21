@@ -5,6 +5,40 @@ Each entry notes the **prompt** (what you asked for) and the **changes** made.
 
 ---
 
+## v18 — visual refinements: TREND daily, portrait garden + screen-filling forest, grass flowers, real icons (Flutter, 0.18.0+19)
+**Date:** 2026-06-21
+
+**Prompt (device feedback):** (1) **TREND / DAILY isn't working**; (2) there could be **a few flowers in the
+grass**; (3) the **bounded forest doesn't cover the whole screen**, only the green area; (4) the **menu icons are
+poor**, not the art I sent; (5) the **garden feels horizontal**, not a vertical garden for the phone, and still
+doesn't expand right. **Decisions (AskUserQuestion):** use the **ChatGPT 'book' icon set**; make the **plot
+taller + the forest fill the screen**.
+
+**Changes:**
+- **(1) TREND daily renders** — the daily curve only plots sessions with a per-session `minuteOfDay`, but the
+  seeded demo data had none, so it was always empty. `TestData.records` now stamps timestamps; the curve shows.
+- **(5) Portrait garden** — base plot **10×16 → 10×20**: with the 2.5D squash (`kVy=0.6`) a 10×16 plot projects
+  ~10×9.6 (wider than tall); 10×20 projects ~10×12 (taller than wide). `Garden.atLeast` now **pads each axis
+  independently** (centred) so a legacy *wide* plot gains rows to portrait without also widening (symmetric
+  `grow()` couldn't). `Projector.fit` is **plot-based** again (`kFitMargin=2`), so the plot fills most of the
+  screen.
+- **(3) Screen-filling forest** — removed the v14 fixed-border world (`kForestBorder`/`worldOf`); restored
+  `Projector.visibleTileBounds` and the painter draws forest on **every visible tile** around the plot, so it
+  covers the whole portrait screen. `GardenCamera.clamp` is a bounded **roam radius** (wander a plot-size into
+  the woods, but no infinite roam).
+- **(2) Grass flowers** — `_paintGrassFlowers` scatters a few small deterministic decorative blooms (white/
+  yellow/pink/purple, orange centre) on empty grass tiles, so the clearing isn't bare.
+- **(4) Real menu icons** — replaced the v14 procedural icons with the **user's ChatGPT 'book' set** (open book /
+  flower planter / scroll-chart / gear / blue-canopy stall). New local tool **`tools/extract_icons.py`** (Pillow)
+  crops the 5 cells from the sheet and **flood-fills the navy background to transparent** from the borders (so blue
+  *inside* an icon — the stall canopy — is kept); `gen_objects.py` no longer generates icons. CI stays
+  dependency-free (the committed PNGs ship).
+- **Wallpaper parity** — the native `GardenRenderer` mirrors the new fit (plot-based), **screen-filling forest**
+  (visible-tile bounds via a native `gridAt`), and the **grass flowers** (64-bit hash so the same tiles bloom).
+- **Tests: 55** (logic incl. the new portrait `atLeast` + `daily trend non-empty`; engine incl.
+  `visibleTileBounds` + roam clamp). analyze clean; debug APK builds. Garden look + wallpaper are
+  **device-verified**. Version → **0.18.0+19**.
+
 ## v17 — live wallpaper render fixes: forest shows + critter-like bee (Flutter, 0.17.0+18)
 **Date:** 2026-06-21
 
