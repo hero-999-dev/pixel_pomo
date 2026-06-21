@@ -97,10 +97,11 @@ migrates older saves), and the forest border is **varied** — `forestPropAt(c,r
 sparse low-contrast speckle, no patchwork.
 
 **Peek, camera & live wallpaper:** a bottom-left **peek** button hides *all* HUD (full-bleed, system bars
-matched); **camera mode** lets you frame an **angle** (rotate/zoom/pan, tilt fixed) and then either
-**SET LIVE WALLPAPER** or **CAPTURE** a still. **CAPTURE** → **save/share** (`share_plus`). **SET LIVE WALLPAPER**
-(Android only, hidden on iOS) saves that framing (`WallpaperCam`, pan normalized by tile size) and opens Android's
-live-wallpaper picker for a native **`GardenWallpaperService`** that re-renders your saved garden at that angle —
+matched); **camera mode** lets you frame an **angle** (rotate/zoom/pan, tilt fixed), then **CAPTURE** opens a
+sheet: **Share** the still (`share_plus`) or **SET LIVE WALLPAPER** (Android only, hidden on iOS). **SET LIVE
+WALLPAPER** saves that framing (`WallpaperCam`, pan normalized by tile size) and opens Android's live-wallpaper
+picker (native `startActivity` — not `resolveActivity`, which returns null under Android 11+ package visibility)
+for a native **`GardenWallpaperService`** that re-renders your saved garden at that angle —
 swaying plants, a drifting bee, parallax — stopping when it isn't visible and re-reading your garden when it is.
 The native files live in **`android_overlay/`** and are copied into the CI-regenerated `android/` (manifest
 patched) by **`apply_overlay.py`**; it reads the same `SharedPreferences` (`flutter.garden`/`theme_id`/

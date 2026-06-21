@@ -283,11 +283,13 @@ now Flutter-exclusive and richer** than the native grid (see below) — keep the
   all `GardenScreen` HUD — peeking goes **full-bleed** with transparent system bars) and a **camera**
   button (`cameraButton`, clean framing — yaw/zoom/pan, tilt fixed). On-scene icons sit on **themed
   `panel` chips** so they recolor with the theme and stay readable on the dark scene. Camera mode shows
-  **SET LIVE WALLPAPER · CAPTURE · CANCEL**: **CAPTURE** screenshots the `RepaintBoundary` (`captureKey`) →
-  **save/share**; **SET LIVE WALLPAPER** (Android only, hidden on iOS) saves the framing (`AppStore.setWallpaperCamera`
-  → `WallpaperCam`, pan normalized by the projector tile size) and calls `camera.setLiveWallpaper()` →
-  `MethodChannel('pixel_pomo/wallpaper')` → native `MainActivity` fires `ACTION_CHANGE_LIVE_WALLPAPER` for our
-  **`GardenWallpaperService`** (a true **animated Android live wallpaper**, see below). **Settings → HOME SCREEN
+  **CAPTURE · CANCEL**; **CAPTURE** screenshots the `RepaintBoundary` (`captureKey`) and opens a sheet with
+  **Share** / **SET LIVE WALLPAPER** (Android only) / Cancel. **SET LIVE WALLPAPER** saves the framing
+  (`AppStore.setWallpaperCamera` → `WallpaperCam`, pan normalized by the projector tile size) and calls
+  `camera.setLiveWallpaper()` → `MethodChannel('pixel_pomo/wallpaper')` → native `MainActivity` **`startActivity`**
+  (in a try/catch — NOT `resolveActivity`, which returns null on Android 11+ package visibility) fires
+  `ACTION_CHANGE_LIVE_WALLPAPER` for our **`GardenWallpaperService`** (a true **animated Android live wallpaper**,
+  see below). **Settings → HOME SCREEN
   `CLEAN | GARDEN`**: GARDEN renders the **full-strength** non-interactive live `GardenView` behind the timer; in
   garden mode **SESSION sits centered in the top bar** and the timer docks at the bottom (text + coin-count shadows,
   no scrim).

@@ -189,9 +189,9 @@ world** — a fixed border ring of **20 trees + 10 bushes + 5 rocks** (with gras
 **Generated transparent pixel icons** make the top bar **theme/garden/stats · settings/store/coin**; the
 timer reads **FOCUS** and **auto-starts the break** (or asks first, per a Settings toggle); **cancelling a
 started session pays out the spent minutes**. A **peek** button hides all HUD; **camera mode** lets you frame any
-**angle** (rotate/zoom/pan) and either **SET LIVE WALLPAPER** — a real **animated Android live wallpaper** of your
-planted garden at that angle (swaying plants, a drifting bee, parallax) — or **CAPTURE** a still to **save/share**.
-**Settings → HOME SCREEN `CLEAN | GARDEN`**
+**angle** (rotate/zoom/pan), then **CAPTURE** opens a sheet to **share** the still or **SET LIVE WALLPAPER** — a
+real **animated Android live wallpaper** of your planted garden at that angle (swaying plants, a drifting bee,
+parallax). **Settings → HOME SCREEN `CLEAN | GARDEN`**
 puts the full-strength **live** garden behind the timer, with **SESSION centered in the top bar** and the timer
 docked at the bottom. The app **themes its system bars** with **no white tap ripple**; **labels rename**; the
 **shop** has **flowers / outer / inner / pets** tabs; and **Stats** has a **DAILY…ALL-TIME** selector **+ a ◀▶
