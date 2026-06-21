@@ -68,12 +68,6 @@ const Map<String, (int side, int top, int rail)> _fence3d = {
   'fence_stone': (0xFF6E6E6E, 0xFF9A9A9A, 0xFF9A9A9A),
 };
 
-/// Pick the atlas frame for a viewing/heading angle (radians).
-int frameForAngle(double a) {
-  final k = (a / (2 * math.pi) * kDirFrames).round() % kDirFrames;
-  return (k + kDirFrames) % kDirFrames;
-}
-
 /// The 8 screen-space corners of an upright box at garden [c] (tile units), with
 /// a square footprint of half-width [half] tiles rising [height] tiles. Indices
 /// 0..3 are the base ring (CW), 4..7 the matching top ring directly above. This
@@ -715,10 +709,9 @@ class GardenPainter extends CustomPainter {
       final at = p.projectGrid(c.pos).translate(0, bob - t * 0.25); // hover above ground
       final rect = Rect.fromCenter(center: at, width: s, height: s);
       if (img != null) {
-        // face the direction of travel on screen (#4) — pick the atlas facet.
-        final vel = p.projectGrid(c.target) - p.projectGrid(c.pos);
-        final frame =
-            vel.distance < 0.01 ? 0 : frameForAngle(math.atan2(vel.dy, vel.dx));
+        // always the same facet (frame 0) so the critter keeps ONE shape and
+        // doesn't morph as the camera rotates (#v20). The atlas is still 8-wide.
+        const frame = 0;
         final cellW = img.width / kDirFrames;
         canvas.drawImageRect(
             img,
