@@ -198,8 +198,8 @@ docked at the bottom. The app **themes its system bars** with **no white tap rip
 history navigator**, bar tops in **minutes**, a full-label right-aligned **pie**, and a **TREND** line — DAILY
 fills up **hour by hour**, other periods show per-bucket totals with **CURRENT / AVERAGE / BEST**.
 Korean uses **Galmuri11** (OFL); the icon is baked in via `flutter_launcher_icons`. Each build publishes
-a permanent **`flutter-vN`** GitHub release. *(The Android **live wallpaper** hosts a Flutter engine that renders
-the **real garden** — the exact same view as the app — at the framing you picked; iOS has no API and keeps Save/Share.)*
+a permanent **`flutter-vN`** GitHub release. *(The Android **live wallpaper** is a native Kotlin renderer that
+re-draws your saved garden at the framing you picked; iOS has no API and keeps Save/Share.)*
 
 To make that port a single clean pass rather than a moving target, **all app logic is kept
 in pure, framework-free classes** (`PomodoroEngine`, `Labels`, `Stats*`, `Economy`,
