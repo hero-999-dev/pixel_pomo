@@ -127,8 +127,17 @@ The Dart port carries its own tests, gating the **`build-flutter.yml`** macOS pi
 **3.44.2 / Dart 3.12.2** and green in CI.
 
 ```bash
-cd flutter && flutter analyze && flutter test   # 53 tests
+cd flutter && flutter analyze && flutter test   # 55 tests
 ```
+
+**v18 additions:** `logic_test` gained a **portrait base + pad-independent `atLeast`** test (a legacy *wide*
+10×16 plot pads to **10×20** without widening) and a **daily-trend-non-empty** test (the seeded data now carries
+timestamps so the DAILY curve renders). `engine_test`'s forest group is now **screen-filling + roam clamp**:
+`isGardenTile` classification, **`visibleTileBounds` spans beyond the plot** (forest fills the screen), and the
+**roam-radius clamp** (bounded, no infinite roam); the `Projector.fit` test asserts the **plot-based** fit fills
+most of the screen. The **menu icons** (extracted from the user's sheet by `tools/extract_icons.py`), the
+**portrait garden / screen-filling forest**, and the **grass flowers** are **device-verified** (Pillow runs
+locally only; CI ships the committed PNGs and never runs it).
 
 **v17:** no new tests (count stays **53**). Two **native `GardenRenderer`** fixes, **device-verified**: forest
 props rendered as **only shadows** because `isFlower()` mis-classified `tree_/bush_/rock_` ids and looked them

@@ -35,14 +35,8 @@ const int kDirFrames = 8;
 /// Forest sprite pool sizes — must match the counts emitted by tools/gen_objects.py.
 const int kForestTrees = 20, kForestBushes = 10, kForestRocks = 5;
 
-/// A fixed forest border (in tiles) framing the garden on every side. The world
-/// is the garden plus this border; the projector fits the whole world to the
-/// screen, so the forest fills it with a defined edge you can't roam past (#4).
-const int kForestBorder = 4;
-
-(int, int) worldOf(int cols, int rows) => (cols + 2 * kForestBorder, rows + 2 * kForestBorder);
-
-/// Is garden tile (c,r) inside the plantable plot (true) or the forest border (false)?
+/// Is garden tile (c,r) inside the plantable plot (true) or the surrounding
+/// screen-filling forest (false)? (#v18)
 bool isGardenTile(int c, int r, int cols, int rows) => c >= 0 && c < cols && r >= 0 && r < rows;
 
 int _hash2(int c, int r) {
@@ -161,16 +155,14 @@ class GardenCamera {
     yaw = 0;
   }
 
-  /// Bound pan to the world edge: you can wander into the surrounding forest
-  /// border but can't pan past it into the void (#4). The world is the garden
-  /// plus a fixed [kForestBorder] ring on every side.
+  /// Bound pan to a roam radius around the plot: you can wander up to a plot-size
+  /// into the surrounding (screen-filling) forest, but the garden can't be lost —
+  /// bounded, not the infinite roam of older versions (#v18).
   void clamp(int cols, int rows, Size size) {
     final p = Projector.fit(cols, rows, this, size);
-    final b = kForestBorder.toDouble();
-    final halfWx = (cols / 2 + b) * p.t; // world half-width in px
-    final halfWy = (rows / 2 + b) * p.t * kVy; // world half-height in px
-    final maxX = math.max(0.0, halfWx - size.width / 2);
-    final maxY = math.max(0.0, halfWy - size.height / 2);
+    final roam = (cols > rows ? cols : rows).toDouble();
+    final maxX = (cols / 2 + roam) * p.t;
+    final maxY = (rows / 2 + roam) * p.t * kVy;
     panX = panX.clamp(-maxX, maxX);
     panY = panY.clamp(-maxY, maxY);
   }
@@ -192,12 +184,13 @@ class Projector {
 
   Projector(this.cols, this.rows, this.t, this.center, this.yaw);
 
-  /// Fit the whole world (garden + the [kForestBorder] ring on each side) into
-  /// the viewport, so the forest fills the screen with a defined edge (#4). The
-  /// extra `+0.5` is a half-tile of breathing room at the frame.
+  /// Fit the plot into the viewport leaving a small forest margin (`kFitMargin`
+  /// tiles); the surrounding forest is then drawn screen-filling on every visible
+  /// tile, so it covers the whole portrait screen around the plot (#v18).
+  static const double kFitMargin = 2.0;
   factory Projector.fit(int cols, int rows, GardenCamera cam, Size size) {
-    final fitW = size.width / (cols + 2 * kForestBorder + 0.5);
-    final fitH = size.height / ((rows + 2 * kForestBorder + 0.5) * kVy);
+    final fitW = size.width / (cols + kFitMargin);
+    final fitH = size.height / ((rows + kFitMargin) * kVy);
     final t = math.min(fitW, fitH) * cam.zoom;
     return Projector(cols, rows, t,
         Offset(size.width / 2 + cam.panX, size.height / 2 + cam.panY), cam.yaw);
@@ -238,6 +231,23 @@ class Projector {
     final gx = dx * _cos + dy * _sin;
     final gy = -dx * _sin + dy * _cos;
     return Offset(gx + (cols - 1) / 2.0, gy + (rows - 1) / 2.0);
+  }
+
+  /// Integer tile range (1-tile bleed) covering the whole screen, so the forest
+  /// can be drawn on every visible tile around the plot (#v18).
+  ({int minC, int maxC, int minR, int maxR}) visibleTileBounds(Size size) {
+    final corners = [
+      gridAt(const Offset(0, 0)),
+      gridAt(Offset(size.width, 0)),
+      gridAt(Offset(size.width, size.height)),
+      gridAt(Offset(0, size.height)),
+    ];
+    var minC = double.infinity, maxC = -double.infinity, minR = double.infinity, maxR = -double.infinity;
+    for (final c in corners) {
+      minC = math.min(minC, c.dx); maxC = math.max(maxC, c.dx);
+      minR = math.min(minR, c.dy); maxR = math.max(maxR, c.dy);
+    }
+    return (minC: minC.floor() - 1, maxC: maxC.ceil() + 1, minR: minR.floor() - 1, maxR: maxR.ceil() + 1);
   }
 
   int tileAt(Offset p) {
@@ -494,6 +504,9 @@ class GardenPainter extends CustomPainter {
           ..strokeWidth = 2
           ..color = Color(soilColor).withValues(alpha: 0.7));
 
+    // a few wild decorative blooms scattered on empty grass tiles (#v18)
+    _paintGrassFlowers(canvas, p);
+
     // 3) customize gridlines over the claimed plot.
     if (customizing) _paintGrid(canvas, p);
 
@@ -504,10 +517,10 @@ class GardenPainter extends CustomPainter {
     //     on every VISIBLE tile outside the claimed plot (so the woods fill the
     //     screen — no void) + claimed props. Fences are low-poly 3D posts; trees
     //     and flowers are flat billboards grounded with a contact shadow.
-    const border = kForestBorder;
+    final vb = p.visibleTileBounds(size); // forest on every visible tile → fills the screen (#v18)
     final standing = <(double, int, int, String)>[]; // (depthY, col, row, id)
-    for (var r = -border; r < _rows + border; r++) {
-      for (var c = -border; c < _cols + border; c++) {
+    for (var r = vb.minR; r <= vb.maxR; r++) {
+      for (var c = vb.minC; c <= vb.maxC; c++) {
         if (isGardenTile(c, r, _cols, _rows)) {
           final prop = garden.propAt(r * _cols + c);
           if (prop != null) standing.add((p.ground(c, r).dy, c, r, prop));
@@ -536,6 +549,45 @@ class GardenPainter extends CustomPainter {
 
     // 5) critters on top of everything (projected from claimed garden coords)
     _paintCritters(canvas, p, t);
+  }
+
+  // ---- decorative grass blooms (#v18) ---------------------------------------
+  static const List<int> _grassBloomColors = [
+    0xFFFFFFFF, // white daisy
+    0xFFF2C94C, // yellow
+    0xFFF4A6C0, // pink
+    0xFFC9A6F0, // light purple
+  ];
+
+  int _grassFlowerHash(int c, int r) {
+    var h = (c * 0x1f1f1f1f) ^ (r * 0x2c2c2c2c) ^ 0x5bd1e995;
+    h ^= h >> 15;
+    return h & 0x7fffffff;
+  }
+
+  /// Scatter a few wild blooms on empty grass tiles (no planted prop / road), so
+  /// the clearing isn't bare. Deterministic, so they don't shimmer between frames.
+  void _paintGrassFlowers(Canvas canvas, Projector p) {
+    for (var r = 0; r < _rows; r++) {
+      for (var c = 0; c < _cols; c++) {
+        if (garden.tiles.containsKey(r * _cols + c)) continue; // skip planted/road
+        final h = _grassFlowerHash(c, r);
+        if (h % 100 >= 14) continue; // ~14% of empty tiles bloom
+        final petal = Color(_grassBloomColors[(h ~/ 100) % _grassBloomColors.length]);
+        _paintBloom(canvas, p.ground(c, r), p.t, petal);
+      }
+    }
+  }
+
+  void _paintBloom(Canvas canvas, Offset a, double t, Color petal) {
+    final s = t * 0.11;
+    final center = a.translate(0, -s * 1.5); // sit just above the ground
+    final pp = Paint()..color = petal;
+    for (var k = 0; k < 5; k++) {
+      final ang = k * 2 * math.pi / 5;
+      canvas.drawCircle(center.translate(math.cos(ang) * s, math.sin(ang) * s * kVy), s * 0.62, pp);
+    }
+    canvas.drawCircle(center, s * 0.55, Paint()..color = const Color(0xFFE0902C));
   }
 
   void _paintRoads(Canvas canvas) {

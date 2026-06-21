@@ -226,8 +226,9 @@ now Flutter-exclusive and richer** than the native grid (see below) — keep the
   parsed by `Placeables.split/combine/groundOf/propOf`. `Garden.plant` layers a fence onto a road
   (keeps both), slides a road under a fence, and **refuses flowers on roads**; `groundAt`/`propAt`
   expose the two layers; `countPlanted` counts composite components. **The garden is rectangular
-  `cols × rows`, ratio-aware base 10×16** (fills the portrait screen), index = `r*cols+c`; `Garden.grow()`
-  adds a **centered ring** (+2/+2); `Garden.atLeast(c,r)` migrates older/smaller saves to the base;
+  `cols × rows`, portrait base 10×20** (taller-than-wide so it reads vertical after the `kVy` squash), index =
+  `r*cols+c`; `Garden.grow()` adds a **centered ring** (+2/+2); `Garden.atLeast(c,r)` **pads each axis
+  independently** (centred) so a legacy wide plot gains rows to portrait without widening;
   `Economy.upgradeCost(cols,rows)=2*(cols+rows)+1`; `decode` migrates a legacy square `size:` line.
 - `lib/strings.dart` (6 languages + month names) · `lib/store.dart` (`AppStore` ChangeNotifier
   + `shared_preferences` + wall-clock countdown; generic `buyItem(id)`, **no garden size cap**;
@@ -236,8 +237,10 @@ now Flutter-exclusive and richer** than the native grid (see below) — keep the
   cancel) · `lib/pixel.dart` (pixel widgets + chart painters; `fontFor('ko')`→Galmuri11 ×1.5;
   `isLightColor`/`systemOverlayFor` for system bars) · `lib/camera.dart` (`captureBoundary`; `sharePng` via
   `share_plus`; **`setLiveWallpaper`** via `MethodChannel('pixel_pomo/wallpaper')` → native picker) · `lib/main.dart` (all
-  screens; custom top bar **theme/garden/stats · settings/store/coin** rendered from **generated transparent
-  PNG icons** via `Image.asset` — in garden mode **SESSION** sits centered between the two icon groups; **FOCUS**
+  screens; custom top bar **theme/garden/stats · settings/store/coin** rendered via `Image.asset` from the
+  **user's pixel-art icon set** (book/planter/scroll/gear/stall — extracted from their sheet by
+  `tools/extract_icons.py`, navy keyed to transparent) — in garden mode **SESSION** sits centered between the
+  two icon groups; **FOCUS**
   + auto-break; `StatsScreen` period selector **+ ◀▶ history navigator**; stateful `ShopScreen`
   **flowers/outer/inner/pets** tabs).
 - **Stats** (`StatsAggregator`): `anchorFor(now,period,offset)` + an `offset` arg on
@@ -258,12 +261,13 @@ now Flutter-exclusive and richer** than the native grid (see below) — keep the
 - **Custom garden engine** `lib/engine/garden_engine.dart` + `garden_view.dart`: a small
   purpose-built renderer (no Flame/Unity), **fixed 2.5D tilt** (`kVy`) but a **hand-controllable
   yaw** — two-finger twist rotates the view like Google Maps. **Pinch-zoom (1×–4×) + pan, both
-  clamped to the world edge**. **Bounded forest world (v14, #4):** `Projector` is **rectangular `cols × rows`**,
-  sized to fit the **whole world** — the garden **plus a fixed `kForestBorder` ring** (`worldOf`) — so the forest
-  frames the plot with a **defined edge** and fills the portrait screen (no infinite roam). The painter stamps
-  varied forest props on the **border ring only** (`isGardenTile` separates plot from border; depth-sorted with
-  flowers/fences, contact-shadowed) over a dark forest floor; `GardenCamera.clamp` keeps pan inside the world.
-  **EXPAND grows the plot from the center**, eating into the border. Taps map straight to the claimed tile
+  clamped to a roam radius**. **Portrait plot + screen-filling forest (#v18):** `Projector.fit` sizes the
+  **plot** to most of the screen (`kFitMargin=2`); the painter stamps varied forest props on **every visible
+  tile** outside the plot (`Projector.visibleTileBounds`; `isGardenTile` separates plot from forest;
+  depth-sorted with flowers/fences, contact-shadowed) over a dark forest floor, so the forest **fills the whole
+  portrait screen**; `GardenCamera.clamp` bounds pan to a roam radius (wander a plot-size into the woods, no
+  infinite roam). A few **decorative blooms** (`_paintGrassFlowers`) scatter on empty grass tiles so the clearing
+  isn't bare. **EXPAND grows the plot from the center.** Taps map straight to the claimed tile
   (forest isn't plantable). The ground
   (grass + flat roads) is drawn through a yaw+squash **affine**. **Flat sky-ambient lighting (no sun):** nothing is
   shaded by view angle, so rotating the garden never sweeps a fake sun across it. **Fences are real
@@ -306,16 +310,17 @@ now Flutter-exclusive and richer** than the native grid (see below) — keep the
   `frameForAngle` facing, like the in-app `CritterSystem`). No render duplication beyond this simplified scene; no
   embedded Flutter engine (no supported wallpaper-surface API). iOS has no live-wallpaper API and keeps Save/Share.
 - **Varied forest:** `forestPropAt(c,r)` deterministically scatters **20 `tree_NN` + 10 `bush_NN` +
-  5 `rock_NN`** (with grass gaps) over the **forest border ring** so the woods look natural, not one repeated tree.
+  5 `rock_NN`** (with grass gaps) over the **screen-filling forest** so the woods look natural, not one repeated tree.
 - **App-wide theming:** `systemOverlayFor(theme)` + `isLightColor` drive `SystemChrome` via an
   `AnnotatedRegion` so the **status + nav bars match the theme** (#2); `MaterialApp` uses a `ThemeData`
   with `NoSplash.splashFactory` so there's **no white tap ripple** (#12).
 - **Art as data:** crisp **PNGs in `assets/objects/`** (**calm low-speckle grass**, coin, 4 roads, 3 fences,
   10 flowers, **20 trees + 10 bushes + 5 rocks** for the forest, all single-frame; only the 3 critters are
-  8-frame atlases), plus **5 generated transparent 32×32 menu icons** (`icon_{theme,garden,stats,settings,store}`)
-  in `assets/icon/` — built pixel-by-pixel on a blank canvas with a dark `outline()` (replacing the old
-  sheet-slicer, which rendered as dark boxes), all emitted by the dependency-free `tools/gen_objects.py`
-  (`make_atlas`/`spin_frame` still build the **critter** strips; `spin_frame` does a `|cos|` squash only —
+  8-frame atlases) from the dependency-free `tools/gen_objects.py`. The **5 menu icons** in `assets/icon/`
+  (`icon_{theme,garden,stats,settings,store}`) are the **user's pixel-art set**, extracted from their sheet by
+  `tools/extract_icons.py` (Pillow, local one-time: crop the 5 cells + flood-fill the navy bg to transparent —
+  CI never runs it). (`gen_objects.py`'s `make_atlas`/`spin_frame` still build the **critter** strips;
+  `spin_frame` does a `|cos|` squash only —
   **no** view-dependent shading, so light is flat). Fences
   render as 3D meshes in the garden, so their single-frame PNG is only a **shop/place thumbnail**.
   Garden flower frames get a **dark outline** (10×10 canvas) so plants separate from the grass.
@@ -324,17 +329,18 @@ now Flutter-exclusive and richer** than the native grid (see below) — keep the
 - **Launcher icon:** `assets/icon/app_icon*.png` (pixel tomato, from `tools/gen_icon.py`) +
   `flutter_launcher_icons`; CI runs `dart run flutter_launcher_icons` **after** `flutter create`
   so the real logo is baked in instead of the Flutter default.
-- `test/logic_test.dart` (pure parity + placeables + **rectangular garden** grow/cost/decode + **base 10×16 +
-  `atLeast` migration** + overlay layering + theme `isLightColor`/`systemOverlayFor` + **stats period
+- `test/logic_test.dart` (pure parity + placeables + **rectangular garden** grow/cost/decode + **portrait base
+  10×20 + pad-independent `atLeast`** + overlay layering + theme `isLightColor`/`systemOverlayFor` + **stats period
   aggregators + `anchorFor`/offset** + `Labels.rename` + **`elapsedFocusMinutes`** + **`SessionRecord` timestamp
-  codec** (4-field + legacy 3-field) + **trend** (`dailyCumulative` hourly + `periodStats` current/avg/best) +
-  **`WallpaperCam`** framing codec) + `test/engine_test.dart` (low-poly 3D `projectElevated`/`boxCorners`;
-  rectangular tile round-trip; `gridAt`; critter `maxLife`; **`forestPropAt`** variety; **bounded world**
-  `worldOf`/`isGardenTile`/world-clamp) + `test/wallpaper_channel_test.dart` (`setLiveWallpaper` invokes the
-  `pixel_pomo/wallpaper` channel) + `test/widget_smoke_test.dart` (boots the app, opens every overlay via the
-  **icon keys**, exercises peek/camera/home-mode + **stats period/nav/chart taps incl. TREND + CURRENT/AVG/BEST**
-  + label rename + **store tabs**; `runAsync` loads sprite PNGs). All gate CI. **53 tests.** The Android **live
-  wallpaper** is native Kotlin in `flutter/android_overlay/` (restored by `apply_overlay.py`) — device-verified.
+  codec** (4-field + legacy 3-field) + **trend** (`dailyCumulative` hourly + `periodStats` current/avg/best +
+  seeded daily curve non-empty) + **`WallpaperCam`** framing codec) + `test/engine_test.dart` (low-poly 3D
+  `projectElevated`/`boxCorners`; rectangular tile round-trip; `gridAt`; critter `maxLife`; **`forestPropAt`**
+  variety; **screen-filling forest** `isGardenTile`/`visibleTileBounds`/roam-clamp + plot-based fit) +
+  `test/wallpaper_channel_test.dart` (`setLiveWallpaper` invokes the `pixel_pomo/wallpaper` channel) +
+  `test/widget_smoke_test.dart` (boots the app, opens every overlay via the **icon keys**, exercises
+  peek/camera/home-mode + **stats period/nav/chart taps incl. TREND + CURRENT/AVG/BEST** + label rename +
+  **store tabs**; `runAsync` loads sprite PNGs). All gate CI. **55 tests.** The Android **live wallpaper** is
+  native Kotlin in `flutter/android_overlay/` (restored by `apply_overlay.py`) — device-verified.
 - **Only the portable parts are committed** (`lib/`, `pubspec.yaml`, `assets/`, `tools/`, `test/`).
   `ios/` + `android/` are generated by CI via `flutter create` (see `flutter/.gitignore`).
 - CI: **`.github/workflows/build-flutter.yml`** runs on a **macOS runner**, scaffolds the
