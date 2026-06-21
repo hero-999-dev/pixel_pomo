@@ -173,9 +173,13 @@ class _GardenViewState extends State<GardenView> with SingleTickerProviderStateM
       builder: (context, constraints) {
         _lastSize = Size(constraints.maxWidth, constraints.maxHeight);
         _clampWorld();
-        final scene = RepaintBoundary(
-          key: widget.captureKey,
-          child: CustomPaint(painter: _painter(), size: _lastSize),
+        // clip to the view box so zoomed forest billboards can't paint over the
+        // GardenScreen HUD (title/buttons) above and below it (#v19).
+        final scene = ClipRect(
+          child: RepaintBoundary(
+            key: widget.captureKey,
+            child: CustomPaint(painter: _painter(), size: _lastSize),
+          ),
         );
         // corner controls are hidden while framing a photo (cameraMode) or when
         // the view is a non-interactive backdrop.
