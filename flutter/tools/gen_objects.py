@@ -344,25 +344,27 @@ def grass_grid():
 # the wallet shows it as a flat 2D coin with no animation.
 
 def coin_grid():
-    out = hexrgb("7A5200") + (255,)   # dark outline ring
-    rim = hexrgb("C98A1B") + (255,)   # inner rim
-    face = hexrgb("F2C94C") + (255,)  # gold face
-    hi = hexrgb("FFE9A8") + (255,)    # single shine
+    # Match the user's example (#v19): dark outline, a gold rim ring, a lighter
+    # inner face with a top→bottom bevel, and one small top-left shine. No marks.
+    out = hexrgb("5A3A0A") + (255,)     # dark outline
+    rim = hexrgb("C98A1B") + (255,)     # gold rim ring
+    face_hi = hexrgb("FFDE73") + (255,)  # lighter gold inner (upper)
+    face_lo = hexrgb("E8B43A") + (255,)  # gold inner (lower)
+    shine = hexrgb("FFF2C8") + (255,)    # top-left highlight
     g = blank(16, 16)
     cx = cy = 7.5
     for r in range(16):
         for c in range(16):
             d = ((r - cy) ** 2 + (c - cx) ** 2) ** 0.5
-            if d <= 7.7:
-                if d > 6.6:
+            if d <= 7.6:
+                if d > 6.5:
                     g[r][c] = out
-                elif d > 5.3:
+                elif d > 5.2:
                     g[r][c] = rim
                 else:
-                    g[r][c] = face
-    # one soft top-left shine arc — nothing in the centre (no face)
-    for (r, c) in ((3, 6), (4, 5), (4, 6), (5, 4), (5, 5)):
-        g[r][c] = hi
+                    g[r][c] = face_hi if r <= cy else face_lo  # bevel
+    for (r, c) in ((4, 5), (4, 6), (5, 4), (5, 5)):
+        g[r][c] = shine
     return g
 
 
