@@ -390,8 +390,9 @@ class _ChartPainter extends CustomPainter {
       // selected bucket's tick at the bottom axis, highlighted (#2)
       _text(canvas, c.series.tickLabels[s], sx, h - 4, 7, c.lineColor, align: TextAlign.center);
       final detail = c.series.byLabel[s];
+      // the bucket label is already drawn on the bottom axis (above), so the
+      // callout starts at FOCUS — no duplicated month/year/day/hour (#v19).
       final rows = <(String, String)>[
-        (c.series.tickLabels[s], ''),
         (_focus(), _fmt(totals[s])),
         (_avg(), _fmt(c.average)),
         for (final e in detail) (_cap(e.key), _fmt(e.value)),
