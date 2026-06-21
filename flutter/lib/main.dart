@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'camera.dart';
 import 'engine/garden_engine.dart';
@@ -1102,96 +1101,6 @@ class _GardenScreenState extends State<GardenScreen> {
           Text('$name  x${s.availableOf(id)}', style: pixelStyle(lang, 11, col(th.onSurface))),
         ],
       ),
-    );
-  }
-}
-
-// ---- live wallpaper entry point (#v20) --------------------------------------
-
-/// Run by the Android live-wallpaper service in its own FlutterEngine
-/// (android_overlay/GardenWallpaperService.kt). Renders the **real** garden — the
-/// exact same `GardenView` engine as the app — at the saved framing. It MUST live
-/// in this root `main.dart` library: `executeDartEntrypoint` with no library URI
-/// looks the entry point up here, so a `wallpaperMain` in any other file is never
-/// found → black screen. `@pragma('vm:entry-point')` keeps it from tree-shaking.
-@pragma('vm:entry-point')
-void wallpaperMain() {
-  WidgetsFlutterBinding.ensureInitialized();
-  runApp(const MaterialApp(debugShowCheckedModeBanner: false, home: _WallpaperApp()));
-}
-
-class _WallpaperApp extends StatefulWidget {
-  const _WallpaperApp();
-  @override
-  State<_WallpaperApp> createState() => _WallpaperAppState();
-}
-
-class _WallpaperAppState extends State<_WallpaperApp> {
-  Garden? _garden;
-  SpriteBank? _sprites;
-  WallpaperCam _wcam = WallpaperCam.none;
-  PixelTheme _theme = Themes.dark;
-  bool _error = false;
-  final GardenCamera _camera = GardenCamera();
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final garden = Garden.decode(prefs.getString('garden'))
-          .atLeast(Economy.baseGardenCols, Economy.baseGardenRows);
-      final sprites = await SpriteBank.load();
-      final wcam = WallpaperCam.decode(prefs.getString('wallpaper_cam'));
-      final theme = Themes.byId(prefs.getString('theme_id'));
-      _camera.yaw = wcam.yaw;
-      _camera.zoom = wcam.zoom;
-      if (mounted) {
-        setState(() {
-          _garden = garden;
-          _sprites = sprites;
-          _wcam = wcam;
-          _theme = theme;
-        });
-      }
-    } catch (_) {
-      if (mounted) setState(() => _error = true);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // Diagnostic colours so a device report pinpoints the failure (#v20):
-    //   black → the Flutter→surface pipeline isn't rendering at all
-    //   RED → pipeline works but loading the garden/sprites failed
-    //   INDIGO → pipeline works, still loading · garden → fixed
-    final g = _garden, s = _sprites;
-    if (_error) return const ColoredBox(color: Color(0xFFD32F2F)); // red
-    if (g == null || s == null) return const ColoredBox(color: Color(0xFF3949AB)); // indigo
-    return LayoutBuilder(
-      builder: (ctx, cons) {
-        final p = Projector.fit(g.cols, g.rows, _camera, Size(cons.maxWidth, cons.maxHeight));
-        _camera.panX = _wcam.panXFrac * p.t;
-        _camera.panY = _wcam.panYFrac * p.t;
-        return GardenView(
-          garden: g,
-          sprites: s,
-          customizing: false,
-          onTapTile: (_) {},
-          groundColor: _gardenGround,
-          soilColor: _gardenSoil,
-          uiColor: _theme.onSurface,
-          panelColor: _theme.panel,
-          lang: 'en',
-          tr: (k) => k,
-          interactive: false,
-          camera: _camera,
-        );
-      },
     );
   }
 }
