@@ -19,13 +19,21 @@ private const val KVY = 0.60
 
 /**
  * Draws a calm, animated version of the garden at the framing the user saved
- * (yaw/zoom/pan), mirroring the Dart Projector — but simplified: no 3D fence
- * meshes, no gestures. Forest props fill the fixed border ring; planted flowers
- * sway; one bee drifts; parallax follows home-screen swipes (v15).
+ * (yaw/zoom/pan), mirroring the Dart Projector. Forest props fill the visible
+ * border; planted flowers stand still; fences are low-poly 3D meshes (posts +
+ * linking rails) like the app, not flat cards; one bee drifts; parallax follows
+ * home-screen swipes (v15, fences ported #v20).
  */
 class GardenRenderer(private val data: GardenData) {
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = false }
     private val shadow = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x33000000 }
+    private val quad = Paint().apply { isAntiAlias = false } // pixel-crisp low-poly faces
+
+    // Flat (side, top, rail) colours per fence id — mirrors the in-app `_fence3d`.
+    private val fence3d = mapOf(
+        "fence_wood" to Triple(Color.rgb(0x8B, 0x5A, 0x2B), Color.rgb(0xA9, 0x74, 0x3E), Color.rgb(0xA9, 0x74, 0x3E)),
+        "fence_dark" to Triple(Color.rgb(0x3D, 0x28, 0x14), Color.rgb(0x5A, 0x3A, 0x1E), Color.rgb(0x5A, 0x3A, 0x1E)),
+        "fence_stone" to Triple(Color.rgb(0x6E, 0x6E, 0x6E), Color.rgb(0x9A, 0x9A, 0x9A), Color.rgb(0x9A, 0x9A, 0x9A)))
 
     private var t = 1.0; private var cx = 0.0; private var cy = 0.0
     private var cosY = 1.0; private var sinY = 0.0; private var cols = 10; private var rows = 16
@@ -41,7 +49,7 @@ class GardenRenderer(private val data: GardenData) {
     private var beeHover = 0.0
     private var lastT = 0.0
 
-    private data class Item(val depth: Double, val x: Double, val y: Double, val id: String, val flower: Boolean)
+    private data class Item(val depth: Double, val x: Double, val y: Double, val id: String, val flower: Boolean, val c: Int, val r: Int)
 
     fun draw(canvas: Canvas, w: Int, h: Int, timeSec: Double, xOffset: Float) {
         cols = data.cols; rows = data.rows
@@ -57,6 +65,7 @@ class GardenRenderer(private val data: GardenData) {
         canvas.drawColor(Color.rgb(0x12, 0x30, 0x1A)) // forest floor
         fillClearing(canvas)
         drawGrassFlowers(canvas) // a few wild blooms on empty grass (#v18)
+        drawFenceRails(canvas)   // raised rails between adjacent posts, under the standing items (#v20)
 
         val items = ArrayList<Item>()
         val flowers = ArrayList<Pair<Double, Double>>() // planted-flower garden coords, for the bee
@@ -71,18 +80,19 @@ class GardenRenderer(private val data: GardenData) {
                     val (x, y) = ground(c, r)
                     val flower = isFlower(prop)
                     if (flower) flowers.add(gridXY(c, r))
-                    items.add(Item(y, x, y, prop, flower))
+                    items.add(Item(y, x, y, prop, flower, c, r))
                 } else {
                     val fp = forestPropAt(c, r) ?: continue
                     val (x, y) = ground(c, r)
-                    items.add(Item(y, x, y, fp, false))
+                    items.add(Item(y, x, y, fp, false, c, r))
                 }
             }
         }
         items.sortBy { it.depth }
         for (it in items) {
-            // no wind — flowers stand still (#v20)
-            billboard(canvas, data.bitmap(spriteFor(it.id)), it.x, it.y,
+            // fences are 3D posts; everything else is a still billboard — no wind (#v20)
+            if (isFence(it.id)) drawFencePost(canvas, it.c, it.r, it.id)
+            else billboard(canvas, data.bitmap(spriteFor(it.id)), it.x, it.y,
                 if (it.id.startsWith("rock_")) 0.6 else 1.2)
         }
         updateBee(canvas, timeSec, flowers)
@@ -193,6 +203,81 @@ class GardenRenderer(private val data: GardenData) {
         val pw = ph * bmp.width / bmp.height
         val left = (x - pw / 2).toFloat(); val top = (y - ph).toFloat()
         canvas.drawBitmap(bmp, null, RectF(left, top, (left + pw).toFloat(), (top + ph).toFloat()), paint)
+    }
+
+    private fun isFence(id: String) = id.startsWith("fence_")
+
+    private fun fenceAt(idx: Int): Boolean {
+        if (idx < 0 || idx >= cols * rows) return false
+        return isFence(data.propAt(idx) ?: return false)
+    }
+
+    /// Project a centered-garden coord raised by `e` tiles (mirrors projectElevated).
+    private fun projElev(gx: Double, gy: Double, e: Double): Pair<Double, Double> {
+        val (sx, sy) = projGrid(gx, gy)
+        return sx to (sy - e * t)
+    }
+
+    /// Fill one flat-shaded low-poly face (no anti-aliasing) — mirrors `_fillQuad`.
+    private fun fillQuad(canvas: Canvas, a: Pair<Double, Double>, b: Pair<Double, Double>,
+                         c: Pair<Double, Double>, d: Pair<Double, Double>, color: Int) {
+        val path = Path()
+        path.moveTo(a.first.toFloat(), a.second.toFloat())
+        path.lineTo(b.first.toFloat(), b.second.toFloat())
+        path.lineTo(c.first.toFloat(), c.second.toFloat())
+        path.lineTo(d.first.toFloat(), d.second.toFloat())
+        path.close()
+        quad.color = color
+        canvas.drawPath(path, quad)
+    }
+
+    /// 8 corners (4 base, 4 top) of an upright box — mirrors `boxCorners`.
+    private fun boxCorners(gx: Double, gy: Double, half: Double, height: Double): Array<Pair<Double, Double>> {
+        val base = arrayOf(
+            projGrid(gx - half, gy - half), projGrid(gx + half, gy - half),
+            projGrid(gx + half, gy + half), projGrid(gx - half, gy + half))
+        return arrayOf(base[0], base[1], base[2], base[3],
+            base[0].first to base[0].second - height * t, base[1].first to base[1].second - height * t,
+            base[2].first to base[2].second - height * t, base[3].first to base[3].second - height * t)
+    }
+
+    /// Raised rails between adjacent fence posts — mirrors `_paintFenceRails`. Each
+    /// tile only links toward its E and S neighbour so every shared edge draws once.
+    private fun drawFenceRails(canvas: Canvas) {
+        for (r in 0 until rows) {
+            for (c in 0 until cols) {
+                val id = data.propAt(r * cols + c) ?: continue
+                if (!isFence(id)) continue
+                val rail = fence3d[id]?.third ?: continue
+                val (ax, ay) = gridXY(c, r)
+                fun link(nc: Int, nr: Int) {
+                    val (bx, by) = gridXY(nc, nr)
+                    for (e in doubleArrayOf(0.50, 0.28)) {
+                        fillQuad(canvas, projElev(ax, ay, e + 0.05), projElev(bx, by, e + 0.05),
+                            projElev(bx, by, e - 0.05), projElev(ax, ay, e - 0.05), rail)
+                    }
+                }
+                if (c < cols - 1 && fenceAt(r * cols + c + 1)) link(c + 1, r)
+                if (r < rows - 1 && fenceAt((r + 1) * cols + c)) link(c, r + 1)
+            }
+        }
+    }
+
+    /// One fence as a low-poly 3D post (upright box + brighter top) — mirrors
+    /// `_paintFencePost`. The four side faces share one colour; the top draws last.
+    private fun drawFencePost(canvas: Canvas, c: Int, r: Int, id: String) {
+        val pal = fence3d[id] ?: return
+        val (gx, gy) = gridXY(c, r)
+        val (groundX, groundY) = projGrid(gx, gy)
+        val scy = groundY + t * KVY * 0.10
+        canvas.drawOval((groundX - t * 0.17).toFloat(), (scy - t * KVY * 0.15).toFloat(),
+            (groundX + t * 0.17).toFloat(), (scy + t * KVY * 0.15).toFloat(), shadow)
+        val box = boxCorners(gx, gy, 0.10, 0.66)
+        for (i in 0 until 4) {
+            val j = (i + 1) % 4
+            fillQuad(canvas, box[i], box[j], box[j + 4], box[i + 4], pal.first)
+        }
+        fillQuad(canvas, box[4], box[5], box[6], box[7], pal.second)
     }
 
     // A bee with a come-and-go lifecycle: a gap with no bug, then it flies in from
