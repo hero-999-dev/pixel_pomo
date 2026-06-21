@@ -248,8 +248,8 @@ class Placeables {
 class Economy {
   static const flowerCost = 10;
   static const objectCost = 5; // roads + fences
-  static const baseGardenCols = 10; // ratio-aware, fills the portrait screen (#7)
-  static const baseGardenRows = 16;
+  static const baseGardenCols = 10; // taller-than-wide so it reads as a portrait
+  static const baseGardenRows = 20; // garden once the 2.5D squash (kVy) is applied (#v18)
   static int coinsFor(int minutes) => minutes <= 0 ? 0 : minutes ~/ 5;
 
   /// Whole focus minutes spent so far in a [workMin] session with [timeLeftMillis]
@@ -335,14 +335,22 @@ class Garden {
     return Garden(cols: nc, rows: nr, tiles: remapped);
   }
 
-  /// Grow (centred, +2/+2 per step) until at least [cols]×[rows]. Migrates older,
-  /// smaller saved gardens to the new bigger base, keeping plantings centred (#7).
+  /// Pad the plot (centred) up to at least [cols]×[rows], each axis independently —
+  /// so a legacy *wide* plot gains rows to read as portrait WITHOUT also widening
+  /// (symmetric grow() couldn't do that). Migration only; keeps plantings centred.
   Garden atLeast(int cols, int rows) {
-    var g = this;
-    while (g.cols < cols || g.rows < rows) {
-      g = g.grow();
-    }
-    return g;
+    final nc = this.cols > cols ? this.cols : cols;
+    final nr = this.rows > rows ? this.rows : rows;
+    if (nc == this.cols && nr == this.rows) return this;
+    final dc = (nc - this.cols) ~/ 2;
+    final dr = (nr - this.rows) ~/ 2;
+    final remapped = <int, String>{};
+    tiles.forEach((index, id) {
+      final r = index ~/ this.cols;
+      final c = index % this.cols;
+      remapped[(r + dr) * nc + (c + dc)] = id;
+    });
+    return Garden(cols: nc, rows: nr, tiles: remapped);
   }
 
   int countPlanted(String flowerId) => tiles.values.where((v) {
@@ -852,31 +860,33 @@ class TestData {
 
   static List<SessionRecord> records(DateTime today) {
     final out = <SessionRecord>[];
-    void add(DateTime date, int min, String label) =>
-        out.add(SessionRecord(epochDayOf(date), min, label));
+    // [minute] = start-of-session minute-of-day, so the DAILY trend curve has real
+    // hourly shape on the seeded data (untimestamped records don't appear on it).
+    void add(DateTime date, int min, String label, int minute) =>
+        out.add(SessionRecord(epochDayOf(date), min, label, minuteOfDay: minute));
 
-    add(today, 60, 'MATH');
-    add(today, 100, 'HISTORY');
-    add(today, 40, 'ENGLISH');
-    add(today, 160, 'CODING');
+    add(today, 60, 'MATH', 8 * 60); // 08:00
+    add(today, 100, 'HISTORY', 10 * 60 + 30); // 10:30
+    add(today, 40, 'ENGLISH', 13 * 60); // 13:00
+    add(today, 160, 'CODING', 15 * 60 + 30); // 15:30
 
-    add(today.subtract(const Duration(days: 1)), 200, 'MATH');
-    add(today.subtract(const Duration(days: 2)), 100, 'SCIENCE');
-    add(today.subtract(const Duration(days: 2)), 40, 'ENGLISH');
+    add(today.subtract(const Duration(days: 1)), 200, 'MATH', 9 * 60);
+    add(today.subtract(const Duration(days: 2)), 100, 'SCIENCE', 11 * 60);
+    add(today.subtract(const Duration(days: 2)), 40, 'ENGLISH', 16 * 60);
 
-    add(today.subtract(const Duration(days: 9)), 150, 'TURKISH');
-    add(today.subtract(const Duration(days: 14)), 150, 'TURKISH');
+    add(today.subtract(const Duration(days: 9)), 150, 'TURKISH', 14 * 60);
+    add(today.subtract(const Duration(days: 14)), 150, 'TURKISH', 19 * 60);
 
-    add(DateTime(today.year, today.month - 1, 10), 120, 'CODING');
-    add(DateTime(today.year, today.month - 1, 18), 90, 'MATH');
-    add(DateTime(today.year, today.month - 2, 6), 75, 'READING');
-    add(DateTime(today.year, today.month - 2, 22), 130, 'HISTORY');
-    add(DateTime(today.year, today.month - 3, 14), 60, 'ENGLISH');
+    add(DateTime(today.year, today.month - 1, 10), 120, 'CODING', 20 * 60);
+    add(DateTime(today.year, today.month - 1, 18), 90, 'MATH', 7 * 60 + 30);
+    add(DateTime(today.year, today.month - 2, 6), 75, 'READING', 22 * 60);
+    add(DateTime(today.year, today.month - 2, 22), 130, 'HISTORY', 12 * 60);
+    add(DateTime(today.year, today.month - 3, 14), 60, 'ENGLISH', 17 * 60);
 
-    add(DateTime(2025, 11, 12), 200, 'CODING');
-    add(DateTime(2025, 9, 5), 150, 'MATH');
-    add(DateTime(2025, 6, 20), 90, 'READING');
-    add(DateTime(2025, 3, 8), 110, 'HISTORY');
+    add(DateTime(2025, 11, 12), 200, 'CODING', 18 * 60);
+    add(DateTime(2025, 9, 5), 150, 'MATH', 9 * 60 + 30);
+    add(DateTime(2025, 6, 20), 90, 'READING', 21 * 60);
+    add(DateTime(2025, 3, 8), 110, 'HISTORY', 10 * 60);
 
     return out;
   }

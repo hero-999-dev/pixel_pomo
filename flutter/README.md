@@ -13,9 +13,10 @@ flutter/
 ├── assets/
 │   ├── fonts/            # PressStart2P (Latin) + Galmuri11 (OFL pixel Hangul, for Korean)
 │   ├── objects/          # 24 sprites: grass/forest/tree/coin + 4 roads + 3 fences + 10 flowers (single-frame) + 3 critters (8-frame atlases)
-│   └── icon/             # app_icon.png + app_icon_fg.png (launcher) + 5 generated transparent menu icons (icon_theme/garden/stats/settings/store)
+│   └── icon/             # app_icon.png + app_icon_fg.png (launcher) + 5 menu icons (icon_theme/garden/stats/settings/store), extracted from the user's art
 ├── tools/
-│   ├── gen_objects.py    # regenerates assets/objects/*.png + the 5 menu icons (no Pillow needed)
+│   ├── gen_objects.py    # regenerates assets/objects/*.png (no Pillow needed)
+│   ├── extract_icons.py  # one-time (Pillow): extract the 5 menu icons from the user's sheet, navy bg → transparent
 │   └── gen_icon.py       # regenerates the launcher icon PNGs
 ├── android_overlay/      # native live-wallpaper files (Kotlin WallpaperService + channel + res), copied into the
 │   └── ...               #   CI-regenerated android/ by apply_overlay.py (which patches AndroidManifest.xml)
@@ -26,12 +27,12 @@ flutter/
 │   ├── pixel.dart        # pixel widgets + chart painter + flower sprites; fontFor('ko')→Galmuri11
 │   ├── camera.dart       # garden screenshot (RepaintBoundary→PNG) + save (path_provider) + share (share_plus)
 │   ├── engine/
-│   │   ├── garden_engine.dart  # bounded-world 2.5D renderer: rectangular Projector + kForestBorder ring, low-poly 3D fence mesh, flat lighting, flower/tree billboards, critter atlas
+│   │   ├── garden_engine.dart  # 2.5D renderer: rectangular Projector + screen-filling forest (visibleTileBounds), low-poly 3D fence mesh, flat lighting, flower/tree billboards, grass blooms, critter atlas
 │   │   └── garden_view.dart    # gesture/ticker widget: pinch-zoom + pan + two-finger rotate; peek/camera buttons; RepaintBoundary capture; interactive flag
 │   └── main.dart         # screens: timer (+optional live garden backdrop) + theme/garden/stats/settings/shop/label overlays
 └── test/
     ├── logic_test.dart        # Dart edge tests (gate the Flutter CI)
-    ├── engine_test.dart       # geometry: projectElevated + boxCorners + rectangular Projector + bounded forest world
+    ├── engine_test.dart       # geometry: projectElevated + boxCorners + rectangular Projector + screen-filling forest + roam clamp
     └── widget_smoke_test.dart # boots the app, opens every overlay incl. the live garden (peek/camera/home-mode)
 ```
 
@@ -75,13 +76,13 @@ first-launch test fixture (1000 coins + sample history). The pure logic is share
 with the Kotlin original.
 
 **Flutter-exclusive garden** (richer than the native grid): a **full-screen, portrait, 2.5D world**
-drawn by a tiny custom engine (`lib/engine/`) — no Unity/Flame. A **rectangular `cols × rows` claimed
-plot** is the grass **clearing**, framed by a **bounded forest world** — the projector fits the garden
-**plus a fixed `kForestBorder` ring** (`worldOf`), and the painter stamps forest props on that **border ring
-only** (grounded with a contact shadow), giving the garden a **defined forest edge** that fills the portrait
-screen. **EXPAND grows the plot from the center** (+2 ring, no cap), eating into the border. The tilt is
-fixed, but you can **rotate by hand** (two-finger twist) and **pinch-zoom (1×–4×) + pan**, all **clamped to
-the world edge** (no infinite roam). **CUSTOMIZE** shows tile gridlines.
+drawn by a tiny custom engine (`lib/engine/`) — no Unity/Flame. A **portrait `cols × rows` claimed plot**
+is the grass **clearing** (scattered with a few decorative blooms via `_paintGrassFlowers`); `Projector.fit`
+sizes the plot to most of the screen (`kFitMargin=2`), and the painter stamps forest props on **every visible
+tile** outside it (`Projector.visibleTileBounds`), so the woods **fill the whole portrait screen**.
+**EXPAND grows the plot from the center** (+2 ring, no cap). The tilt is fixed, but you can **rotate by hand**
+(two-finger twist) and **pinch-zoom (1×–4×) + pan**, **bounded to a roam radius** (wander a plot-size into the
+woods, but the garden's never lost). **CUSTOMIZE** shows tile gridlines.
 **Lighting is flat sky-ambient** — nothing is shaded by view angle. Roads lie flat; **fences are real
 low-poly 3D** — upright post meshes (brighter sky-lit top) joined by **raised 3D rails** to any
 adjacent fence (wood↔dark↔stone), keeping a solid footprint from every angle; a fence can stand **on
@@ -90,11 +91,12 @@ top of a road** (flowers can't). **Flowers and forest trees are flat billboards*
 drifting in to **visit a flower** then leaving. The SHOP sells **4 road** + **3 fence** materials
 (5 coins each). The wallet shows a **plain 2D gold coin**.
 
-**Garden size & forest:** the plot is a **ratio-aware 10×16** (fills the portrait screen; `Garden.atLeast`
-migrates older saves), and the forest border is **varied** — `forestPropAt(c,r)` deterministically scatters
-**20 trees + 10 bushes + 5 rocks** (with grass gaps) instead of one repeated tree. **(v14)** the world is now
-**bounded** (`worldOf`/`isGardenTile`/`kForestBorder`), and the **grass tile is calmer** — one base green with
-sparse low-contrast speckle, no patchwork.
+**Garden size & forest:** the plot is a **portrait 10×20** (`Garden.atLeast` pads a legacy *wide* plot up to
+portrait, centred, without widening — symmetric `grow()` couldn't), and the forest is **varied** —
+`forestPropAt(c,r)` deterministically scatters **20 trees + 10 bushes + 5 rocks** (with grass gaps) over the
+**screen-filling** range, instead of one repeated tree. The **grass** is a calm base green with sparse speckle
+plus a few **wild decorative blooms**. **(#v18)** the v14 fixed-border world was replaced by this screen-filling
+forest + a **roam-radius clamp** (bounded, not infinite).
 
 **Peek, camera & live wallpaper:** a bottom-left **peek** button hides *all* HUD (full-bleed, system bars
 matched); **camera mode** lets you frame an **angle** (rotate/zoom/pan, tilt fixed), then **CAPTURE** opens a
@@ -111,9 +113,9 @@ patched) by **`apply_overlay.py`**; it reads the same `SharedPreferences` (`flut
 centered in the top bar** and the timer docks at the bottom (no scrim; text + coin-count shadows for legibility).
 *(iOS has no live-wallpaper API and keeps Save/Share.)*
 
-**Top bar, timer & store:** **generated transparent 32×32 pixel icons** (`gen_objects.py` builds them on a blank
-canvas with a dark outline; rendered via `Image.asset` — they replaced the v13 sheet-slicer that showed as dark
-boxes) — **theme/garden/stats · settings/store/coin**. The timer mode reads **FOCUS**; **SWITCH MODE** is gone (a focus
+**Top bar, timer & store:** the **user's hand-drawn pixel-art icons** (`tools/extract_icons.py` crops the 5 cells
+from their sheet and flood-fills the navy bg to transparent; rendered via `Image.asset`) —
+**theme/garden/stats · settings/store/coin**. The timer mode reads **FOCUS**; **SWITCH MODE** is gone (a focus
 session **auto-starts the break**, or with **Settings → AUTO-START BREAK off** asks first). **Cancelling a
 started session pays out the spent minutes.** The **shop** has tabs **FLOWERS / OUTER DECOR / INNER DECOR /
 PETS** (last two coming soon).
