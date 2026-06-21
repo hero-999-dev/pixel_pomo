@@ -130,6 +130,12 @@ The Dart port carries its own tests, gating the **`build-flutter.yml`** macOS pi
 cd flutter && flutter analyze && flutter test   # 55 tests
 ```
 
+**v19:** count stays **55**; the garden **grow** + `atLeast` tests were updated for the new **taller growth**
+(`grow()` adds +2 cols / +4 rows). Device-verified: the **ClipRect** that keeps the zoomed garden off the HUD,
+the garden-mode **SESSION** line + **light-theme** over-garden text, the new **MATCHA** theme, the redrawn
+**coin**, the **sparse white daisies**, and the native wallpaper **bee lifecycle** (spawn → visit → leave →
+gap). The all-time year clamp (≥2025) and the TREND callout de-dup are covered by the seeded fixture / visual.
+
 **v18 additions:** `logic_test` gained a **portrait base + pad-independent `atLeast`** test (a legacy *wide*
 10×16 plot pads to **10×20** without widening) and a **daily-trend-non-empty** test (the seeded data now carries
 timestamps so the DAILY curve renders). `engine_test`'s forest group is now **screen-filling + roam clamp**:

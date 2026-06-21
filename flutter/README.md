@@ -70,7 +70,8 @@ flutter run        # or: flutter build apk / flutter build ios --no-codesign
 
 ## Status / parity
 
-Faithful port of v0.5.0: timer + sessions, 5 themes, focus labels with colors, stats (month
+Faithful port of v0.5.0: timer + sessions, **6 themes** (Dark/Light/Mocha/Frappe/Latte + a green **Matcha**),
+focus labels with colors, stats (month
 navigator + bar/line/pie charts), coins + shop with localized flowers, 6 languages, and the
 first-launch test fixture (1000 coins + sample history). The pure logic is shared test-for-test
 with the Kotlin original.

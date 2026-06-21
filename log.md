@@ -5,6 +5,31 @@ Each entry notes the **prompt** (what you asked for) and the **changes** made.
 
 ---
 
+## v19 — feedback round: garden growth, HUD clip, stats, themes, coin, daisies, wallpaper bee (Flutter, 0.19.0+20)
+**Date:** 2026-06-21
+
+**Prompt (device feedback, ~10 items):**
+- **(1)** garden expands nicely horizontally but **too little vertically** → `grow()` now adds **+2 cols / +4 rows**
+  (centred), so it gains height faster and stays portrait.
+- **(2)** when zooming, the garden **bleeds over the HUD** → the `GardenView` scene is wrapped in a **`ClipRect`**
+  so zoomed forest billboards can't paint over the GardenScreen title/buttons.
+- **(3)** the live-wallpaper bug is **always on screen** → the native bee now has a **lifecycle**: a 5–14s gap with
+  no bug, then it flies in from the top, visits 2–4 flowers, leaves off the top, and gaps again (like the in-app
+  `CritterSystem`).
+- **(4)** TREND line showed the bucket label **twice** (bottom axis + callout) → dropped it from the callout.
+- **(5)** garden-mode **SESSION** overlapped the top-bar icons → moved it to its **own centred line** below the
+  top bar (removed the crowded in-row `center`).
+- **(6)** **light themes darkened** in garden mode → the over-garden timer/SESSION/coin text now uses a **light
+  colour** (was `th.onSurface`, dark on light themes → unreadable on the dark garden).
+- **(7a)** new green **MATCHA** theme matching the garden (Catppuccin-family palette: green base + `A6E3A1` accent).
+- **(7b)** stats all-time chart now **starts at 2025** (clamp `minY`).
+- **(8)** **coin redrawn** to match the user's example (clean gold disc: dark outline, gold rim, lighter inner
+  face + bevel, top-left shine).
+- **(9)** the multi-colour grass blooms → **sparse white daisies** (~8% of empty tiles, white petals + yellow eye),
+  in-app and on the wallpaper.
+- **Tests: 55** (grow + atLeast tests updated for the taller growth). analyze clean; debug APK builds. Garden/
+  wallpaper/coin/icons are device-verified. Version → **0.19.0+20**.
+
 ## v18 — visual refinements: TREND daily, portrait garden + screen-filling forest, grass flowers, real icons (Flutter, 0.18.0+19)
 **Date:** 2026-06-21
 
