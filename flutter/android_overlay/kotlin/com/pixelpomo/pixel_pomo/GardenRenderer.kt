@@ -7,9 +7,12 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.Rect
 import android.graphics.RectF
+import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
+import kotlin.math.sqrt
+import kotlin.random.Random
 
 private const val KVY = 0.60
 private const val BORDER = 4
@@ -26,6 +29,14 @@ class GardenRenderer(private val data: GardenData) {
 
     private var t = 1.0; private var cx = 0.0; private var cy = 0.0
     private var cosY = 1.0; private var sinY = 0.0; private var cols = 10; private var rows = 16
+
+    // bee state in centered garden coords — flies between planted flowers, hovers,
+    // then picks the next, like the in-app CritterSystem (#v17).
+    private var beeReady = false
+    private var beeGx = 0.0; private var beeGy = 0.0
+    private var beeTx = 0.0; private var beeTy = 0.0
+    private var beeHover = 0.0
+    private var lastT = 0.0
 
     private data class Item(val depth: Double, val x: Double, val y: Double, val id: String, val flower: Boolean)
 
@@ -44,6 +55,7 @@ class GardenRenderer(private val data: GardenData) {
         fillClearing(canvas)
 
         val items = ArrayList<Item>()
+        val flowers = ArrayList<Pair<Double, Double>>() // planted-flower garden coords, for the bee
         for (r in -BORDER until rows + BORDER) {
             for (c in -BORDER until cols + BORDER) {
                 val inGarden = c in 0 until cols && r in 0 until rows
@@ -52,7 +64,9 @@ class GardenRenderer(private val data: GardenData) {
                     data.groundAt(idx)?.let { drawRoad(canvas, c, r) }
                     val prop = data.propAt(idx) ?: continue
                     val (x, y) = ground(c, r)
-                    items.add(Item(y, x, y, prop, isFlower(prop)))
+                    val flower = isFlower(prop)
+                    if (flower) flowers.add(gridXY(c, r))
+                    items.add(Item(y, x, y, prop, flower))
                 } else {
                     val fp = forestPropAt(c, r) ?: continue
                     val (x, y) = ground(c, r)
@@ -66,13 +80,20 @@ class GardenRenderer(private val data: GardenData) {
             billboard(canvas, data.bitmap(spriteFor(it.id)), it.x + sway, it.y,
                 if (it.id.startsWith("rock_")) 0.6 else 1.2)
         }
-        drawCritter(canvas, w, h, timeSec)
+        updateBee(canvas, timeSec, flowers)
+    }
+
+    private fun gridXY(c: Int, r: Int) = (c - (cols - 1) / 2.0) to (r - (rows - 1) / 2.0)
+
+    /// Project a continuous centered-garden coord to screen (mirrors Projector.projectGrid).
+    private fun projGrid(gx: Double, gy: Double): Pair<Double, Double> {
+        val rx = gx * cosY - gy * sinY; val ry = gx * sinY + gy * cosY
+        return (cx + rx * t) to (cy + ry * t * KVY)
     }
 
     private fun ground(c: Int, r: Int): Pair<Double, Double> {
-        val gx = c - (cols - 1) / 2.0; val gy = r - (rows - 1) / 2.0
-        val rx = gx * cosY - gy * sinY; val ry = gx * sinY + gy * cosY
-        return (cx + rx * t) to (cy + ry * t * KVY)
+        val (gx, gy) = gridXY(c, r)
+        return projGrid(gx, gy)
     }
 
     private fun fillClearing(canvas: Canvas) {
@@ -107,18 +128,58 @@ class GardenRenderer(private val data: GardenData) {
         canvas.drawBitmap(bmp, null, RectF(left, top, (left + pw).toFloat(), (top + ph).toFloat()), paint)
     }
 
-    private fun drawCritter(canvas: Canvas, w: Int, h: Int, timeSec: Double) {
+    // A bee that flies between planted flowers in garden space, hovering at each
+    // (mirrors the in-app CritterSystem feel + frameForAngle facing) instead of a
+    // screen-space sine sway (#v17).
+    private fun updateBee(canvas: Canvas, timeSec: Double, flowers: List<Pair<Double, Double>>) {
         val bmp = data.bitmap("bee") ?: return
-        val frameW = bmp.height // 8-frame square strip; use frame 0
-        val src = Rect(0, 0, frameW, bmp.height)
-        val px = (w * (0.5 + 0.4 * sin(timeSec * 0.5))).toFloat()
-        val py = (h * (0.35 + 0.05 * sin(timeSec * 1.3))).toFloat()
-        val s = (t * 0.5).toFloat()
+        val dt = (if (lastT == 0.0) 0.0 else timeSec - lastT).coerceIn(0.0, 0.1)
+        lastT = timeSec
+        if (!beeReady) {
+            beeReady = true
+            val s0 = nextTarget(flowers)
+            beeGx = s0.first; beeGy = s0.second; beeTx = beeGx; beeTy = beeGy; beeHover = 1.0
+        }
+        val dx = beeTx - beeGx; val dy = beeTy - beeGy
+        val dist = sqrt(dx * dx + dy * dy)
+        if (dist < 0.12) {
+            beeHover -= dt
+            if (beeHover <= 0.0) {
+                val nt = nextTarget(flowers); beeTx = nt.first; beeTy = nt.second
+                beeHover = 1.0 + Random.nextDouble() * 1.5
+            }
+        } else {
+            val speed = 2.2 // tiles/sec
+            beeGx += dx / dist * speed * dt
+            beeGy += dy / dist * speed * dt
+        }
+        val (sx, sy) = projGrid(beeGx, beeGy)
+        val (ax, ay) = projGrid(beeGx + dx, beeGy + dy) // look-ahead → screen-space heading
+        val frame = if (dist < 0.15) 0 else frameForAngle(atan2(ay - sy, ax - sx))
+        val cellW = bmp.width / 8
+        val src = Rect(frame * cellW, 0, (frame + 1) * cellW, bmp.height)
+        val hover = t * 0.7 + sin(timeSec * 6) * t * 0.05 // above the flower + a gentle bob
+        val px = sx.toFloat(); val py = (sy - hover).toFloat()
+        val s = (t * 0.55).toFloat()
         canvas.drawBitmap(bmp, src, RectF(px - s / 2, py - s / 2, px + s / 2, py + s / 2), paint)
     }
 
-    private fun isFlower(id: String) =
-        id.isNotEmpty() && !id.startsWith("road_") && !id.startsWith("fence_")
+    private fun nextTarget(flowers: List<Pair<Double, Double>>): Pair<Double, Double> =
+        if (flowers.isNotEmpty()) flowers[Random.nextInt(flowers.size)]
+        else Random.nextDouble(-cols / 2.0, cols / 2.0) to Random.nextDouble(-rows / 2.0, rows / 2.0)
+
+    // mirrors Dart frameForAngle: an 8-way facet from a screen-space heading.
+    private fun frameForAngle(a: Double): Int {
+        val k = Math.round(a / (2 * Math.PI) * 8).toInt() % 8
+        return (k + 8) % 8
+    }
+
+    // a planted flower id (gul/papatya/…) — NOT a road/fence/forest prop, which load
+    // by their own filename. Excluding tree_/bush_/rock_ here was the "only shadows"
+    // bug: forest props were looked up as the nonexistent flower_tree_NN.png (#v17).
+    private fun isFlower(id: String) = id.isNotEmpty() &&
+        !id.startsWith("road_") && !id.startsWith("fence_") &&
+        !id.startsWith("tree_") && !id.startsWith("bush_") && !id.startsWith("rock_")
 
     private fun spriteFor(id: String) = if (isFlower(id)) "flower_$id" else id
 
