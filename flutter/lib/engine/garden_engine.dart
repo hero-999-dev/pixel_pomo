@@ -551,43 +551,35 @@ class GardenPainter extends CustomPainter {
     _paintCritters(canvas, p, t);
   }
 
-  // ---- decorative grass blooms (#v18) ---------------------------------------
-  static const List<int> _grassBloomColors = [
-    0xFFFFFFFF, // white daisy
-    0xFFF2C94C, // yellow
-    0xFFF4A6C0, // pink
-    0xFFC9A6F0, // light purple
-  ];
-
+  // ---- decorative grass daisies (#v19) --------------------------------------
   int _grassFlowerHash(int c, int r) {
     var h = (c * 0x1f1f1f1f) ^ (r * 0x2c2c2c2c) ^ 0x5bd1e995;
     h ^= h >> 15;
     return h & 0x7fffffff;
   }
 
-  /// Scatter a few wild blooms on empty grass tiles (no planted prop / road), so
-  /// the clearing isn't bare. Deterministic, so they don't shimmer between frames.
+  /// Scatter **sparse white daisies** on empty grass tiles (no planted prop /
+  /// road), so the clearing has life without looking like a quilt. Deterministic,
+  /// so they don't shimmer between frames (#v19).
   void _paintGrassFlowers(Canvas canvas, Projector p) {
     for (var r = 0; r < _rows; r++) {
       for (var c = 0; c < _cols; c++) {
         if (garden.tiles.containsKey(r * _cols + c)) continue; // skip planted/road
-        final h = _grassFlowerHash(c, r);
-        if (h % 100 >= 14) continue; // ~14% of empty tiles bloom
-        final petal = Color(_grassBloomColors[(h ~/ 100) % _grassBloomColors.length]);
-        _paintBloom(canvas, p.ground(c, r), p.t, petal);
+        if (_grassFlowerHash(c, r) % 100 >= 8) continue; // ~8% of empty tiles — sparse
+        _paintBloom(canvas, p.ground(c, r), p.t);
       }
     }
   }
 
-  void _paintBloom(Canvas canvas, Offset a, double t, Color petal) {
-    final s = t * 0.11;
+  void _paintBloom(Canvas canvas, Offset a, double t) {
+    final s = t * 0.10;
     final center = a.translate(0, -s * 1.5); // sit just above the ground
-    final pp = Paint()..color = petal;
+    final white = Paint()..color = const Color(0xFFFFFFFF);
     for (var k = 0; k < 5; k++) {
       final ang = k * 2 * math.pi / 5;
-      canvas.drawCircle(center.translate(math.cos(ang) * s, math.sin(ang) * s * kVy), s * 0.62, pp);
+      canvas.drawCircle(center.translate(math.cos(ang) * s, math.sin(ang) * s * kVy), s * 0.6, white);
     }
-    canvas.drawCircle(center, s * 0.55, Paint()..color = const Color(0xFFE0902C));
+    canvas.drawCircle(center, s * 0.5, Paint()..color = const Color(0xFFF2C94C)); // yellow eye
   }
 
   void _paintRoads(Canvas canvas) {
