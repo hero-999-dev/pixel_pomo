@@ -401,6 +401,11 @@ void main() {
       expect(recs.any((r) => dateOfEpochDay(r.epochDay).year == 2025), true);
       expect(TestData.seedCoins, 1000);
     });
+    test('daily trend curve is non-empty — timestamps seeded (v18)', () {
+      final s = StatsAggregator.dailyCumulative(recs, today);
+      expect(s.totals.any((v) => v > 0), true); // was all-zero before timestamps
+      expect(s.totals.last, 360); // cumulative end-of-day == today's total
+    });
   });
 
   group('WallpaperCam framing codec (v15)', () {
