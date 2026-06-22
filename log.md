@@ -35,6 +35,34 @@ is 1.png.
 - **Tests: 55** (unchanged; visual/native). analyze clean; debug APK builds. Wallpaper + garden are
   **device-verified**. Version → **0.20.0+21**.
 
+**Follow-up (device feedback, 2026-06-22):**
+
+**Prompt:** (1) the **wallpaper preview** screen isn't the same as the in-app view — it shows a bit further **left** —
+but once *set* as the wallpaper it's normal/centered like the capture; (coin) fix the coin the way I added it in **v19**;
+(bugs) the wallpaper has only **one kind of bug** — I want several, **like the garden**; and (forward-looking) I'll add
+**pets/NPCs with their own movement** later and want them to show up in the wallpaper too.
+
+**Changes (still 0.20.0+21, no bump):**
+- **(1) Preview left-shift fixed** — the live-wallpaper **preview pane** reports `xOffset≈0` (no home-screen paging
+  context), so `GardenRenderer`'s parallax slid the garden ~0.75 tile left; the *applied* wallpaper (real launcher
+  offsets) was already centered. `GardenWallpaperService` now **forces `xOffset=0.5` when `isPreview`** → the preview
+  shows exactly the framing you set. (Confirmed against the v20 feedback screenshots: preview was left-shifted, in-app
+  centered.)
+- **(bugs) Multiple critter types in the wallpaper** — the native renderer drew a single bee; it now runs a faithful
+  port of the in-app **`CritterSystem`** (new `CritterSim` in `GardenRenderer.kt`): up to 2 **bee/butterfly/ladybug**
+  visitors that drift in from a random edge, visit a flower, hover, leave, and gap — the same variety as the garden.
+- **(pets/NPCs, future-proofing)** — kinds come from a single list, so **adding a creature is data, not engine code**:
+  drop the PNG in `assets/objects/` + add its id to `CritterSim.kinds` (Kotlin) AND `CritterSystem.kinds`
+  (`garden_engine.dart`). A genuinely new *movement* (a pet that walks the ground, an NPC that follows a path) is one
+  new `CState` branch per engine — bounded work, documented in the `CritterSim` doc-comment. (The wallpaper stays a
+  separate native renderer — the real-Flutter-engine path was abandoned in v20 — so new entities are a small,
+  deliberate two-place edit. YAGNI: no pet/NPC system is built until those entities exist.)
+- **(coin) Reverted to the v19 coin** — `coin_grid` restored to the v19 **top/bottom bevel** (`FFDE73`/`E8B43A`, rim
+  `d>5.2`); the regenerated `coin.png` is **byte-identical** to the v19 sprite. v20's diagonal upper-left highlight
+  was undone per request.
+- analyze clean, **55 tests** pass, debug APK builds. Preview centering + multi-critter are native/visual →
+  **device-pending** your re-test.
+
 ## v19 — feedback round: garden growth, HUD clip, stats, themes, coin, daisies, wallpaper bee (Flutter, 0.19.0+20)
 **Date:** 2026-06-21
 

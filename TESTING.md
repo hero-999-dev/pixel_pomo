@@ -138,6 +138,14 @@ squares), **low-poly 3D fence meshes** (posts + linking rails, ported from the a
 **no-wind** flowers, **flat white daisies** (app painter + native renderer), **single-shape critters**, and the
 redrawn **coin** are visual too.
 
+**v20 follow-up (device feedback):** the live-wallpaper **preview** no longer sits left-shifted —
+`GardenWallpaperService` forces the centered offset when `isPreview` (the preview pane reports `xOffset≈0`, which
+the renderer's parallax turned into a ~0.75-tile left slide; the *applied* wallpaper was already centered, matching
+the in-app capture). The wallpaper now shows **multiple critter types** (bee/butterfly/ladybug) via `CritterSim`, a
+faithful port of the in-app `CritterSystem`, not a lone bee. The **coin** is back to the **v19** sprite
+(byte-identical). All three are visual/native → **device-verified**; the 55-test gate is unchanged (no Dart logic
+touched — the changes are in Kotlin + the sprite generator).
+
 **v19:** count stays **55**; the garden **grow** + `atLeast` tests were updated for the new **taller growth**
 (`grow()` adds +2 cols / +4 rows). Device-verified: the **ClipRect** that keeps the zoomed garden off the HUD,
 the garden-mode **SESSION** line + **light-theme** over-garden text, the new **MATCHA** theme, the redrawn
