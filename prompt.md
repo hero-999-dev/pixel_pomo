@@ -250,7 +250,9 @@ now Flutter-exclusive and richer** than the native grid (see below) — keep the
   tops in minutes**, **pie** lists full (≤12) labels with **right-aligned %**, and a **TREND** line (was LINE):
   **DAILY** is the day **filling up hour by hour** (`dailyCumulative`, cumulative at 00/04/08/12/16/20/24 from
   per-session **`minuteOfDay`** timestamps), other periods are per-bucket totals; a **tap callout** (clamped
-  fully inside the plot, no overflow) shows the bucket + **FOCUS** + **AVG** + per-label. The totals block under
+  fully inside the plot, no overflow) shows the bucket + **FOCUS** + **AVG** + per-label, and the selected bucket's
+  tick label is highlighted (in the line colour) on the bottom axis **except at the first/last bucket** — a fixed
+  label already sits there, so the number isn't drawn twice (#v21). The totals block under
   the chart is period-contextual **CURRENT / AVERAGE / BEST** in TREND mode (`periodStats`), else
   today/week/month/year/all. `SessionRecord.minuteOfDay` is encoded as a 4th codec field; legacy 3-field rows
   still decode. `Economy.elapsedFocusMinutes(workMin,timeLeftMillis)` = spent minutes on cancel.

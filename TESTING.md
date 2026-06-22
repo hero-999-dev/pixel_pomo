@@ -130,6 +130,14 @@ The Dart port carries its own tests, gating the **`build-flutter.yml`** macOS pi
 cd flutter && flutter analyze && flutter test   # 55 tests
 ```
 
+**v21:** count stays **55**. The **TREND/line chart** no longer draws the highlighted (red) selected-bucket label on
+top of the fixed gray label at the **first/last** tick — the highlighted label is skipped when the selected bucket is
+an endpoint (`s != 0 && s != n-1`), so the ends keep one fixed number while every middle bucket still shows the
+highlighted one on tap (the vertical highlight line + data callout still draw at the ends). Render-only — the headless
+`toImage` golden render hangs here, so the chart is **device-verified**; the 55-test gate + the boot/overlay smoke
+test guard against regressions. (v21 also releases the 2026-06-22 v20 follow-up below: centered wallpaper preview,
+multiple wallpaper critters, v19 coin.)
+
 **v20:** count stays **55** (visual/native). The wallpaper is the **native `GardenRenderer`** (a `FlutterEngine`-
 hosted variant that ran the actual `GardenView` was tried for a 1:1 match but black-screened on device — an
 unsupported path — so it was reverted and the native renderer improved): **real road sprites** (were gray
