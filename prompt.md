@@ -308,7 +308,10 @@ now Flutter-exclusive and richer** than the native grid (see below) — keep the
   `Surface` via `GardenData` (reads the garden/theme/framing from `FlutterSharedPreferences`, loads the sprites
   from `flutter_assets/`) + `GardenRenderer` (Kotlin `Canvas` port of the garden painter: same isometric ground,
   real road sprites, **low-poly 3D fence meshes** (posts + linking rails, like the app), billboards, flat daisies,
-  a single-shape bee). It re-reads the saved garden on each
+  and **bee/butterfly/ladybug critters** — `CritterSim`, a port of the in-app `CritterSystem`, so the wallpaper shows
+  the same variety as the garden and adding a creature later (incl. pets/NPCs) is a small two-place edit). The
+  **preview pane is force-centered** (`isPreview` → `xOffset=0.5`) so it isn't parallax-shifted left. It re-reads the
+  saved garden on each
   visibility-on so new plantings show up, and stops drawing when hidden (battery). **(#v20** a `FlutterEngine`-hosted
   variant that ran the actual `GardenView` was tried for a 1:1 match but black-screened on device — the
   Flutter→wallpaper-surface path is unsupported — so it was reverted and the native renderer improved instead.)
