@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -43,6 +44,8 @@ class AppStore extends ChangeNotifier {
   int coins = 0;
   Map<String, int> owned = {};
   Garden garden = const Garden();
+  // Picks a random sprite variant when a multi-variant flower is planted (#v22).
+  final Random _variantRng = Random();
 
   /// Home-screen mode: false = clean pomodoro, true = live garden behind it (#3).
   bool homeGardenBackdrop = false;
@@ -374,7 +377,14 @@ class AppStore extends ChangeNotifier {
   int availableOf(String flowerId) => (owned[flowerId] ?? 0) - garden.countPlanted(flowerId);
 
   void plantTile(int index, String flowerId) {
-    garden = garden.plant(index, flowerId);
+    // A flower with multiple sprite variants gets a random one (e.g. "gul~2");
+    // roads, fences and single-variant flowers are placed as-is (#v22).
+    var toPlant = flowerId;
+    if (Placeables.isFlower(flowerId)) {
+      final n = Flowers.variantsFor(flowerId);
+      if (n > 1) toPlant = '$flowerId~${_variantRng.nextInt(n)}';
+    }
+    garden = garden.plant(index, toPlant);
     _saveGarden();
     notifyListeners();
   }
