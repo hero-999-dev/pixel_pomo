@@ -56,7 +56,13 @@ class GardenWallpaperService : WallpaperService() {
         }
 
         private fun drawFrame(canvas: Canvas, timeSec: Double) {
-            renderer.draw(canvas, canvas.width, canvas.height, timeSec, xOffset)
+            // In the live-wallpaper PREVIEW pane the system reports xOffset≈0 (there's
+            // no home-screen paging context), and the renderer's parallax would then
+            // slide the garden ~0.75 tile to the LEFT — so the preview looked off
+            // even though the applied wallpaper (real launcher offsets) is centred.
+            // Force the centred offset in preview so what you framed is what you see.
+            val xo = if (isPreview) 0.5f else xOffset
+            renderer.draw(canvas, canvas.width, canvas.height, timeSec, xo)
         }
     }
 }
