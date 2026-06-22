@@ -7,6 +7,7 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.Rect
 import android.graphics.RectF
+import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.cos
 import kotlin.math.floor
@@ -38,15 +39,10 @@ class GardenRenderer(private val data: GardenData) {
     private var t = 1.0; private var cx = 0.0; private var cy = 0.0
     private var cosY = 1.0; private var sinY = 0.0; private var cols = 10; private var rows = 16
 
-    // bee lifecycle (#v19): a gap with NO bee, then it flies in from the top edge,
-    // visits a few flowers, leaves off the top, then gaps again — like the in-app
-    // CritterSystem, so there isn't always a bug on screen.
-    private var beeAlive = false
-    private var beeTimer = 3.0      // seconds until the next spawn (while absent)
-    private var beeVisitsLeft = 0  // <0 means it's leaving
-    private var beeGx = 0.0; private var beeGy = 0.0
-    private var beeTx = 0.0; private var beeTy = 0.0
-    private var beeHover = 0.0
+    // Up to MAX_ACTIVE visiting creatures (bee/butterfly/ladybug), mirroring the
+    // in-app CritterSystem so the wallpaper shows the same variety as the garden,
+    // not one lone bee. They come and go, so the screen isn't always buggy (#v20).
+    private val critters = CritterSim()
     private var lastT = 0.0
 
     private data class Item(val depth: Double, val x: Double, val y: Double, val id: String, val flower: Boolean, val c: Int, val r: Int)
@@ -68,7 +64,7 @@ class GardenRenderer(private val data: GardenData) {
         drawFenceRails(canvas)   // raised rails between adjacent posts, under the standing items (#v20)
 
         val items = ArrayList<Item>()
-        val flowers = ArrayList<Pair<Double, Double>>() // planted-flower garden coords, for the bee
+        val flowers = ArrayList<Pair<Double, Double>>() // planted-flower garden coords, for the critters
         val vb = visibleBounds(w, h) // forest on every visible tile → fills the screen (#v18)
         for (r in vb[2]..vb[3]) {
             for (c in vb[0]..vb[1]) {
@@ -95,7 +91,7 @@ class GardenRenderer(private val data: GardenData) {
             else billboard(canvas, data.bitmap(spriteFor(it.id)), it.x, it.y,
                 if (it.id.startsWith("rock_")) 0.6 else 1.2)
         }
-        updateBee(canvas, timeSec, flowers)
+        drawCritters(canvas, timeSec, flowers)
     }
 
     private fun gridXY(c: Int, r: Int) = (c - (cols - 1) / 2.0) to (r - (rows - 1) / 2.0)
@@ -280,63 +276,123 @@ class GardenRenderer(private val data: GardenData) {
         fillQuad(canvas, box[4], box[5], box[6], box[7], pal.second)
     }
 
-    // A bee with a come-and-go lifecycle: a gap with no bug, then it flies in from
-    // the top, visits a few flowers, leaves off the top, then gaps again — like the
-    // in-app CritterSystem (frameForAngle facing). Not always on screen (#v19).
-    private fun updateBee(canvas: Canvas, timeSec: Double, flowers: List<Pair<Double, Double>>) {
-        val bmp = data.bitmap("bee") ?: return
+    // Advance the visiting creatures one frame, then draw each one. Mirrors the
+    // in-app _paintCritters: a flat frame-0 facet (one shape, no camera-angle
+    // morphing #v20), lifted a quarter-tile off the ground with a gentle per-kind
+    // bob (ladybugs barely bob, fliers flutter).
+    private fun drawCritters(canvas: Canvas, timeSec: Double, flowers: List<Pair<Double, Double>>) {
         val dt = (if (lastT == 0.0) 0.0 else timeSec - lastT).coerceIn(0.0, 0.1)
         lastT = timeSec
+        critters.step(dt, maxOf(cols, rows), flowers)
 
-        val topEdge = -rows / 2.0 - 2.0
-        if (!beeAlive) {
-            beeTimer -= dt
-            if (beeTimer > 0.0) return // absent during the gap — nothing drawn
-            beeAlive = true
-            beeVisitsLeft = 2 + Random.nextInt(3) // visit 2–4 spots
-            beeGx = Random.nextDouble(-cols / 2.0, cols / 2.0); beeGy = topEdge - 1.0 // enter from the top
-            val t0 = nextTarget(flowers); beeTx = t0.first; beeTy = t0.second
-            beeHover = 0.0
+        val s = (t * 0.42).coerceIn(12.0, 30.0).toFloat()
+        for (c in critters.list) {
+            val bmp = data.bitmap(c.kind) ?: continue
+            val amp = if (c.kind == "ladybug") 0.6 else 2.2
+            val bob = sin((critters.time + c.phase) * 9) * amp
+            val (sx, sy) = projGrid(c.x, c.y)
+            val cellW = bmp.width / 8 // atlases are 8-wide; always frame 0 (#v20)
+            val src = Rect(0, 0, cellW, bmp.height)
+            val px = sx.toFloat(); val py = (sy + bob - t * 0.25).toFloat() // hover above ground
+            canvas.drawBitmap(bmp, src, RectF(px - s / 2, py - s / 2, px + s / 2, py + s / 2), paint)
         }
-
-        val dx = beeTx - beeGx; val dy = beeTy - beeGy
-        val dist = sqrt(dx * dx + dy * dy)
-        if (dist < 0.15) {
-            beeHover -= dt
-            if (beeHover <= 0.0) {
-                beeVisitsLeft--
-                if (beeVisitsLeft <= 0) { // done visiting → head off the top edge
-                    beeTx = Random.nextDouble(-cols / 2.0, cols / 2.0); beeTy = topEdge - 2.0
-                    beeVisitsLeft = -1
-                } else {
-                    val nt = nextTarget(flowers); beeTx = nt.first; beeTy = nt.second
-                    beeHover = 1.0 + Random.nextDouble() * 1.5
-                }
-            }
-        } else {
-            val speed = 2.4 // tiles/sec
-            beeGx += dx / dist * speed * dt
-            beeGy += dy / dist * speed * dt
-        }
-        if (beeVisitsLeft < 0 && beeGy <= topEdge) { // left the scene → despawn, gap before next
-            beeAlive = false
-            beeTimer = 5.0 + Random.nextDouble() * 9.0 // 5–14s with no bug
-            return
-        }
-
-        val (sx, sy) = projGrid(beeGx, beeGy)
-        // always the same facet so the bug keeps ONE shape regardless of camera angle (#v20)
-        val cellW = bmp.width / 8
-        val src = Rect(0, 0, cellW, bmp.height)
-        val hover = t * 0.7 + sin(timeSec * 6) * t * 0.05 // above the flower + a gentle bob
-        val px = sx.toFloat(); val py = (sy - hover).toFloat()
-        val s = (t * 0.55).toFloat()
-        canvas.drawBitmap(bmp, src, RectF(px - s / 2, py - s / 2, px + s / 2, py + s / 2), paint)
     }
 
-    private fun nextTarget(flowers: List<Pair<Double, Double>>): Pair<Double, Double> =
-        if (flowers.isNotEmpty()) flowers[Random.nextInt(flowers.size)]
-        else Random.nextDouble(-cols / 2.0, cols / 2.0) to Random.nextDouble(-rows / 2.0, rows / 2.0)
+    private enum class CState { APPROACH, HOVER, LEAVE }
+
+    /** One visiting creature in garden coords (tile units) — mirrors Dart's Critter. */
+    private class Critter(
+        val kind: String, var x: Double, var y: Double, var tx: Double, var ty: Double,
+        val speed: Double, val phase: Double, val hoverFor: Double,
+    ) {
+        var state = CState.APPROACH
+        var timer = 0.0
+        var life = 0.0
+    }
+
+    /**
+     * Faithful port of the in-app CritterSystem (garden_engine.dart): up to
+     * [MAX_ACTIVE] creatures that drift in from a random plot edge, fly to a planted
+     * flower, hover, then leave and despawn, with a gap (no bug on screen) between
+     * spawns. This is why the wallpaper now shows the same bee/butterfly/ladybug
+     * variety as the garden, instead of one lone bee.
+     *
+     * ADD A CREATURE to the wallpaper later (a new bug, or a pet/NPC that visits
+     * flowers): drop its PNG in assets/objects/ and add its id to [kinds] here AND
+     * to CritterSystem.kinds in garden_engine.dart — nothing else. Every kind shares
+     * this movement; only the per-kind bob in drawCritters differs. A genuinely
+     * different movement (a pet that walks the ground, an NPC that follows a path)
+     * is a NEW CState branch added once in each engine — bounded, not a rewrite.
+     * (The wallpaper is a separate native renderer because hosting the real Flutter
+     * engine on a wallpaper Surface was tried and abandoned in v20; this hand-kept
+     * mirror is the supported path, so new entities must be added in both places.)
+     */
+    private class CritterSim {
+        val list = ArrayList<Critter>()
+        var time = 0.0
+            private set
+        private var spawnIn = 2.0 + Random.nextDouble() * 3.0
+
+        fun step(dt: Double, n: Int, flowers: List<Pair<Double, Double>>) {
+            val d = dt.coerceIn(0.0, 0.05)
+            time += d
+            spawnIn -= d
+            val half = n / 2.0 + 0.8
+            if (spawnIn <= 0.0) {
+                spawnIn = 6.0 + Random.nextDouble() * 8.0 // a visitor every ~6–14s
+                if (list.size < MAX_ACTIVE && flowers.isNotEmpty()) spawn(half, flowers)
+            }
+            for (c in list) { c.life += d; stepOne(c, d, half) }
+            // despawn on exit OR past the hard lifetime cap, so none can stick (#3)
+            list.removeAll { c ->
+                c.life > MAX_LIFE ||
+                    (c.state == CState.LEAVE && (abs(c.x) > half + 0.5 || abs(c.y) > half + 0.5))
+            }
+        }
+
+        private fun spawn(half: Double, flowers: List<Pair<Double, Double>>) {
+            fun rnd() = (Random.nextDouble() * 2 - 1) * half
+            val start = when (Random.nextInt(4)) {
+                0 -> rnd() to -half
+                1 -> half to rnd()
+                2 -> rnd() to half
+                else -> -half to rnd()
+            }
+            val target = flowers[Random.nextInt(flowers.size)]
+            list.add(Critter(
+                kinds[Random.nextInt(kinds.size)], start.first, start.second, target.first, target.second,
+                1.0 + Random.nextDouble() * 0.8, Random.nextDouble() * Math.PI * 2, 2.0 + Random.nextDouble() * 2.5))
+        }
+
+        private fun stepOne(c: Critter, dt: Double, half: Double) {
+            c.timer += dt
+            val tox = c.tx - c.x; val toy = c.ty - c.y
+            val dist = sqrt(tox * tox + toy * toy)
+            when (c.state) {
+                CState.APPROACH ->
+                    if (dist < 0.18) { c.state = CState.HOVER; c.timer = 0.0 }
+                    else { c.x += tox / dist * c.speed * dt; c.y += toy / dist * c.speed * dt }
+                CState.HOVER ->
+                    if (c.timer >= c.hoverFor) {
+                        c.state = CState.LEAVE; c.timer = 0.0
+                        c.tx = if (c.x < 0) -(half + 1) else (half + 1); c.ty = c.y
+                    }
+                CState.LEAVE -> {
+                    // always progress, even if the exit ~= here, so it can't freeze (#3)
+                    val dx = if (dist > 1e-3) tox / dist else 1.0
+                    val dy = if (dist > 1e-3) toy / dist else 0.0
+                    c.x += dx * c.speed * 1.4 * dt; c.y += dy * c.speed * 1.4 * dt
+                }
+            }
+        }
+
+        companion object {
+            // The wallpaper's creatures. Mirror of CritterSystem.kinds (garden_engine.dart).
+            val kinds = listOf("bee", "butterfly", "ladybug")
+            const val MAX_ACTIVE = 2
+            const val MAX_LIFE = 18.0
+        }
+    }
 
     // a planted flower id (gul/papatya/…) — NOT a road/fence/forest prop, which load
     // by their own filename. Excluding tree_/bush_/rock_ here was the "only shadows"
