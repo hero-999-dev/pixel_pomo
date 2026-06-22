@@ -5,6 +5,28 @@ Each entry notes the **prompt** (what you asked for) and the **changes** made.
 
 ---
 
+## v21 — wallpaper preview centered + multiple wallpaper critters + v19 coin + TREND end-label fix (Flutter, 0.21.0+22)
+**Date:** 2026-06-22
+
+**Prompt:** push as **v21**; and in the **line/TREND graph**, tapping a point shows the day/hour, but at the **ends**
+(e.g. daily "1") the number shows **twice** — a gray fixed one and the red tapped one overlapping. Keep the **fixed
+numbers at the start and end**, don't draw the red one *there*, but keep showing it on the **other** buckets.
+
+**Changes:**
+- **TREND end-label de-dup** — in `pixel.dart` `_line`, the fixed gray tick labels are drawn only at the first/last
+  bucket, but the highlighted (red, `lineColor`) selected label was drawn for **every** selected bucket — so at the
+  first/last bucket it landed exactly on top of the fixed one and the number appeared twice. The highlighted label is
+  now **skipped when the selected bucket is the first or last** (`s != 0 && s != n - 1`): the ends keep their single
+  fixed label, every middle bucket still shows the highlighted one on tap. The vertical highlight line + the data
+  callout still draw at the ends, so tapping them still gives feedback.
+- **Released as v21 (carries the 2026-06-22 v20 follow-up):** wallpaper **preview is force-centered** when `isPreview`
+  (was parallax-shifted left in the picker), the wallpaper now shows **multiple critters** (bee/butterfly/ladybug via
+  `CritterSim`, a faithful port of the in-app `CritterSystem`; adding a creature — incl. future pets/NPCs — is a small
+  two-place edit), and the **coin reverted to the v19 sprite** (byte-identical). See the v20 follow-up below for detail.
+- Version → **0.21.0+22**. `analyze` clean, **55 tests** pass. The TREND fix is render-only and the wallpaper changes
+  are native → both **device-verified** (the headless `toImage` golden render hangs, so charts/wallpaper are eyeballed
+  on-device; the boot/overlay smoke test guards against crashes).
+
 ## v20 — improved native live wallpaper + grass/coin/critter polish (Flutter, 0.20.0+21)
 **Date:** 2026-06-21
 
