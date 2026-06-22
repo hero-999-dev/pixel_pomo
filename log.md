@@ -27,6 +27,16 @@ numbers at the start and end**, don't draw the red one *there*, but keep showing
   are native → both **device-verified** (the headless `toImage` golden render hangs, so charts/wallpaper are eyeballed
   on-device; the boot/overlay smoke test guards against crashes).
 
+**CI / delivery note (2026-06-22):** GitHub **Actions free minutes ran out** mid-round (resets in ~9 days), so the
+v20-follow-up + v21 pushes failed to build (job-not-started / billing). Diagnosed: **not** git or storage — the repo is
+~13 MB with no APK ever committed, and release assets (~920 MB) don't count toward the Actions quota, so deleting old
+releases would free **zero** minutes. **v21's Android APK was built locally and uploaded straight to the `flutter-v21`
+release** (release uploads are plain API calls, not Actions jobs); the iOS `.ipa` is pending the minutes reset.
+- **CI optimized to conserve minutes** (`build-flutter.yml`): routine pushes to `main` now build **Android only on
+  `ubuntu-latest`** (1×); the **iOS build runs only on a manual `workflow_dispatch`** (→ `macos-14`, billed 10×). One
+  job with a conditional `runs-on`; iOS steps are `if: runner.os == 'macOS'`; the publish step uploads whatever was
+  built this run (`--clobber` leaves the last full build's `.ipa` in place).
+
 ## v20 — improved native live wallpaper + grass/coin/critter polish (Flutter, 0.20.0+21)
 **Date:** 2026-06-21
 
