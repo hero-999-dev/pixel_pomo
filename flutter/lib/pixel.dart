@@ -387,8 +387,14 @@ class _ChartPainter extends CustomPainter {
       final sx = x(s);
       canvas.drawLine(Offset(sx, padTop), Offset(sx, padTop + plotH),
           Paint()..color = col(c.axisColor)..strokeWidth = 1);
-      // selected bucket's tick at the bottom axis, highlighted (#2)
-      _text(canvas, c.series.tickLabels[s], sx, h - 4, 7, c.lineColor, align: TextAlign.center);
+      // selected bucket's tick at the bottom axis, highlighted (#2) — but NOT at
+      // the first/last bucket: a fixed gray label already sits there (above), so a
+      // red one would land right on top of it and the number would show twice. The
+      // ends keep their fixed labels; every other bucket shows the highlighted one
+      // on tap (#v21).
+      if (s != 0 && s != n - 1) {
+        _text(canvas, c.series.tickLabels[s], sx, h - 4, 7, c.lineColor, align: TextAlign.center);
+      }
       final detail = c.series.byLabel[s];
       // the bucket label is already drawn on the bottom axis (above), so the
       // callout starts at FOCUS — no duplicated month/year/day/hour (#v19).
