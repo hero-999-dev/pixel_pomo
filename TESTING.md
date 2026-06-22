@@ -130,6 +130,14 @@ The Dart port carries its own tests, gating the **`build-flutter.yml`** macOS pi
 cd flutter && flutter analyze && flutter test   # 55 tests
 ```
 
+**v22:** count rises to **60** (+5 pure tests for the flower **variant system**: `flowerBase` strips the `~N` suffix;
+`variantsFor` (rose 4 / others 1); a variant prop is still a flower and not an object; planting stores `id~v`, counts
+by base id, and survives the garden codec round-trip; a variant flower still refuses to sit on a road). The
+boot/overlay smoke test loads the new `flower_gul_0..3` sprites without error. Visual/native, device-verified: **Korean**
+now keeps Press Start 2P for Latin with a Galmuri11 Hangul fallback at normal size; the **wallpaper** tiles the real
+grass texture and draws flowers at the app's `1.05×0.9` size; the **4 rose variants** render in-app + in the wallpaper.
+The headless `toImage` golden render still hangs, so the rose art + wallpaper are eyeballed on-device.
+
 **v21:** count stays **55**. The **TREND/line chart** no longer draws the highlighted (red) selected-bucket label on
 top of the fixed gray label at the **first/last** tick — the highlighted label is skipped when the selected bucket is
 an endpoint (`s != 0 && s != n-1`), so the ends keep one fixed number while every middle bucket still shows the

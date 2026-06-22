@@ -236,7 +236,7 @@ now Flutter-exclusive and richer** than the native grid (see below) — keep the
   + `shared_preferences` + wall-clock countdown; generic `buyItem(id)`, **no garden size cap**;
   **`homeGardenBackdrop`** + **`statPeriod`/`statOffset`** + **`autoBreak`/`awaitingBreakPrompt`**;
   **`renameLabel`** migrates color/current/past records; **`reset()` pays out spent focus minutes** on
-  cancel) · `lib/pixel.dart` (pixel widgets + chart painters; `fontFor('ko')`→Galmuri11 ×1.5;
+  cancel) · `lib/pixel.dart` (pixel widgets + chart painters; `pixelStyle` = Press Start 2P + a Galmuri11 Hangul fallback, no per-language scale #v22;
   `isLightColor`/`systemOverlayFor` for system bars) · `lib/camera.dart` (`captureBoundary`; `sharePng` via
   `share_plus`; **`setLiveWallpaper`** via `MethodChannel('pixel_pomo/wallpaper')` → native picker) · `lib/main.dart` (all
   screens; custom top bar **theme/garden/stats · settings/store/coin** rendered via `Image.asset` from the
@@ -333,8 +333,13 @@ now Flutter-exclusive and richer** than the native grid (see below) — keep the
   **no** view-dependent shading, so light is flat). Fences
   render as 3D meshes in the garden, so their single-frame PNG is only a **shop/place thumbnail**.
   Garden flower frames get a **dark outline** (10×10 canvas) so plants separate from the grass.
-- **Fonts:** Press Start 2P (Latin) + **Galmuri11** (`assets/fonts/`, OFL pixel font with full
-  Hangul) for Korean — keeps the retro look where Press Start 2P has no glyphs.
+- **Fonts:** Press Start 2P is the primary face for **every** language; **Galmuri11** (`assets/fonts/`,
+  OFL, full Hangul) is a `fontFamilyFallback` that only kicks in for Korean glyphs — so Latin looks the
+  same everywhere and Korean isn't oversized (#v22; was Galmuri-everywhere at 1.5×, which changed Latin + inflated sizes).
+- **Flower variants (#v22):** each species can have N sprite variants; planting picks a random one and
+  stores it as `<id>~<v>` (e.g. `gul~2`, `Placeables.flowerBase` strips the suffix, counted by base id).
+  The **rose has 4 hand-authored variants** (`flower_gul_0..3.png`, one consistent style); the renderers
+  (`SpriteBank.flower` + native `flowerBitmap`) fall back to `flower_<id>.png` for single-variant species.
 - **Launcher icon:** `assets/icon/app_icon*.png` (pixel tomato, from `tools/gen_icon.py`) +
   `flutter_launcher_icons`; CI runs `dart run flutter_launcher_icons` **after** `flutter create`
   so the real logo is baked in instead of the Flutter default.

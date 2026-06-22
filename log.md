@@ -5,6 +5,42 @@ Each entry notes the **prompt** (what you asked for) and the **changes** made.
 
 ---
 
+## v22 — Korean font fix + wallpaper grass/flower fidelity + rose 4-variant system (Flutter, 0.22.0+23)
+**Date:** 2026-06-22
+
+**Prompt (feedback round; app blocker + the other flowers deferred to v23):** the live wallpaper works but (a) the
+grass isn't textured like the app and (b) the flowers render thicker; fix **Korean** (the Latin font changes in Korean
+and everything is oversized); each flower should have **4 random model variants** in a consistent, realistic pixel
+style (rose example in `feedback & guides/Feedback/Version 20v Feedback/`) — start with the rose. Don't push the iOS
+build (Actions minutes are out).
+
+**Changes (all `flutter/`):**
+- **Korean font (`pixel.dart`):** `pixelStyle` now uses `PressStart2P` as the primary family for every language with
+  `Galmuri11` as a Hangul-only `fontFamilyFallback`; the per-language 1.5× scale is gone. Latin text is identical
+  across languages and Korean renders at the same sizes as the others (was: Korean forced Galmuri everywhere at 1.5×,
+  changing the Latin glyphs and inflating sizes). Removed `fontFor`/`_fontScale`.
+- **Wallpaper grass (`GardenRenderer.kt`):** `fillClearing` tiles the real `grass.png` under the
+  `Projector.gridToScreen` affine (BitmapShader, 1 tile == 1 garden unit, clipped to the plot) instead of a flat green
+  polygon → textured grass matching the app. Falls back to the flat fill if the sprite is missing.
+- **Wallpaper flowers (`GardenRenderer.kt`):** `billboard` takes an explicit `widthTiles`; flowers draw at the app's
+  `1.05h × 0.9w` (trees/bushes `1.2×1.05`, rocks `0.6×0.8`) instead of an aspect-derived square → no longer thick.
+- **Flower variant system (logic/store/engine/native, tested):** a species can have N sprite variants; planting a
+  multi-variant flower stores a random `id~v` (e.g. `gul~2`). `Placeables.flowerBase` strips the suffix,
+  `Flowers.variantsFor` gives the count (rose=4, others=1), `Garden.countPlanted` compares the base id, and
+  `AppStore.plantTile` picks the random variant. Renderers (`SpriteBank.flower` + native `flowerBitmap`) load
+  `flower_<id>_<v>.png`, falling back to `flower_<id>.png`. The `~v` survives the garden save/load codec.
+- **Rose art (`gen_objects.py`):** 4 hand-authored rose variants (bud / open spiral / closed / full) in one consistent
+  style — strong dark outline, limited red palette + soft shading, shared green stem with two small veined leaves —
+  per the user's example. Emitted as `flower_gul_0..3.png`; `flower_gul.png` (shop thumbnail + fallback) = variant 0.
+  The other 9 flowers keep their single sprite until the style is approved and rolled out.
+- **Tests: 60** (+5 variant tests: flowerBase, variantsFor, isFlower on a variant prop, plant+count+codec round-trip,
+  road rejection). analyze clean; release APK builds.
+- **Delivery:** Actions minutes still exhausted, so the **Android APK was built locally and uploaded to `flutter-v22`**
+  (no iOS — the macOS build stays off until minutes reset or a manual run). Version → **0.22.0+23**.
+
+**Deferred to v23:** app blocker (on/off + installed-app picker + session enforcement) and the Settings Save-removal /
+app-blocker-settings; rolling the 4-variant rose style out to the other 9 flowers (pending the user's OK on the rose).
+
 ## v21 — wallpaper preview centered + multiple wallpaper critters + v19 coin + TREND end-label fix (Flutter, 0.21.0+22)
 **Date:** 2026-06-22
 

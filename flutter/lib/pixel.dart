@@ -29,16 +29,23 @@ SystemUiOverlayStyle systemOverlayFor(PixelTheme th) {
   );
 }
 
-/// The pixel font. Press Start 2P has no Hangul, so Korean uses Galmuri11 — a
-/// pixel font (OFL) that covers Korean while keeping the retro look.
-String fontFor(String lang) => lang == 'ko' ? 'Galmuri11' : 'PressStart2P';
-
-/// Galmuri11's glyphs sit smaller in the em box than Press Start 2P, so Korean
-/// text needs a bump to stay legible at the same nominal sizes.
-double _fontScale(String lang) => lang == 'ko' ? 1.5 : 1.0;
+/// Press Start 2P (Latin) is the primary face for EVERY language. It has no
+/// Hangul, so Galmuri11 (a Korean pixel font, OFL) is only a *fallback* that kicks
+/// in for Korean glyphs. Keeping Press Start 2P primary means Latin text looks the
+/// same in every language, and there's no per-language size bump — Korean renders
+/// at the same sizes as the others. (#v22: Korean used to force Galmuri everywhere
+/// at 1.5×, which changed the Latin glyphs and inflated every size.) [lang] is kept
+/// for call-site compatibility; the fallback handles language differences now.
+const List<String> _pixelFontFallback = ['Galmuri11'];
 
 TextStyle pixelStyle(String lang, double size, Color color, {double spacing = 0}) =>
-    TextStyle(fontFamily: fontFor(lang), fontSize: size * _fontScale(lang), color: color, letterSpacing: spacing);
+    TextStyle(
+      fontFamily: 'PressStart2P',
+      fontFamilyFallback: _pixelFontFallback,
+      fontSize: size,
+      color: color,
+      letterSpacing: spacing,
+    );
 
 /// A plain 2D gold coin (no "$", no smiley, no animation — #5). Just the flat
 /// struck-gold sprite, drawn crisp. The [animate] flag is kept (a no-op) so old

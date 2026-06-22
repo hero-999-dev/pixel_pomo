@@ -203,6 +203,13 @@ class Flowers {
     }
     return null;
   }
+
+  /// How many distinct sprite variants a species has; a random one is chosen each
+  /// time the flower is planted (#v22). Only the rose is restyled into 4 variants
+  /// so far — every other species keeps its single sprite until the new style is
+  /// rolled out to it.
+  static const variantCounts = <String, int>{'gul': 4};
+  static int variantsFor(String id) => variantCounts[id] ?? 1;
 }
 
 // ---- placeable objects (non-flower) -----------------------------------------
@@ -247,6 +254,14 @@ class Placeables {
   /// Re-join a (road, prop) pair into a stored value (road first).
   static String combine(String? road, String? prop) =>
       (road != null && prop != null) ? '$road+$prop' : (road ?? prop)!;
+
+  /// A planted flower may carry a `~N` variant suffix (e.g. "gul~2" = rose model 2),
+  /// picked at random when planted (#v22). The base id (for catalogue lookup and
+  /// counting) drops the suffix; ids without one are returned unchanged.
+  static String flowerBase(String id) {
+    final i = id.indexOf('~');
+    return i < 0 ? id : id.substring(0, i);
+  }
 }
 
 // ---- economy ----------------------------------------------------------------
@@ -362,7 +377,9 @@ class Garden {
 
   int countPlanted(String flowerId) => tiles.values.where((v) {
         final (road, prop) = Placeables.split(v);
-        return road == flowerId || prop == flowerId;
+        // a planted flower prop may carry a ~variant suffix → compare the base id.
+        return road == flowerId ||
+            (prop != null && Placeables.flowerBase(prop) == flowerId);
       }).length;
 
   String encode() {
