@@ -99,7 +99,15 @@ class SpriteBank {
   ui.Image? tree() => images['tree'];
   ui.Image? forestProp(String id) => images[id]; // tree_NN / bush_NN / rock_NN
   ui.Image? object(String id) => images[id]; // roads
-  ui.Image? flower(String id) => images['flower_$id'];
+  /// Resolve a planted flower prop (which may carry a `~N` variant suffix, e.g.
+  /// "gul~2") to its sprite, falling back to the base sprite if that variant isn't
+  /// bundled (#v22).
+  ui.Image? flower(String prop) {
+    final i = prop.indexOf('~');
+    if (i < 0) return images['flower_$prop'];
+    final base = prop.substring(0, i);
+    return images['flower_${base}_${prop.substring(i + 1)}'] ?? images['flower_$base'];
+  }
   ui.Image? critter(String kind) => images[kind];
 
   static Future<SpriteBank> load() async {
@@ -125,6 +133,11 @@ class SpriteBank {
       // fences render as low-poly 3D meshes, not sprites; their PNGs are only
       // used as shop thumbnails (loaded there via Image.asset).
       for (final f in Flowers.all) grab('flower_${f.id}', 'flower_${f.id}.png'),
+      // multi-variant flowers also ship flower_<id>_0..n-1 (rose is the first, #v22)
+      for (final f in Flowers.all)
+        if (Flowers.variantsFor(f.id) > 1)
+          for (var v = 0; v < Flowers.variantsFor(f.id); v++)
+            grab('flower_${f.id}_$v', 'flower_${f.id}_$v.png'),
     ]);
     return SpriteBank(out);
   }
