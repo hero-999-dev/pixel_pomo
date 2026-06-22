@@ -316,6 +316,102 @@ def flower_png_grid(petal_hex, center_hex, chars):
     return outline(g, "16280F")
 
 
+# ---- rose variants (#v22) ----------------------------------------------------
+# Four hand-authored rose models in ONE consistent style, per the user's example
+# (a cozy APICO/Littlewood pixel look): strong dark outline, a limited red palette
+# with soft shading, and the SAME green stem + leaves on all four. Only the bloom
+# shape differs — bud / open spiral / closed / full — so they read as the same
+# species. A random one is planted each time (Flowers.variantsFor('gul') == 4).
+# Drawn on a 16-wide canvas (taller than the legacy 8x8 blobs), filled then given a
+# single 1px dark outline (so the rim never doubles up).
+
+_ROSE_PAL = {
+    'd': hexrgb("9E1B33") + (255,),  # rose dark (petal edges / creases)
+    'm': hexrgb("D62F44") + (255,),  # rose mid (main petal)
+    'l': hexrgb("F26B72") + (255,),  # rose light (highlight)
+    'c': hexrgb("6E0E22") + (255,),  # rose core shadow (spiral centre)
+    'S': hexrgb("3E8E36") + (255,),  # stem mid
+    'k': hexrgb("255A22") + (255,),  # stem / leaf vein dark
+    'G': hexrgb("5FBF4A") + (255,),  # leaf
+}
+
+# Shared stem + two leaves (rows below every bloom) — identical across variants so
+# the four roses clearly belong to one plant.
+_ROSE_STEM = [
+    '.......SS.......',
+    '.......SS.......',
+    '.....GGSS.......',
+    '....GkGSS.......',
+    '.....GGSS.......',
+    '.......SSGG.....',
+    '.......SSGkG....',
+    '.......SSGG.....',
+    '.......SS.......',
+]
+
+_ROSE_BLOOMS = [
+    # 0 — bud (closed teardrop)
+    [
+        '.......dd.......',
+        '......dmmd......',
+        '.....dmmmmd.....',
+        '.....dmllmd.....',
+        '....dmmllmmd....',
+        '....dmmmmmmd....',
+        '.....dmmmmd.....',
+        '......dmmd......',
+        '.......dd.......',
+    ],
+    # 1 — open rose (spiral centre)
+    [
+        '....dddddd......',
+        '...dmmmmmmd.....',
+        '..dmmllllmmd....',
+        '..dmldccdlmd....',
+        '..dmldccdlmd....',
+        '..dmmldddlmd....',
+        '...dmmlllmd.....',
+        '....dmmmmd......',
+        '.....dccd.......',
+    ],
+    # 2 — closed bloom (upright, with sepals)
+    [
+        '......dmd.......',
+        '.....dmmmd......',
+        '....dmmlmmd.....',
+        '....dmlllmd.....',
+        '....dmmmmmd.....',
+        '....dmmmmmd.....',
+        '....ddmmmdd.....',
+        '.....dmmmd......',
+        '......dmd.......',
+    ],
+    # 3 — full bloom (round, layered)
+    [
+        '....dddddd......',
+        '..ddmmmmmmdd....',
+        '.dmmllmmllmmd...',
+        '.dmlmdccdmlmd...',
+        '.dmlmdccdmlmd...',
+        '.dmmlmddmlmmd...',
+        '..dmmlmmmlmd....',
+        '...dmmmmmmd.....',
+        '....dccccd......',
+    ],
+]
+
+
+def rose_variant(v):
+    """One rose model (0..3): bloom rows + the shared stem, filled then outlined."""
+    chars = _ROSE_BLOOMS[v] + _ROSE_STEM
+    g = blank(16, len(chars))
+    for r, line in enumerate(chars):
+        for c in range(min(len(line), 16)):
+            if line[c] in _ROSE_PAL:
+                g[r][c] = _ROSE_PAL[line[c]]
+    return outline(g, "3A0A14")
+
+
 # ---- grass tile (seamless, subtle speckle) -----------------------------------
 
 def grass_grid():
@@ -539,8 +635,14 @@ def main():
     # frames too: the garden renders them as low-poly 3D meshes, so their PNG is
     # now only a shop thumbnail.
     for fid, (petal, center, chars) in FLOWERS.items():
+        if fid == 'gul':
+            continue  # rose is hand-authored in 4 style variants (#v22), below
         write_png(os.path.join(OUT, f"flower_{fid}.png"),
                   upscale(flower_png_grid(petal, center, chars), SCALE))
+    # rose: 4 style variants (#v22); flower_gul.png (shop thumbnail + fallback) = variant 0
+    for v in range(4):
+        write_png(os.path.join(OUT, f"flower_gul_{v}.png"), upscale(rose_variant(v), SCALE))
+    write_png(os.path.join(OUT, "flower_gul.png"), upscale(rose_variant(0), SCALE))
     for cid, fn in CRITTERS.items():
         write_png(os.path.join(OUT, f"{cid}.png"), upscale(make_atlas(fn()), SCALE))
     for fid, fn in FENCES.items():

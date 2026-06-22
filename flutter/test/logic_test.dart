@@ -430,4 +430,42 @@ void main() {
       expect(WallpaperCam.decode('x,y').zoom, 1.0); // malformed -> default
     });
   });
+
+  group('flower variants (#v22)', () {
+    test('flowerBase strips the ~N suffix; plain ids unchanged', () {
+      expect(Placeables.flowerBase('gul~2'), 'gul');
+      expect(Placeables.flowerBase('gul'), 'gul');
+      expect(Placeables.flowerBase('papatya'), 'papatya');
+    });
+
+    test('variantsFor: rose has 4, others default to 1', () {
+      expect(Flowers.variantsFor('gul'), 4);
+      expect(Flowers.variantsFor('papatya'), 1);
+      expect(Flowers.variantsFor('unknown'), 1);
+    });
+
+    test('a variant-suffixed prop is still a flower, not an object', () {
+      expect(Placeables.isFlower('gul~3'), true);
+      expect(Placeables.isObject('gul~3'), false);
+      expect(Placeables.isRoad('gul~3'), false);
+      final (road, prop) = Placeables.split('gul~2');
+      expect(road, isNull);
+      expect(prop, 'gul~2');
+    });
+
+    test('planting a variant prop stores it, counts by base, round-trips', () {
+      final g = const Garden().plant(0, 'gul~2');
+      expect(g.propAt(0), 'gul~2');
+      expect(g.countPlanted('gul'), 1); // counted despite the ~2 suffix
+      expect(g.countPlanted('papatya'), 0);
+      expect(Garden.decode(g.encode()).propAt(0), 'gul~2'); // survives save/load
+    });
+
+    test('a variant flower still refuses to sit on a road', () {
+      var g = const Garden().plant(0, 'road_dirt');
+      g = g.plant(0, 'gul~1'); // flowers only grow on bare grass
+      expect(g.propAt(0), isNull);
+      expect(g.groundAt(0), 'road_dirt');
+    });
+  });
 }

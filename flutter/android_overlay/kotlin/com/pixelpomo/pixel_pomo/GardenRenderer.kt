@@ -1,12 +1,15 @@
 package com.pixelpomo.pixel_pomo
 
 import android.graphics.Bitmap
+import android.graphics.BitmapShader
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.Rect
 import android.graphics.RectF
+import android.graphics.Shader
 import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.cos
@@ -87,9 +90,19 @@ class GardenRenderer(private val data: GardenData) {
         items.sortBy { it.depth }
         for (it in items) {
             // fences are 3D posts; everything else is a still billboard — no wind (#v20)
-            if (isFence(it.id)) drawFencePost(canvas, it.c, it.r, it.id)
-            else billboard(canvas, data.bitmap(spriteFor(it.id)), it.x, it.y,
-                if (it.id.startsWith("rock_")) 0.6 else 1.2)
+            if (isFence(it.id)) {
+                drawFencePost(canvas, it.c, it.r, it.id)
+            } else {
+                // match the in-app _paintBillboard dimensions so flowers aren't thick (#v22):
+                // flowers 1.05h×0.9w, trees/bushes 1.2×1.05, rocks 0.6×0.8.
+                val (ht, wd) = when {
+                    it.id.startsWith("rock_") -> 0.6 to 0.8
+                    it.flower -> 1.05 to 0.9
+                    else -> 1.2 to 1.05
+                }
+                val bmp = if (it.flower) flowerBitmap(it.id) else data.bitmap(spriteFor(it.id))
+                billboard(canvas, bmp, it.x, it.y, ht, wd)
+            }
         }
         drawCritters(canvas, timeSec, flowers)
     }
@@ -124,18 +137,38 @@ class GardenRenderer(private val data: GardenData) {
         return projGrid(gx, gy)
     }
 
+    // Tile the real grass.png across the claimed plot under the same projection the
+    // app uses (Projector.gridToScreen), so the wallpaper's clearing has the app's
+    // textured grass instead of a flat green slab (#v22). Falls back to a flat fill.
     private fun fillClearing(canvas: Canvas) {
         val hx = cols / 2.0; val hy = rows / 2.0
-        val corners = arrayOf(-hx to -hy, hx to -hy, hx to hy, -hx to hy)
         val path = Path()
-        corners.forEachIndexed { i, (gx, gy) ->
-            val rx = gx * cosY - gy * sinY; val ry = gx * sinY + gy * cosY
-            val x = (cx + rx * t).toFloat(); val y = (cy + ry * t * KVY).toFloat()
-            if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+        arrayOf(-hx to -hy, hx to -hy, hx to hy, -hx to hy).forEachIndexed { i, (gx, gy) ->
+            val (x, y) = projGrid(gx, gy)
+            if (i == 0) path.moveTo(x.toFloat(), y.toFloat()) else path.lineTo(x.toFloat(), y.toFloat())
         }
         path.close()
-        paint.color = Color.rgb(0x57, 0xA6, 0x36) // grass base
-        canvas.drawPath(path, paint)
+        val grass = data.bitmap("grass")
+        if (grass == null) {
+            paint.color = Color.rgb(0x57, 0xA6, 0x36) // grass base (fallback)
+            canvas.drawPath(path, paint)
+            return
+        }
+        canvas.save()
+        canvas.clipPath(path)
+        // affine garden(tile)->screen, mirroring Projector.gridToScreen (column form).
+        val m = Matrix()
+        m.setValues(floatArrayOf(
+            (t * cosY).toFloat(), (-t * sinY).toFloat(), cx.toFloat(),
+            (t * KVY * sinY).toFloat(), (t * KVY * cosY).toFloat(), cy.toFloat(),
+            0f, 0f, 1f))
+        canvas.concat(m)
+        // one grass tile == one garden unit (scale bitmap px -> unit), tiled.
+        val shader = BitmapShader(grass, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
+        shader.setLocalMatrix(Matrix().apply { setScale(1f / grass.width, 1f / grass.height) })
+        val gp = Paint().apply { isFilterBitmap = false; this.shader = shader }
+        canvas.drawRect((-hx).toFloat(), (-hy).toFloat(), hx.toFloat(), hy.toFloat(), gp)
+        canvas.restore()
     }
 
     // draw the actual road sprite flat on the tile (was a gray square — looked bad #v20)
@@ -191,12 +224,12 @@ class GardenRenderer(private val data: GardenData) {
         petal(0.0, 0.0, Color.rgb(0xF2, 0xC9, 0x4C)) // yellow eye
     }
 
-    private fun billboard(canvas: Canvas, bmp: Bitmap?, x: Double, y: Double, heightTiles: Double) {
+    private fun billboard(canvas: Canvas, bmp: Bitmap?, x: Double, y: Double, heightTiles: Double, widthTiles: Double) {
         canvas.drawOval((x - t * 0.35).toFloat(), (y - t * 0.12).toFloat(),
             (x + t * 0.35).toFloat(), (y + t * 0.12).toFloat(), shadow) // contact shadow
         if (bmp == null) return
         val ph = t * heightTiles
-        val pw = ph * bmp.width / bmp.height
+        val pw = t * widthTiles // fixed fraction like the app (was aspect-derived → flowers looked thick #v22)
         val left = (x - pw / 2).toFloat(); val top = (y - ph).toFloat()
         canvas.drawBitmap(bmp, null, RectF(left, top, (left + pw).toFloat(), (top + ph).toFloat()), paint)
     }
@@ -402,6 +435,15 @@ class GardenRenderer(private val data: GardenData) {
         !id.startsWith("tree_") && !id.startsWith("bush_") && !id.startsWith("rock_")
 
     private fun spriteFor(id: String) = if (isFlower(id)) "flower_$id" else id
+
+    // Resolve a flower prop (may carry a ~N variant suffix, e.g. "gul~2") to its
+    // bitmap, falling back to the base sprite if that variant isn't bundled (#v22).
+    private fun flowerBitmap(id: String): Bitmap? {
+        val i = id.indexOf('~')
+        if (i < 0) return data.bitmap("flower_$id")
+        val base = id.substring(0, i)
+        return data.bitmap("flower_${base}_" + id.substring(i + 1)) ?: data.bitmap("flower_$base")
+    }
 
     // 64-bit to match Dart's int math, so the forest border matches the in-app view.
     private fun hash2(c: Int, r: Int): Int {
