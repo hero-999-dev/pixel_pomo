@@ -24,7 +24,7 @@ flutter/
 │   ├── logic.dart        # pure port + Placeables (4 roads + 3 fences; road+fence tile-layering)
 │   ├── strings.dart      # the six UI languages (en/tr/pl/de/ko/it) + month names
 │   ├── store.dart        # AppStore (ChangeNotifier): state, persistence, countdown, buyItem
-│   ├── pixel.dart        # pixel widgets + chart painter + flower sprites; fontFor('ko')→Galmuri11
+│   ├── pixel.dart        # pixel widgets + chart painter + flower sprites; Korean→Galmuri11 primary (others Press Start 2P)
 │   ├── camera.dart       # garden screenshot (RepaintBoundary→PNG) + save (path_provider) + share (share_plus)
 │   ├── engine/
 │   │   ├── garden_engine.dart  # 2.5D renderer: rectangular Projector + screen-filling forest (visibleTileBounds), low-poly 3D fence mesh, flat lighting, flower/tree billboards, grass blooms, critter atlas
