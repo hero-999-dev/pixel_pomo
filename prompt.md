@@ -244,7 +244,7 @@ now Flutter-exclusive and richer** than the native grid (see below) — keep the
   `tools/extract_icons.py`, navy keyed to transparent) — in garden mode **SESSION** sits centered between the
   two icon groups; **FOCUS**
   + auto-break; `StatsScreen` period selector **+ ◀▶ history navigator**; stateful `ShopScreen`
-  **flowers/outer/inner/pets** tabs).
+  **flowers/outer/inner/pets** tabs — flower rows show the **garden PNG sprite** (`objectThumb`), not a char-grid).
 - **Stats** (`StatsAggregator`): `anchorFor(now,period,offset)` + an `offset` arg on
   `byLabelInWindow`/`seriesFor`/`labelSeriesFor` browse earlier periods (never the future). Charts: **bar
   tops in minutes**, **pie** lists full (≤12) labels with **right-aligned %**, and a **TREND** line (was LINE):
@@ -343,8 +343,9 @@ now Flutter-exclusive and richer** than the native grid (see below) — keep the
   #v22** (see `future-plans/korean-language.md`) — but this routing stays, so re-adding it is easy.
 - **Flower variants (#v22):** each species can have N sprite variants; planting picks a random one and
   stores it as `<id>~<v>` (e.g. `gul~2`, `Placeables.flowerBase` strips the suffix, counted by base id).
-  The **rose has 3 hand-authored variants** (`flower_gul_0..2.png` — full bloom / bud / half-open, one consistent
-  style; leaves are **left-first** on the bloom & bud and **symmetric** on the half-open — #v22); the renderers
+  **Rose, tulip (`lale`) and camellia (`kamelya`) each have 2 hand-authored models** (`flower_<id>_0..1.png` — a
+  full bloom + a bud, left-first vs right-first leaves) in one modular style (`_FLOWER_BLOOMS` / `_FLOWER_PALS` in
+  `gen_objects.py`); other species keep a single sprite for now. The renderers
   (`SpriteBank.flower` + native `flowerBitmap`) fall back to `flower_<id>.png` for
   single-variant species.
 - **Launcher icon:** `assets/icon/app_icon*.png` (pixel tomato, from `tools/gen_icon.py`) +
