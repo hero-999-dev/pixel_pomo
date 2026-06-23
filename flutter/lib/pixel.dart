@@ -37,15 +37,24 @@ SystemUiOverlayStyle systemOverlayFor(PixelTheme th) {
 /// at 1.5×, which changed the Latin glyphs and inflated every size.) [lang] is kept
 /// for call-site compatibility; the fallback handles language differences now.
 const List<String> _pixelFontFallback = ['Galmuri11'];
+// Korean (#v23): make Galmuri11 the PRIMARY face. Drawing Hangul from its own font
+// keeps the baseline aligned (no mixed-font shift / "kayma"), and a small x1.15
+// bump makes it read a tick larger (Galmuri fills less of the em than Press Start
+// 2P, so at equal size it looks small). Korean-only — the old #v22 1.5x-on-every-
+// language bug that also inflated Latin is NOT reintroduced.
+const List<String> _koFontFallback = ['PressStart2P'];
+const double _koFontScale = 1.15;
 
-TextStyle pixelStyle(String lang, double size, Color color, {double spacing = 0}) =>
-    TextStyle(
-      fontFamily: 'PressStart2P',
-      fontFamilyFallback: _pixelFontFallback,
-      fontSize: size,
-      color: color,
-      letterSpacing: spacing,
-    );
+TextStyle pixelStyle(String lang, double size, Color color, {double spacing = 0}) {
+  final ko = lang == 'ko';
+  return TextStyle(
+    fontFamily: ko ? 'Galmuri11' : 'PressStart2P',
+    fontFamilyFallback: ko ? _koFontFallback : _pixelFontFallback,
+    fontSize: ko ? size * _koFontScale : size,
+    color: color,
+    letterSpacing: spacing,
+  );
+}
 
 /// A plain 2D gold coin (no "$", no smiley, no animation — #5). Just the flat
 /// struck-gold sprite, drawn crisp. The [animate] flag is kept (a no-op) so old
