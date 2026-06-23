@@ -24,7 +24,7 @@ flutter/
 │   ├── logic.dart        # pure port + Placeables (4 roads + 3 fences; road+fence tile-layering)
 │   ├── strings.dart      # the six UI languages (en/tr/pl/de/ko/it) + month names
 │   ├── store.dart        # AppStore (ChangeNotifier): state, persistence, countdown, buyItem
-│   ├── pixel.dart        # pixel widgets + chart painter + flower sprites; Korean→Galmuri11 primary (others Press Start 2P)
+│   ├── pixel.dart        # pixel widgets + chart painter + flower sprites; font by content: Hangul→Galmuri11, Latin→Press Start 2P
 │   ├── camera.dart       # garden screenshot (RepaintBoundary→PNG) + save (path_provider) + share (share_plus)
 │   ├── engine/
 │   │   ├── garden_engine.dart  # 2.5D renderer: rectangular Projector + screen-filling forest (visibleTileBounds), low-poly 3D fence mesh, flat lighting, flower/tree billboards, grass blooms, critter atlas
@@ -132,7 +132,8 @@ right-aligned %, and the **TREND** line is tappable (callout: bucket + **FOCUS**
 inside the plot**). **DAILY** is the day **filling up hour by hour** (cumulative from per-session timestamps);
 other periods show per-bucket totals, and the block under the chart is **CURRENT / AVERAGE / BEST**.
 
-Korean uses the bundled **Galmuri11** pixel font (OFL, scaled up). The launcher icon is regenerated via
+Korean (Hangul) text uses the bundled **Galmuri11** pixel font (OFL) — chosen per-string by content — while all Latin
+text stays Press Start 2P. The launcher icon is regenerated via
 `flutter_launcher_icons` so the pixel tomato survives scaffolding.
 
 ## Credits

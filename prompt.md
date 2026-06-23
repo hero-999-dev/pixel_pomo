@@ -236,7 +236,7 @@ now Flutter-exclusive and richer** than the native grid (see below) — keep the
   + `shared_preferences` + wall-clock countdown; generic `buyItem(id)`, **no garden size cap**;
   **`homeGardenBackdrop`** + **`statPeriod`/`statOffset`** + **`autoBreak`/`awaitingBreakPrompt`**;
   **`renameLabel`** migrates color/current/past records; **`reset()` pays out spent focus minutes** on
-  cancel) · `lib/pixel.dart` (pixel widgets + chart painters; `pixelStyle` = Press Start 2P primary with a Galmuri11 fallback, except **Korean uses Galmuri11 primary ×1.15** so Hangul aligns and isn't tiny #v22;
+  cancel) · `lib/pixel.dart` (pixel widgets + chart painters; `pixelStyle` picks the font by **text content** — Hangul strings use **Galmuri11** as primary (own metrics, aligned), all else (incl. Latin in the Korean UI) stays **Press Start 2P**, no per-language scale #v22;
   `isLightColor`/`systemOverlayFor` for system bars) · `lib/camera.dart` (`captureBoundary`; `sharePng` via
   `share_plus`; **`setLiveWallpaper`** via `MethodChannel('pixel_pomo/wallpaper')` → native picker) · `lib/main.dart` (all
   screens; custom top bar **theme/garden/stats · settings/store/coin** rendered via `Image.asset` from the
@@ -294,8 +294,9 @@ now Flutter-exclusive and richer** than the native grid (see below) — keep the
   all `GardenScreen` HUD — peeking goes **full-bleed** with transparent system bars) and a **camera**
   button (`cameraButton`, clean framing — yaw/zoom/pan, tilt fixed). On-scene icons sit on **themed
   `panel` chips** so they recolor with the theme and stay readable on the dark scene. Camera mode is **full-bleed**
-  — the `GardenView` fills the screen edge-to-edge and **CAPTURE · CANCEL** float over it (`SafeArea`, no black band
-  / system-bar strip); **CAPTURE** screenshots the `RepaintBoundary` (`captureKey`) and opens a sheet with
+  — `main()` sets `SystemUiMode.edgeToEdge` so the garden paints **behind transparent status + nav bars** (matching
+  the live-wallpaper preview — no leftover gray strip); the `GardenView` fills the screen and **CAPTURE · CANCEL**
+  float over it (`SafeArea`); **CAPTURE** screenshots the `RepaintBoundary` (`captureKey`) and opens a sheet with
   **Share** / **SET LIVE WALLPAPER** (Android only) / Cancel. **SET LIVE WALLPAPER** saves the framing
   (`AppStore.setWallpaperCamera` → `WallpaperCam`, pan normalized by the projector tile size) and calls
   `camera.setLiveWallpaper()` → `MethodChannel('pixel_pomo/wallpaper')` → native `MainActivity` **`startActivity`**
@@ -335,14 +336,16 @@ now Flutter-exclusive and richer** than the native grid (see below) — keep the
   **no** view-dependent shading, so light is flat). Fences
   render as 3D meshes in the garden, so their single-frame PNG is only a **shop/place thumbnail**.
   Garden flower frames get a **dark outline** (10×10 canvas) so plants separate from the grass.
-- **Fonts:** Press Start 2P is the primary face for the Latin languages, with **Galmuri11** (`assets/fonts/`,
-  OFL, full Hangul) as a `fontFamilyFallback`. **Korean flips this** — Galmuri11 is the *primary* family at **×1.15**,
-  so Hangul draws from its own metrics (aligned baseline, a tick larger) with Press Start 2P as the fallback; the Latin
-  languages stay byte-identical (#v22; the old Galmuri-everywhere-at-1.5× approach that changed Latin + inflated sizes is gone).
+- **Fonts (content-based, #v22):** `pixelStyle(..., text:)` chooses the family by the STRING'S CONTENT, not the
+  locale. A string containing **Hangul** is drawn in **Galmuri11** (`assets/fonts/`, OFL) as its *primary* family —
+  its own metrics give an aligned baseline (no mixed-font "kayma") at a natural size. Everything else — English,
+  numbers, ON/OFF, even inside the Korean UI — stays **Press Start 2P**, so Latin looks identical in every language;
+  no per-language size scale. (`hasHangul` decides; the other font is kept as a fallback for stray glyphs.)
 - **Flower variants (#v22):** each species can have N sprite variants; planting picks a random one and
   stores it as `<id>~<v>` (e.g. `gul~2`, `Placeables.flowerBase` strips the suffix, counted by base id).
-  The **rose has 3 hand-authored variants** (`flower_gul_0..2.png` — bud / spiral / open bloom, one consistent
-  style); the renderers (`SpriteBank.flower` + native `flowerBitmap`) fall back to `flower_<id>.png` for
+  The **rose has 3 hand-authored variants** (`flower_gul_0..2.png` — full bloom / bud / half-open, one consistent
+  style; leaves are **left-first** on the bloom & bud and **symmetric** on the half-open — #v22); the renderers
+  (`SpriteBank.flower` + native `flowerBitmap`) fall back to `flower_<id>.png` for
   single-variant species.
 - **Launcher icon:** `assets/icon/app_icon*.png` (pixel tomato, from `tools/gen_icon.py`) +
   `flutter_launcher_icons`; CI runs `dart run flutter_launcher_icons` **after** `flutter create`
