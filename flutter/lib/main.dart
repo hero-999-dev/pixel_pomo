@@ -800,7 +800,7 @@ class _ShopScreenState extends State<ShopScreen> {
       padding: const EdgeInsets.only(bottom: 14),
       child: Row(
         children: [
-          FlowerSprite(flower: f, size: 40),
+          objectThumb('flower_${f.id}', 40),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -1096,7 +1096,7 @@ class _GardenScreenState extends State<GardenScreen> {
               child: Text(t(lang, 'clearTile'), style: pixelStyle(lang, 11, col(th.accent), text: t(lang, 'clearTile'))),
             ),
           for (final f in flowers)
-            _placeOption(ctx, s, th, lang, index, f.id, FlowerSprite(flower: f, size: 24), f.nameIn(lang)),
+            _placeOption(ctx, s, th, lang, index, f.id, objectThumb('flower_${f.id}', 24), f.nameIn(lang)),
           for (final id in objects)
             _placeOption(ctx, s, th, lang, index, id, objectThumb(id, 24), t(lang, id)),
         ],
