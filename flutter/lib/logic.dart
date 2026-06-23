@@ -205,10 +205,10 @@ class Flowers {
   }
 
   /// How many distinct sprite variants a species has; a random one is chosen each
-  /// time the flower is planted (#v23). Only the rose is restyled into 3 variants
-  /// so far — every other species keeps its single sprite until the new style is
-  /// rolled out to it.
-  static const variantCounts = <String, int>{'gul': 3};
+  /// time the flower is planted (#v22). Restyled into 2 hand-authored models so far:
+  /// rose / tulip / camellia — every other species keeps its single sprite until the
+  /// new modular style is rolled out to it.
+  static const variantCounts = <String, int>{'gul': 2, 'lale': 2, 'kamelya': 2};
   static int variantsFor(String id) => variantCounts[id] ?? 1;
 }
 

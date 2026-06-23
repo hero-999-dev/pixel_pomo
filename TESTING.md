@@ -166,6 +166,13 @@ live `ko` locale). Korean was removed as a UI language and **French** added (`st
 simpler/bolder per the user's art guide, and each rose now has a **distinct leaf layout** (left-first / right-first /
 symmetric). Rose art self-verified by rendering; the French strings + language swap are device-verified by the user.
 
+**v22 (cont. 3 — rose→2 models, tulip + camellia, shop sprite icons):** suite stays **65** (the variant test now
+asserts gul / lale / kamelya = 2 models, others = 1). The rose dropped to 2 models (full bloom + bud); **tulip
+(`lale`) + camellia (`kamelya`)** got 2 hand-authored models each via the generalised modular pipeline
+(`_FLOWER_BLOOMS` / `_FLOWER_PALS` in `gen_objects.py`); the shop + garden place-picker now render the garden **PNG
+sprite** (`objectThumb`) instead of the char-grid `FlowerSprite`. New flower art is self-verified by rendering and
+device-verified by the user; the other 7 species still use their single char-grid sprite (rollout pending).
+
 **v21:** count stays **55**. The **TREND/line chart** no longer draws the highlighted (red) selected-bucket label on
 top of the fixed gray label at the **first/last** tick — the highlighted label is skipped when the selected bucket is
 an endpoint (`s != 0 && s != n-1`), so the ends keep one fixed number while every middle bucket still shows the
