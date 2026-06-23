@@ -316,100 +316,119 @@ def flower_png_grid(petal_hex, center_hex, chars):
     return outline(g, "16280F")
 
 
-# ---- rose variants (#v22) ----------------------------------------------------
-# Four hand-authored rose models in ONE consistent style, per the user's example
-# (a cozy APICO/Littlewood pixel look): strong dark outline, a limited red palette
-# with soft shading, and the SAME green stem + leaves on all four. Only the bloom
-# shape differs — bud / open spiral / closed / full — so they read as the same
-# species. A random one is planted each time (Flowers.variantsFor('gul') == 4).
-# Drawn on a 16-wide canvas (taller than the legacy 8x8 blobs), filled then given a
-# single 1px dark outline (so the rim never doubles up).
+# ---- rose variants (#v23) ----------------------------------------------------
+# Three rose models in ONE cozy APICO/Littlewood style, derived from the user's
+# 4-rose reference and rebuilt as clean pixel art: a strong dark rim, a 3-tone red
+# ramp (dark crease / mid body / light highlight) placed to follow the reference's
+# petal shading, and the SAME green stem + two leaves on all three so they read as
+# one species. Only the bloom differs (full bloom / bud / half-open) so a row of
+# roses looks varied, not cloned. Modular: the bloom (reds) and the plant (greens)
+# are outlined SEPARATELY (dark-red rim vs dark-green rim, like the reference) then
+# composited; the same pipeline carries over when the other flowers get this look.
+# A random variant is planted each time (Flowers.variantsFor("gul") == 3).
 
 _ROSE_PAL = {
-    'd': hexrgb("9E1B33") + (255,),  # rose dark (petal edges / creases)
-    'm': hexrgb("D62F44") + (255,),  # rose mid (main petal)
-    'l': hexrgb("F26B72") + (255,),  # rose light (highlight)
-    'c': hexrgb("6E0E22") + (255,),  # rose core shadow (spiral centre)
-    'S': hexrgb("3E8E36") + (255,),  # stem mid
-    'k': hexrgb("255A22") + (255,),  # stem / leaf vein dark
-    'G': hexrgb("5FBF4A") + (255,),  # leaf
+    "d": hexrgb("8E1B2E") + (255,),  # rose dark (creases / petal shadow)
+    "m": hexrgb("CC2A3D") + (255,),  # rose mid (main petal body)
+    "l": hexrgb("F26571") + (255,),  # rose light (highlight)
+    "S": hexrgb("3E8E36") + (255,),  # stem mid
+    "G": hexrgb("5FBF4A") + (255,),  # leaf
+    "k": hexrgb("2C6E2A") + (255,),  # leaf vein / stem shade
 }
+_ROSE_RED_OL = "3A0A14"  # dark-red rim around the bloom
+_ROSE_GRN_OL = "1E5A24"  # dark-green rim around the stem + leaves
+_ROSE_REDS = set("dml")
 
-# Shared stem + two leaves (rows below every bloom) — identical across variants so
-# the four roses clearly belong to one plant.
+# Shared stem + two leaves (rows below every bloom), identical across variants so
+# the three roses clearly belong to one plant.
 _ROSE_STEM = [
-    '.......SS.......',
-    '.......SS.......',
-    '.....GGSS.......',
-    '....GkGSS.......',
-    '.....GGSS.......',
-    '.......SSGG.....',
-    '.......SSGkG....',
-    '.......SSGG.....',
-    '.......SS.......',
+    ".......SS.......",
+    ".....GGkSS......",
+    "....GGkGGS......",
+    ".....GGkSS......",
+    ".......SSkGG....",
+    ".......SSGGkGG..",
+    ".......SSkGG....",
+    ".......SS.......",
 ]
 
+# Each bloom is 16 wide, reds only (d/m/l); the dark rim is added by outline().
 _ROSE_BLOOMS = [
-    # 0 — bud (closed teardrop)
-    [
-        '.......dd.......',
-        '......dmmd......',
-        '.....dmmmmd.....',
-        '.....dmllmd.....',
-        '....dmmllmmd....',
-        '....dmmmmmmd....',
-        '.....dmmmmd.....',
-        '......dmmd......',
-        '.......dd.......',
+    [  # 0 full bloom (round, layered) = shop thumbnail + fallback
+        "......ddddd.....",
+        "...mmdmmmlld....",
+        "..mmlmmmddmmmm..",
+        "..mlmdlmmmdmlm..",
+        ".mdmmldddmmdmld.",
+        ".dldmldmldmmmld.",
+        ".dlmdlmddmlddd..",
+        "..mmddmllmddmd..",
+        "...dlmddddmlmm..",
+        "...mmlllmdmmm...",
+        ".....ddmmddd....",
+        ".......ddd......",
     ],
-    # 1 — open rose (spiral centre)
-    [
-        '....dddddd......',
-        '...dmmmmmmd.....',
-        '..dmmllllmmd....',
-        '..dmldccdlmd....',
-        '..dmldccdlmd....',
-        '..dmmldddlmd....',
-        '...dmmlllmd.....',
-        '....dmmmmd......',
-        '.....dccd.......',
+    [  # 1 bud (closed goblet)
+        ".....mddddm.....",
+        "...mddlllmddm...",
+        "...mlmdmmmdlm...",
+        "...mmllddmlmd...",
+        "....dmmlmlmd....",
+        "....dmmldmmd....",
+        "....dmlmldmd....",
+        "....dmlmldmd....",
+        "....dmmmmdmm....",
+        ".....dddddd.....",
     ],
-    # 2 — closed bloom (upright, with sepals)
-    [
-        '......dmd.......',
-        '.....dmmmd......',
-        '....dmmlmmd.....',
-        '....dmlllmd.....',
-        '....dmmmmmd.....',
-        '....dmmmmmd.....',
-        '....ddmmmdd.....',
-        '.....dmmmd......',
-        '......dmd.......',
-    ],
-    # 3 — full bloom (round, layered)
-    [
-        '....dddddd......',
-        '..ddmmmmmmdd....',
-        '.dmmllmmllmmd...',
-        '.dmlmdccdmlmd...',
-        '.dmlmdccdmlmd...',
-        '.dmmlmddmlmmd...',
-        '..dmmlmmmlmd....',
-        '...dmmmmmmd.....',
-        '....dccccd......',
+    [  # 2 half-open (angled, opening)
+        ".....mddm.......",
+        "...mddldddm.....",
+        "...dmdllmmmmm...",
+        "...dmdmmdddmd...",
+        "..mmmmdmmlmdm...",
+        "..dmmmdlllmm....",
+        "..dmmdllllmm....",
+        "...dd.dmlmd.....",
+        "...dd.dmmmd.....",
+        ".......ddd......",
     ],
 ]
+
+
+def _rose_compose(layers):
+    """Paint each layer's opaque pixels (back to front) onto one grid."""
+    h = len(layers[0])
+    w = len(layers[0][0])
+    out = blank(w, h)
+    for lay in layers:
+        for r in range(h):
+            for c in range(w):
+                if lay[r][c][3] != 0:
+                    out[r][c] = lay[r][c]
+    return out
 
 
 def rose_variant(v):
-    """One rose model (0..3): bloom rows + the shared stem, filled then outlined."""
-    chars = _ROSE_BLOOMS[v] + _ROSE_STEM
-    g = blank(16, len(chars))
-    for r, line in enumerate(chars):
+    """One rose model (0..2): a reference-derived bloom over the shared stem. The
+    bloom (reds) gets a dark-red rim and the stem/leaves (greens) a dark-green rim;
+    each is outlined separately then composited so the two materials read apart."""
+    bloom_rows = _ROSE_BLOOMS[v]
+    bh = len(bloom_rows)
+    h = bh + len(_ROSE_STEM) - 1  # stem tucks one row under the bloom base
+    bloom = blank(16, h)
+    plant = blank(16, h)
+    for r, line in enumerate(bloom_rows):
         for c in range(min(len(line), 16)):
-            if line[c] in _ROSE_PAL:
-                g[r][c] = _ROSE_PAL[line[c]]
-    return outline(g, "3A0A14")
+            if line[c] in _ROSE_REDS:
+                bloom[r][c] = _ROSE_PAL[line[c]]
+    for r, line in enumerate(_ROSE_STEM):
+        rr = bh - 1 + r
+        for c in range(min(len(line), 16)):
+            if line[c] in _ROSE_PAL and line[c] not in _ROSE_REDS:
+                plant[rr][c] = _ROSE_PAL[line[c]]
+    bloom = outline(bloom, _ROSE_RED_OL)
+    plant = outline(plant, _ROSE_GRN_OL)
+    return _rose_compose([plant, bloom])
 
 
 # ---- grass tile (seamless, subtle speckle) -----------------------------------
@@ -639,8 +658,8 @@ def main():
             continue  # rose is hand-authored in 4 style variants (#v22), below
         write_png(os.path.join(OUT, f"flower_{fid}.png"),
                   upscale(flower_png_grid(petal, center, chars), SCALE))
-    # rose: 4 style variants (#v22); flower_gul.png (shop thumbnail + fallback) = variant 0
-    for v in range(4):
+    # rose: 3 style variants (#v23); flower_gul.png (shop thumbnail + fallback) = variant 0
+    for v in range(3):
         write_png(os.path.join(OUT, f"flower_gul_{v}.png"), upscale(rose_variant(v), SCALE))
     write_png(os.path.join(OUT, "flower_gul.png"), upscale(rose_variant(0), SCALE))
     for cid, fn in CRITTERS.items():
@@ -664,7 +683,7 @@ def main():
         write_png(os.path.join(OUT, f"{rid}.png"), upscale(fn(), SCALE))
 
     # drop sprites that were renamed/removed over time, if present
-    for old in ("road.png", "fence.png", "bug.png",
+    for old in ("road.png", "fence.png", "bug.png", "flower_gul_3.png",
                 "road_asphalt.png", "road_brick.png", "fence_white.png"):
         p = os.path.join(OUT, old)
         if os.path.exists(p):

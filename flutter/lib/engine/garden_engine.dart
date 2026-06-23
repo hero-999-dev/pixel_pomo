@@ -714,7 +714,9 @@ class GardenPainter extends CustomPainter {
   }
 
   void _paintCritters(Canvas canvas, Projector p, double t) {
-    final s = (t * 0.42).clamp(12.0, 30.0);
+    // critters scale with the tile (zoom) so they grow as you zoom in, instead of
+    // staying one pinned size (#v23); a small floor keeps them visible when far out.
+    final s = math.max(10.0, t * 0.42);
     for (final c in critterSystem.critters) {
       final img = sprites.critter(c.kind);
       final amp = c.kind == 'ladybug' ? 0.6 : 2.2;

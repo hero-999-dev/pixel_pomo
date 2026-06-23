@@ -16,3 +16,7 @@ windows/
 web/
 .metadata
 *.iml
+
+# Python tool caches (tools/)
+__pycache__/
+*.pyc
