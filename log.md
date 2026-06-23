@@ -5,6 +5,37 @@ Each entry notes the **prompt** (what you asked for) and the **changes** made.
 
 ---
 
+## v22 polish — Korean primary-Galmuri, full-bleed camera, wallpaper critter scale, rose 3-variant remake (Flutter, still 0.22.0+23)
+**Date:** 2026-06-23
+
+**Prompt (device-feedback follow-up; same version — "yeni versiyona geçmeden işimizi halledelim"):** refine four
+things from the first v22 build — Korean text still shifts and reads small; camera mode leaves a black band /
+system-bar strip instead of a full-bleed garden; wallpaper bugs stay one size when you zoom; and the 4 roses are too
+many and read blobby (user: "4 çeşit fazla geldi" → **3 variants**). Don't bump the version or push iOS (Actions
+minutes still out) — re-clobber the `flutter-v22` release with a fresh local Android APK.
+
+**Changes (all `flutter/`):**
+- **Korean font (`pixel.dart`):** `pixelStyle` now makes **`Galmuri11` the primary family for Korean** at **×1.15**
+  with Press Start 2P as the fallback — drawing Hangul from its own font keeps the baseline aligned (no "kayma" shift)
+  and a tick larger. Every other language keeps Press Start 2P primary, byte-identical. Supersedes the first v22
+  (Press Start primary + Galmuri fallback at normal size); the old #v22 ×1.5-on-every-language bug is **not** back.
+- **Full-bleed camera (`main.dart`):** in camera mode the body is a `Stack` — the `GardenView` fills the Scaffold
+  edge-to-edge and CAPTURE/CANCEL float over it inside a `SafeArea`, so there's no dark band under the buttons and no
+  gray system-bar strip. The customize/peek layout is unchanged.
+- **Wallpaper critter scale (`garden_engine.dart` + native `GardenRenderer.kt`):** critter size is now
+  `max(10, t*0.42)` (was clamped to 12–30 px) so the bugs grow with zoom, in Dart **and** Kotlin (parity).
+- **Rose remake (`gen_objects.py` + assets):** **3** reference-matched variants (bud / front spiral / open bloom) in
+  one consistent style — strong dark outline, a 3-red palette + soft luminance-band shading, shared green stem/leaves,
+  bloom and plant outlined separately then composited. `Flowers.variantCounts['gul'] = 3` (was 4); regenerated
+  `flower_gul_0..2.png` + `flower_gul.png` (= variant 0 = shop thumbnail + fallback); deleted the stale
+  `flower_gul_3.png`. The other 9 flowers keep their single sprite — the same pipeline rolls out to them in a later round.
+- **Repo hygiene:** removed a stray `flutter/tools/__pycache__/*.pyc` that slipped into the WIP commit and added
+  `__pycache__/` + `*.pyc` to `flutter/.gitignore`.
+- **Tests: 60** (unchanged; `variantsFor` assertion moved 4→3). `flutter analyze` clean; `flutter test` green;
+  release APK builds locally.
+- **Delivery:** Android APK built locally and uploaded to **`flutter-v22`** (no iOS — macOS minutes still out).
+  Version unchanged at **0.22.0+23**.
+
 ## v22 — Korean font fix + wallpaper grass/flower fidelity + rose 4-variant system (Flutter, 0.22.0+23)
 **Date:** 2026-06-22
 

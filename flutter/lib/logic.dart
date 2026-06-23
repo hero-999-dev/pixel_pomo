@@ -205,10 +205,10 @@ class Flowers {
   }
 
   /// How many distinct sprite variants a species has; a random one is chosen each
-  /// time the flower is planted (#v22). Only the rose is restyled into 4 variants
+  /// time the flower is planted (#v23). Only the rose is restyled into 3 variants
   /// so far — every other species keeps its single sprite until the new style is
   /// rolled out to it.
-  static const variantCounts = <String, int>{'gul': 4};
+  static const variantCounts = <String, int>{'gul': 3};
   static int variantsFor(String id) => variantCounts[id] ?? 1;
 }
 

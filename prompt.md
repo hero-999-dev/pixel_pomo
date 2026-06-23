@@ -236,7 +236,7 @@ now Flutter-exclusive and richer** than the native grid (see below) — keep the
   + `shared_preferences` + wall-clock countdown; generic `buyItem(id)`, **no garden size cap**;
   **`homeGardenBackdrop`** + **`statPeriod`/`statOffset`** + **`autoBreak`/`awaitingBreakPrompt`**;
   **`renameLabel`** migrates color/current/past records; **`reset()` pays out spent focus minutes** on
-  cancel) · `lib/pixel.dart` (pixel widgets + chart painters; `pixelStyle` = Press Start 2P + a Galmuri11 Hangul fallback, no per-language scale #v22;
+  cancel) · `lib/pixel.dart` (pixel widgets + chart painters; `pixelStyle` = Press Start 2P primary with a Galmuri11 fallback, except **Korean uses Galmuri11 primary ×1.15** so Hangul aligns and isn't tiny #v22;
   `isLightColor`/`systemOverlayFor` for system bars) · `lib/camera.dart` (`captureBoundary`; `sharePng` via
   `share_plus`; **`setLiveWallpaper`** via `MethodChannel('pixel_pomo/wallpaper')` → native picker) · `lib/main.dart` (all
   screens; custom top bar **theme/garden/stats · settings/store/coin** rendered via `Image.asset` from the
@@ -287,13 +287,15 @@ now Flutter-exclusive and richer** than the native grid (see below) — keep the
   an **8-frame directional atlas** (`frameForAngle` picks the facet for their **travel heading**;
   `kDirFrames = 8`, must match the Python tool), drawn depth-sorted. In **CUSTOMIZE**
   the tile **gridlines** are drawn. A `CritterSystem` works in **garden coords** — ≤2 tiny
-  bee/butterfly/ladybug fly in, visit a flower, then leave & despawn; each has a hard
+  bee/butterfly/ladybug (sized `max(10, t*0.42)` so they scale with zoom) fly in, visit a flower, then leave &
+  despawn; each has a hard
   **`Critter.maxLife`** so none can ever get stuck (and `leave` uses a guaranteed nonzero heading).
 - **Peek + camera + wallpaper:** `GardenView` has a bottom-left **peek** button (`peekButton`, hides
   all `GardenScreen` HUD — peeking goes **full-bleed** with transparent system bars) and a **camera**
   button (`cameraButton`, clean framing — yaw/zoom/pan, tilt fixed). On-scene icons sit on **themed
-  `panel` chips** so they recolor with the theme and stay readable on the dark scene. Camera mode shows
-  **CAPTURE · CANCEL**; **CAPTURE** screenshots the `RepaintBoundary` (`captureKey`) and opens a sheet with
+  `panel` chips** so they recolor with the theme and stay readable on the dark scene. Camera mode is **full-bleed**
+  — the `GardenView` fills the screen edge-to-edge and **CAPTURE · CANCEL** float over it (`SafeArea`, no black band
+  / system-bar strip); **CAPTURE** screenshots the `RepaintBoundary` (`captureKey`) and opens a sheet with
   **Share** / **SET LIVE WALLPAPER** (Android only) / Cancel. **SET LIVE WALLPAPER** saves the framing
   (`AppStore.setWallpaperCamera` → `WallpaperCam`, pan normalized by the projector tile size) and calls
   `camera.setLiveWallpaper()` → `MethodChannel('pixel_pomo/wallpaper')` → native `MainActivity` **`startActivity`**
@@ -333,13 +335,15 @@ now Flutter-exclusive and richer** than the native grid (see below) — keep the
   **no** view-dependent shading, so light is flat). Fences
   render as 3D meshes in the garden, so their single-frame PNG is only a **shop/place thumbnail**.
   Garden flower frames get a **dark outline** (10×10 canvas) so plants separate from the grass.
-- **Fonts:** Press Start 2P is the primary face for **every** language; **Galmuri11** (`assets/fonts/`,
-  OFL, full Hangul) is a `fontFamilyFallback` that only kicks in for Korean glyphs — so Latin looks the
-  same everywhere and Korean isn't oversized (#v22; was Galmuri-everywhere at 1.5×, which changed Latin + inflated sizes).
+- **Fonts:** Press Start 2P is the primary face for the Latin languages, with **Galmuri11** (`assets/fonts/`,
+  OFL, full Hangul) as a `fontFamilyFallback`. **Korean flips this** — Galmuri11 is the *primary* family at **×1.15**,
+  so Hangul draws from its own metrics (aligned baseline, a tick larger) with Press Start 2P as the fallback; the Latin
+  languages stay byte-identical (#v22; the old Galmuri-everywhere-at-1.5× approach that changed Latin + inflated sizes is gone).
 - **Flower variants (#v22):** each species can have N sprite variants; planting picks a random one and
   stores it as `<id>~<v>` (e.g. `gul~2`, `Placeables.flowerBase` strips the suffix, counted by base id).
-  The **rose has 4 hand-authored variants** (`flower_gul_0..3.png`, one consistent style); the renderers
-  (`SpriteBank.flower` + native `flowerBitmap`) fall back to `flower_<id>.png` for single-variant species.
+  The **rose has 3 hand-authored variants** (`flower_gul_0..2.png` — bud / spiral / open bloom, one consistent
+  style); the renderers (`SpriteBank.flower` + native `flowerBitmap`) fall back to `flower_<id>.png` for
+  single-variant species.
 - **Launcher icon:** `assets/icon/app_icon*.png` (pixel tomato, from `tools/gen_icon.py`) +
   `flutter_launcher_icons`; CI runs `dart run flutter_launcher_icons` **after** `flutter create`
   so the real logo is baked in instead of the Flutter default.
