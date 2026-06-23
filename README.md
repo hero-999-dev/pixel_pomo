@@ -121,7 +121,7 @@ pixel_pomo/
   and a per-month **by-label** breakdown (colored by each label's color).
 - **⚙️ Settings** (gear): steppers for **study minutes** (up to 300), **break minutes** (up to
   120), and **sessions** (up to 24), plus a **LANGUAGE** picker —
-  **English / Türkçe / Polski / Deutsch / 한국어 / Italiano** — applied instantly.
+  **English / Türkçe / Polski / Deutsch / Français / Italiano** — applied instantly.
 - **🎨 Themes** (palette): five pixel themes inspired by the
   [ClaWus](https://github.com/hero-999-dev/ClaWus-Claude-Usage-Widget) widget —
   **Dark, Light, Mocha, Frappe, Latte** — switchable live.
@@ -197,9 +197,9 @@ docked at the bottom. The app **themes its system bars** with **no white tap rip
 **shop** has **flowers / outer / inner / pets** tabs; and **Stats** has a **DAILY…ALL-TIME** selector **+ a ◀▶
 history navigator**, bar tops in **minutes**, a full-label right-aligned **pie**, and a **TREND** line — DAILY
 fills up **hour by hour**, other periods show per-bucket totals with **CURRENT / AVERAGE / BEST**.
-Korean text uses the pixel **Galmuri11** (OFL) font while everything Latin — even on the Korean screens — stays in
-**Press Start 2P**, so the two fonts never clash; each planted flower picks one of several **style variants** at random
-(the **rose** ships 3 hand-drawn models); the icon is baked
+Text is the pixel **Press Start 2P** font; accented letters fall back to a bundled pixel font so every language stays
+crisp; each planted flower picks one of several **style variants** at random (the **rose** ships 3 hand-drawn models,
+each with its own leaf layout); the icon is baked
 in via `flutter_launcher_icons`. Each build publishes a permanent **`flutter-vN`** GitHub release. *(The Android
 **live wallpaper** is a native Kotlin renderer that re-draws your saved garden — textured grass, your flowers, and a
 visiting bee/butterfly/ladybug — at the framing you picked; iOS has no API and keeps Save/Share.)*

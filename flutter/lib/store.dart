@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'logic.dart';
+import 'strings.dart';
 
 /// Chart styles for the stats screen.
 enum ChartMode { bar, line, pie }
@@ -91,6 +92,9 @@ class AppStore extends ChangeNotifier {
     sessions = _prefs.getInt(_kSessions) ?? 4;
     theme = Themes.byId(_prefs.getString(_kTheme));
     lang = _prefs.getString(_kLang) ?? 'en';
+    // a previously-selected language that no longer exists (e.g. 'ko', removed in
+    // #v22) falls back to English so the UI isn't left half-translated.
+    if (!languageOptions.any((o) => o[0] == lang)) lang = 'en';
 
     final storedLabels = _prefs.getString(_kLabels);
     if (storedLabels != null && storedLabels.trim().isNotEmpty) {
