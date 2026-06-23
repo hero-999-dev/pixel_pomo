@@ -29,28 +29,35 @@ SystemUiOverlayStyle systemOverlayFor(PixelTheme th) {
   );
 }
 
-/// Press Start 2P (Latin) is the primary face for EVERY language. It has no
-/// Hangul, so Galmuri11 (a Korean pixel font, OFL) is only a *fallback* that kicks
-/// in for Korean glyphs. Keeping Press Start 2P primary means Latin text looks the
-/// same in every language, and there's no per-language size bump — Korean renders
-/// at the same sizes as the others. (#v22: Korean used to force Galmuri everywhere
-/// at 1.5×, which changed the Latin glyphs and inflated every size.) [lang] is kept
-/// for call-site compatibility; the fallback handles language differences now.
-const List<String> _pixelFontFallback = ['Galmuri11'];
-// Korean (#v23): make Galmuri11 the PRIMARY face. Drawing Hangul from its own font
-// keeps the baseline aligned (no mixed-font shift / "kayma"), and a small x1.15
-// bump makes it read a tick larger (Galmuri fills less of the em than Press Start
-// 2P, so at equal size it looks small). Korean-only — the old #v22 1.5x-on-every-
-// language bug that also inflated Latin is NOT reintroduced.
-const List<String> _koFontFallback = ['PressStart2P'];
-const double _koFontScale = 1.15;
+/// The font is chosen by the TEXT'S CONTENT, not the locale (#v22 round 3 — the
+/// user chose "Latin = Press Start, Hangul = Galmuri"):
+///  • a label that contains Hangul is drawn in **Galmuri11** (a Hangul pixel font,
+///    OFL) as its PRIMARY family, so Hangul uses its own metrics — aligned baseline
+///    (no mixed-font "kayma") at a natural size.
+///  • everything else (English, numbers, ON/OFF — even inside the Korean UI) stays
+///    in **Press Start 2P**, so Latin looks identical in every language.
+/// Pass [text] so the right family is picked; the other font is kept as a fallback
+/// for stray glyphs. [lang] is no longer used for the font (kept for call-site
+/// compatibility).
+const List<String> _galmuriPrimaryFallback = ['PressStart2P'];
+const List<String> _pressPrimaryFallback = ['Galmuri11'];
 
-TextStyle pixelStyle(String lang, double size, Color color, {double spacing = 0}) {
-  final ko = lang == 'ko';
+/// True if [s] contains any Korean glyph (syllables / jamo / compatibility jamo).
+bool hasHangul(String s) {
+  for (final r in s.runes) {
+    if ((r >= 0xAC00 && r <= 0xD7A3) || (r >= 0x1100 && r <= 0x11FF) || (r >= 0x3130 && r <= 0x318F)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+TextStyle pixelStyle(String lang, double size, Color color, {double spacing = 0, String? text}) {
+  final hangul = text != null && hasHangul(text);
   return TextStyle(
-    fontFamily: ko ? 'Galmuri11' : 'PressStart2P',
-    fontFamilyFallback: ko ? _koFontFallback : _pixelFontFallback,
-    fontSize: ko ? size * _koFontScale : size,
+    fontFamily: hangul ? 'Galmuri11' : 'PressStart2P',
+    fontFamilyFallback: hangul ? _galmuriPrimaryFallback : _pressPrimaryFallback,
+    fontSize: size,
     color: color,
     letterSpacing: spacing,
   );
@@ -112,7 +119,7 @@ class PixelButton extends StatelessWidget {
           ),
           child: Center(
             widthFactor: 1,
-            child: Text(text, textAlign: TextAlign.center, style: pixelStyle(lang, fontSize, col(textColor))),
+            child: Text(text, textAlign: TextAlign.center, style: pixelStyle(lang, fontSize, col(textColor), text: text)),
           ),
         ),
       ),
@@ -280,7 +287,7 @@ class _ChartPainter extends CustomPainter {
 
   void _text(Canvas canvas, String s, double x, double y, double size, int color, {TextAlign align = TextAlign.left}) {
     final tp = TextPainter(
-      text: TextSpan(text: s, style: pixelStyle(c.lang, size, col(color))),
+      text: TextSpan(text: s, style: pixelStyle(c.lang, size, col(color), text: s)),
       textDirection: TextDirection.ltr,
       textAlign: align,
     )..layout();
@@ -429,7 +436,7 @@ class _ChartPainter extends CustomPainter {
     const fs = 7.0, pad = 4.0, lh = 11.0, gap = 8.0;
     double colW(String s) {
       final tp = TextPainter(
-        text: TextSpan(text: s, style: pixelStyle(c.lang, fs, col(c.textColor))),
+        text: TextSpan(text: s, style: pixelStyle(c.lang, fs, col(c.textColor), text: s)),
         textDirection: TextDirection.ltr,
       )..layout();
       return tp.width;
