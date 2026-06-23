@@ -197,8 +197,9 @@ docked at the bottom. The app **themes its system bars** with **no white tap rip
 **shop** has **flowers / outer / inner / pets** tabs; and **Stats** has a **DAILY…ALL-TIME** selector **+ a ◀▶
 history navigator**, bar tops in **minutes**, a full-label right-aligned **pie**, and a **TREND** line — DAILY
 fills up **hour by hour**, other periods show per-bucket totals with **CURRENT / AVERAGE / BEST**.
-Korean keeps the Latin **Press Start 2P** with a **Galmuri11** (OFL) Hangul fallback at normal size; each planted
-flower picks one of several **style variants** at random (the **rose** ships 4 hand-drawn models); the icon is baked
+Korean uses the pixel **Galmuri11** (OFL) font, sized up a touch so Hangul aligns and isn't tiny, while the Latin
+languages keep **Press Start 2P**; each planted flower picks one of several **style variants** at random (the **rose**
+ships 3 hand-drawn models); the icon is baked
 in via `flutter_launcher_icons`. Each build publishes a permanent **`flutter-vN`** GitHub release. *(The Android
 **live wallpaper** is a native Kotlin renderer that re-draws your saved garden — textured grass, your flowers, and a
 visiting bee/butterfly/ladybug — at the framing you picked; iOS has no API and keeps Save/Share.)*
