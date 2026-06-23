@@ -327,7 +327,7 @@ class _ChartPainter extends CustomPainter {
       'tr': 'Burada odak dakikası yok.',
       'pl': 'Brak minut tutaj.',
       'de': 'Keine Minuten hier.',
-      'ko': '기록이 없습니다.',
+      'fr': 'Aucune minute ici.',
       'it': 'Nessun minuto qui.',
     };
     return m[c.lang] ?? m['en']!;
@@ -337,12 +337,12 @@ class _ChartPainter extends CustomPainter {
   String _fmt(int min) => StatsAggregator.formatMinutes(min);
 
   String _focus() {
-    const m = {'en': 'FOCUS', 'tr': 'ODAK', 'pl': 'SKUPIENIE', 'de': 'FOKUS', 'ko': '집중', 'it': 'FOCUS'};
+    const m = {'en': 'FOCUS', 'tr': 'ODAK', 'pl': 'SKUPIENIE', 'de': 'FOKUS', 'fr': 'FOCUS', 'it': 'FOCUS'};
     return m[c.lang] ?? m['en']!;
   }
 
   String _avg() {
-    const m = {'en': 'AVG', 'tr': 'ORT', 'pl': 'ŚR', 'de': 'DSCHN', 'ko': '평균', 'it': 'MEDIA'};
+    const m = {'en': 'AVG', 'tr': 'ORT', 'pl': 'ŚR', 'de': 'DSCHN', 'fr': 'MOY', 'it': 'MEDIA'};
     return m[c.lang] ?? m['en']!;
   }
 
