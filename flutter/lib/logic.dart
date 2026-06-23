@@ -212,6 +212,32 @@ class Flowers {
   static int variantsFor(String id) => variantCounts[id] ?? 1;
 }
 
+/// Pure app-blocker rules (#v23). The native AccessibilityService mirrors
+/// [shouldBlock] / [active]; keep them in sync.
+class AppBlocker {
+  /// Blocking is on only while a focus (WORK) session is actually counting down.
+  static bool active({
+    required bool enabled,
+    required bool isRunning,
+    required bool isWork,
+    required bool isFinished,
+  }) =>
+      enabled && isRunning && isWork && !isFinished;
+
+  static String encode(Set<String> pkgs) =>
+      (pkgs.toList()..sort()).where((p) => p.trim().isNotEmpty).join(',');
+
+  static Set<String> decode(String? csv) => (csv ?? '')
+      .split(',')
+      .map((p) => p.trim())
+      .where((p) => p.isNotEmpty)
+      .toSet();
+
+  static bool shouldBlock(String pkg, Set<String> blocked,
+          {required String ownPkg, String? launcherPkg}) =>
+      blocked.contains(pkg) && pkg != ownPkg && pkg != launcherPkg;
+}
+
 // ---- placeable objects (non-flower) -----------------------------------------
 
 /// Garden objects that aren't flowers. They live in the same tile map (value =

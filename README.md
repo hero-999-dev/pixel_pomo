@@ -204,6 +204,10 @@ in via `flutter_launcher_icons`. Each build publishes a permanent **`flutter-vN`
 **live wallpaper** is a native Kotlin renderer that re-draws your saved garden — textured grass, your flowers, and a
 visiting bee/butterfly/ladybug — at the framing you picked; iOS has no API and keeps Save/Share.)*
 
+**App blocker (Android, #v23):** turn it on in Settings, pick the apps that distract you, and during a focus session
+any attempt to open one is met with a full-screen **"STAY FOCUSED"** cover — get back to Pixel Pomo. Hard block (stop
+the timer to lift it). Android only; needs Accessibility + draw-over-apps permission.
+
 To make that port a single clean pass rather than a moving target, **all app logic is kept
 in pure, framework-free classes** (`PomodoroEngine`, `Labels`, `Stats*`, `Economy`,
 `Inventory`, `Flowers`) — only `MainActivity` and the drawables touch Android. We finish the
