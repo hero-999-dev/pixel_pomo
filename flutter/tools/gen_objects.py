@@ -340,10 +340,11 @@ _ROSE_RED_OL = "3A0A14"  # dark-red rim around the bloom
 _ROSE_GRN_OL = "1E5A24"  # dark-green rim around the stem + leaves
 _ROSE_REDS = set("dml")
 
-# Stem + two leaves below the bloom. Most variants put the LEFT leaf higher and the
-# RIGHT leaf lower ("left first, then right"); variant 2 is symmetric — both leaves
-# at the same height (user feedback #v22r3).
-_ROSE_STEM_OFFSET = [
+# Stem + two leaves below the bloom — a DIFFERENT arrangement per variant so the three
+# roses read apart (user feedback #v22): variant 0 = left leaf higher / right lower
+# ("left first"); variant 1 = right higher / left lower ("right first"); variant 2 =
+# symmetric (both leaves level).
+_ROSE_STEM_OFFSET = [  # left-first
     ".......SS.......",
     "....GGkSS.......",
     "...GGGkSS.......",
@@ -351,6 +352,16 @@ _ROSE_STEM_OFFSET = [
     ".......SSkGG....",
     ".......SSkGGG...",
     ".......SSkGG....",
+    ".......SS.......",
+]
+_ROSE_STEM_OFFSET_R = [  # right-first (mirror of left-first)
+    ".......SS.......",
+    ".......SSkGG....",
+    ".......SSkGGG...",
+    ".......SSkGG....",
+    "....GGkSS.......",
+    "...GGGkSS.......",
+    "....GGkSS.......",
     ".......SS.......",
 ]
 _ROSE_STEM_SYM = [
@@ -392,17 +403,18 @@ _ROSE_BLOOMS = [
         "....dmmmmdmm....",
         ".....dddddd.....",
     ],
-    [  # 2 half-open (opening bud, top petals parting) — redone #v22r3
-        ".....dddd.......",
-        "...ddmllmdd.....",
-        "..dmmlddlmmd....",
-        "..dmldmmldmd....",
-        "..dmldmmldmd....",
-        "..dmmldldmmd....",
-        "...dmmlldmd.....",
-        "...dmlllmd......",
-        "....dmmmd.......",
-        ".....ddd........",
+    [  # 2 half-open (simple bold rose) — redone #v22 per the user's guide: strong
+       # silhouette, minimal shading, no noise; light from the upper-left, a loose
+       # off-centre spiral so it reads as a rose (not a symmetric "face")
+        ".....mmmm......",
+        "...mmmmmmmm....",
+        "..mmlllmmmmm...",
+        "..mlldddmmmm...",
+        "..mldmmldmmm...",
+        "..mldmlldmmm...",
+        "..mmdmmldmm....",
+        "...mmdddmm.....",
+        "....mmmmm......",
     ],
 ]
 
@@ -425,7 +437,7 @@ def rose_variant(v):
     bloom (reds) gets a dark-red rim and the stem/leaves (greens) a dark-green rim;
     each is outlined separately then composited so the two materials read apart."""
     bloom_rows = _ROSE_BLOOMS[v]
-    stem = _ROSE_STEM_SYM if v == 2 else _ROSE_STEM_OFFSET  # one variant symmetric (#v22r3)
+    stem = (_ROSE_STEM_OFFSET, _ROSE_STEM_OFFSET_R, _ROSE_STEM_SYM)[v]  # left/right/symmetric leaves (#v22)
     bh = len(bloom_rows)
     h = bh + len(stem) - 1  # stem tucks one row under the bloom base
     bloom = blank(16, h)
