@@ -5,6 +5,36 @@ Each entry notes the **prompt** (what you asked for) and the **changes** made.
 
 ---
 
+## v22 (22v feedback) — content-based Korean font, edge-to-edge camera, rose variant-2 redo + leaves (Flutter, still 0.22.0+23)
+**Date:** 2026-06-23
+
+**Prompt (device feedback in `feedback & guides/Feedback/Version 22v Feedback/`, requirements written in the file
+names; "versiyon 22 de devam edelim" → no version bump):** three things — (a) camera/peek mode still shows a **gray
+system nav-bar strip** at the bottom; make it transparent like the live-wallpaper preview; (b) the **rose** middle +
+right variants are good but the **leftmost (half-open) variant didn't work** — redo it, and make the stem leaves
+consistent (**left-first**, with **one variant symmetric**); (c) **Korean still looks mismatched** vs the other
+languages. Re-clobber `flutter-v22` with a fresh local Android APK.
+
+**Changes (all `flutter/`):**
+- **Korean font — content-based (`pixel.dart`):** `pixelStyle` now chooses the family by the **string's content**
+  (`hasHangul`), not the locale. A Hangul-bearing string uses **Galmuri11** as its primary face (its own metrics →
+  aligned baseline, natural size); everything else — English, numbers, ON/OFF, even inside the Korean UI — stays
+  **Press Start 2P**, with no per-language size scale. Per the user's choice (*Latin = Press Start, Hangul = Galmuri*).
+  This supersedes the v22-polish "Galmuri-primary-×1.15-everywhere", which made the whole Korean UI bigger and drew
+  Latin in Galmuri (the "uyumsuz" complaint). Every `Text`/`TextSpan` now passes `text:` so the family is picked
+  correctly — e.g. the language list shows "English" in Press Start and "한국어" in Galmuri.
+- **Edge-to-edge camera (`main.dart`):** `main()` sets `SystemUiMode.edgeToEdge`, so in camera/peek mode (which
+  already made the bars transparent) the garden actually paints **behind** the status + nav bars — the leftover gray
+  nav-bar strip is gone and it matches the live-wallpaper preview.
+- **Rose variant 2 redo + per-variant leaves (`gen_objects.py`):** the blobby **half-open** rose (variant 2) was
+  redrawn as a clean opening bud (the full bloom & bud variants were liked, kept). Stems are now **per-variant**:
+  the bloom & bud use a **left-first** leaf layout (left leaf higher, right lower), the half-open uses a **symmetric**
+  layout (both leaves level). Regenerated `flower_gul_0..2.png` + `flower_gul.png`.
+- **Tests: 65** (+5 `pixel_font_test.dart`: `hasHangul`; Latin→Press Start; Hangul→Galmuri; no-text default; no size
+  bump). `flutter analyze` clean; `flutter test` green; release APK builds locally.
+- **Delivery:** Android APK built locally and uploaded to **`flutter-v22`** (no iOS — macOS minutes still out).
+  Version unchanged at **0.22.0+23**.
+
 ## v22 polish — Korean primary-Galmuri, full-bleed camera, wallpaper critter scale, rose 3-variant remake (Flutter, still 0.22.0+23)
 **Date:** 2026-06-23
 

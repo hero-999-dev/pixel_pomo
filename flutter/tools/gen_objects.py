@@ -320,8 +320,9 @@ def flower_png_grid(petal_hex, center_hex, chars):
 # Three rose models in ONE cozy APICO/Littlewood style, derived from the user's
 # 4-rose reference and rebuilt as clean pixel art: a strong dark rim, a 3-tone red
 # ramp (dark crease / mid body / light highlight) placed to follow the reference's
-# petal shading, and the SAME green stem + two leaves on all three so they read as
-# one species. Only the bloom differs (full bloom / bud / half-open) so a row of
+# petal shading, plus a green stem + two leaves so they read as one species. The
+# bloom differs (full / bud / half-open) AND the leaves differ (left-first; variant
+# 2 symmetric — #v22r3) so a row of
 # roses looks varied, not cloned. Modular: the bloom (reds) and the plant (greens)
 # are outlined SEPARATELY (dark-red rim vs dark-green rim, like the reference) then
 # composited; the same pipeline carries over when the other flowers get this look.
@@ -339,16 +340,27 @@ _ROSE_RED_OL = "3A0A14"  # dark-red rim around the bloom
 _ROSE_GRN_OL = "1E5A24"  # dark-green rim around the stem + leaves
 _ROSE_REDS = set("dml")
 
-# Shared stem + two leaves (rows below every bloom), identical across variants so
-# the three roses clearly belong to one plant.
-_ROSE_STEM = [
+# Stem + two leaves below the bloom. Most variants put the LEFT leaf higher and the
+# RIGHT leaf lower ("left first, then right"); variant 2 is symmetric — both leaves
+# at the same height (user feedback #v22r3).
+_ROSE_STEM_OFFSET = [
     ".......SS.......",
-    ".....GGkSS......",
-    "....GGkGGS......",
-    ".....GGkSS......",
+    "....GGkSS.......",
+    "...GGGkSS.......",
+    "....GGkSS.......",
     ".......SSkGG....",
-    ".......SSGGkGG..",
+    ".......SSkGGG...",
     ".......SSkGG....",
+    ".......SS.......",
+]
+_ROSE_STEM_SYM = [
+    ".......SS.......",
+    ".......SS.......",
+    "....GGkSSkGG....",
+    "...GGGkSSkGGG...",
+    "....GGkSSkGG....",
+    ".......SS.......",
+    ".......SS.......",
     ".......SS.......",
 ]
 
@@ -380,17 +392,17 @@ _ROSE_BLOOMS = [
         "....dmmmmdmm....",
         ".....dddddd.....",
     ],
-    [  # 2 half-open (angled, opening)
-        ".....mddm.......",
-        "...mddldddm.....",
-        "...dmdllmmmmm...",
-        "...dmdmmdddmd...",
-        "..mmmmdmmlmdm...",
-        "..dmmmdlllmm....",
-        "..dmmdllllmm....",
-        "...dd.dmlmd.....",
-        "...dd.dmmmd.....",
-        ".......ddd......",
+    [  # 2 half-open (opening bud, top petals parting) — redone #v22r3
+        ".....dddd.......",
+        "...ddmllmdd.....",
+        "..dmmlddlmmd....",
+        "..dmldmmldmd....",
+        "..dmldmmldmd....",
+        "..dmmldldmmd....",
+        "...dmmlldmd.....",
+        "...dmlllmd......",
+        "....dmmmd.......",
+        ".....ddd........",
     ],
 ]
 
@@ -413,15 +425,16 @@ def rose_variant(v):
     bloom (reds) gets a dark-red rim and the stem/leaves (greens) a dark-green rim;
     each is outlined separately then composited so the two materials read apart."""
     bloom_rows = _ROSE_BLOOMS[v]
+    stem = _ROSE_STEM_SYM if v == 2 else _ROSE_STEM_OFFSET  # one variant symmetric (#v22r3)
     bh = len(bloom_rows)
-    h = bh + len(_ROSE_STEM) - 1  # stem tucks one row under the bloom base
+    h = bh + len(stem) - 1  # stem tucks one row under the bloom base
     bloom = blank(16, h)
     plant = blank(16, h)
     for r, line in enumerate(bloom_rows):
         for c in range(min(len(line), 16)):
             if line[c] in _ROSE_REDS:
                 bloom[r][c] = _ROSE_PAL[line[c]]
-    for r, line in enumerate(_ROSE_STEM):
+    for r, line in enumerate(stem):
         rr = bh - 1 + r
         for c in range(min(len(line), 16)):
             if line[c] in _ROSE_PAL and line[c] not in _ROSE_REDS:
