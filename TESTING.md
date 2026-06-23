@@ -158,6 +158,14 @@ preview). **(3)** the half-open **rose** (variant 2) was redrawn clean, and the 
 the bloom & bud and **symmetric** on the half-open. The headless `toImage` render still hangs, so the rose art / camera
 bars are eyeballed on-device.
 
+**v22 (cont. 2 — Korean dropped, French added, rose 3rd remake):** suite stays **65** (no count change;
+`pixel_font_test.dart`'s Hangul→Galmuri checks now guard the retained accent/Hangul **fallback** routing rather than a
+live `ko` locale). Korean was removed as a UI language and **French** added (`strings.dart` `fr` set + months +
+`['fr','Français']`; `AppStore.load` migrates an unknown saved language → `en`); the Galmuri font + content-based
+`pixelStyle` stay (they render accented Latin for tr/pl/de/fr). The half-open **rose** (variant 2) was redrawn
+simpler/bolder per the user's art guide, and each rose now has a **distinct leaf layout** (left-first / right-first /
+symmetric). Rose art self-verified by rendering; the French strings + language swap are device-verified by the user.
+
 **v21:** count stays **55**. The **TREND/line chart** no longer draws the highlighted (red) selected-bucket label on
 top of the fixed gray label at the **first/last** tick — the highlighted label is skipped when the selected bucket is
 an endpoint (`s != 0 && s != n-1`), so the ends keep one fixed number while every middle bucket still shows the
