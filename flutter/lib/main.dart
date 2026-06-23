@@ -28,6 +28,10 @@ final GlobalKey<ScaffoldMessengerState> messengerKey = GlobalKey<ScaffoldMesseng
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Draw behind the system bars so camera/peek mode can show the garden edge-to-
+  // edge under transparent bars — matches the live-wallpaper preview, kills the
+  // leftover gray nav-bar strip (#v22).
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   final store = AppStore();
   await store.load();
   runApp(PixelPomoApp(store));
@@ -43,7 +47,7 @@ class PixelPomoApp extends StatelessWidget {
       messengerKey.currentState
         ?..hideCurrentSnackBar()
         ..showSnackBar(SnackBar(
-          content: Text(t(store.lang, key), style: pixelStyle(store.lang, 11, const Color(0xFFFFFFFF))),
+          content: Text(t(store.lang, key), style: pixelStyle(store.lang, 11, const Color(0xFFFFFFFF), text: t(store.lang, key))),
           duration: const Duration(seconds: 2),
         ));
     };
@@ -100,7 +104,7 @@ Widget overlayScaffold(BuildContext context, AppStore s, String title, List<Widg
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const SizedBox(height: 8),
-            Center(child: Text(title, style: pixelStyle(s.lang, 20, col(th.onSurface), spacing: 2))),
+            Center(child: Text(title, style: pixelStyle(s.lang, 20, col(th.onSurface), spacing: 2, text: title))),
             const SizedBox(height: 24),
             ...children,
             const SizedBox(height: 24),
@@ -143,12 +147,12 @@ class HomeScreen extends StatelessWidget {
               context: context,
               builder: (ctx) => AlertDialog(
                 backgroundColor: col(th.panel),
-                title: Text(t(lang, 'startBreakTitle'), style: pixelStyle(lang, 12, col(th.onSurface))),
+                title: Text(t(lang, 'startBreakTitle'), style: pixelStyle(lang, 12, col(th.onSurface), text: t(lang, 'startBreakTitle'))),
                 actions: [
                   TextButton(onPressed: () { Navigator.pop(ctx); s.confirmBreak(false); },
-                      child: Text(t(lang, 'no'), style: pixelStyle(lang, 11, col(th.onSurfaceDim)))),
+                      child: Text(t(lang, 'no'), style: pixelStyle(lang, 11, col(th.onSurfaceDim), text: t(lang, 'no')))),
                   TextButton(onPressed: () { Navigator.pop(ctx); s.confirmBreak(true); },
-                      child: Text(t(lang, 'yes'), style: pixelStyle(lang, 11, col(th.accent)))),
+                      child: Text(t(lang, 'yes'), style: pixelStyle(lang, 11, col(th.accent), text: t(lang, 'yes')))),
                 ],
               ),
             );
@@ -167,12 +171,12 @@ class HomeScreen extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(modeText, style: pixelStyle(lang, 22, col(modeColor), spacing: 2).copyWith(shadows: shadows)),
+            Text(modeText, style: pixelStyle(lang, 22, col(modeColor), spacing: 2, text: modeText).copyWith(shadows: shadows)),
             const SizedBox(height: 16),
             secondaryBtn(th, lang, s.currentLabel, () => openPanel(context, s, () => LabelScreen(s)),
                 fontSize: 11, padding: const EdgeInsets.all(10)),
             const SizedBox(height: 28),
-            Text(e.formattedTime(), style: pixelStyle(lang, 48, overGarden).copyWith(shadows: shadows)),
+            Text(e.formattedTime(), style: pixelStyle(lang, 48, overGarden, text: e.formattedTime()).copyWith(shadows: shadows)),
             const SizedBox(height: 32),
             PixelProgress(
                 percent: e.progressPercent(),
@@ -192,7 +196,7 @@ class HomeScreen extends StatelessWidget {
           ],
         );
         final sessionText = Text(tf(lang, 'session', [e.session, e.totalSessions]),
-            style: pixelStyle(lang, 12, garden ? overGarden : col(th.onSurfaceDim)).copyWith(shadows: shadows));
+            style: pixelStyle(lang, 12, garden ? overGarden : col(th.onSurfaceDim), text: tf(lang, 'session', [e.session, e.totalSessions])).copyWith(shadows: shadows));
 
         return Scaffold(
           backgroundColor: col(th.bg),
@@ -294,7 +298,7 @@ class HomeScreen extends StatelessWidget {
             child: Row(children: [
               const GoldCoin(size: 28),
               const SizedBox(width: 6),
-              Text('${s.coins}', style: pixelStyle(lang, 14, coinColor).copyWith(shadows: shadows)),
+              Text('${s.coins}', style: pixelStyle(lang, 14, coinColor, text: '${s.coins}').copyWith(shadows: shadows)),
             ]),
           ),
         ),
@@ -327,7 +331,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _stepper(th, lang, t(lang, 'breakMin'), brk, 1, 120, 1, (v) => setState(() => brk = v)),
       _stepper(th, lang, t(lang, 'sessions'), sess, 1, 24, 1, (v) => setState(() => sess = v)),
       const SizedBox(height: 24),
-      Text(t(lang, 'language'), style: pixelStyle(lang, 12, col(th.onSurfaceDim))),
+      Text(t(lang, 'language'), style: pixelStyle(lang, 12, col(th.onSurfaceDim), text: t(lang, 'language'))),
       const SizedBox(height: 12),
       for (final opt in languageOptions)
         Padding(
@@ -343,7 +347,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ),
       const SizedBox(height: 24),
-      Text(t(lang, 'homeMode'), style: pixelStyle(lang, 12, col(th.onSurfaceDim))),
+      Text(t(lang, 'homeMode'), style: pixelStyle(lang, 12, col(th.onSurfaceDim), text: t(lang, 'homeMode'))),
       const SizedBox(height: 12),
       Row(
         children: [
@@ -365,7 +369,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ],
       ),
       const SizedBox(height: 24),
-      Text(t(lang, 'autoBreak'), style: pixelStyle(lang, 12, col(th.onSurfaceDim))),
+      Text(t(lang, 'autoBreak'), style: pixelStyle(lang, 12, col(th.onSurfaceDim), text: t(lang, 'autoBreak'))),
       const SizedBox(height: 12),
       Row(
         children: [
@@ -400,12 +404,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
       padding: const EdgeInsets.only(bottom: 16),
       child: Row(
         children: [
-          Expanded(child: Text(label, style: pixelStyle(lang, 11, col(th.onSurfaceDim)))),
+          Expanded(child: Text(label, style: pixelStyle(lang, 11, col(th.onSurfaceDim), text: label))),
           SizedBox(width: 52, child: secondaryBtn(th, lang, '-', () => onChange((value - step).clamp(min, max).toInt()), padding: const EdgeInsets.all(12))),
           Container(
             width: 56,
             alignment: Alignment.center,
-            child: Text('$value', style: pixelStyle(lang, 14, col(th.onSurface))),
+            child: Text('$value', style: pixelStyle(lang, 14, col(th.onSurface), text: '$value')),
           ),
           SizedBox(width: 52, child: secondaryBtn(th, lang, '+', () => onChange((value + step).clamp(min, max).toInt()), padding: const EdgeInsets.all(12))),
         ],
@@ -460,7 +464,7 @@ class _LabelScreenState extends State<LabelScreen> {
     final lang = s.lang;
     return overlayScaffold(context, s, t(lang, 'label'), [
       for (final label in s.labels) _labelRow(context, s, th, lang, label),
-      Text(t(lang, 'renameHint'), style: pixelStyle(lang, 8, col(th.onSurfaceDim))),
+      Text(t(lang, 'renameHint'), style: pixelStyle(lang, 8, col(th.onSurfaceDim), text: t(lang, 'renameHint'))),
       const SizedBox(height: 8),
       Row(
         children: [
@@ -523,7 +527,7 @@ class _LabelScreenState extends State<LabelScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: col(th.panel),
-        title: Text(t(lang, 'renameTitle'), style: pixelStyle(lang, 12, col(th.onSurface))),
+        title: Text(t(lang, 'renameTitle'), style: pixelStyle(lang, 12, col(th.onSurface), text: t(lang, 'renameTitle'))),
         content: TextField(
           controller: ctrl,
           autofocus: true,
@@ -533,13 +537,13 @@ class _LabelScreenState extends State<LabelScreen> {
           decoration: InputDecoration(counterText: '', filled: true, fillColor: col(th.bg)),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(t(lang, 'no'), style: pixelStyle(lang, 11, col(th.onSurfaceDim)))),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(t(lang, 'no'), style: pixelStyle(lang, 11, col(th.onSurfaceDim), text: t(lang, 'no')))),
           TextButton(
               onPressed: () {
                 s.renameLabel(label, ctrl.text);
                 Navigator.pop(ctx);
               },
-              child: Text(t(lang, 'save'), style: pixelStyle(lang, 11, col(th.accent)))),
+              child: Text(t(lang, 'save'), style: pixelStyle(lang, 11, col(th.accent), text: t(lang, 'save')))),
         ],
       ),
     );
@@ -551,7 +555,7 @@ class _LabelScreenState extends State<LabelScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: col(th.panel),
-        title: Text(t(s.lang, 'pickColor'), style: pixelStyle(s.lang, 12, col(th.onSurface))),
+        title: Text(t(s.lang, 'pickColor'), style: pixelStyle(s.lang, 12, col(th.onSurface), text: t(s.lang, 'pickColor'))),
         content: Wrap(
           spacing: 10,
           runSpacing: 10,
@@ -573,16 +577,16 @@ class _LabelScreenState extends State<LabelScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: col(th.panel),
-        title: Text(t(s.lang, 'removeTitle'), style: pixelStyle(s.lang, 12, col(th.onSurface))),
-        content: Text(tf(s.lang, 'removeMsg', [label]), style: pixelStyle(s.lang, 10, col(th.onSurfaceDim))),
+        title: Text(t(s.lang, 'removeTitle'), style: pixelStyle(s.lang, 12, col(th.onSurface), text: t(s.lang, 'removeTitle'))),
+        content: Text(tf(s.lang, 'removeMsg', [label]), style: pixelStyle(s.lang, 10, col(th.onSurfaceDim), text: tf(s.lang, 'removeMsg', [label]))),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(t(s.lang, 'no'), style: pixelStyle(s.lang, 11, col(th.onSurfaceDim)))),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(t(s.lang, 'no'), style: pixelStyle(s.lang, 11, col(th.onSurfaceDim), text: t(s.lang, 'no')))),
           TextButton(
               onPressed: () {
                 s.deleteLabel(label);
                 Navigator.pop(ctx);
               },
-              child: Text(t(s.lang, 'yes'), style: pixelStyle(s.lang, 11, col(th.accent)))),
+              child: Text(t(s.lang, 'yes'), style: pixelStyle(s.lang, 11, col(th.accent), text: t(s.lang, 'yes')))),
         ],
       ),
     );
@@ -637,9 +641,9 @@ class StatsScreen extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 10),
           child: Row(
             children: [
-              Text(caption, style: pixelStyle(lang, 11, col(th.onSurfaceDim))),
+              Text(caption, style: pixelStyle(lang, 11, col(th.onSurfaceDim), text: caption)),
               const Spacer(),
-              Text(StatsAggregator.formatMinutes(minutes), style: pixelStyle(lang, 13, col(th.onSurface))),
+              Text(StatsAggregator.formatMinutes(minutes), style: pixelStyle(lang, 13, col(th.onSurface), text: StatsAggregator.formatMinutes(minutes))),
             ],
           ),
         );
@@ -664,7 +668,7 @@ class StatsScreen extends StatelessWidget {
                 key: const Key('statPrev'), fontSize: 13, padding: const EdgeInsets.all(10)),
           ),
           Expanded(child: Center(child: Text(_periodLabel(s, lang),
-              style: pixelStyle(lang, 11, col(th.onSurface))))),
+              style: pixelStyle(lang, 11, col(th.onSurface), text: _periodLabel(s, lang))))),
           SizedBox(
             width: 52,
             child: PixelButton(
@@ -704,10 +708,10 @@ class StatsScreen extends StatelessWidget {
         statRow(t(lang, 'all'), totals.all),
       ],
       const SizedBox(height: 16),
-      Text(t(lang, 'byLabel'), style: pixelStyle(lang, 11, col(th.onSurfaceDim))),
+      Text(t(lang, 'byLabel'), style: pixelStyle(lang, 11, col(th.onSurfaceDim), text: t(lang, 'byLabel'))),
       const SizedBox(height: 12),
       if (byLabel.isEmpty)
-        Text(t(lang, 'chartNoData'), style: pixelStyle(lang, 9, col(th.onSurfaceDim)))
+        Text(t(lang, 'chartNoData'), style: pixelStyle(lang, 9, col(th.onSurfaceDim), text: t(lang, 'chartNoData')))
       else
         for (final e in byLabel)
           Padding(
@@ -716,9 +720,9 @@ class StatsScreen extends StatelessWidget {
               children: [
                 Swatch(color: s.labelColorOf(e.key), border: th.onSurfaceDim, size: 16),
                 const SizedBox(width: 10),
-                Text(e.key, style: pixelStyle(lang, 11, col(th.onSurface))),
+                Text(e.key, style: pixelStyle(lang, 11, col(th.onSurface), text: e.key)),
                 const Spacer(),
-                Text(StatsAggregator.formatMinutes(e.value), style: pixelStyle(lang, 11, col(th.onSurfaceDim))),
+                Text(StatsAggregator.formatMinutes(e.value), style: pixelStyle(lang, 11, col(th.onSurfaceDim), text: StatsAggregator.formatMinutes(e.value))),
               ],
             ),
           ),
@@ -786,7 +790,7 @@ class _ShopScreenState extends State<ShopScreen> {
       ] else
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 40),
-          child: Center(child: Text(t(lang, 'comingSoon'), style: pixelStyle(lang, 12, col(th.onSurfaceDim)))),
+          child: Center(child: Text(t(lang, 'comingSoon'), style: pixelStyle(lang, 12, col(th.onSurfaceDim), text: t(lang, 'comingSoon')))),
         ),
     ]);
   }
@@ -802,9 +806,9 @@ class _ShopScreenState extends State<ShopScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(f.nameIn(lang), style: pixelStyle(lang, 12, col(th.onSurface))),
+                Text(f.nameIn(lang), style: pixelStyle(lang, 12, col(th.onSurface), text: f.nameIn(lang))),
                 const SizedBox(height: 6),
-                Text(tf(lang, 'owned', [s.owned[f.id] ?? 0]), style: pixelStyle(lang, 8, col(th.onSurfaceDim))),
+                Text(tf(lang, 'owned', [s.owned[f.id] ?? 0]), style: pixelStyle(lang, 8, col(th.onSurfaceDim), text: tf(lang, 'owned', [s.owned[f.id] ?? 0]))),
               ],
             ),
           ),
@@ -831,9 +835,9 @@ class _ShopScreenState extends State<ShopScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(t(lang, id), style: pixelStyle(lang, 12, col(th.onSurface))),
+                Text(t(lang, id), style: pixelStyle(lang, 12, col(th.onSurface), text: t(lang, id))),
                 const SizedBox(height: 6),
-                Text(tf(lang, 'owned', [s.owned[id] ?? 0]), style: pixelStyle(lang, 8, col(th.onSurfaceDim))),
+                Text(tf(lang, 'owned', [s.owned[id] ?? 0]), style: pixelStyle(lang, 8, col(th.onSurfaceDim), text: tf(lang, 'owned', [s.owned[id] ?? 0]))),
               ],
             ),
           ),
@@ -892,14 +896,14 @@ class _GardenScreenState extends State<GardenScreen> {
       context: context,
       builder: (ctx) => SimpleDialog(
         backgroundColor: col(th.panel),
-        title: Text(t(lang, 'camera'), style: pixelStyle(lang, 12, col(th.onSurface))),
+        title: Text(t(lang, 'camera'), style: pixelStyle(lang, 12, col(th.onSurface), text: t(lang, 'camera'))),
         children: [
           SimpleDialogOption(
             onPressed: () async {
               await sharePng(bytes, 'pixel_pomo_garden.png');
               if (ctx.mounted) Navigator.pop(ctx);
             },
-            child: Text(t(lang, 'share'), style: pixelStyle(lang, 11, col(th.onSurface))),
+            child: Text(t(lang, 'share'), style: pixelStyle(lang, 11, col(th.onSurface), text: t(lang, 'share'))),
           ),
           // set the live wallpaper at the framed angle, below save/share (#v16, Android only)
           if (Platform.isAndroid)
@@ -908,11 +912,11 @@ class _GardenScreenState extends State<GardenScreen> {
                 if (ctx.mounted) Navigator.pop(ctx);
                 await _setLiveWallpaper();
               },
-              child: Text(t(lang, 'setLiveWallpaper'), style: pixelStyle(lang, 11, col(th.onSurface))),
+              child: Text(t(lang, 'setLiveWallpaper'), style: pixelStyle(lang, 11, col(th.onSurface), text: t(lang, 'setLiveWallpaper'))),
             ),
           SimpleDialogOption(
             onPressed: () => Navigator.pop(ctx),
-            child: Text(t(lang, 'cancel'), style: pixelStyle(lang, 11, col(th.accent))),
+            child: Text(t(lang, 'cancel'), style: pixelStyle(lang, 11, col(th.accent), text: t(lang, 'cancel'))),
           ),
         ],
       ),
@@ -964,7 +968,7 @@ class _GardenScreenState extends State<GardenScreen> {
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
                 child: Row(
                   children: [
-                    Text(t(lang, 'garden'), style: pixelStyle(lang, 20, col(th.onSurface), spacing: 2)),
+                    Text(t(lang, 'garden'), style: pixelStyle(lang, 20, col(th.onSurface), spacing: 2, text: t(lang, 'garden'))),
                     const Spacer(),
                     PixelButton(
                       text: tf(lang, 'upgrade', [cost]),
@@ -978,7 +982,7 @@ class _GardenScreenState extends State<GardenScreen> {
             if (!_hudHidden)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Text(t(lang, 'gardenHelp'), style: pixelStyle(lang, 8, col(th.onSurfaceDim))),
+                child: Text(t(lang, 'gardenHelp'), style: pixelStyle(lang, 8, col(th.onSurfaceDim), text: t(lang, 'gardenHelp'))),
               ),
             if (!_hudHidden) const SizedBox(height: 8),
             // the live 2.5D scene fills the remaining space
@@ -987,7 +991,7 @@ class _GardenScreenState extends State<GardenScreen> {
                       future: gardenSprites(),
                       builder: (context, snap) {
                         if (!snap.hasData) {
-                          return Center(child: Text('...', style: pixelStyle(lang, 16, col(th.onSurfaceDim))));
+                          return Center(child: Text('...', style: pixelStyle(lang, 16, col(th.onSurfaceDim), text: '...')));
                         }
                         return GardenView(
                           garden: s.garden,
@@ -1081,7 +1085,7 @@ class _GardenScreenState extends State<GardenScreen> {
       context: context,
       builder: (ctx) => SimpleDialog(
         backgroundColor: col(th.panel),
-        title: Text(t(lang, current == null ? 'pickFlower' : 'garden'), style: pixelStyle(lang, 12, col(th.onSurface))),
+        title: Text(t(lang, current == null ? 'pickFlower' : 'garden'), style: pixelStyle(lang, 12, col(th.onSurface), text: t(lang, current == null ? 'pickFlower' : 'garden'))),
         children: [
           if (current != null)
             SimpleDialogOption(
@@ -1089,7 +1093,7 @@ class _GardenScreenState extends State<GardenScreen> {
                 s.clearTile(index);
                 Navigator.pop(ctx);
               },
-              child: Text(t(lang, 'clearTile'), style: pixelStyle(lang, 11, col(th.accent))),
+              child: Text(t(lang, 'clearTile'), style: pixelStyle(lang, 11, col(th.accent), text: t(lang, 'clearTile'))),
             ),
           for (final f in flowers)
             _placeOption(ctx, s, th, lang, index, f.id, FlowerSprite(flower: f, size: 24), f.nameIn(lang)),
@@ -1111,7 +1115,7 @@ class _GardenScreenState extends State<GardenScreen> {
         children: [
           icon,
           const SizedBox(width: 10),
-          Text('$name  x${s.availableOf(id)}', style: pixelStyle(lang, 11, col(th.onSurface))),
+          Text('$name  x${s.availableOf(id)}', style: pixelStyle(lang, 11, col(th.onSurface), text: '$name  x${s.availableOf(id)}')),
         ],
       ),
     );

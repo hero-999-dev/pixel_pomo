@@ -127,7 +127,7 @@ The Dart port carries its own tests, gating the **`build-flutter.yml`** macOS pi
 **3.44.2 / Dart 3.12.2** and green in CI.
 
 ```bash
-cd flutter && flutter analyze && flutter test   # 55 tests
+cd flutter && flutter analyze && flutter test   # 65 tests
 ```
 
 **v22:** count rises to **60** (+5 pure tests for the flower **variant system**: `flowerBase` strips the `~N` suffix;
@@ -146,6 +146,17 @@ full-bleed** — the garden fills the screen edge-to-edge with CAPTURE/CANCEL fl
 system-bar strip). **Wallpaper critters scale with zoom** (`max(10, t*0.42)`, dropped the 30px cap; Dart + Kotlin
 parity). **Rose remade to 3 reference-matched variants** (bud / spiral / open); `flower_gul_3.png` removed. All four
 are visual/native → **device-verified**; the 60-test gate guards the variant logic.
+
+**v22 (cont. — "22v" device feedback, still 0.22.0+23 — re-clobbers `flutter-v22`):** count rises to **65** (+5
+`pixel_font_test.dart` tests for the **content-based font**: `hasHangul` flags Korean glyphs only; a Hangul string →
+Galmuri11 primary, a Latin string → Press Start 2P primary even in the `ko` locale; no-text default → Latin primary;
+no per-language size scale). Three on-device items, all device-verified: **(1)** Korean is no longer
+Galmuri-everywhere-×1.15 — the font is chosen **per string by content** (Latin stays Press Start, only Hangul uses
+Galmuri) so the Korean UI matches the other languages. **(2)** camera mode runs in `SystemUiMode.edgeToEdge`, so the
+garden paints behind transparent status+nav bars — the leftover gray strip is gone (matches the live-wallpaper
+preview). **(3)** the half-open **rose** (variant 2) was redrawn clean, and the stem leaves are now **left-first** on
+the bloom & bud and **symmetric** on the half-open. The headless `toImage` render still hangs, so the rose art / camera
+bars are eyeballed on-device.
 
 **v21:** count stays **55**. The **TREND/line chart** no longer draws the highlighted (red) selected-bucket label on
 top of the fixed gray label at the **first/last** tick — the highlighted label is skipped when the selected bucket is
