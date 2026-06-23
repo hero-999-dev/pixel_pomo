@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'app_blocker.dart';
 import 'camera.dart';
 import 'engine/garden_engine.dart';
 import 'engine/garden_view.dart';
@@ -390,6 +391,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ],
         ],
       ),
+      // App blocker (Android only — no blocking API on iOS) (#v23)
+      if (Platform.isAndroid) ...[
+        const SizedBox(height: 24),
+        Text(t(lang, 'appBlocker'), style: pixelStyle(lang, 12, col(th.onSurfaceDim), text: t(lang, 'appBlocker'))),
+        const SizedBox(height: 12),
+        Row(children: [
+          for (final on in const [true, false]) ...[
+            if (!on) const SizedBox(width: 12),
+            Expanded(
+              child: PixelButton(
+                text: on ? 'ON' : 'OFF',
+                fill: s.appBlockerEnabled == on ? th.accent : th.panel,
+                border: s.appBlockerEnabled == on ? th.onSurface : th.onSurfaceDim,
+                textColor: s.appBlockerEnabled == on ? th.onAccent : th.onSurface,
+                shadow: th.shadow,
+                lang: lang,
+                fontSize: 11,
+                onTap: () => _toggleBlocker(context, s, on),
+              ),
+            ),
+          ],
+        ]),
+        const SizedBox(height: 12),
+        secondaryBtn(th, lang, t(lang, 'blockedApps'),
+            () => openPanel(context, s, () => AppPickerScreen(s)), fontSize: 11),
+      ],
       const SizedBox(height: 16),
       primaryBtn(th, lang, t(lang, 'save'), () {
         s.saveSettings(work, brk, sess);
@@ -397,6 +424,49 @@ class _SettingsScreenState extends State<SettingsScreen> {
         Navigator.pop(context);
       }, padding: const EdgeInsets.all(16)),
     ]);
+  }
+
+  /// Flip the app-blocker; turning it ON first checks the Accessibility + overlay
+  /// permissions and, if missing, opens a dialog with buttons to grant them (#v23).
+  Future<void> _toggleBlocker(BuildContext context, AppStore s, bool on) async {
+    if (!on) {
+      s.setAppBlocker(false);
+      return;
+    }
+    if (await hasAccessibility() && await hasOverlay()) {
+      s.setAppBlocker(true);
+      return;
+    }
+    if (!context.mounted) return;
+    final th = s.theme;
+    final lang = s.lang;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: col(th.panel),
+        title: Text(t(lang, 'blockerPermTitle'),
+            style: pixelStyle(lang, 12, col(th.onSurface), text: t(lang, 'blockerPermTitle'))),
+        content: Text(t(lang, 'blockerPermBody'),
+            style: pixelStyle(lang, 10, col(th.onSurfaceDim), text: t(lang, 'blockerPermBody'))),
+        actions: [
+          TextButton(
+              onPressed: openAccessibilitySettings,
+              child: Text(t(lang, 'grantAccess'),
+                  style: pixelStyle(lang, 10, col(th.accent), text: t(lang, 'grantAccess')))),
+          TextButton(
+              onPressed: openOverlaySettings,
+              child: Text(t(lang, 'grantOverlay'),
+                  style: pixelStyle(lang, 10, col(th.accent), text: t(lang, 'grantOverlay')))),
+          TextButton(
+              onPressed: () async {
+                Navigator.pop(ctx);
+                if (await hasAccessibility() && await hasOverlay()) s.setAppBlocker(true);
+              },
+              child: Text(t(lang, 'done'),
+                  style: pixelStyle(lang, 10, col(th.onSurface), text: t(lang, 'done')))),
+        ],
+      ),
+    );
   }
 
   Widget _stepper(PixelTheme th, String lang, String label, int value, int min, int max, int step, ValueChanged<int> onChange) {
@@ -416,6 +486,78 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
   }
+}
+
+// ---- app blocker: app picker (#v23) -----------------------------------------
+
+/// Lists installed (launchable) apps with a toggle each; the chosen set is what
+/// the blocker covers during a focus session. Opened from Settings → BLOCKED APPS.
+class AppPickerScreen extends StatelessWidget {
+  final AppStore s;
+  const AppPickerScreen(this.s, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final th = s.theme;
+    final lang = s.lang;
+    return overlayScaffold(context, s, t(lang, 'blockedApps'), [
+      Text(t(lang, 'pickBlocked'), style: pixelStyle(lang, 9, col(th.onSurfaceDim), text: t(lang, 'pickBlocked'))),
+      const SizedBox(height: 12),
+      FutureBuilder<List<AppInfo>>(
+        future: installedApps(),
+        builder: (context, snap) {
+          if (!snap.hasData) {
+            return Center(child: Text('...', style: pixelStyle(lang, 14, col(th.onSurfaceDim), text: '...')));
+          }
+          return Column(children: [
+            for (final a in snap.data!)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Row(children: [
+                  a.icon != null
+                      ? Image.memory(a.icon!, width: 32, height: 32, filterQuality: FilterQuality.none)
+                      : const SizedBox(width: 32, height: 32),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(a.label,
+                        style: pixelStyle(lang, 10, col(th.onSurface), text: a.label),
+                        maxLines: 1, overflow: TextOverflow.ellipsis),
+                  ),
+                  _BlockToggle(
+                    on: s.blockedApps.contains(a.package),
+                    accent: th.accent,
+                    off: th.onSurfaceDim,
+                    knob: th.onSurface,
+                    onTap: () => s.setBlocked(a.package, !s.blockedApps.contains(a.package)),
+                  ),
+                ]),
+              ),
+          ]);
+        },
+      ),
+    ]);
+  }
+}
+
+/// A hard-edged pixel on/off switch (used by the app picker).
+class _BlockToggle extends StatelessWidget {
+  final bool on;
+  final int accent, off, knob;
+  final VoidCallback onTap;
+  const _BlockToggle(
+      {required this.on, required this.accent, required this.off, required this.knob, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 44,
+          height: 24,
+          color: col(on ? accent : off),
+          alignment: on ? Alignment.centerRight : Alignment.centerLeft,
+          child: Container(width: 22, height: 24, color: col(knob)),
+        ),
+      );
 }
 
 // ---- theme picker -----------------------------------------------------------

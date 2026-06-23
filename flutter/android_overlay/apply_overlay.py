@@ -26,33 +26,61 @@ def patch_manifest():
     path = os.path.join(ANDROID, "AndroidManifest.xml")
     with open(path, "r", encoding="utf-8") as fh:
         xml = fh.read()
-    if "GardenWallpaperService" in xml:
-        print("manifest already patched")
-        return
-    service = (
-        '        <service\n'
-        '            android:name=".GardenWallpaperService"\n'
-        '            android:exported="true"\n'
-        '            android:label="Pixel Pomo Garden"\n'
-        '            android:permission="android.permission.BIND_WALLPAPER">\n'
-        '            <intent-filter>\n'
-        '                <action android:name="android.service.wallpaper.WallpaperService" />\n'
-        '            </intent-filter>\n'
-        '            <meta-data\n'
-        '                android:name="android.service.wallpaper"\n'
-        '                android:resource="@xml/garden_wallpaper" />\n'
-        '        </service>\n'
-    )
     if "    </application>" not in xml:
         raise SystemExit("apply_overlay: could not find </application> to patch")
-    xml = xml.replace("    </application>", service + "    </application>", 1)
+    orig = xml
+
+    # --- live wallpaper service (#v15) ---
+    if "GardenWallpaperService" not in xml:
+        service = (
+            '        <service\n'
+            '            android:name=".GardenWallpaperService"\n'
+            '            android:exported="true"\n'
+            '            android:label="Pixel Pomo Garden"\n'
+            '            android:permission="android.permission.BIND_WALLPAPER">\n'
+            '            <intent-filter>\n'
+            '                <action android:name="android.service.wallpaper.WallpaperService" />\n'
+            '            </intent-filter>\n'
+            '            <meta-data\n'
+            '                android:name="android.service.wallpaper"\n'
+            '                android:resource="@xml/garden_wallpaper" />\n'
+            '        </service>\n'
+        )
+        xml = xml.replace("    </application>", service + "    </application>", 1)
     feature = ('    <uses-feature android:name="android.software.live_wallpaper" '
                'android:required="false" />\n')
     if "android.software.live_wallpaper" not in xml:
         xml = xml.replace("    <application", feature + "    <application", 1)
-    with open(path, "w", encoding="utf-8") as fh:
-        fh.write(xml)
-    print("patched manifest: wallpaper service + live_wallpaper feature")
+
+    # --- app blocker accessibility service + permissions (#v23) ---
+    if "AppBlockerService" not in xml:
+        svc = (
+            '        <service\n'
+            '            android:name=".AppBlockerService"\n'
+            '            android:exported="false"\n'
+            '            android:label="Pixel Pomo App Blocker"\n'
+            '            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">\n'
+            '            <intent-filter>\n'
+            '                <action android:name="android.accessibilityservice.AccessibilityService" />\n'
+            '            </intent-filter>\n'
+            '            <meta-data\n'
+            '                android:name="android.accessibilityservice"\n'
+            '                android:resource="@xml/app_blocker_accessibility" />\n'
+            '        </service>\n'
+        )
+        xml = xml.replace("    </application>", svc + "    </application>", 1)
+    for perm in ("android.permission.SYSTEM_ALERT_WINDOW", "android.permission.QUERY_ALL_PACKAGES"):
+        if f'"{perm}"' not in xml:
+            xml = xml.replace(
+                "    <application",
+                f'    <uses-permission android:name="{perm}" />\n    <application', 1)
+
+    if xml != orig:
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(xml)
+        print("patched manifest: wallpaper + app blocker")
+    else:
+        print("manifest already patched")
 
 
 def main():
