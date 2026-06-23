@@ -198,8 +198,8 @@ docked at the bottom. The app **themes its system bars** with **no white tap rip
 history navigator**, bar tops in **minutes**, a full-label right-aligned **pie**, and a **TREND** line — DAILY
 fills up **hour by hour**, other periods show per-bucket totals with **CURRENT / AVERAGE / BEST**.
 Text is the pixel **Press Start 2P** font; accented letters fall back to a bundled pixel font so every language stays
-crisp; each planted flower picks one of several **style variants** at random (the **rose** ships 3 hand-drawn models,
-each with its own leaf layout); the icon is baked
+crisp; each planted flower can have a few **style variants** picked at random — the **rose, tulip and camellia** each
+ship **2 hand-drawn models** so a bed of them looks varied (more flowers get the treatment over time); the icon is baked
 in via `flutter_launcher_icons`. Each build publishes a permanent **`flutter-vN`** GitHub release. *(The Android
 **live wallpaper** is a native Kotlin renderer that re-draws your saved garden — textured grass, your flowers, and a
 visiting bee/butterfly/ladybug — at the framing you picked; iOS has no API and keeps Save/Share.)*

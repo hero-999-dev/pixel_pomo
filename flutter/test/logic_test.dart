@@ -438,8 +438,10 @@ void main() {
       expect(Placeables.flowerBase('papatya'), 'papatya');
     });
 
-    test('variantsFor: rose has 3, others default to 1', () {
-      expect(Flowers.variantsFor('gul'), 3);
+    test('variantsFor: restyled flowers have 2 models, others default to 1', () {
+      expect(Flowers.variantsFor('gul'), 2);
+      expect(Flowers.variantsFor('lale'), 2);
+      expect(Flowers.variantsFor('kamelya'), 2);
       expect(Flowers.variantsFor('papatya'), 1);
       expect(Flowers.variantsFor('unknown'), 1);
     });
