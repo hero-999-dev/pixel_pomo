@@ -5,6 +5,40 @@ Each entry notes the **prompt** (what you asked for) and the **changes** made.
 
 ---
 
+## v23 — App Blocker (Android): block distracting apps during focus sessions (Flutter, 0.23.0+24)
+**Date:** 2026-06-23
+
+**Prompt:** build the **app blocker** (deferred from v22). Settings gets an APP BLOCKER on/off toggle that asks for
+permission when enabled, plus a "BLOCKED APPS" entry that opens a new screen to pick apps. Designed via brainstorming →
+`docs/superpowers/specs/2026-06-23-v23-app-blocker-design.md` + `docs/superpowers/plans/2026-06-23-v23-app-blocker.md`.
+
+**Decisions (brainstorming):** block only during a running **WORK/focus session** (gated by the toggle); a **full-screen
+overlay** ("STAY FOCUSED · BACK TO PIXEL POMO") covers a blocked app; **hard block** (no bypass — stop/RESET the timer
+to unblock); pick apps from the **installed-apps list**; detection via an **Accessibility service**. Android-only (iOS
+has no app-blocking API).
+
+**Changes (`flutter/`):**
+- **Pure rules (`logic.dart` `AppBlocker`):** `active(enabled,isRunning,isWork,isFinished)`, blocked-apps csv
+  `encode`/`decode`, `shouldBlock(pkg, …, ownPkg, launcherPkg)` (never blocks our app or the launcher). Unit-tested.
+- **State (`store.dart`):** `appBlockerEnabled` + `blockedApps` (persisted); `blockerActive` getter; `setAppBlocker` /
+  `setBlocked`; `_publishBlocker()` writes `blocker_active` / `block_until` (wall-clock session end) / `blocker_title` /
+  `blocker_button` to SharedPreferences on every session transition — that prefs write IS the cross-process IPC to the
+  native service (no channel push for state).
+- **`app_blocker.dart`:** `MethodChannel('pixel_pomo/blocker')` — `installedApps()` + the Accessibility/overlay
+  permission checks & openers (all try/caught → safe on iOS / host tests).
+- **Settings + picker (`main.dart`):** Android-only APP BLOCKER ON/OFF (permission dialog on enable) + a BLOCKED APPS
+  button → new `AppPickerScreen` (installed apps, each with a pixel on/off toggle).
+- **Strings:** app-blocker copy added in all 6 languages.
+- **Native (`android_overlay/`):** `AppBlockerService.kt` (AccessibilityService: foreground-app detect + a draw-over
+  full-screen overlay with the focus message + back button), `BlockerData.kt` (reads the published prefs; mirrors the
+  Dart rules), `MainActivity.kt` extended with the blocker channel (installed apps via `queryIntentActivities`,
+  permission checks/openers), `res/xml/app_blocker_accessibility.xml`. `apply_overlay.py` now also copies these +
+  **idempotently patches the manifest** (the `<service BIND_ACCESSIBILITY_SERVICE>` + `SYSTEM_ALERT_WINDOW` /
+  `QUERY_ALL_PACKAGES`) — its old wallpaper-only early-return was removed so it patches both.
+- **Tests: 72** (+7: `AppBlocker` rules/codec, the channel wrapper, the store integration). analyze clean; release APK builds.
+- **Delivery:** version **0.23.0+24**; local Android APK → new **`flutter-v23`** release (no iOS — macOS minutes out).
+  The Accessibility service / overlay / app list / permission grants are **device-verified by the user**.
+
 ## v22 (cont.) — rose → 2 models, tulip + camellia added (2 models each), shop shows sprite icons (Flutter, still 0.22.0+23)
 **Date:** 2026-06-23
 
