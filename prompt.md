@@ -321,6 +321,16 @@ now Flutter-exclusive and richer** than the native grid (see below) — keep the
   variant that ran the actual `GardenView` was tried for a 1:1 match but black-screened on device — the
   Flutter→wallpaper-surface path is unsupported — so it was reverted and the native renderer improved instead.)
   iOS has no live-wallpaper API and keeps Save/Share.
+- **App blocker — native Android (`flutter/android_overlay/`, #v23):** an **Accessibility service**
+  (`AppBlockerService`) watches the foreground app and, while a focus (WORK) session runs with the blocker enabled,
+  covers any user-chosen app with a full-screen draw-over **overlay** ("STAY FOCUSED" + "BACK TO PIXEL POMO"). Hard
+  block — unblock by stopping/RESETing the timer. State (`appBlockerEnabled`, `blockedApps`, derived `blockerActive`,
+  a `block_until` wall-clock end + the overlay copy) is published to SharedPreferences by `AppStore._publishBlocker`
+  and read cross-process by `BlockerData` (mirrors pure `AppBlocker.active`/`shouldBlock` in `logic.dart`; never blocks
+  our own app or the launcher). Settings has an Android-only **APP BLOCKER ON/OFF** (asks for Accessibility + draw-over
+  permission on enable) + a **BLOCKED APPS** button → `AppPickerScreen` (installed apps via the `pixel_pomo/blocker`
+  channel, each with a toggle). `apply_overlay.py` copies the native files + idempotently patches the manifest. iOS has
+  no app-blocking API → the whole section is hidden (`Platform.isAndroid`).
 - **Varied forest:** `forestPropAt(c,r)` deterministically scatters **20 `tree_NN` + 10 `bush_NN` +
   5 `rock_NN`** (with grass gaps) over the **screen-filling forest** so the woods look natural, not one repeated tree.
 - **App-wide theming:** `systemOverlayFor(theme)` + `isLightColor` drive `SystemChrome` via an

@@ -18,7 +18,7 @@ flutter/
 │   ├── gen_objects.py    # regenerates assets/objects/*.png (no Pillow needed)
 │   ├── extract_icons.py  # one-time (Pillow): extract the 5 menu icons from the user's sheet, navy bg → transparent
 │   └── gen_icon.py       # regenerates the launcher icon PNGs
-├── android_overlay/      # native live-wallpaper files (Kotlin WallpaperService + channel + res), copied into the
+├── android_overlay/      # native files (live-wallpaper WallpaperService + app-blocker AccessibilityService + channels + res), copied into the
 │   └── ...               #   CI-regenerated android/ by apply_overlay.py (which patches AndroidManifest.xml)
 ├── lib/
 │   ├── logic.dart        # pure port + Placeables (4 roads + 3 fences; road+fence tile-layering)
@@ -117,6 +117,13 @@ CI-regenerated `android/` (manifest patched) by **`apply_overlay.py`**.
 **Settings → HOME SCREEN `CLEAN | GARDEN`** renders the full-strength **live** garden behind the timer — in garden
 mode **SESSION sits on its own line** below the top bar and the timer docks at the bottom (over-garden text is
 light for legibility). *(iOS has no live-wallpaper API and keeps Save/Share.)*
+
+**App blocker (Android, #v23):** an `AppBlockerService` (AccessibilityService) covers user-chosen apps with a
+full-screen "STAY FOCUSED" overlay during a focus session (hard block — stop the timer to lift it). State is published
+to `SharedPreferences` by `AppStore._publishBlocker` and read cross-process by `BlockerData` (mirrors the pure
+`AppBlocker` rules in `logic.dart`). Settings → **APP BLOCKER** toggle (asks for Accessibility + draw-over permission
+on enable) + **BLOCKED APPS** picker (installed apps via the `pixel_pomo/blocker` channel). `apply_overlay.py` installs
+the service + patches the manifest. iOS has no app-blocking API → hidden.
 
 **Top bar, timer & store:** the **user's hand-drawn pixel-art icons** (`tools/extract_icons.py` crops the 5 cells
 from their sheet and flood-fills the navy bg to transparent; rendered via `Image.asset`) —
