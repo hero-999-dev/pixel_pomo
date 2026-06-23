@@ -127,7 +127,7 @@ The Dart port carries its own tests, gating the **`build-flutter.yml`** macOS pi
 **3.44.2 / Dart 3.12.2** and green in CI.
 
 ```bash
-cd flutter && flutter analyze && flutter test   # 65 tests
+cd flutter && flutter analyze && flutter test   # 72 tests
 ```
 
 **v22:** count rises to **60** (+5 pure tests for the flower **variant system**: `flowerBase` strips the `~N` suffix;
@@ -172,6 +172,14 @@ asserts gul / lale / kamelya = 2 models, others = 1). The rose dropped to 2 mode
 (`_FLOWER_BLOOMS` / `_FLOWER_PALS` in `gen_objects.py`); the shop + garden place-picker now render the garden **PNG
 sprite** (`objectThumb`) instead of the char-grid `FlowerSprite`. New flower art is self-verified by rendering and
 device-verified by the user; the other 7 species still use their single char-grid sprite (rollout pending).
+
+**v23 (App Blocker, Android):** count rises to **72** (+7: `app_blocker_test.dart` — `AppBlocker.active` across engine
+states, the blocked-apps csv codec, `shouldBlock` never-blocks-own-app/launcher; `app_blocker_channel_test.dart` —
+`installedApps` mapping/sort + the permission getters/openers on a mocked `pixel_pomo/blocker` channel;
+`store_blocker_test.dart` — `appBlockerEnabled`/`blockedApps` persist and `blockerActive` flips with a running WORK
+session). The Accessibility service, the draw-over overlay, the installed-app list, and the permission grants are
+**device-verified by the user** — host `flutter test` can't exercise Android services, and the Settings section is
+`Platform.isAndroid`-gated (hidden on the test host).
 
 **v21:** count stays **55**. The **TREND/line chart** no longer draws the highlighted (red) selected-bucket label on
 top of the fixed gray label at the **first/last** tick — the highlighted label is skipped when the selected bucket is
