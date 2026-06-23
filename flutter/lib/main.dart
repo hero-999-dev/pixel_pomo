@@ -953,7 +953,8 @@ class _GardenScreenState extends State<GardenScreen> {
           : systemOverlayFor(th),
       child: Scaffold(
       backgroundColor: col(th.bg),
-      body: SafeArea(
+      body: Stack(children: [
+        SafeArea(
         top: !_hudHidden,
         bottom: !_hudHidden,
         child: Column(
@@ -1008,25 +1009,8 @@ class _GardenScreenState extends State<GardenScreen> {
                       },
                     ),
             ),
-            if (_camera)
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    // CAPTURE opens the save/share/set-live-wallpaper sheet (#v16)
-                    Expanded(
-                      child: primaryBtn(th, lang, t(lang, 'capture'), _capture,
-                          padding: const EdgeInsets.all(16)),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: secondaryBtn(th, lang, t(lang, 'cancel'), _exitCamera,
-                          padding: const EdgeInsets.all(16)),
-                    ),
-                  ],
-                ),
-              )
-            else if (!_peek)
+            // CAPTURE/CANCEL float over the full-bleed scene in camera mode (Stack below)
+            if (!_camera && !_peek)
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: Row(
@@ -1045,6 +1029,35 @@ class _GardenScreenState extends State<GardenScreen> {
               ),
           ],
         ),
+      ),
+          // camera-mode controls float over the edge-to-edge garden — no opaque
+          // band below the buttons, so the forest fills the whole screen (#v23)
+          if (_camera)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: primaryBtn(th, lang, t(lang, 'capture'), _capture,
+                            padding: const EdgeInsets.all(16)),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: secondaryBtn(th, lang, t(lang, 'cancel'), _exitCamera,
+                            padding: const EdgeInsets.all(16)),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
       ),
     );

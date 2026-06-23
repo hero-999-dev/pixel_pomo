@@ -131,12 +131,21 @@ cd flutter && flutter analyze && flutter test   # 55 tests
 ```
 
 **v22:** count rises to **60** (+5 pure tests for the flower **variant system**: `flowerBase` strips the `~N` suffix;
-`variantsFor` (rose 4 / others 1); a variant prop is still a flower and not an object; planting stores `id~v`, counts
+`variantsFor` (rose 3 / others 1); a variant prop is still a flower and not an object; planting stores `id~v`, counts
 by base id, and survives the garden codec round-trip; a variant flower still refuses to sit on a road). The
-boot/overlay smoke test loads the new `flower_gul_0..3` sprites without error. Visual/native, device-verified: **Korean**
-now keeps Press Start 2P for Latin with a Galmuri11 Hangul fallback at normal size; the **wallpaper** tiles the real
-grass texture and draws flowers at the app's `1.05×0.9` size; the **4 rose variants** render in-app + in the wallpaper.
-The headless `toImage` golden render still hangs, so the rose art + wallpaper are eyeballed on-device.
+boot/overlay smoke test loads the `flower_gul_0..2` sprites without error. Visual/native, device-verified: the
+**wallpaper** tiles the real grass texture and draws flowers at the app's `1.05×0.9` size; the **rose variants**
+render in-app + in the wallpaper. The headless `toImage` golden render still hangs, so the rose art + wallpaper are
+eyeballed on-device.
+
+**v22 polish (same release, still 0.22.0+23 — re-clobbers `flutter-v22`):** four device-feedback refinements; the
+suite stays **60** (only the `variantsFor` assertion moved 4→3). **Korean** now uses **Galmuri11 as the primary
+face** (its own metrics → aligned baseline, no "kayma") at **×1.15**, with Press Start 2P as the fallback — Latin
+languages stay byte-identical (supersedes the first v22's "Press Start primary at normal size"). **Camera mode is
+full-bleed** — the garden fills the screen edge-to-edge with CAPTURE/CANCEL floating over it (no black band /
+system-bar strip). **Wallpaper critters scale with zoom** (`max(10, t*0.42)`, dropped the 30px cap; Dart + Kotlin
+parity). **Rose remade to 3 reference-matched variants** (bud / spiral / open); `flower_gul_3.png` removed. All four
+are visual/native → **device-verified**; the 60-test gate guards the variant logic.
 
 **v21:** count stays **55**. The **TREND/line chart** no longer draws the highlighted (red) selected-bucket label on
 top of the fixed gray label at the **first/last** tick — the highlighted label is skipped when the selected bucket is
