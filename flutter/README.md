@@ -11,7 +11,7 @@ Only the **portable** parts live here and are committed:
 flutter/
 ├── pubspec.yaml          # deps (shared_preferences, share_plus, path_provider), pixel font, flutter_launcher_icons
 ├── assets/
-│   ├── fonts/            # PressStart2P (Latin) + Galmuri11 (OFL pixel Hangul, for Korean)
+│   ├── fonts/            # PressStart2P (Latin) + Galmuri11 (OFL pixel — accented-Latin + Hangul fallback)
 │   ├── objects/          # 24 sprites: grass/forest/tree/coin + 4 roads + 3 fences + 10 flowers (single-frame) + 3 critters (8-frame atlases)
 │   └── icon/             # app_icon.png + app_icon_fg.png (launcher) + 5 menu icons (icon_theme/garden/stats/settings/store), extracted from the user's art
 ├── tools/
@@ -22,7 +22,7 @@ flutter/
 │   └── ...               #   CI-regenerated android/ by apply_overlay.py (which patches AndroidManifest.xml)
 ├── lib/
 │   ├── logic.dart        # pure port + Placeables (4 roads + 3 fences; road+fence tile-layering)
-│   ├── strings.dart      # the six UI languages (en/tr/pl/de/ko/it) + month names
+│   ├── strings.dart      # the six UI languages (en/tr/pl/de/fr/it) + month names
 │   ├── store.dart        # AppStore (ChangeNotifier): state, persistence, countdown, buyItem
 │   ├── pixel.dart        # pixel widgets + chart painter + flower sprites; font by content: Hangul→Galmuri11, Latin→Press Start 2P
 │   ├── camera.dart       # garden screenshot (RepaintBoundary→PNG) + save (path_provider) + share (share_plus)
@@ -132,12 +132,13 @@ right-aligned %, and the **TREND** line is tappable (callout: bucket + **FOCUS**
 inside the plot**). **DAILY** is the day **filling up hour by hour** (cumulative from per-session timestamps);
 other periods show per-bucket totals, and the block under the chart is **CURRENT / AVERAGE / BEST**.
 
-Korean (Hangul) text uses the bundled **Galmuri11** pixel font (OFL) — chosen per-string by content — while all Latin
-text stays Press Start 2P. The launcher icon is regenerated via
+Text is **Press Start 2P**; the bundled **Galmuri11** (OFL) is the per-string fallback for accented Latin (Turkish,
+Polish, French…) and any Hangul. Korean was dropped as a UI language in v22 — see `future-plans/korean-language.md`.
+The launcher icon is regenerated via
 `flutter_launcher_icons` so the pixel tomato survives scaffolding.
 
 ## Credits
 
 - **Press Start 2P** — Latin pixel font (OFL), CodeMan38.
 - **Galmuri11** — Korean pixel font, © 2019–2025 Lee Minseo, licensed **OFL-1.1**
-  (`assets/fonts/Galmuri-OFL.txt`). Used for the Korean locale.
+  (`assets/fonts/Galmuri-OFL.txt`). Used as the accented-Latin + Hangul fallback.

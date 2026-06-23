@@ -5,6 +5,31 @@ Each entry notes the **prompt** (what you asked for) and the **changes** made.
 
 ---
 
+## v22 (cont.) — drop Korean / add French, rose variant-2 remake + 3-way leaves (Flutter, still 0.22.0+23)
+**Date:** 2026-06-23
+
+**Prompt:** (a) add a **third leaf arrangement** to the roses — "right-first" (right leaf higher, left lower); (b)
+**Korean doesn't work and I don't want to keep fighting it — remove Korean, add French**, and park Korean as a note
+under a `future-plans/` directory; (c) the **third rose (half-open) still isn't right** — redo it. The user re-sent
+the old art guide (garden-DECORATION game: one final decorative sprite per flower, NO growth stages; strong
+silhouette, thick outline, minimal shading, max 3–4 colours, no noise, 12–16px, APICO/Littlewood cozy style; goal =
+3 distinct roses, 2 already good).
+
+**Changes (all `flutter/`):**
+- **Korean → French (`strings.dart`, `pixel.dart`, `store.dart`):** removed the `ko` string set, months, language
+  option and the three chart-label `ko` entries; added a full **`fr` (Français)** translation for every key + French
+  month names + `['fr', 'Français']` in the language list. `AppStore.load` now **falls back to `en` if the saved
+  language no longer exists**, so a phone that had Korean selected isn't left half-translated. The content-based font
+  infra (`hasHangul`/`pixelStyle` + the Galmuri11 font) **stays** — it also renders accented Latin (tr/pl/de/fr) via
+  the fallback.
+- **`future-plans/korean-language.md`:** new note — why Korean was dropped, what infra remains, exact steps to restore.
+- **Rose — third variant remade + 3-way leaves (`gen_objects.py`):** variant 2 (half-open) redrawn per the guide as a
+  **simple bold open rose** (strong silhouette, mostly body + a small off-centre spiral, light from the upper-left,
+  minimal shading). Leaves are now **three distinct arrangements**, one per variant: v0 **left-first**, v1
+  **right-first** (new `_ROSE_STEM_OFFSET_R`), v2 **symmetric**. Regenerated `flower_gul_0..2.png` + `flower_gul.png`.
+- **Tests: 65** (unchanged; analyze clean; the font tests now guard the retained Hangul/accent routing). Release APK builds.
+- **Delivery:** local Android APK → `flutter-v22` (no iOS — macOS minutes still out). Version unchanged at **0.22.0+23**.
+
 ## v22 (22v feedback) — content-based Korean font, edge-to-edge camera, rose variant-2 redo + leaves (Flutter, still 0.22.0+23)
 **Date:** 2026-06-23
 

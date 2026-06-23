@@ -236,7 +236,7 @@ now Flutter-exclusive and richer** than the native grid (see below) — keep the
   + `shared_preferences` + wall-clock countdown; generic `buyItem(id)`, **no garden size cap**;
   **`homeGardenBackdrop`** + **`statPeriod`/`statOffset`** + **`autoBreak`/`awaitingBreakPrompt`**;
   **`renameLabel`** migrates color/current/past records; **`reset()` pays out spent focus minutes** on
-  cancel) · `lib/pixel.dart` (pixel widgets + chart painters; `pixelStyle` picks the font by **text content** — Hangul strings use **Galmuri11** as primary (own metrics, aligned), all else (incl. Latin in the Korean UI) stays **Press Start 2P**, no per-language scale #v22;
+  cancel) · `lib/pixel.dart` (pixel widgets + chart painters; `pixelStyle` picks the font by **text content** — any Hangul renders in **Galmuri11**, all else in **Press Start 2P** (Galmuri also covers accented Latin as a fallback); Korean was dropped as a locale in #v22 but the routing stays #v22;
   `isLightColor`/`systemOverlayFor` for system bars) · `lib/camera.dart` (`captureBoundary`; `sharePng` via
   `share_plus`; **`setLiveWallpaper`** via `MethodChannel('pixel_pomo/wallpaper')` → native picker) · `lib/main.dart` (all
   screens; custom top bar **theme/garden/stats · settings/store/coin** rendered via `Image.asset` from the
@@ -337,10 +337,10 @@ now Flutter-exclusive and richer** than the native grid (see below) — keep the
   render as 3D meshes in the garden, so their single-frame PNG is only a **shop/place thumbnail**.
   Garden flower frames get a **dark outline** (10×10 canvas) so plants separate from the grass.
 - **Fonts (content-based, #v22):** `pixelStyle(..., text:)` chooses the family by the STRING'S CONTENT, not the
-  locale. A string containing **Hangul** is drawn in **Galmuri11** (`assets/fonts/`, OFL) as its *primary* family —
-  its own metrics give an aligned baseline (no mixed-font "kayma") at a natural size. Everything else — English,
-  numbers, ON/OFF, even inside the Korean UI — stays **Press Start 2P**, so Latin looks identical in every language;
-  no per-language size scale. (`hasHangul` decides; the other font is kept as a fallback for stray glyphs.)
+  locale. Any string containing **Hangul** is drawn in **Galmuri11** (`assets/fonts/`, OFL) as its *primary* family;
+  everything else stays **Press Start 2P**. **Galmuri also serves as the fallback for accented Latin** (Turkish ğ/ş,
+  Polish ł/ś, French é/ç…) that Press Start 2P lacks. (`hasHangul` decides.) **Korean was removed as a UI language in
+  #v22** (see `future-plans/korean-language.md`) — but this routing stays, so re-adding it is easy.
 - **Flower variants (#v22):** each species can have N sprite variants; planting picks a random one and
   stores it as `<id>~<v>` (e.g. `gul~2`, `Placeables.flowerBase` strips the suffix, counted by base id).
   The **rose has 3 hand-authored variants** (`flower_gul_0..2.png` — full bloom / bud / half-open, one consistent
