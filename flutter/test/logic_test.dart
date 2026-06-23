@@ -438,16 +438,16 @@ void main() {
       expect(Placeables.flowerBase('papatya'), 'papatya');
     });
 
-    test('variantsFor: rose has 4, others default to 1', () {
-      expect(Flowers.variantsFor('gul'), 4);
+    test('variantsFor: rose has 3, others default to 1', () {
+      expect(Flowers.variantsFor('gul'), 3);
       expect(Flowers.variantsFor('papatya'), 1);
       expect(Flowers.variantsFor('unknown'), 1);
     });
 
     test('a variant-suffixed prop is still a flower, not an object', () {
-      expect(Placeables.isFlower('gul~3'), true);
-      expect(Placeables.isObject('gul~3'), false);
-      expect(Placeables.isRoad('gul~3'), false);
+      expect(Placeables.isFlower('gul~2'), true);
+      expect(Placeables.isObject('gul~2'), false);
+      expect(Placeables.isRoad('gul~2'), false);
       final (road, prop) = Placeables.split('gul~2');
       expect(road, isNull);
       expect(prop, 'gul~2');

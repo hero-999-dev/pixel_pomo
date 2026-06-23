@@ -318,7 +318,9 @@ class GardenRenderer(private val data: GardenData) {
         lastT = timeSec
         critters.step(dt, maxOf(cols, rows), flowers)
 
-        val s = (t * 0.42).coerceIn(12.0, 30.0).toFloat()
+        // scale with the tile (zoom) so the bug grows as you zoom in — was clamped
+        // to 30px, which is why it looked "always the same size" on the wallpaper (#v23)
+        val s = (t * 0.42).coerceAtLeast(10.0).toFloat()
         for (c in critters.list) {
             val bmp = data.bitmap(c.kind) ?: continue
             val amp = if (c.kind == "ladybug") 0.6 else 2.2
