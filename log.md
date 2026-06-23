@@ -5,6 +5,30 @@ Each entry notes the **prompt** (what you asked for) and the **changes** made.
 
 ---
 
+## v22 (cont.) — rose → 2 models, tulip + camellia added (2 models each), shop shows sprite icons (Flutter, still 0.22.0+23)
+**Date:** 2026-06-23
+
+**Prompt:** delete the last rose model (the half-open) so the **rose has only 2 variants**; **move on to the other
+flower types** and draw clean flowers based on the first 2 roses, **2 models each**; and **change the shop icons**.
+(The user re-sent the art guide: garden-DECORATION game, one decorative sprite per flower, NO growth stages; strong
+silhouette / thick outline / minimal shading / max 3–4 colours / no noise / 12–16px / APICO–Littlewood.)
+
+**Changes (all `flutter/`):**
+- **Rose → 2 models (`gen_objects.py`, `logic.dart`):** removed the half-open bloom; the rose is now **full bloom
+  (v0) + bud (v1)** with **left-first / right-first** leaves. `variantCounts['gul'] = 2`; deleted `flower_gul_2.png`.
+- **Modular flower system generalised + first rollout (`gen_objects.py`):** new `_FLOWER_PALS` (per-flower d/m/l +
+  centre + bloom-outline), `_FLOWER_BLOOMS`, and `flower_variant(id, v)` reusing the rose's stems / compose / outline.
+  **Tulip (`lale`) and camellia (`kamelya`) now have 2 hand-authored models each**; `variantCounts` = `{gul:2, lale:2,
+  kamelya:2}`. The remaining 7 species keep their single char-grid sprite until they're drawn.
+- **Shop / place icons → PNG sprite (`main.dart`):** the shop flower rows and the garden place-picker now show the
+  **actual garden sprite** via `objectThumb('flower_<id>', …)` instead of the old `FlowerSprite` char-grid, so the
+  market matches the garden. (`SpriteBank` / `plantTile` / native `flowerBitmap` were already variant-generic.)
+- **Tests: 65** (the variant test now checks gul/lale/kamelya = 2 models, others = 1); analyze clean; release APK builds.
+- **Delivery:** local Android APK → `flutter-v22` (no iOS — macOS minutes still out). Version unchanged at **0.22.0+23**.
+
+**Note:** tulip + camellia are a FIRST PASS in the rose style; the other 7 flowers (and any rework) follow per device
+feedback — a reference image per flower helps a lot, as it did for the rose.
+
 ## v22 (cont.) — drop Korean / add French, rose variant-2 remake + 3-way leaves (Flutter, still 0.22.0+23)
 **Date:** 2026-06-23
 

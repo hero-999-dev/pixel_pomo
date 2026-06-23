@@ -317,12 +317,12 @@ def flower_png_grid(petal_hex, center_hex, chars):
 
 
 # ---- rose variants (#v23) ----------------------------------------------------
-# Three rose models in ONE cozy APICO/Littlewood style, derived from the user's
+# Two rose models in ONE cozy APICO/Littlewood style, derived from the user's
 # 4-rose reference and rebuilt as clean pixel art: a strong dark rim, a 3-tone red
 # ramp (dark crease / mid body / light highlight) placed to follow the reference's
 # petal shading, plus a green stem + two leaves so they read as one species. The
-# bloom differs (full / bud / half-open) AND the leaves differ (left-first; variant
-# 2 symmetric — #v22r3) so a row of
+# bloom differs (full bloom / bud) AND the leaves differ (left-first vs right-first
+# — #v22) so a row of
 # roses looks varied, not cloned. Modular: the bloom (reds) and the plant (greens)
 # are outlined SEPARATELY (dark-red rim vs dark-green rim, like the reference) then
 # composited; the same pipeline carries over when the other flowers get this look.
@@ -402,19 +402,6 @@ _ROSE_BLOOMS = [
         "....dmlmldmd....",
         "....dmmmmdmm....",
         ".....dddddd.....",
-    ],
-    [  # 2 half-open (simple bold rose) — redone #v22 per the user's guide: strong
-       # silhouette, minimal shading, no noise; light from the upper-left, a loose
-       # off-centre spiral so it reads as a rose (not a symmetric "face")
-        ".....mmmm......",
-        "...mmmmmmmm....",
-        "..mmlllmmmmm...",
-        "..mlldddmmmm...",
-        "..mldmmldmmm...",
-        "..mldmlldmmm...",
-        "..mmdmmldmm....",
-        "...mmdddmm.....",
-        "....mmmmm......",
     ],
 ]
 
@@ -669,6 +656,97 @@ FENCES = {
 }
 
 
+# ---- other flowers: 2 hand-authored models each, same modular pipeline as the
+# rose (per-flower d/m/l palette + a centre C, the shared stem/leaves, bloom and
+# plant outlined separately). Rolled out flower-by-flower (#v22); ids NOT listed
+# here keep their old single char-grid sprite until they're redrawn.
+_FLOWER_PALS = {  # id: (dark, mid, light, centre, bloom-outline) — hex
+    'lale':    ('9C2350', 'E0457B', 'F58CB2', 'F7B9D2', '38091C'),
+    'kamelya': ('A21250', 'E02C6D', 'F573A2', 'FBE9F0', '37041F'),
+}
+_FLOWER_BLOOMS = {
+    'lale': [
+        [  # 0 closed tulip cup (3 petal tips + tapered body)
+            "....m.m.m......",
+            "...mmmmmmm.....",
+            "..dmmmmmmmd....",
+            "..dmlllmmmd....",
+            "..dmmmmmmmd....",
+            "...dmmmmmd.....",
+            "....dmmmd......",
+            ".....ddd.......",
+        ],
+        [  # 1 open tulip (wider top, same cup)
+            "...m.m.m.m.....",
+            "..mmmmmmmmm....",
+            "..dmmmmmmmd....",
+            "..dmlllmmmd....",
+            "..dmmmmmmmd....",
+            "...dmmmmmd.....",
+            "....dmmmd......",
+            ".....ddd.......",
+        ],
+    ],
+    'kamelya': [
+        [  # 0 layered camellia bloom (solid white centre)
+            ".....dddddd.....",
+            "...ddmmmmmmdd...",
+            "..dmmllmmllmmd..",
+            "..dmmmCCCCmmmd..",
+            "..dmmlCCCClmmd..",
+            "..dmmmCCCCmmmd..",
+            "..dmmllmmllmmd..",
+            "...ddmmmmmmdd...",
+            ".....dddddd.....",
+        ],
+        [  # 1 camellia bud (tighter, small white peek)
+            "......dddd......",
+            "....ddmmmmdd....",
+            "...dmmllllmmd...",
+            "...dmlmCCmlmd...",
+            "...dmmlCClmmd...",
+            "...dmmmllmmmd...",
+            "....dmmmmmmd....",
+            ".....dmmmmd.....",
+            "......dddd......",
+        ],
+    ],
+}
+
+
+def _flower_pal(fid):
+    d, m, l, cen, _ = _FLOWER_PALS[fid]
+    return {
+        'd': hexrgb(d) + (255,), 'm': hexrgb(m) + (255,), 'l': hexrgb(l) + (255,),
+        'C': hexrgb(cen) + (255,),
+        'S': _ROSE_PAL['S'], 'G': _ROSE_PAL['G'], 'k': _ROSE_PAL['k'],
+    }
+
+
+def flower_variant(fid, v):
+    """One model of a (non-rose) flower: a per-flower bloom over the shared stem,
+    outlined like the rose (bloom rim from the petal colour, stem rim green)."""
+    pal = _flower_pal(fid)
+    bloom_rows = _FLOWER_BLOOMS[fid][v]
+    stem = (_ROSE_STEM_OFFSET, _ROSE_STEM_OFFSET_R)[v]  # 2 models: left-first / right-first leaves
+    bh = len(bloom_rows)
+    h = bh + len(stem) - 1
+    bloom = blank(16, h)
+    plant = blank(16, h)
+    for r, line in enumerate(bloom_rows):
+        for c in range(min(len(line), 16)):
+            if line[c] in 'dmlC':
+                bloom[r][c] = pal[line[c]]
+    for r, line in enumerate(stem):
+        rr = bh - 1 + r
+        for c in range(min(len(line), 16)):
+            if line[c] in 'SGk':
+                plant[rr][c] = pal[line[c]]
+    bloom = outline(bloom, _FLOWER_PALS[fid][4])
+    plant = outline(plant, _ROSE_GRN_OL)
+    return _rose_compose([plant, bloom])
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     SCALE = 16  # base grids are 8/10/16 px tall; ×16 keeps them crisp
@@ -678,15 +756,21 @@ def main():
     # atlas would be 8x the memory for no visible gain), and fences are single
     # frames too: the garden renders them as low-poly 3D meshes, so their PNG is
     # now only a shop thumbnail.
+    # Flowers with hand-authored 2-model variants render through the modular
+    # pipeline (rose + anything in _FLOWER_BLOOMS); the rest keep their single
+    # char-grid sprite until they're redrawn. variant 0 is the shop thumbnail.
     for fid, (petal, center, chars) in FLOWERS.items():
         if fid == 'gul':
-            continue  # rose is hand-authored in 4 style variants (#v22), below
-        write_png(os.path.join(OUT, f"flower_{fid}.png"),
-                  upscale(flower_png_grid(petal, center, chars), SCALE))
-    # rose: 3 style variants (#v23); flower_gul.png (shop thumbnail + fallback) = variant 0
-    for v in range(3):
-        write_png(os.path.join(OUT, f"flower_gul_{v}.png"), upscale(rose_variant(v), SCALE))
-    write_png(os.path.join(OUT, "flower_gul.png"), upscale(rose_variant(0), SCALE))
+            for v in range(2):  # rose: 2 hand-authored models (#v22)
+                write_png(os.path.join(OUT, f"flower_gul_{v}.png"), upscale(rose_variant(v), SCALE))
+            write_png(os.path.join(OUT, "flower_gul.png"), upscale(rose_variant(0), SCALE))
+        elif fid in _FLOWER_BLOOMS:
+            for v in range(2):
+                write_png(os.path.join(OUT, f"flower_{fid}_{v}.png"), upscale(flower_variant(fid, v), SCALE))
+            write_png(os.path.join(OUT, f"flower_{fid}.png"), upscale(flower_variant(fid, 0), SCALE))
+        else:
+            write_png(os.path.join(OUT, f"flower_{fid}.png"),
+                      upscale(flower_png_grid(petal, center, chars), SCALE))
     for cid, fn in CRITTERS.items():
         write_png(os.path.join(OUT, f"{cid}.png"), upscale(make_atlas(fn()), SCALE))
     for fid, fn in FENCES.items():
@@ -708,7 +792,7 @@ def main():
         write_png(os.path.join(OUT, f"{rid}.png"), upscale(fn(), SCALE))
 
     # drop sprites that were renamed/removed over time, if present
-    for old in ("road.png", "fence.png", "bug.png", "flower_gul_3.png",
+    for old in ("road.png", "fence.png", "bug.png", "flower_gul_3.png", "flower_gul_2.png",
                 "road_asphalt.png", "road_brick.png", "fence_white.png"):
         p = os.path.join(OUT, old)
         if os.path.exists(p):
