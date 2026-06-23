@@ -26,6 +26,8 @@ class AppStore extends ChangeNotifier {
   static const _kGarden = 'garden';
   static const _kHomeMode = 'home_garden_backdrop'; // live garden behind timer (#3)
   static const _kAutoBreak = 'auto_break'; // auto-start break after focus (#4)
+  static const _kBlocker = 'app_blocker'; // app blocker on/off (#v23)
+  static const _kBlocked = 'blocked_apps'; // csv of blocked package names (#v23)
   static const _kWallpaperCam = 'wallpaper_cam'; // live-wallpaper framing (v15)
   static const _kSeeded = 'test_seeded_v5';
 
@@ -36,6 +38,8 @@ class AppStore extends ChangeNotifier {
   int sessions = 4;
   PixelTheme theme = Themes.dark;
   String lang = 'en';
+  bool appBlockerEnabled = false; // #v23
+  Set<String> blockedApps = {}; // #v23 package names blocked during focus
 
   List<String> labels = List.of(Labels.seed);
   String currentLabel = Labels.defaultLabel;
@@ -95,6 +99,8 @@ class AppStore extends ChangeNotifier {
     // a previously-selected language that no longer exists (e.g. 'ko', removed in
     // #v22) falls back to English so the UI isn't left half-translated.
     if (!languageOptions.any((o) => o[0] == lang)) lang = 'en';
+    appBlockerEnabled = _prefs.getBool(_kBlocker) ?? false;
+    blockedApps = AppBlocker.decode(_prefs.getString(_kBlocked));
 
     final storedLabels = _prefs.getString(_kLabels);
     if (storedLabels != null && storedLabels.trim().isNotEmpty) {
@@ -186,6 +192,7 @@ class AppStore extends ChangeNotifier {
     _deadline = DateTime.now().add(Duration(milliseconds: engine.timeLeftMillis));
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(milliseconds: 200), (_) => _onTick());
+    _publishBlocker();
     notifyListeners();
   }
 
@@ -201,6 +208,7 @@ class AppStore extends ChangeNotifier {
     final finished = engine.finishPhase();
     if (finished == Mode.work) _recordWork();
     messenger?.call(finished == Mode.work ? 'workDone' : 'breakDone');
+    _publishBlocker();
     if (engine.isFinished) {
       notifyListeners();
     } else if (finished == Mode.work && !autoBreak) {
@@ -218,12 +226,49 @@ class AppStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ---- app blocker (#v23) ---------------------------------------------------
+
+  bool get blockerActive => AppBlocker.active(
+        enabled: appBlockerEnabled,
+        isRunning: engine.isRunning,
+        isWork: engine.mode == Mode.work,
+        isFinished: engine.isFinished,
+      );
+
+  void setAppBlocker(bool on) {
+    appBlockerEnabled = on;
+    _prefs.setBool(_kBlocker, on);
+    _publishBlocker();
+    notifyListeners();
+  }
+
+  void setBlocked(String pkg, bool on) {
+    on ? blockedApps.add(pkg) : blockedApps.remove(pkg);
+    _prefs.setString(_kBlocked, AppBlocker.encode(blockedApps));
+    _publishBlocker();
+    notifyListeners();
+  }
+
+  /// The AccessibilityService runs in a SEPARATE PROCESS and reads these from
+  /// SharedPreferences (native sees them under the `flutter.` prefix), so writing
+  /// the prefs IS the IPC — there is no channel push for blocker state.
+  void _publishBlocker() {
+    final active = blockerActive;
+    // wall-clock end of the running WORK session (safety so a killed app can't block forever)
+    final until = active ? DateTime.now().millisecondsSinceEpoch + engine.timeLeftMillis : 0;
+    _prefs.setBool('blocker_active', active);
+    _prefs.setInt('block_until', until);
+    _prefs.setString('blocker_title', t(lang, 'stayFocused'));
+    _prefs.setString('blocker_button', t(lang, 'backToPomo'));
+  }
+
   /// Resolve the "start the break?" prompt (auto-break off path).
   void confirmBreak(bool startNow) {
     awaitingBreakPrompt = false;
     if (startNow) {
       start();
     } else {
+      _publishBlocker();
       notifyListeners();
     }
   }
@@ -231,6 +276,7 @@ class AppStore extends ChangeNotifier {
   void pause() {
     _timer?.cancel();
     engine.pause();
+    _publishBlocker();
     notifyListeners();
   }
 
@@ -249,6 +295,7 @@ class AppStore extends ChangeNotifier {
       }
     }
     engine.reset();
+    _publishBlocker();
     notifyListeners();
   }
 
