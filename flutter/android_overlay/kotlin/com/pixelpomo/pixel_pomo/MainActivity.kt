@@ -3,9 +3,14 @@ package com.pixelpomo.pixel_pomo
 import android.app.WallpaperManager
 import android.content.ComponentName
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.net.Uri
+import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.io.ByteArrayOutputStream
 
 class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -18,6 +23,65 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+        // App blocker (#v23): the installed-app list + permission checks/openers.
+        // Blocker *state* crosses to AppBlockerService via SharedPreferences, not here.
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "pixel_pomo/blocker")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "installedApps" -> result.success(installedApps())
+                    "hasAccessibility" -> result.success(isAccessibilityOn())
+                    "openAccessibilitySettings" -> {
+                        startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                        result.success(null)
+                    }
+                    "hasOverlay" -> result.success(Settings.canDrawOverlays(this))
+                    "openOverlaySettings" -> {
+                        startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            Uri.parse("package:$packageName")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                        result.success(null)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+    }
+
+    private fun isAccessibilityOn(): Boolean {
+        val flat = Settings.Secure.getString(
+            contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+        ) ?: return false
+        return flat.contains("$packageName/.AppBlockerService") ||
+            flat.contains("$packageName/com.pixelpomo.pixel_pomo.AppBlockerService")
+    }
+
+    private fun installedApps(): List<Map<String, Any?>> {
+        val pm = packageManager
+        val main = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+        return pm.queryIntentActivities(main, 0)
+            .map { it.activityInfo.packageName }
+            .filter { it != packageName }
+            .distinct()
+            .map { pkg ->
+                val label = try {
+                    pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
+                } catch (e: Exception) {
+                    pkg
+                }
+                mapOf("package" to pkg, "label" to label, "icon" to iconPng(pkg))
+            }
+    }
+
+    private fun iconPng(pkg: String): ByteArray? = try {
+        val d = packageManager.getApplicationIcon(pkg)
+        val bmp = Bitmap.createBitmap(48, 48, Bitmap.Config.ARGB_8888)
+        val c = Canvas(bmp)
+        d.setBounds(0, 0, 48, 48)
+        d.draw(c)
+        val bos = ByteArrayOutputStream()
+        bmp.compress(Bitmap.CompressFormat.PNG, 100, bos)
+        bos.toByteArray()
+    } catch (e: Exception) {
+        null
     }
 
     private fun openLiveWallpaperPicker(): Boolean {
