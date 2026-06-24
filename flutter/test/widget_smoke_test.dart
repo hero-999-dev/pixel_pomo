@@ -31,7 +31,9 @@ void main() {
     }
 
     expect(find.byKey(const Key('storeButton')), findsOneWidget); // custom store icon (#3,#4)
-    await openClose(const Key('settingsButton'), 'SAVE');
+    // Settings has no SAVE button anymore (#v23 fb): changes apply live; the
+    // screen title is what's asserted now.
+    await openClose(const Key('settingsButton'), 'SETTINGS');
 
     // home-screen mode toggle: flip to GARDEN then back to CLEAN (so later
     // pumpAndSettle calls don't hit the live-backdrop ticker).

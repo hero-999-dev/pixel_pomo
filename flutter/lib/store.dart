@@ -260,6 +260,13 @@ class AppStore extends ChangeNotifier {
     _prefs.setInt('block_until', until);
     _prefs.setString('blocker_title', t(lang, 'stayFocused'));
     _prefs.setString('blocker_button', t(lang, 'backToPomo'));
+    // The AccessibilityService draws the overlay in native views and can't read
+    // PixelTheme, so hand it the active palette to match our font/theme (#v23 fb).
+    _prefs.setInt('blocker_bg', theme.bg);
+    _prefs.setInt('blocker_ink', theme.onSurface);
+    _prefs.setInt('blocker_accent', theme.accent);
+    _prefs.setInt('blocker_on_accent', theme.onAccent);
+    _prefs.setInt('blocker_shadow', theme.shadow);
   }
 
   /// Resolve the "start the break?" prompt (auto-break off path).
@@ -333,6 +340,7 @@ class AppStore extends ChangeNotifier {
   void selectTheme(PixelTheme t) {
     theme = t;
     _prefs.setString(_kTheme, t.id);
+    _publishBlocker(); // keep the native overlay's palette in sync (#v23 fb)
     notifyListeners();
   }
 

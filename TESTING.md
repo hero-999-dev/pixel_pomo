@@ -181,6 +181,21 @@ session). The Accessibility service, the draw-over overlay, the installed-app li
 **device-verified by the user** — host `flutter test` can't exercise Android services, and the Settings section is
 `Platform.isAndroid`-gated (hidden on the test host).
 
+**v23 follow-up (device feedback):** count rises to **74** (+2). Four fixes from on-device use:
+**(1) overlay flicker** — `AppBlockerService` re-showed/hid in a loop because its own focusable overlay fired a
+`WINDOW_STATE_CHANGED` for our package that hit `else hide()`, the blocked app returned to front, and we re-showed; it
+now **ignores events from `packageName`** so the cover stays put (Kotlin, **device-verified** — outside the Dart gate).
+**(2) overlay font/theme** — the cover now draws in **Press Start 2P** (loaded from `flutter_assets`) on the **active
+PixelTheme** palette, which `_publishBlocker` hands the native service via `blocker_bg/ink/accent/on_accent/shadow`
+prefs (and `selectTheme` re-publishes); `store_blocker_test.dart` asserts the palette is published **(+1)**, the native
+render is device-verified. **(3) app-locker lag** — the picker was a `StatelessWidget` that re-ran `installedApps()`
+(native enumerate + per-icon PNG) on **every rebuild** (i.e. every toggle, via `openPanel`'s `AnimatedBuilder`), and the
+native call ran on the platform thread; it's now a `StatefulWidget` that **caches the future once** and the native
+`installedApps` runs **off the platform thread**. `app_picker_widget_test.dart` asserts a single query survives a
+toggle-driven rebuild **(+1)**. **(4) Settings SAVE removed** — the three steppers persist immediately (like the
+language / auto-break / blocker toggles already did), so the SAVE button is gone; the smoke test now asserts the
+**SETTINGS** title instead of the SAVE button.
+
 **v21:** count stays **55**. The **TREND/line chart** no longer draws the highlighted (red) selected-bucket label on
 top of the fixed gray label at the **first/last** tick — the highlighted label is skipped when the selected bucket is
 an endpoint (`s != 0 && s != n-1`), so the ends keep one fixed number while every middle bucket still shows the
