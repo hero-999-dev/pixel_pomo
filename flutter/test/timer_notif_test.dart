@@ -34,18 +34,32 @@ void main() {
     await Future<void>.delayed(Duration.zero);
     expect(calls.any((c) => c.method == 'show'), false);
 
-    // running + backgrounded → show, with a deadline in the future
+    // running focus + backgrounded → show, deadline in the future. Fresh store has
+    // auto-break OFF, so the plan is: no next phase, settle on "FOCUS DONE!".
     s.start();
     s.onBackgrounded();
     await Future<void>.delayed(Duration.zero);
-    final show = calls.firstWhere((c) => c.method == 'show');
-    final deadline = (show.arguments as Map)['deadline'] as int;
-    expect(deadline, greaterThan(DateTime.now().millisecondsSinceEpoch));
+    final a = calls.firstWhere((c) => c.method == 'show').arguments as Map;
+    expect(a['deadline'] as int, greaterThan(DateTime.now().millisecondsSinceEpoch));
+    expect(a['nextMs'], 0);
+    expect(a['doneTitle'], 'FOCUS DONE!');
 
     // cancel the session in-app → notification cleared
     calls.clear();
     s.reset();
     await Future<void>.delayed(Duration.zero);
     expect(calls.any((c) => c.method == 'cancel'), true);
+
+    // with auto-break ON the focus rolls straight into the break
+    calls.clear();
+    s.setAutoBreak(true);
+    s.start();
+    s.onBackgrounded();
+    await Future<void>.delayed(Duration.zero);
+    final b = calls.firstWhere((c) => c.method == 'show').arguments as Map;
+    expect(b['nextMs'] as int, greaterThan(0)); // break follows
+    expect(b['nextTitle'], 'BREAK');
+    expect(b['doneTitle'], 'BREAK OVER!');
+    s.pause();
   });
 }
