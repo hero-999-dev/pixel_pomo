@@ -1,11 +1,18 @@
 package com.pixelpomo.pixel_pomo
 
+import android.Manifest
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.WallpaperManager
 import android.content.ComponentName
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.net.Uri
+import android.os.Build
 import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -51,6 +58,23 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+        // Focus-timer notification (#v23 fb): an ongoing, lock-screen countdown the
+        // system ticks itself and auto-clears at its deadline. Fire-and-forget action,
+        // so a channel (like the installed-app list), not a SharedPreferences mirror.
+        ensureTimerChannel()
+        ensureNotifPermission()
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "pixel_pomo/timer")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "show" -> {
+                        val deadline = call.argument<Number>("deadline")?.toLong() ?: 0L
+                        showTimer(deadline, call.argument<String>("title") ?: "FOCUS")
+                        result.success(null)
+                    }
+                    "cancel" -> { cancelTimer(); result.success(null) }
+                    else -> result.notImplemented()
+                }
+            }
     }
 
     private fun isAccessibilityOn(): Boolean {
@@ -90,6 +114,50 @@ class MainActivity : FlutterActivity() {
     } catch (e: Exception) {
         null
     }
+
+    // ---- focus-timer notification (#v23 fb) ----------------------------------
+    private val timerNotifId = 4123
+    private val timerChannelId = "pixel_pomo_timer"
+    private fun nm() = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+
+    private fun ensureTimerChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            nm().createNotificationChannel(
+                NotificationChannel(timerChannelId, "Focus timer", NotificationManager.IMPORTANCE_LOW)
+                    .apply { setShowBadge(false) })
+        }
+    }
+
+    private fun ensureNotifPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 9001)
+        }
+    }
+
+    @Suppress("DEPRECATION") // pre-O has no channel constructor
+    private fun showTimer(deadlineMs: Long, title: String) {
+        val remaining = (deadlineMs - System.currentTimeMillis()).coerceAtLeast(0L)
+        val tap = PendingIntent.getActivity(
+            this, 0,
+            Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+            PendingIntent.FLAG_IMMUTABLE)
+        val b = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+            Notification.Builder(this, timerChannelId) else Notification.Builder(this)
+        b.setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setContentTitle(title)
+            .setOngoing(true)                               // can't be swiped while running
+            .setShowWhen(true)
+            .setWhen(deadlineMs)
+            .setUsesChronometer(true)                       // live MM:SS, ticked by the system
+            .setVisibility(Notification.VISIBILITY_PUBLIC)  // visible on the lock screen
+            .setContentIntent(tap)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) b.setChronometerCountDown(true)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) b.setTimeoutAfter(remaining) // self-clear at deadline
+        nm().notify(timerNotifId, b.build())
+    }
+
+    private fun cancelTimer() = nm().cancel(timerNotifId)
 
     private fun openLiveWallpaperPicker(): Boolean {
         val component = ComponentName(this, GardenWallpaperService::class.java)
