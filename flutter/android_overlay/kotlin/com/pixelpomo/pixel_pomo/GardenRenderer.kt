@@ -30,7 +30,6 @@ private const val KVY = 0.60
  */
 class GardenRenderer(private val data: GardenData) {
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = false }
-    private val shadow = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x33000000 }
     private val quad = Paint().apply { isAntiAlias = false } // pixel-crisp low-poly faces
 
     // Flat (side, top, rail) colours per fence id — mirrors the in-app `_fence3d`.
@@ -225,8 +224,6 @@ class GardenRenderer(private val data: GardenData) {
     }
 
     private fun billboard(canvas: Canvas, bmp: Bitmap?, x: Double, y: Double, heightTiles: Double, widthTiles: Double) {
-        canvas.drawOval((x - t * 0.35).toFloat(), (y - t * 0.12).toFloat(),
-            (x + t * 0.35).toFloat(), (y + t * 0.12).toFloat(), shadow) // contact shadow
         if (bmp == null) return
         val ph = t * heightTiles
         val pw = t * widthTiles // fixed fraction like the app (was aspect-derived → flowers looked thick #v22)
@@ -297,10 +294,6 @@ class GardenRenderer(private val data: GardenData) {
     private fun drawFencePost(canvas: Canvas, c: Int, r: Int, id: String) {
         val pal = fence3d[id] ?: return
         val (gx, gy) = gridXY(c, r)
-        val (groundX, groundY) = projGrid(gx, gy)
-        val scy = groundY + t * KVY * 0.10
-        canvas.drawOval((groundX - t * 0.17).toFloat(), (scy - t * KVY * 0.15).toFloat(),
-            (groundX + t * 0.17).toFloat(), (scy + t * KVY * 0.15).toFloat(), shadow)
         val box = boxCorners(gx, gy, 0.10, 0.66)
         for (i in 0 until 4) {
             val j = (i + 1) % 4
@@ -323,7 +316,7 @@ class GardenRenderer(private val data: GardenData) {
         val s = (t * 0.42).coerceAtLeast(10.0).toFloat()
         for (c in critters.list) {
             val bmp = data.bitmap(c.kind) ?: continue
-            val amp = if (c.kind == "ladybug") 0.6 else 2.2
+            val amp = if (c.kind.startsWith("ladybug")) 0.6 else 2.2
             val bob = sin((critters.time + c.phase) * 9) * amp
             val (sx, sy) = projGrid(c.x, c.y)
             val cellW = bmp.width / 8 // atlases are 8-wide; always frame 0 (#v20)
@@ -369,7 +362,10 @@ class GardenRenderer(private val data: GardenData) {
         private var spawnIn = 2.0 + Random.nextDouble() * 3.0
 
         fun step(dt: Double, n: Int, flowers: List<Pair<Double, Double>>) {
-            val d = dt.coerceIn(0.0, 0.05)
+            // Clamp matches the outer 0.1 cap (#v23 fb): on the wallpaper's lower
+            // frame rate a 0.05 cap throttled motion, so critters crawled vs the
+            // 60fps in-app garden. 0.1 lets them advance real-time down to ~10fps.
+            val d = dt.coerceIn(0.0, 0.1)
             time += d
             spawnIn -= d
             val half = n / 2.0 + 0.8
@@ -423,7 +419,10 @@ class GardenRenderer(private val data: GardenData) {
 
         companion object {
             // The wallpaper's creatures. Mirror of CritterSystem.kinds (garden_engine.dart).
-            val kinds = listOf("bee", "butterfly", "ladybug")
+            val kinds = listOf(
+                "bee", "butterfly", "ladybug",
+                "ladybug_yellow", "butterfly_monarch", "butterfly_blue", "bee_bumble", // #v23 fb
+            )
             const val MAX_ACTIVE = 2
             const val MAX_LIFE = 18.0
         }

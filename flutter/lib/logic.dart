@@ -295,8 +295,8 @@ class Placeables {
 class Economy {
   static const flowerCost = 10;
   static const objectCost = 5; // roads + fences
-  static const baseGardenCols = 10; // taller-than-wide so it reads as a portrait
-  static const baseGardenRows = 20; // garden once the 2.5D squash (kVy) is applied (#v18)
+  static const baseGardenCols = 4; // small start (#v23 fb — was 10×20); still the
+  static const baseGardenRows = 8; // 1:2 portrait, grows +2×+4 per upgrade (first ⊕ now 2*(4+8)+1=25)
   static int coinsFor(int minutes) => minutes <= 0 ? 0 : minutes ~/ 5;
 
   /// Whole focus minutes spent so far in a [workMin] session with [timeLeftMillis]
