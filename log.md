@@ -5,6 +5,85 @@ Each entry notes the **prompt** (what you asked for) and the **changes** made.
 
 ---
 
+## v23 (fb4) — timer notification polish + count-past-zero / phase-transition fix (Flutter, 0.23.4+28)
+**Date:** 2026-06-23
+
+**Prompt:** device feedback on the focus-timer notification — the app icon was in the wrong (large) slot,
+and the countdown ticked **negative** past the focus deadline still showing the old phase label.
+
+**Changes (`flutter/`):**
+- **Notification app icon** moved from the large (right) slot to the **small/left mini-icon** slot.
+- **Count-past-zero fixed:** the badge used to tick **negative** past the focus deadline with the stale label
+  because the Dart isolate is frozen while backgrounded. The **foreground service now drives the phase transition
+  itself** from a plan handed to it up front (`nextMs` / `nextTitle` / `doneTitle`): **auto-break on → it rolls
+  straight into the BREAK countdown**; **off → a static `FOCUS DONE!`** (no chronometer), then it detaches
+  (becomes swipeable) and stops.
+- `timer_notif_test` now asserts the show payload's plan (nextMs / nextTitle / doneTitle).
+- analyze clean; release APK built. Local Android APK re-clobbers **`flutter-v23`** (no iOS — macOS CI minutes out).
+
+---
+
+## v23 (fb3) — foreground-service timer notification, no object shadows, smaller garden, faster + 4 new critters (Flutter, 0.23.3+27)
+**Date:** 2026-06-23
+
+**Prompt:** device feedback — the timer notification could be swiped away on Android 14+; garden objects had
+shadows the user didn't want; the starting garden felt too big; the wallpaper bugs barely moved; add more critters.
+
+**Changes (`flutter/`):**
+- **Foreground-service notification (`TimerService.kt`):** the timer notification now runs as a **foreground service**
+  so it **can't be swiped away** until the session ends (plain `setOngoing` is dismissible on Android 14+); shows the
+  app icon; detaches/lingers at the deadline; cancelling in-app removes it.
+- **Removed the round contact shadows** under every garden object (in-app **and** wallpaper renderer).
+- **Fresh-install defaults:** clean home, **auto-break off, app-blocker off**.
+- **Garden starts smaller:** base **10×20 → 4×8** (first upgrade cost 61 → 25).
+- **Wallpaper critters no longer crawl:** per-step `dt` clamp **0.05 → 0.1** so the lower wallpaper frame rate stops
+  throttling their motion.
+- **Four new real-coloured critters** (yellow 22-spot ladybird, monarch + blue-morpho butterflies, bumblebee) via
+  `gen_objects.py`, registered in **both** engines (Dart + Kotlin).
+- **Tests +1 (77):** fresh-install defaults; garden base assertion updated. analyze clean; release APK built →
+  re-clobbers **`flutter-v23`**.
+
+---
+
+## v23 (fb2) — ongoing timer notification, blocked-apps reorder, overlay double-BACK fix (Flutter, 0.23.2+26)
+**Date:** 2026-06-23
+
+**Prompt:** device feedback — closing the blocker overlay needed **two** BACK taps; wanted the blocked-apps list
+to show picked apps first; wanted a phone notification with the live countdown while the app is backgrounded.
+
+**Changes (`flutter/`):**
+- **Overlay double-BACK fixed:** tapping BACK hid the cover, which re-exposed the blocked app and re-triggered it.
+  `backToApp` now sets a **~1.5s suppress window** so the transient re-focus can't immediately re-show the overlay.
+- **Blocked-apps picker reordered:** selected apps first, a divider, then the rest.
+- **Ongoing focus-timer notification (Android):** while a session runs and the app is backgrounded, a lock-screen
+  ongoing notification shows the live **MM:SS countdown** (chronometer); non-swipeable until done, self-clears at the
+  deadline (`setTimeoutAfter`) or on pause/reset/finish. New `pixel_pomo/timer` channel, `PixelPomoApp` observes
+  lifecycle, `POST_NOTIFICATIONS` requested on launch. *(No foreground service yet — that came in fb3.)*
+- **Tests +2 (76):** blocked-apps reorder + timer-notification channel. analyze clean; APK re-clobbers **`flutter-v23`**.
+
+---
+
+## v23 (fb) — blocker overlay flicker + theme, app-locker lag, drop Settings SAVE (Flutter, 0.23.1+25)
+**Date:** 2026-06-23
+
+**Prompt:** first device-feedback round on the v23 app blocker — the overlay **flickered**, didn't match the app
+theme/font, the app-picker **lagged**, and the user wanted the Settings **SAVE** button gone.
+
+**Changes (`flutter/`):**
+- **Overlay flicker fixed:** `AppBlockerService` was reacting to **its own** focusable overlay's
+  `WINDOW_STATE_CHANGED` (hit `else hide()` → blocked app returns → re-show, looping). It now **ignores events from
+  our own package**.
+- **Overlay matches the app:** **Press Start 2P** (from `flutter_assets`) on the active **PixelTheme** palette,
+  published via `_publishBlocker` / `selectTheme`.
+- **App-locker lag gone:** `AppPickerScreen` **caches the `installedApps()` future** (was re-querying on every
+  rebuild/toggle) and native `installedApps` runs **off the platform thread**.
+- **Settings SAVE removed:** the work/break/session steppers now **apply + persist immediately**, like the
+  language / auto-break / blocker toggles already did.
+- **Tests +2 (74):** palette publish + picker single-fetch; smoke test asserts the SETTINGS title. analyze clean;
+  release APK built → re-clobbers **`flutter-v23`**.
+
+---
+
 ## v23 — App Blocker (Android): block distracting apps during focus sessions (Flutter, 0.23.0+24)
 **Date:** 2026-06-23
 
