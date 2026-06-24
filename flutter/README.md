@@ -59,7 +59,7 @@ flutter create --org com.pixelpomo --project-name pixel_pomo --platforms=ios,and
 git checkout -- pubspec.yaml lib && rm -f test/widget_test.dart analysis_options.yaml
 flutter pub get
 flutter analyze
-flutter test       # logic_test.dart + engine_test.dart + widget_smoke_test.dart (46)
+flutter test       # logic + engine + app-blocker + smoke tests (77)
 flutter run        # or: flutter build apk / flutter build ios --no-codesign
 ```
 
@@ -70,7 +70,8 @@ flutter run        # or: flutter build apk / flutter build ios --no-codesign
 
 ## Status / parity
 
-Faithful port of v0.5.0: timer + sessions, **6 themes** (Dark/Light/Mocha/Frappe/Latte + a green **Matcha**),
+Current version **0.23.4**. Started as a faithful port of the native v0.5.0 — timer + sessions, **6 themes**
+(Dark/Light/Mocha/Frappe/Latte + a green **Matcha**),
 focus labels with colors, stats (month
 navigator + bar/line/pie charts), coins + shop with localized flowers, 6 languages, and the
 first-launch test fixture (1000 coins + sample history). The pure logic is shared test-for-test
