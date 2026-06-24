@@ -556,7 +556,50 @@ def ladybug_grid():
     ], {'r': r, 'k': k})
 
 
-CRITTERS = {'bee': bee_grid, 'butterfly': butterfly_grid, 'ladybug': ladybug_grid}
+# Extra species (#v23 fb) in real-world colours — same shapes as their cousins
+# above, only the palette changes, so they fly/land with the existing behaviour.
+def ladybug_yellow_grid():
+    y = hexrgb("EFC81F") + (255,)   # 22-spot ladybird: lemon-yellow shell
+    k = hexrgb("2B2B2B") + (255,)
+    return _crit([
+        '........', '..kkk...', '.rkrkr..', '.rrkrr..', '.rkrkr..', '..rrr...', '........', '........',
+    ], {'r': y, 'k': k})
+
+
+def butterfly_monarch_grid():
+    a = hexrgb("E8751A") + (255,)   # monarch orange
+    b = hexrgb("2B2B2B") + (255,)   # black veins
+    k = hexrgb("2B2B2B") + (255,)
+    return _crit([
+        '........', '.a.k.a..', 'aba.aba.', 'aba.aba.', '.a.k.a..', '...k....', '........', '........',
+    ], {'a': a, 'b': b, 'k': k})
+
+
+def butterfly_blue_grid():
+    a = hexrgb("2E86DE") + (255,)   # blue-morpho wing
+    b = hexrgb("1B4F8A") + (255,)   # deep-blue edge
+    k = hexrgb("2B2B2B") + (255,)
+    return _crit([
+        '........', '.a.k.a..', 'aba.aba.', 'aba.aba.', '.a.k.a..', '...k....', '........', '........',
+    ], {'a': a, 'b': b, 'k': k})
+
+
+def bee_bumble_grid():
+    blk = hexrgb("2B2B2B") + (255,)  # bumblebee: black body...
+    yl = hexrgb("F2C94C") + (255,)   # ...with yellow bands (palette of the honeybee, swapped)
+    w = (255, 255, 255, 210)
+    return _crit([
+        '........', '..wkw...', '.wykyw..', '..kyk...', '..yky...', '..kyk...', '...k....', '........',
+    ], {'y': blk, 'k': yl, 'w': w})
+
+
+CRITTERS = {
+    'bee': bee_grid, 'butterfly': butterfly_grid, 'ladybug': ladybug_grid,
+    'ladybug_yellow': ladybug_yellow_grid,
+    'butterfly_monarch': butterfly_monarch_grid,
+    'butterfly_blue': butterfly_blue_grid,
+    'bee_bumble': bee_bumble_grid,
+}
 
 
 # ---- road tiles (5 flat surfaces, drawn one full texture per tile) -----------

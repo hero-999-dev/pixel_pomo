@@ -69,8 +69,23 @@ def patch_manifest():
             '        </service>\n'
         )
         xml = xml.replace("    </application>", svc + "    </application>", 1)
+
+    # --- focus-timer foreground service (#v23 fb) ---
+    if "TimerService" not in xml:
+        svc = (
+            '        <service\n'
+            '            android:name=".TimerService"\n'
+            '            android:exported="false"\n'
+            '            android:foregroundServiceType="specialUse">\n'
+            '            <property\n'
+            '                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"\n'
+            '                android:value="pomodoro_focus_timer" />\n'
+            '        </service>\n'
+        )
+        xml = xml.replace("    </application>", svc + "    </application>", 1)
     for perm in ("android.permission.SYSTEM_ALERT_WINDOW", "android.permission.QUERY_ALL_PACKAGES",
-                 "android.permission.POST_NOTIFICATIONS"):
+                 "android.permission.POST_NOTIFICATIONS", "android.permission.FOREGROUND_SERVICE",
+                 "android.permission.FOREGROUND_SERVICE_SPECIAL_USE"):
         if f'"{perm}"' not in xml:
             xml = xml.replace(
                 "    <application",

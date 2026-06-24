@@ -323,7 +323,10 @@ class Critter {
 /// Owns the (at most 2) active critters and spawns them occasionally. Works
 /// purely in garden coords; the painter projects each critter to the screen.
 class CritterSystem {
-  static const kinds = ['bee', 'butterfly', 'ladybug'];
+  static const kinds = [
+    'bee', 'butterfly', 'ladybug', // originals
+    'ladybug_yellow', 'butterfly_monarch', 'butterfly_blue', 'bee_bumble', // #v23 fb
+  ];
   static const maxActive = 2;
 
   final math.Random _r;
@@ -650,13 +653,6 @@ class GardenPainter extends CustomPainter {
   void _paintFencePost(Canvas canvas, Projector p, int c, int r, String id) {
     final pal = _fence3d[id]!;
     final gc = p.gridOf(c, r);
-    final ground = p.projectGrid(gc);
-    canvas.drawOval(
-        Rect.fromCenter(
-            center: ground.translate(0, p.t * kVy * 0.10),
-            width: p.t * 0.34,
-            height: p.t * kVy * 0.30),
-        Paint()..color = const Color(0x33000000));
     final box = boxCorners(p, gc, 0.10, 0.66);
     for (var i = 0; i < 4; i++) {
       final j = (i + 1) % 4;
@@ -700,10 +696,6 @@ class GardenPainter extends CustomPainter {
   /// atlas to slice, no wasted memory, no fake snapping.
   void _paintBillboard(Canvas canvas, ui.Image? img, Offset anchor, double t,
       {double height = 1.05, double width = 0.9, double sway = 0}) {
-    canvas.drawOval(
-        Rect.fromCenter(
-            center: anchor.translate(0, t * kVy * 0.16), width: t * 0.5, height: t * kVy * 0.34),
-        Paint()..color = const Color(0x33000000));
     if (img == null) return;
     final src = Rect.fromLTWH(0, 0, img.width.toDouble(), img.height.toDouble());
     final h = t * height;
@@ -719,7 +711,7 @@ class GardenPainter extends CustomPainter {
     final s = math.max(10.0, t * 0.42);
     for (final c in critterSystem.critters) {
       final img = sprites.critter(c.kind);
-      final amp = c.kind == 'ladybug' ? 0.6 : 2.2;
+      final amp = c.kind.startsWith('ladybug') ? 0.6 : 2.2; // ladybugs barely bob
       final bob = math.sin((time + c.phase) * 9) * amp;
       final at = p.projectGrid(c.pos).translate(0, bob - t * 0.25); // hover above ground
       final rect = Rect.fromCenter(center: at, width: s, height: s);
