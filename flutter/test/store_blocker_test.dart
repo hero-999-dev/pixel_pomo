@@ -34,6 +34,15 @@ void main() {
     expect(s2.blockedApps, {'com.insta'});
   });
 
+  test('fresh install defaults: clean home, auto-break off, blocker off (#v23 fb)', () async {
+    SharedPreferences.setMockInitialValues({});
+    final s = AppStore();
+    await s.load();
+    expect(s.homeGardenBackdrop, false); // clean home
+    expect(s.autoBreak, false); // no auto-start break
+    expect(s.appBlockerEnabled, false); // blocker off — no permission prompts on first run
+  });
+
   test('the active theme palette is published for the native overlay (#v23 fb)', () async {
     SharedPreferences.setMockInitialValues({});
     final s = AppStore();
