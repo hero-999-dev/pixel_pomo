@@ -20,6 +20,10 @@ import android.widget.TextView
 /// from BlockerData (SharedPreferences written by the Flutter app).
 class AppBlockerService : AccessibilityService() {
     private var overlay: View? = null
+    // After the user taps BACK we stop re-showing for a beat: hiding the overlay
+    // re-exposes the blocked app whose window event would otherwise re-trigger the
+    // cover before our app reaches the front (#v23 fb — was taking two BACK taps).
+    private var suppressShowUntil = 0L
     private val handler = Handler(Looper.getMainLooper())
 
     // Drop the overlay when the session ends even if no new window event fires.
@@ -43,6 +47,8 @@ class AppBlockerService : AccessibilityService() {
         // tear the overlay down; the blocked app then returned to front and we
         // re-showed — looping forever, i.e. the constant flicker (#v23 fb).
         if (pkg == packageName) return
+        // Just left via BACK — the blocked app's transient re-focus must not re-show.
+        if (System.currentTimeMillis() < suppressShowUntil) return
         if (BlockerData.shouldBlock(this, pkg, packageName, launcherPkg())) show() else hide()
     }
 
@@ -118,6 +124,7 @@ class AppBlockerService : AccessibilityService() {
     }
 
     private fun backToApp() {
+        suppressShowUntil = System.currentTimeMillis() + 1500
         val li = packageManager.getLaunchIntentForPackage(packageName)
             ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
         if (li != null) startActivity(li)

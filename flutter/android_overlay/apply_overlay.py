@@ -69,7 +69,8 @@ def patch_manifest():
             '        </service>\n'
         )
         xml = xml.replace("    </application>", svc + "    </application>", 1)
-    for perm in ("android.permission.SYSTEM_ALERT_WINDOW", "android.permission.QUERY_ALL_PACKAGES"):
+    for perm in ("android.permission.SYSTEM_ALERT_WINDOW", "android.permission.QUERY_ALL_PACKAGES",
+                 "android.permission.POST_NOTIFICATIONS"):
         if f'"{perm}"' not in xml:
             xml = xml.replace(
                 "    <application",
