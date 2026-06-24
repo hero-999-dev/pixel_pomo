@@ -28,7 +28,14 @@ class MainActivity : FlutterActivity() {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "pixel_pomo/blocker")
             .setMethodCallHandler { call, result ->
                 when (call.method) {
-                    "installedApps" -> result.success(installedApps())
+                    // Enumerating apps + rendering every icon to PNG is heavy; run it
+                    // off the platform thread so the picker never freezes the UI
+                    // (#v23 fb — was blocking on the main thread). Reply on the UI
+                    // thread as Flutter requires.
+                    "installedApps" -> Thread {
+                        val apps = installedApps()
+                        runOnUiThread { result.success(apps) }
+                    }.start()
                     "hasAccessibility" -> result.success(isAccessibilityOn())
                     "openAccessibilitySettings" -> {
                         startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
