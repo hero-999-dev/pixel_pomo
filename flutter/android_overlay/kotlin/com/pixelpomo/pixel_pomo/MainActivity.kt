@@ -63,8 +63,13 @@ class MainActivity : FlutterActivity() {
             .setMethodCallHandler { call, result ->
                 when (call.method) {
                     "show" -> {
-                        val deadline = call.argument<Number>("deadline")?.toLong() ?: 0L
-                        TimerService.show(this, deadline, call.argument<String>("title") ?: "FOCUS")
+                        TimerService.show(
+                            this,
+                            call.argument<Number>("deadline")?.toLong() ?: 0L,
+                            call.argument<String>("title") ?: "FOCUS",
+                            call.argument<Number>("nextMs")?.toLong() ?: 0L,
+                            call.argument<String>("nextTitle") ?: "",
+                            call.argument<String>("doneTitle") ?: "")
                         result.success(null)
                     }
                     "cancel" -> { TimerService.cancel(this); result.success(null) }
