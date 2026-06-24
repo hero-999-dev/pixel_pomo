@@ -33,4 +33,19 @@ void main() {
     expect(s2.appBlockerEnabled, true);
     expect(s2.blockedApps, {'com.insta'});
   });
+
+  test('the active theme palette is published for the native overlay (#v23 fb)', () async {
+    SharedPreferences.setMockInitialValues({});
+    final s = AppStore();
+    await s.load();
+
+    s.setAppBlocker(true); // publishes blocker state + palette to the native keys
+
+    final p = await SharedPreferences.getInstance();
+    expect(p.getInt('blocker_bg'), s.theme.bg);
+    expect(p.getInt('blocker_ink'), s.theme.onSurface);
+    expect(p.getInt('blocker_accent'), s.theme.accent);
+    expect(p.getInt('blocker_on_accent'), s.theme.onAccent);
+    expect(p.getInt('blocker_shadow'), s.theme.shadow);
+  });
 }
