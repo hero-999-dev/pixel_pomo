@@ -1,220 +1,127 @@
 # 🍅 Pixel Pomo
 
-A retro **pixel-art Pomodoro timer** for Android. Built with native Kotlin and the
+A retro **pixel-art Pomodoro timer** for **Android and iPhone**. Focus in 8-bit:
+plant a flower for every session you finish, grow a little garden, and turn it into
+a living wallpaper. Built with the
 [Press Start 2P](https://fonts.google.com/specimen/Press+Start+2P) font for that
-classic 8-bit look.
+classic arcade look.
 
-> **Status:** v0.5.0 — configurable timer (WORK / BREAK, start / pause / reset,
-> **session counter**), a **settings** screen (study / break / sessions up to 300 / 120 / 24
-> + a **6-language** selector), **5 pixel themes** (neutral Dark/Light + Catppuccin Mocha/Frappe
-> and a cream Latte), **focus labels** (tap to switch, **pick a color**, 🗑 to remove with
-> confirm), **session stats** with a **month navigator** and **bar / line / pie charts**, a
-> **coin + shop** system (earn coins, buy localized 2D-pixel flowers), and a **garden** — plant
-> your flowers on a free 4×4 grid and grow it with coins. Edge-case unit tests gate every build.
-
----
-
-## 📲 How to get the APK (test on your phone)
-
-You don't build anything yourself. Every push to `main` triggers **GitHub Actions**,
-which runs the tests, builds a debug APK in the cloud, and attaches it to a release.
-
-1. On your phone, open this repo on GitHub.
-2. Go to the **Releases** section → **"Latest debug build"**.
-3. Download **`0v05_pixelpomo.apk`** (named after the version) and tap to install.
-   - If Android warns about "unknown sources", allow installs for your browser /
-     file app, then re-open the APK.
-
-> The APK is a *debug* build (debug-signed). That's fine for sideloading and testing
-> on your own device. A signed *release* APK can be added later for wider distribution.
-
-You can also grab the APK from the **Actions** tab → latest run → **Artifacts**
-(named like `0v05_pixelpomo`), but it comes zipped there, so the Releases link is easier on mobile.
+> **Status:** **v0.23.4** — one Flutter (Dart) codebase ships **both** an Android APK and an
+> iOS app. On top of the core timer it has a full-screen **living 2.5D garden**, an animated
+> **Android live wallpaper**, an **app blocker** to keep you off distracting apps during a focus
+> session, **session stats** with charts and history, a **coin + shop** economy, **6 themes**,
+> **6 languages**, and **focus labels**. The original native-Kotlin app (v0.5.0) still lives in
+> [`app/`](app/) as the frozen base the port grew from.
 
 ---
 
-## 🗂️ Project structure
+## 📲 Get it on your phone
 
-```
-pixel_pomo/
-├── .github/workflows/build-apk.yml   # CI: run unit tests, then build the APK + publish a release
-├── README.md                         # this file — structure & how to get the APK
-├── TESTING.md                        # test strategy, covered edge cases, per-change checklist
-├── log.md                            # changelog: what changed in each prompt/iteration
-├── prompt.md                         # master prompt to recreate this project in a new AI session
-├── .gitignore
-│
-├── settings.gradle.kts               # Gradle: declares the :app module + repositories
-├── build.gradle.kts                  # Gradle: top-level plugin versions (AGP, Kotlin)
-├── gradle.properties                 # Gradle/AndroidX flags
-│
-└── app/
-    ├── build.gradle.kts              # module build config (SDK levels, deps, test deps)
-    ├── proguard-rules.pro
-    └── src/
-        ├── main/
-        │   ├── AndroidManifest.xml   # app entry point, launcher activity, theme, icon
-        │   ├── java/com/pixelpomo/app/
-        │   │   ├── MainActivity.kt    # UI: timer + settings/theme/label/stats/shop/garden overlays
-        │   │   ├── PomodoroEngine.kt  # pure timer state machine (sessions, no Android deps)
-        │   │   ├── Labels.kt          # pure focus-label rules (normalize/add/remove)
-        │   │   ├── LabelColors.kt     # pure per-label color palette + codec (feeds the charts)
-        │   │   ├── Stats.kt           # pure session recording: aggregate + month views + codec
-        │   │   ├── Economy.kt         # pure coin math + garden-upgrade cost + inventory codec
-        │   │   ├── Garden.kt          # pure garden grid model (plant/clear/grow) + codec
-        │   │   ├── Flowers.kt         # pure 2D-pixel flower catalog (grids + 6-language names)
-        │   │   ├── TestData.kt        # pure first-launch fixture (seed stats + 1000 coins)
-        │   │   ├── PixelArt.kt        # renders a flower grid to a crisp Drawable
-        │   │   ├── ChartView.kt       # custom bar/line/pie chart view for the stats screen
-        │   │   ├── LocaleManager.kt   # applies the chosen UI language at runtime
-        │   │   ├── PixelTheme.kt      # PixelTheme data class + the 5 pixel themes
-        │   │   └── PixelStyle.kt      # builds themed button/progress drawables in code
-        │   └── res/
-        │       ├── font/press_start_2p.ttf   # the pixel font (OFL licensed)
-        │       ├── layout/                   # activity_main.xml (+ overlays), row_stepper.xml
-        │       ├── drawable/                 # icons + launcher art (buttons/progress drawn in code)
-        │       │   ├── ic_settings.xml           # settings gear (top bar)
-        │       │   ├── ic_stats.xml              # bar-chart stats icon (top bar)
-        │       │   ├── ic_coin.xml               # gold coin (top-right counter)
-        │       │   ├── ic_palette.xml            # theme/palette icon (top-left)
-        │       │   ├── ic_garden.xml             # garden flower icon (top-left)
-        │       │   ├── ic_launcher_background.xml
-        │       │   └── ic_launcher_foreground.xml   # blocky pixel tomato
-        │       ├── mipmap-anydpi-v26/ic_launcher.xml # adaptive launcher icon
-        │       └── values[-tr/-pl/-de/-ko/-it]/
-        │           ├── colors.xml            # retro palette
-        │           ├── strings.xml           # English base + 5 translated locales
-        │           └── themes.xml            # base theme + stats-row styles
-        └── test/java/com/pixelpomo/app/
-            ├── PomodoroEngineTest.kt         # JUnit edge-case tests (gate every build)
-            ├── LabelsTest.kt · LabelColorsTest.kt   # label rules + color palette/codec
-            ├── StatsTest.kt · StatsMonthTest.kt     # aggregation/format/codec + month views
-            ├── EconomyTest.kt · GardenTest.kt       # coin math + garden grid/codec
-            ├── FlowersTest.kt · FlowersLocalizationTest.kt  # catalog + 6-language names
-            └── TestDataTest.kt               # the seeded fixture buckets to the brief
-```
+You don't build anything yourself — every release attaches a ready-to-install file.
 
-## 🎮 What it does (v0.5.0)
+**Android**
+1. Open this repo on GitHub → **Releases** → **`flutter-v23`** (or the rolling **`latest-flutter`**).
+2. Download **`pixel_pomo_flutter.apk`** and tap to install.
+   - If Android warns about "unknown sources", allow installs for your browser / file app, then re-open the APK.
+   - Installs alongside the old native build (different app id), so you can keep both.
 
-- **WORK** and **BREAK** phases with **user-set durations** (defaults 25:00 / 5:00).
-- **START / PAUSE** toggles the countdown; **RESET** restarts the whole run.
-- **>> SWITCH MODE** flips between WORK and BREAK manually.
-- When a phase hits `00:00` it shows a toast, auto-switches to the other phase, and
-  advances the **SESSION** after each completed break. After the last session it shows
-  **ALL DONE!** until you reset.
-- **🏷️ Focus labels:** a tappable chip under the mode label tags what you're focusing on
-  (**STUDY / MATH / CODING / READING** out of the box). Tap one to use it (you stay on the
-  page), tap its **● swatch to pick a color**, **ADD** your own, or **🗑** to remove with a
-  yes/no confirm. The choice is remembered and attached to every recorded session, and the
-  color flows straight into the stats charts.
-- **🪙 Coins & shop:** completing a WORK block earns coins (**1 per 5 minutes** — a 25-min
-  block = 5). The **coin counter sits in the top-right corner** (same height as the icons,
-  count beside it); tap it to open the **SHOP** and buy **2D-pixel flowers** — names shown in
-  your chosen language (rose/gül/róża/rose/장미/rosa, …) — at **10 coins** each.
-- **🌱 Garden** (top-left flower icon): a square **4×4 grid** everyone gets free. Tap
-  **CUSTOMIZE**, then a tile to **plant** a flower you bought (or clear it). **UPGRADE** (top-left
-  of the garden) grows the grid one ring at a time for the new-tile count in coins
-  (5×5 = 9, 6×6 = 11, …).
-- **📊 Stats** (bar-chart icon): every completed WORK block is logged. The stats screen totals
-  **today / this week / this month / this year / all time**, and adds a **month navigator**
-  (◀ ▶ to trace back through past months and years) with a **BAR / LINE / PIE** chart you choose
-  and a per-month **by-label** breakdown (colored by each label's color).
-- **⚙️ Settings** (gear): steppers for **study minutes** (up to 300), **break minutes** (up to
-  120), and **sessions** (up to 24), plus a **LANGUAGE** picker —
-  **English / Türkçe / Polski / Deutsch / Français / Italiano** — applied instantly.
-- **🎨 Themes** (palette): five pixel themes inspired by the
-  [ClaWus](https://github.com/hero-999-dev/ClaWus-Claude-Usage-Widget) widget —
-  **Dark, Light, Mocha, Frappe, Latte** — switchable live.
-- Pixel font, hard-edged buttons with drop shadows, and a chunky progress bar.
+**iPhone**
+1. From the same release, download **`pixel_pomo_ios.ipa`**.
+2. Sideload it with **[SideStore](https://sidestore.io/)** or **AltStore** — they sign the app on-device, so **no Mac is needed**.
+
+> iOS builds run on a macOS CI runner and are published when CI minutes are available; a release titled
+> *"Android"* only means the `.ipa` for that round is still pending — grab it from the next build, or use an earlier one.
+
+---
+
+## 🎮 What it does
+
+- **Focus timer** — **FOCUS** and **BREAK** phases with your own durations (defaults 25:00 / 5:00),
+  **START / PAUSE / RESET**, and a **session counter** that ends on **ALL DONE!**. A finished focus session
+  **auto-starts the break** (or asks first, per a Settings toggle), and a running session shows a phone
+  **notification** so the countdown is visible outside the app. **Cancelling a started session still pays out
+  the minutes you spent.**
+- **🏷️ Focus labels** — a tappable chip tags what you're working on (**STUDY / MATH / CODING / READING** to start).
+  Tap to switch, tap its **● swatch to pick a color**, **long-press to rename**, **ADD** your own, or **🗑** to remove.
+  Every recorded session remembers its label, and the color flows into the stats charts.
+- **🪙 Coins & shop** — finishing a focus block earns coins (**1 per 5 minutes**). Spend them in the **SHOP** on
+  **2D-pixel flowers** (names in your language) and **garden decor** (roads + fences).
+- **🌱 Living garden** — a full-screen, portrait **2.5D world** drawn by a tiny custom engine (no Unity/Flame).
+  Plant your flowers on a grass **clearing** ringed by a **forest** (trees, bushes, rocks). **EXPAND** grows the
+  plot from the center; **two-finger twist to rotate**, **pinch-zoom and pan**. **Bee, butterfly and ladybug**
+  critters drift in to visit your flowers. Several flowers (rose, tulip, camellia, …) ship multiple hand-drawn
+  models so a flower bed looks varied.
+- **📸 Camera & live wallpaper** — a **peek** button hides all the UI; **camera mode** lets you frame any angle, then
+  **CAPTURE** to **share** the shot or, on **Android**, **set it as an animated live wallpaper** — your real garden,
+  swaying plants and a visiting bug, redrawn on your home screen. **Settings → HOME SCREEN `CLEAN | GARDEN`** can also
+  put the live garden behind the timer.
+- **🚫 App blocker** *(Android)* — pick the apps that distract you; while a focus session runs, opening one is met with
+  a full-screen **"STAY FOCUSED"** cover. Hard block — stop the timer to lift it. Needs Accessibility + draw-over-apps
+  permission (Settings walks you through it).
+- **📊 Stats** — every focus block is logged. Totals for **today / week / month / year / all-time**, a
+  **DAILY → ALL-TIME** selector with a **◀ ▶ history navigator**, **bar / pie / TREND** charts (DAILY fills up hour by
+  hour), a per-label breakdown, and **CURRENT / AVERAGE / BEST** in trend view.
+- **⚙️ Settings** — steppers for **focus / break / sessions**, **auto-start break**, the **app blocker**, a **home-screen
+  garden** toggle, and a **language** picker — **English / Türkçe / Polski / Deutsch / Français / Italiano** — applied instantly.
+- **🎨 Themes** — six live pixel themes: **Dark, Light, Mocha, Frappe, Latte, Matcha**. The system bars match the theme and
+  there's no white tap ripple.
 
 ## 🧪 Testing
 
-App logic lives in pure classes (`PomodoroEngine`, `Labels`, `LabelColors`, `StatsAggregator`,
-`StatsCodec`, `Economy`, `Inventory`, `Garden`, `Flowers`, `TestData`) so it can be unit-tested
-on the JVM. **72 JUnit edge-case tests** run locally and **gate every CI build** — a failing test
-blocks the APK. Run them with:
+All app logic lives in **pure, framework-free Dart** (timer engine, labels, stats, economy, garden, flowers, the app-blocker
+rules) so it can be unit-tested without a device. **77 Dart tests** plus a widget smoke test (boots the app and opens every
+screen) **gate every build**. The garden engine has its own geometry tests. Run them from `flutter/`:
 
 ```bash
-./gradlew testDebugUnitTest
+flutter test
 ```
 
-See **[TESTING.md](TESTING.md)** for the full list of covered edge cases and known gaps.
+See **[TESTING.md](TESTING.md)** for the covered edge cases and known gaps.
 
 ## 🛠️ Tech
 
-| Piece            | Choice                              |
-|------------------|-------------------------------------|
-| Language         | Kotlin                              |
-| UI               | Android Views (XML layouts)         |
-| Logic            | Pure `PomodoroEngine` + JUnit tests |
-| Min SDK          | 26 (Android 8.0)                    |
-| Target / Compile | 34                                  |
-| Gradle / AGP     | 8.7 / 8.5.2                         |
-| Kotlin           | 1.9.24                              |
-| Build/CI         | GitHub Actions (`ubuntu-latest`)    |
+| Piece            | Choice                                                |
+|------------------|-------------------------------------------------------|
+| App              | **Flutter / Dart** — one codebase, Android + iOS      |
+| Rendering        | Custom 2.5D garden engine (`flutter/lib/engine/`)     |
+| Live wallpaper   | Native Kotlin `WallpaperService` (Android)            |
+| App blocker      | Native Kotlin `AccessibilityService` (Android)        |
+| Logic            | Pure Dart classes + unit tests                        |
+| Build / CI       | GitHub Actions — Android on `ubuntu`, iOS on `macOS`  |
+| Original base    | Native Kotlin (Android Views) — v0.5.0, in [`app/`](app/) |
+
+## 🗂️ Where things live
+
+```
+pixel_pomo/
+├── flutter/        # the current app (Dart) — see flutter/README.md for the full layout
+│   ├── lib/        #   logic, screens, the garden engine
+│   ├── android_overlay/  # native Kotlin: live wallpaper + app-blocker services
+│   └── test/       #   the Dart test suite
+├── app/            # original native-Kotlin app, frozen at v0.5.0
+├── README.md       # this file
+├── TESTING.md      # test strategy + covered edge cases
+├── log.md          # per-iteration changelog
+└── prompt.md       # master prompt to recreate the project
+```
 
 ## 🧱 Building locally (optional)
 
-Local builds need the **Android SDK** + **JDK 17 or newer**. With those installed and
-`ANDROID_HOME` (or `local.properties` → `sdk.dir`) pointing at the SDK, from the repo root:
+Needs the **Flutter SDK** (validated against Flutter 3.44.2 / Dart 3.12.2). From `flutter/`:
 
 ```bash
-./gradlew testDebugUnitTest   # run the edge-case tests
-./gradlew assembleDebug       # build the APK
+flutter create --org com.pixelpomo --project-name pixel_pomo --platforms=ios,android .
+git checkout -- pubspec.yaml lib && rm -f test/widget_test.dart analysis_options.yaml
+flutter pub get
+flutter test
+flutter run        # or: flutter build apk / flutter build ios --no-codesign
 ```
 
-The APK lands at `app/build/outputs/apk/debug/app-debug.apk`. If you don't have the
-SDK locally, just rely on the GitHub Actions build above.
-
-## 🗺️ Roadmap
-
-**Done in v0.5.0:** the **garden** (#7), **6 languages** (#6), **localized flowers**, **label
-colors**, **stats charts + month navigation** (#10), and a seeded **test fixture** (1000 coins
-+ example study history) so the new screens have data to explore.
-
-**iOS / cross-platform — started:** the **Flutter (Dart)** port now lives in **[`flutter/`](flutter/)**
-— one codebase building **both** an Android APK and an **unsigned iOS `.ipa`** on a GitHub Actions
-**macOS runner** (no Mac needed). Grab them from the **`latest-flutter`** prerelease:
-`pixel_pomo_flutter.apk` (app id `com.pixelpomo.pixel_pomo`, coexists with the native build) and
-`pixel_pomo_ios.ipa` (sideload via **SideStore/AltStore**, which signs on-device). See
-[`flutter/README.md`](flutter/README.md). The native Android app (`0v0X_pixelpomo` on `latest`)
-continues in parallel until the Flutter port is verified at parity on-device.
-
-The Flutter build has a **Flutter-exclusive living garden**: a **full-screen, portrait 2.5D world**
-drawn by a tiny custom engine (`flutter/lib/engine/`, no Unity/Flame). A **portrait `cols × rows` plot
-(starts 10×20)** is the grass **clearing** — dotted with a few **flat white daisies** — framed by a
-**screen-filling forest** (**20 trees + 10 bushes + 5 rocks**, drawn on every visible tile so the woods cover
-the whole portrait screen). **EXPAND grows the plot from the center**; you **rotate/pinch/pan** (bounded to a
-roam radius — wander into the woods, but the garden's never lost); **bee/butterfly/ladybug** drift in to visit
-flowers. The top bar **theme/garden/stats · settings/store/coin** uses **hand-drawn pixel-art icons**; the
-timer reads **FOCUS** and **auto-starts the break** (or asks first, per a Settings toggle); **cancelling a
-started session pays out the spent minutes**. A **peek** button hides all HUD; **camera mode** lets you frame any
-**angle** (rotate/zoom/pan), then **CAPTURE** opens a sheet to **share** the still or **SET LIVE WALLPAPER** — a
-real **animated Android live wallpaper** of your planted garden at that angle (swaying plants, a bee visiting your flowers,
-parallax). **Settings → HOME SCREEN `CLEAN | GARDEN`**
-puts the full-strength **live** garden behind the timer, with **SESSION centered in the top bar** and the timer
-docked at the bottom. The app **themes its system bars** with **no white tap ripple**; **labels rename**; the
-**shop** has **flowers / outer / inner / pets** tabs; and **Stats** has a **DAILY…ALL-TIME** selector **+ a ◀▶
-history navigator**, bar tops in **minutes**, a full-label right-aligned **pie**, and a **TREND** line — DAILY
-fills up **hour by hour**, other periods show per-bucket totals with **CURRENT / AVERAGE / BEST**.
-Text is the pixel **Press Start 2P** font; accented letters fall back to a bundled pixel font so every language stays
-crisp; each planted flower can have a few **style variants** picked at random — the **rose, tulip and camellia** each
-ship **2 hand-drawn models** so a bed of them looks varied (more flowers get the treatment over time); the icon is baked
-in via `flutter_launcher_icons`. Each build publishes a permanent **`flutter-vN`** GitHub release. *(The Android
-**live wallpaper** is a native Kotlin renderer that re-draws your saved garden — textured grass, your flowers, and a
-visiting bee/butterfly/ladybug — at the framing you picked; iOS has no API and keeps Save/Share.)*
-
-**App blocker (Android, #v23):** turn it on in Settings, pick the apps that distract you, and during a focus session
-any attempt to open one is met with a full-screen **"STAY FOCUSED"** cover — get back to Pixel Pomo. Hard block (stop
-the timer to lift it). Android only; needs Accessibility + draw-over-apps permission.
-
-To make that port a single clean pass rather than a moving target, **all app logic is kept
-in pure, framework-free classes** (`PomodoroEngine`, `Labels`, `Stats*`, `Economy`,
-`Inventory`, `Flowers`) — only `MainActivity` and the drawables touch Android. We finish the
-game design on Android (fast local builds + APKs you can test now), then port the stable
-result to Flutter and turn on the iOS CI job.
+The generated `ios/` and `android/` projects aren't committed — CI regenerates them with `flutter create`, then
+restores the committed files (and the native overlay). See **[`flutter/README.md`](flutter/README.md)** for the
+full porting notes, the low-RAM Gradle tip, and the live-wallpaper / app-blocker internals.
 
 ## 📜 License
 
-App code: free to use. The bundled **Press Start 2P** font is under the
-[SIL Open Font License](https://openfontlicense.org/).
+App code: free to use. Bundled fonts — **Press Start 2P** (Latin) and **Galmuri11** (accented-Latin fallback) —
+are under the [SIL Open Font License](https://openfontlicense.org/).
