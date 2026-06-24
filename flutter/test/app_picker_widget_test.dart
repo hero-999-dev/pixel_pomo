@@ -43,4 +43,34 @@ void main() {
     expect(store.blockedApps.contains('com.alpha'), true);
     expect(queries, 1, reason: 'cached future — rebuild must not re-query installedApps');
   });
+
+  testWidgets('blocked apps float to the top (#v23 fb)', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final store = AppStore();
+    await store.load();
+
+    const ch = MethodChannel('pixel_pomo/blocker');
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(ch, (c) async {
+      if (c.method == 'installedApps') {
+        return [
+          {'package': 'com.alpha', 'label': 'Alpha'},
+          {'package': 'com.zeta', 'label': 'Zeta'},
+        ];
+      }
+      return null;
+    });
+    addTearDown(() => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(ch, null));
+
+    await tester.pumpWidget(MaterialApp(
+      home: AnimatedBuilder(animation: store, builder: (_, __) => AppPickerScreen(store)),
+    ));
+    await tester.pumpAndSettle();
+    // alpha-sorted, none picked → Alpha above Zeta
+    expect(tester.getTopLeft(find.text('Alpha')).dy, lessThan(tester.getTopLeft(find.text('Zeta')).dy));
+
+    // block Zeta → it jumps above Alpha
+    store.setBlocked('com.zeta', true);
+    await tester.pumpAndSettle();
+    expect(tester.getTopLeft(find.text('Zeta')).dy, lessThan(tester.getTopLeft(find.text('Alpha')).dy));
+  });
 }
