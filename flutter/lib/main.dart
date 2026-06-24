@@ -38,12 +38,20 @@ Future<void> main() async {
   runApp(PixelPomoApp(store));
 }
 
-class PixelPomoApp extends StatelessWidget {
+class PixelPomoApp extends StatefulWidget {
   final AppStore store;
   const PixelPomoApp(this.store, {super.key});
+  @override
+  State<PixelPomoApp> createState() => _PixelPomoAppState();
+}
+
+class _PixelPomoAppState extends State<PixelPomoApp> with WidgetsBindingObserver {
+  AppStore get store => widget.store;
 
   @override
-  Widget build(BuildContext context) {
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
     store.messenger = (key) {
       messengerKey.currentState
         ?..hideCurrentSnackBar()
@@ -52,6 +60,23 @@ class PixelPomoApp extends StatelessWidget {
           duration: const Duration(seconds: 2),
         ));
     };
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Background mid-session → raise the ongoing countdown notification (#v23 fb);
+    // AppStore's stop paths cancel it.
+    if (state == AppLifecycleState.paused) store.onBackgrounded();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: store,
       builder: (context, _) {
@@ -523,9 +548,11 @@ class _AppPickerScreenState extends State<AppPickerScreen> {
           if (!snap.hasData) {
             return Center(child: Text('...', style: pixelStyle(lang, 14, col(th.onSurfaceDim), text: '...')));
           }
-          return Column(children: [
-            for (final a in snap.data!)
-              Padding(
+          // Selected apps float to the top (in order), a divider, then the rest
+          // (#v23 fb). snap.data is already alpha-sorted, so `where` keeps order.
+          final picked = snap.data!.where((a) => s.blockedApps.contains(a.package)).toList();
+          final rest = snap.data!.where((a) => !s.blockedApps.contains(a.package)).toList();
+          Widget appRow(AppInfo a) => Padding(
                 padding: const EdgeInsets.symmetric(vertical: 6),
                 child: Row(children: [
                   a.icon != null
@@ -545,7 +572,12 @@ class _AppPickerScreenState extends State<AppPickerScreen> {
                     onTap: () => s.setBlocked(a.package, !s.blockedApps.contains(a.package)),
                   ),
                 ]),
-              ),
+              );
+          return Column(children: [
+            for (final a in picked) appRow(a),
+            if (picked.isNotEmpty && rest.isNotEmpty)
+              Container(height: 3, margin: const EdgeInsets.symmetric(vertical: 10), color: col(th.onSurfaceDim)),
+            for (final a in rest) appRow(a),
           ]);
         },
       ),
