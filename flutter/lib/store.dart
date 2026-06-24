@@ -61,7 +61,7 @@ class AppStore extends ChangeNotifier {
 
   /// Auto-start the break when a focus session ends (#4). When off, the home
   /// screen asks first via [awaitingBreakPrompt].
-  bool autoBreak = true;
+  bool autoBreak = false; // off on a fresh install (#v23 fb)
   bool awaitingBreakPrompt = false;
 
   late PomodoroEngine engine;
@@ -119,7 +119,7 @@ class AppStore extends ChangeNotifier {
     garden = Garden.decode(_prefs.getString(_kGarden))
         .atLeast(Economy.baseGardenCols, Economy.baseGardenRows); // migrate to the bigger base (#7)
     homeGardenBackdrop = _prefs.getBool(_kHomeMode) ?? false;
-    autoBreak = _prefs.getBool(_kAutoBreak) ?? true;
+    autoBreak = _prefs.getBool(_kAutoBreak) ?? false;
     wallpaperCam = WallpaperCam.decode(_prefs.getString(_kWallpaperCam));
 
     _seedOnce();

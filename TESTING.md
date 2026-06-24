@@ -214,6 +214,25 @@ hide it is now ignored by the flicker guard, so the spurious re-show stuck). Fix
 `suppressShowUntil` window so the transient re-focus during the BACK transition can't re-trigger the cover — one tap
 leaves cleanly. Device-verified (accessibility service, outside the Dart gate).
 
+**v23 follow-up 3 (device feedback):** count rises to **77** (+1). Seven tweaks; most are native/visual and
+**device-verified** (host `flutter test` can't post notifications, draw the garden, or run the wallpaper):
+- **Notification un-swipeable until done:** `setOngoing` alone is user-dismissible on Android 14+, so the countdown
+moved to a **foreground service** (`TimerService`, `foregroundServiceType=specialUse`). It can't be swiped while
+running; at the deadline it detaches (lingers, now swipeable) and stops; cancel-in-app removes it. The small/large icon
+is now the **app's own icon**.
+- **Round contact shadows removed** from every garden object (the `drawOval` under flowers/trees/rocks/fences) in both
+the in-app painter and the native wallpaper renderer.
+- **Fresh-install defaults**: clean home, auto-break **off**, app-blocker **off** — so a new install raises no
+permission prompts until the user opts in. `store_blocker_test.dart` asserts the three defaults **(+1)**.
+- **Garden starts smaller**: base `10×20 → 4×8` (keeps the 1:2 portrait; first upgrade cost `2*(c+r)+1` drops 61→25).
+`logic_test` base assertion updated.
+- **Wallpaper critters no longer crawl**: the per-step `dt` clamp was `0.05`, throttling motion at the wallpaper's lower
+frame rate; raised to `0.1` (the outer cap) so they advance real-time down to ~10fps like the in-app garden.
+- **Four new critters** in real-world colours — a yellow 22-spot ladybird, monarch (orange/black) and blue-morpho
+butterflies, and a bumblebee (black/yellow) — added to `gen_objects.py` (palette swaps on the existing shapes) and
+registered in both `CritterSystem.kinds` (Dart) and `CritterSim.kinds` (native); the low-bob check now covers ladybug
+variants. 28 sprites total.
+
 **v21:** count stays **55**. The **TREND/line chart** no longer draws the highlighted (red) selected-bucket label on
 top of the fixed gray label at the **first/last** tick — the highlighted label is skipped when the selected bucket is
 an endpoint (`s != 0 && s != n-1`), so the ends keep one fixed number while every middle bucket still shows the
