@@ -322,15 +322,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late int brk = widget.s.breakMin;
   late int sess = widget.s.sessions;
 
+  // No SAVE button (#v23 fb): each stepper change applies + persists immediately,
+  // like the language / auto-break / blocker toggles already do.
+  void _apply(VoidCallback change) {
+    setState(change);
+    widget.s.saveSettings(work, brk, sess);
+  }
+
   @override
   Widget build(BuildContext context) {
     final s = widget.s;
     final th = s.theme;
     final lang = s.lang;
     return overlayScaffold(context, s, t(lang, 'settings'), [
-      _stepper(th, lang, t(lang, 'study'), work, 5, 300, 5, (v) => setState(() => work = v)),
-      _stepper(th, lang, t(lang, 'breakMin'), brk, 1, 120, 1, (v) => setState(() => brk = v)),
-      _stepper(th, lang, t(lang, 'sessions'), sess, 1, 24, 1, (v) => setState(() => sess = v)),
+      _stepper(th, lang, t(lang, 'study'), work, 5, 300, 5, (v) => _apply(() => work = v)),
+      _stepper(th, lang, t(lang, 'breakMin'), brk, 1, 120, 1, (v) => _apply(() => brk = v)),
+      _stepper(th, lang, t(lang, 'sessions'), sess, 1, 24, 1, (v) => _apply(() => sess = v)),
       const SizedBox(height: 24),
       Text(t(lang, 'language'), style: pixelStyle(lang, 12, col(th.onSurfaceDim), text: t(lang, 'language'))),
       const SizedBox(height: 12),
@@ -417,12 +424,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         secondaryBtn(th, lang, t(lang, 'blockedApps'),
             () => openPanel(context, s, () => AppPickerScreen(s)), fontSize: 11),
       ],
-      const SizedBox(height: 16),
-      primaryBtn(th, lang, t(lang, 'save'), () {
-        s.saveSettings(work, brk, sess);
-        s.messenger?.call('settingsSaved');
-        Navigator.pop(context);
-      }, padding: const EdgeInsets.all(16)),
     ]);
   }
 
@@ -492,19 +493,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
 /// Lists installed (launchable) apps with a toggle each; the chosen set is what
 /// the blocker covers during a focus session. Opened from Settings → BLOCKED APPS.
-class AppPickerScreen extends StatelessWidget {
+class AppPickerScreen extends StatefulWidget {
   final AppStore s;
   const AppPickerScreen(this.s, {super.key});
+  @override
+  State<AppPickerScreen> createState() => _AppPickerScreenState();
+}
+
+class _AppPickerScreenState extends State<AppPickerScreen> {
+  // Fetch the installed-app list ONCE. openPanel rebuilds this screen on every
+  // notifyListeners() (i.e. every block toggle), and the old `future:
+  // installedApps()` in build() re-queried + re-PNG-encoded every icon natively
+  // on each rebuild — that was the app-locker lag (#v23 fb). A cached future plus
+  // stable icon bytes let Flutter's image cache reuse decoded icons, so the tab
+  // loads once and toggles respond instantly.
+  late final Future<List<AppInfo>> _apps = installedApps();
 
   @override
   Widget build(BuildContext context) {
+    final s = widget.s;
     final th = s.theme;
     final lang = s.lang;
     return overlayScaffold(context, s, t(lang, 'blockedApps'), [
       Text(t(lang, 'pickBlocked'), style: pixelStyle(lang, 9, col(th.onSurfaceDim), text: t(lang, 'pickBlocked'))),
       const SizedBox(height: 12),
       FutureBuilder<List<AppInfo>>(
-        future: installedApps(),
+        future: _apps,
         builder: (context, snap) {
           if (!snap.hasData) {
             return Center(child: Text('...', style: pixelStyle(lang, 14, col(th.onSurfaceDim), text: '...')));
