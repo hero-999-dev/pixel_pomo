@@ -214,12 +214,12 @@ void main() {
       expect(Economy.upgradeCost(6, 8), 29);
     });
 
-    test('garden base is 10x20 (portrait); atLeast pads each axis keeping plantings', () {
-      expect(Economy.baseGardenCols, 10);
-      expect(Economy.baseGardenRows, 20);
+    test('garden base is 4x8 (portrait); atLeast pads each axis keeping plantings', () {
+      expect(Economy.baseGardenCols, 4);
+      expect(Economy.baseGardenRows, 8);
       const def = Garden();
-      expect(def.cols, 10);
-      expect(def.rows, 20);
+      expect(def.cols, 4);
+      expect(def.rows, 8);
       // a saved 4x6 with a flower pads into >=10x20, centred, nothing lost
       final small = const Garden(cols: 4, rows: 6).plant(5, 'gul');
       final big = small.atLeast(10, 20);
