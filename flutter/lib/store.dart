@@ -293,9 +293,19 @@ class AppStore extends ChangeNotifier {
   /// App backgrounded mid-session → raise the ongoing countdown notification
   /// (#v23 fb). Only while actually running; cancelled by the stop paths below.
   void onBackgrounded() {
-    if (engine.isRunning && _deadline != null) {
-      final title = engine.mode == Mode.work ? currentLabel : t(lang, 'break');
-      showTimerNotification(_deadline!.millisecondsSinceEpoch, title);
+    if (!engine.isRunning || _deadline == null) return;
+    final deadline = _deadline!.millisecondsSinceEpoch;
+    if (engine.mode == Mode.work) {
+      // Focus: roll into the break if auto-break is on, otherwise announce it's
+      // done — so the badge can't sit there ticking past zero with the old label.
+      if (autoBreak) {
+        showTimerNotification(deadline, currentLabel,
+            nextMs: breakMin * 60 * 1000, nextTitle: t(lang, 'break'), doneTitle: t(lang, 'breakDone'));
+      } else {
+        showTimerNotification(deadline, currentLabel, doneTitle: t(lang, 'workDone'));
+      }
+    } else {
+      showTimerNotification(deadline, t(lang, 'break'), doneTitle: t(lang, 'breakDone'));
     }
   }
 
