@@ -233,6 +233,17 @@ butterflies, and a bumblebee (black/yellow) — added to `gen_objects.py` (palet
 registered in both `CritterSystem.kinds` (Dart) and `CritterSim.kinds` (native); the low-bob check now covers ladybug
 variants. 28 sprites total.
 
+**v23 follow-up 4 (device feedback):** count stays **77** (the timer-channel test gained the phase-plan assertions).
+All in the notification, **device-verified** (host `flutter test` can't post notifications):
+- **App icon moved to the small/left mini-icon slot** — dropped `setLargeIcon` (it rendered the logo big on the right);
+the app icon is now the `setSmallIcon`.
+- **Fixed the count-past-zero bug:** at a phase deadline the service used to re-post the *same* counting chronometer
+(`setWhen(pastDeadline)` → ticked negative) with the stale focus label, and the Dart isolate is frozen in the
+background so nothing advanced the phase. The service now drives the transition from the plan handed to it up front:
+**auto-break on → it rolls straight into the BREAK countdown; auto-break off → it settles on a static "FOCUS DONE!"**
+(no chronometer, so no negative tick), then detaches (swipeable) and stops. `timer_notif_test.dart` asserts the plan in
+the `show` payload (`nextMs`/`nextTitle`/`doneTitle`) for both auto-break states.
+
 **v21:** count stays **55**. The **TREND/line chart** no longer draws the highlighted (red) selected-bucket label on
 top of the fixed gray label at the **first/last** tick — the highlighted label is skipped when the selected bucket is
 an endpoint (`s != 0 && s != n-1`), so the ends keep one fixed number while every middle bucket still shows the
