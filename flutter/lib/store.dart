@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'logic.dart';
 import 'strings.dart';
+import 'timer_notif.dart';
 
 /// Chart styles for the stats screen.
 enum ChartMode { bar, line, pie }
@@ -204,6 +205,7 @@ class AppStore extends ChangeNotifier {
       return;
     }
     _timer?.cancel();
+    cancelTimerNotification(); // phase done in-app (the native one self-clears at its deadline too)
     engine.setTimeLeft(0);
     final finished = engine.finishPhase();
     if (finished == Mode.work) _recordWork();
@@ -283,8 +285,18 @@ class AppStore extends ChangeNotifier {
   void pause() {
     _timer?.cancel();
     engine.pause();
+    cancelTimerNotification(); // not running → drop the countdown notification
     _publishBlocker();
     notifyListeners();
+  }
+
+  /// App backgrounded mid-session → raise the ongoing countdown notification
+  /// (#v23 fb). Only while actually running; cancelled by the stop paths below.
+  void onBackgrounded() {
+    if (engine.isRunning && _deadline != null) {
+      final title = engine.mode == Mode.work ? currentLabel : t(lang, 'break');
+      showTimerNotification(_deadline!.millisecondsSinceEpoch, title);
+    }
   }
 
   void reset() {
@@ -302,6 +314,7 @@ class AppStore extends ChangeNotifier {
       }
     }
     engine.reset();
+    cancelTimerNotification(); // session cancelled in-app → drop the notification
     _publishBlocker();
     notifyListeners();
   }
@@ -309,6 +322,7 @@ class AppStore extends ChangeNotifier {
   void switchMode() {
     _timer?.cancel();
     engine.switchMode();
+    cancelTimerNotification();
     notifyListeners();
   }
 

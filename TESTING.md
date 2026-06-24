@@ -196,6 +196,24 @@ toggle-driven rebuild **(+1)**. **(4) Settings SAVE removed** — the three step
 language / auto-break / blocker toggles already did), so the SAVE button is gone; the smoke test now asserts the
 **SETTINGS** title instead of the SAVE button.
 
+**v23 follow-up 2 (device feedback):** count rises to **76** (+2).
+- **Blocked apps float to the top:** the picker lists the selected (blocked) apps first, then a divider, then the rest
+(`AppPickerScreen` partitions the already alpha-sorted list). `app_picker_widget_test.dart` asserts a newly-blocked app
+jumps above an alphabetically-earlier one **(+1)**.
+- **Ongoing focus-timer notification:** while a session runs and the app is backgrounded, a lock-screen-visible,
+**ongoing** notification shows the live MM:SS countdown (`Notification.Builder` chronometer, ticked by the system) over
+a new `pixel_pomo/timer` channel. It **can't be swiped away** until done and **self-clears at the deadline**
+(`setTimeoutAfter`) or when the session is paused / reset / finished. `PixelPomoApp` is now a `WidgetsBindingObserver`
+that calls `AppStore.onBackgrounded` on `paused`; `POST_NOTIFICATIONS` is requested on launch (Android 13+). **No
+foreground service** — the countdown is system-driven, so it survives Android suspending the isolate in the background.
+Device-verified (host `flutter test` can't post notifications); `timer_notif_test.dart` asserts the store drives
+show-on-background / cancel-on-stop over the channel **(+1)**.
+- **Overlay needed two BACK taps:** tapping the cover's BACK launched our app and hid the overlay, but hiding
+re-exposed the blocked app for a beat → its window event re-showed the cover (the "our app to front" event that used to
+hide it is now ignored by the flicker guard, so the spurious re-show stuck). Fixed: `backToApp` sets a ~1.5s
+`suppressShowUntil` window so the transient re-focus during the BACK transition can't re-trigger the cover — one tap
+leaves cleanly. Device-verified (accessibility service, outside the Dart gate).
+
 **v21:** count stays **55**. The **TREND/line chart** no longer draws the highlighted (red) selected-bucket label on
 top of the fixed gray label at the **first/last** tick — the highlighted label is skipped when the selected bucket is
 an endpoint (`s != 0 && s != n-1`), so the ends keep one fixed number while every middle bucket still shows the
