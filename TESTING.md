@@ -257,6 +257,12 @@ the on-scene chips at `bottom: 4` slid under the Android nav buttons. The three 
 `bottom: 4 + navInset` (`MediaQuery.padding.bottom` — 0 in normal mode since the SafeArea consumed it; the nav-bar height
 edge-to-edge). The smoke test already taps `peekButton`; the offset is visual, **device-verified**.
 
+**v24.2 (daisy classic + bushy):** suite stays **77** — art-only change in `gen_objects.py` (Classic 8-petal + Bushy
+3-head daisy models; sprites regenerated). No logic tests touched; garden/shop are **device-verified**.
+
+**v24.2 (daisy classic + bushy):** suite stays **77** — art-only change in `gen_objects.py` (Classic 8-petal + Bushy
+3-head daisy models; sprites regenerated). No logic tests touched; garden/shop are **device-verified**.
+
 **v24 (all flowers redesigned):** suite stays **77** — the flower-variant test now iterates `Flowers.all` and
 asserts **every** species has 2 models (`unknown` still defaults to 1; was rose/tulip/camellia-only). The rest is
 pure art: all 9 non-rose species got 2 hand-pixelled models via the generalised modular pipeline in

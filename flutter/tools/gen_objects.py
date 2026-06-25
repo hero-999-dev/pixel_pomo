@@ -709,7 +709,7 @@ _FLOWER_PALS = {  # id: (dark, mid, light, centre, bloom-outline) — hex
     'kaktus':    ('E0457B', 'F06A92', 'F9A8C2', 'F2C94C', '5A1030'),  # pink flower; body = greens
     'kasimpati': ('C9710B', 'F2A03A', 'F8C66A', 'E0860B', '5A3206'),  # gold chrysanthemum
     'menekse':   ('5B2A9E', '8E4FE0', 'B98CF0', 'F2C94C', '24104A'),  # purple violet, gold eye
-    'papatya':   ('D8DCE0', 'FFFFFF', 'FFFFFF', 'F2C94C', '6E7378'),  # white daisy, gold eye
+    'papatya':   ('CFD4DA', 'FFFFFF', 'FFFFFF', 'F2C94C', '4F555C'),  # white daisy, gold eye, bold rim
     'nilufer':   ('D85C8E', 'F4A6C0', 'FAD0E0', 'F2C94C', '5A1E38'),  # pink water lily, gold eye
     'begonya':   ('C0285A', 'F2585B', 'F78AA0', 'F2C94C', '3A0A1C'),  # pink begonia (both same colour)
     'orkide':    ('7A2EA0', 'C24FE0', 'E0A6F2', 'F2C94C', '2C0E40'),  # purple orchid (both same colour)
@@ -795,28 +795,44 @@ _FLOWER_BLOOMS = {
             ".....dmmmd......",
         ],
     ),
-    'papatya': _u(
-        [  # 0 classic daisy (round white head, small gold eye, notched petals) — DAISY 01
-            "......m.m.......",
-            ".....mmmmm......",
-            "....mmmCmmm.....",
-            "....mCCCCCm.....",
-            "....mmmCmmm.....",
-            ".....mmmmm......",
-            "......m.m.......",
+    'papatya': [
+        [  # 0 CLASSIC daisy — 8 distinct white petals around a bold gold eye, 2 leaves (guide DAISY 01)
+            "................",
+            ".......mm.......",
+            "...mm..mm..mm...",
+            "...mm......mm...",
+            "......CCCC......",
+            ".mm...CCCC...mm.",
+            ".mm...CCCC...mm.",
+            "......CCCC......",
+            "...mm......mm...",
+            "...mm..mm..mm...",
+            ".......mm.......",
+            ".......SS.......",
+            "....GGkSSkGG....",
+            "...GGGkSSkGGG...",
+            ".......SS.......",
             "................",
         ],
-        [  # 1 wide daisy (bigger head) — guide DAISY 02 (04 too busy at 16px)
-            ".....m.m.m......",
-            "....mmmmmmm.....",
-            "...mmmmCmmmm....",
-            "...mmCCCCCmm....",
-            "...mmmmCmmmm....",
-            "....mmmmmmm.....",
-            ".....m.m.m......",
+        [  # 1 BUSHY daisy — three small solid heads (gold eyes) on a leafy clump, wide footprint (guide DAISY 04)
+            "................",
+            "..mmm...mmm.....",
+            ".mmCmm.mmCmm....",
+            "..mmm...mmm.....",
+            ".....mmm........",
+            "....mmCmm.......",
+            ".....mmm........",
+            "....k.SS.k......",
+            "..GG.GGGG.GG....",
+            ".GGGGGGGGGGGG...",
+            "GGkGGGGGGGGkGG..",
+            ".GGGGGGGGGGGG...",
+            "..GGGGGGGGGG....",
+            "...GG.GG.GG.....",
+            "................",
             "................",
         ],
-    ),
+    ],
     'begonya': _u(
         [  # 0 cane begonia (full rounded cluster, gold flower-centres) — guide BEGONIA 02
             "....ddddd.......",

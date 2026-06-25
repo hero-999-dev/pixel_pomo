@@ -5,6 +5,34 @@ Each entry notes the **prompt** (what you asked for) and the **changes** made.
 
 ---
 
+## v24.2 — daisy classic + bushy redesign; clean commits (Flutter, 0.24.2+32)
+**Date:** 2026-06-25
+
+**Prompt:** push **0.24.2** to GitHub so I can verify from my phone that the Cursor co-author trailers are gone.
+
+**Changes (`flutter/`):**
+- **Daisy (`papatya`) redrawn** in `tools/gen_objects.py`: v0 = **Classic** — 8 distinct white petals around a bold
+  gold eye with two leaves (guide DAISY 01); v1 = **Bushy** — three small solid heads on a leafy clump (guide DAISY 04).
+  Palette rim darkened for readability. Sprites regenerated (`flower_papatya*.png`). Version **0.24.2+32**.
+- Git history on `main` already stripped of `Co-authored-by: Cursor` (filter-branch + force-push); this commit ships
+  with a clean message only.
+
+---
+
+## v24.2 — daisy classic + bushy redesign; clean commits (Flutter, 0.24.2+32)
+**Date:** 2026-06-25
+
+**Prompt:** push **0.24.2** to GitHub so I can verify from my phone that the Cursor co-author trailers are gone.
+
+**Changes (`flutter/`):**
+- **Daisy (`papatya`) redrawn** in `tools/gen_objects.py`: v0 = **Classic** — 8 distinct white petals around a bold
+  gold eye with two leaves (guide DAISY 01); v1 = **Bushy** — three small solid heads on a leafy clump (guide DAISY 04).
+  Palette rim darkened for readability. Sprites regenerated (`flower_papatya*.png`). Version **0.24.2+32**.
+- Git history on `main` already stripped of `Co-authored-by: Cursor` (filter-branch + force-push); this commit ships
+  with a clean message only.
+
+---
+
 ## v24.1 — flower style-consistency polish: bolder violet / begonia / orchid (Flutter, 0.24.1+31)
 **Date:** 2026-06-25
 
