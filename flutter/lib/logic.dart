@@ -205,10 +205,13 @@ class Flowers {
   }
 
   /// How many distinct sprite variants a species has; a random one is chosen each
-  /// time the flower is planted (#v22). Restyled into 2 hand-authored models so far:
-  /// rose / tulip / camellia — every other species keeps its single sprite until the
-  /// new modular style is rolled out to it.
-  static const variantCounts = <String, int>{'gul': 2, 'lale': 2, 'kamelya': 2};
+  /// time the flower is planted (#v22). Every species now has 2 hand-authored
+  /// models in one consistent APICO/Littlewood style (rose is the reference;
+  /// the rest were rolled out from the user's per-flower guide sheets, #v24).
+  static const variantCounts = <String, int>{
+    'gul': 2, 'lale': 2, 'kamelya': 2, 'kaktus': 2, 'kasimpati': 2,
+    'menekse': 2, 'papatya': 2, 'nilufer': 2, 'begonya': 2, 'orkide': 2,
+  };
   static int variantsFor(String id) => variantCounts[id] ?? 1;
 }
 

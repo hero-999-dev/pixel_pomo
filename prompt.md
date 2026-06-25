@@ -353,13 +353,14 @@ now Flutter-exclusive and richer** than the native grid (see below) — keep the
   everything else stays **Press Start 2P**. **Galmuri also serves as the fallback for accented Latin** (Turkish ğ/ş,
   Polish ł/ś, French é/ç…) that Press Start 2P lacks. (`hasHangul` decides.) **Korean was removed as a UI language in
   #v22** (see `future-plans/korean-language.md`) — but this routing stays, so re-adding it is easy.
-- **Flower variants (#v22):** each species can have N sprite variants; planting picks a random one and
-  stores it as `<id>~<v>` (e.g. `gul~2`, `Placeables.flowerBase` strips the suffix, counted by base id).
-  **Rose, tulip (`lale`) and camellia (`kamelya`) each have 2 hand-authored models** (`flower_<id>_0..1.png` — a
-  full bloom + a bud, left-first vs right-first leaves) in one modular style (`_FLOWER_BLOOMS` / `_FLOWER_PALS` in
-  `gen_objects.py`); other species keep a single sprite for now. The renderers
-  (`SpriteBank.flower` + native `flowerBitmap`) fall back to `flower_<id>.png` for
-  single-variant species.
+- **Flower variants (#v22, all species #v24):** each species has 2 sprite models; planting picks a random one
+  and stores it as `<id>~<v>` (e.g. `gul~2`, `Placeables.flowerBase` strips the suffix, counted by base id).
+  **All 10 species now have 2 hand-authored models** (`flower_<id>_0..1.png` — two shape variants in ONE colour,
+  matching the user's per-flower APICO/Littlewood guide sheets; the rose is the reference and is unchanged) built
+  by the modular pipeline in `gen_objects.py`: `_FLOWER_PALS[id]` = (dark, mid, light, centre, bloom-outline) and
+  `_FLOWER_BLOOMS[id]` = two full 16-wide grids (`d/m/l` petals + `C` centre outlined with the flower's dark rim;
+  `S/G/k` body/leaves outlined dark green — cactus/violet/water-lily carry their own body instead of the rose stem).
+  The renderers (`SpriteBank.flower` + native `flowerBitmap`) still fall back to `flower_<id>.png` if a `_<v>` is missing.
 - **Launcher icon:** `assets/icon/app_icon*.png` (pixel tomato, from `tools/gen_icon.py`) +
   `flutter_launcher_icons`; CI runs `dart run flutter_launcher_icons` **after** `flutter create`
   so the real logo is baked in instead of the Flutter default.
