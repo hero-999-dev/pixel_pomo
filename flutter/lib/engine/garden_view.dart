@@ -138,7 +138,10 @@ class _GardenViewState extends State<GardenView> with SingleTickerProviderStateM
 
   void _onScaleUpdate(ScaleUpdateDetails d) {
     setState(() {
-      _cam.zoom = (_zoomAtStart * d.scale).clamp(1.0, 4.0);
+      // min 0.5 (was 1.0) so you can zoom out far enough to frame the WHOLE
+      // garden from any yaw — a rotated plot's bounding box is larger, so it used
+      // to clip at the old 1.0 floor (capture feedback). Max 4.0 (zoom-in fine).
+      _cam.zoom = (_zoomAtStart * d.scale).clamp(0.5, 4.0);
       _cam.yaw = _yawAtStart + d.rotation; // two-finger twist = look from another side
       _cam.panX += d.focalPointDelta.dx;
       _cam.panY += d.focalPointDelta.dy;

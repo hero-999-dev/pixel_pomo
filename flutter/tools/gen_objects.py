@@ -704,54 +704,276 @@ FENCES = {
 # plant outlined separately). Rolled out flower-by-flower (#v22); ids NOT listed
 # here keep their old single char-grid sprite until they're redrawn.
 _FLOWER_PALS = {  # id: (dark, mid, light, centre, bloom-outline) — hex
-    'lale':    ('9C2350', 'E0457B', 'F58CB2', 'F7B9D2', '38091C'),
-    'kamelya': ('A21250', 'E02C6D', 'F573A2', 'FBE9F0', '37041F'),
+    'lale':      ('9C1B2E', 'D93645', 'F2737C', 'F2C94C', '2E0810'),  # red tulip
+    'kamelya':   ('A21250', 'E02C6D', 'F573A2', 'F2D24C', '37041F'),  # pink-red camellia, gold eye
+    'kaktus':    ('E0457B', 'F06A92', 'F9A8C2', 'F2C94C', '5A1030'),  # pink flower; body = greens
+    'kasimpati': ('C9710B', 'F2A03A', 'F8C66A', 'E0860B', '5A3206'),  # gold chrysanthemum
+    'menekse':   ('5B2A9E', '8E4FE0', 'B98CF0', 'F2C94C', '24104A'),  # purple violet, gold eye
+    'papatya':   ('D8DCE0', 'FFFFFF', 'FFFFFF', 'F2C94C', '6E7378'),  # white daisy, gold eye
+    'nilufer':   ('D85C8E', 'F4A6C0', 'FAD0E0', 'F2C94C', '5A1E38'),  # pink water lily, gold eye
+    'begonya':   ('C0285A', 'F2585B', 'F78AA0', 'F2C94C', '3A0A1C'),  # pink begonia (both same colour)
+    'orkide':    ('7A2EA0', 'C24FE0', 'E0A6F2', 'F2C94C', '2C0E40'),  # purple orchid (both same colour)
 }
+
+# Shared upright stem + 2 leaves (reuse the rose's, so every species reads as the
+# same garden style): left-first leaves for model 0, right-first for model 1.
+_STEM_L = _ROSE_STEM_OFFSET
+_STEM_R = _ROSE_STEM_OFFSET_R
+
+
+def _u(b0, b1):
+    """Build a 2-model flower from two 8-row blooms by standing each on the shared
+    stem (left leaves / right leaves) — a full 16-row grid per model."""
+    return [b0 + _STEM_L, b1 + _STEM_R]
+
+
 _FLOWER_BLOOMS = {
-    'lale': [
-        [  # 0 closed tulip cup (3 petal tips + tapered body)
-            "....m.m.m......",
-            "...mmmmmmm.....",
-            "..dmmmmmmmd....",
-            "..dmlllmmmd....",
-            "..dmmmmmmmd....",
-            "...dmmmmmd.....",
-            "....dmmmd......",
-            ".....ddd.......",
+    # --- upright flowers: an 8-row bloom standing on the shared stem -----------
+    'lale': _u(
+        [  # 0 tall tulip (narrow upright closed cup) — guide TULIP 02
+            "......mmm.......",
+            "......mmm.......",
+            ".....mmmmm......",
+            ".....dmmmd......",
+            ".....dmlmd......",
+            ".....dmmmd......",
+            "......dmd.......",
+            ".......d........",
         ],
-        [  # 1 open tulip (wider top, same cup)
-            "...m.m.m.m.....",
-            "..mmmmmmmmm....",
-            "..dmmmmmmmd....",
-            "..dmlllmmmd....",
-            "..dmmmmmmmd....",
-            "...dmmmmmd.....",
-            "....dmmmd......",
-            ".....ddd.......",
+        [  # 1 open tulip (3 petals fan out at the top) — guide TULIP 03
+            "....m..m..m.....",
+            "....mm.mm.mm....",
+            "...dmmmmmmmmd...",
+            "....dmmmmmmd....",
+            "....dmlmmlmd....",
+            ".....dmmmmd.....",
+            "......dmmd......",
+            ".......dd.......",
+        ],
+    ),
+    'kamelya': _u(
+        [  # 0 semi-open camellia — guide CAMELLIA 02
+            "......mmmm......",
+            "....dmmmmmmd....",
+            "...dmmllllmmd...",
+            "...dmlCCCClmd...",
+            "...dmmlCClmmd...",
+            "....dmllllmd....",
+            ".....dmmmmd.....",
+            ".......dd.......",
+        ],
+        [  # 1 full bloom camellia — guide CAMELLIA 03
+            ".....mmmmmm.....",
+            "...dmmllllmmd...",
+            "..dmllCCCCllmd..",
+            "..dmlCCCCCClmd..",
+            "..dmllCCCCllmd..",
+            "...dmmllllmmd...",
+            "....dmmmmmmd....",
+            ".....dmmmd......",
+        ],
+    ),
+    'kasimpati': _u(
+        [  # 0 half-open mum (spiky, gold) — guide CHRYSANTHEMUM 02
+            "......mmmm......",
+            "....dmlmlmld....",
+            "...dmlmlmlmld...",
+            "...dmlCCCClmd...",
+            "...dmlmlmlmld...",
+            "....dmlmlmld....",
+            ".....dmmmmd.....",
+            ".......dd.......",
+        ],
+        [  # 1 full dense mum — guide CHRYSANTHEMUM 03
+            ".....mlmlml.....",
+            "...dmlmlmlmld...",
+            "..dmlmlmlmlmd...",
+            "..dmlCCCCClmd...",
+            "..dmlmlmlmlmd...",
+            "...dmlmlmlmld...",
+            "....dmlmlmd.....",
+            ".....dmmmd......",
+        ],
+    ),
+    'papatya': _u(
+        [  # 0 classic daisy (round white head, small gold eye, notched petals) — DAISY 01
+            "......m.m.......",
+            ".....mmmmm......",
+            "....mmmCmmm.....",
+            "....mCCCCCm.....",
+            "....mmmCmmm.....",
+            ".....mmmmm......",
+            "......m.m.......",
+            "................",
+        ],
+        [  # 1 wide daisy (bigger head) — guide DAISY 02 (04 too busy at 16px)
+            ".....m.m.m......",
+            "....mmmmmmm.....",
+            "...mmmmCmmmm....",
+            "...mmCCCCCmm....",
+            "...mmmmCmmmm....",
+            "....mmmmmmm.....",
+            ".....m.m.m......",
+            "................",
+        ],
+    ),
+    'begonya': _u(
+        [  # 0 cane begonia (cluster of small blooms) — guide BEGONIA 02
+            "...dmd...dmd....",
+            "..dmCmd.dmCmd...",
+            "...dmd...dmd....",
+            ".......dmd......",
+            "......dmCmd.....",
+            ".......dmd......",
+            "................",
+            "................",
+        ],
+        [  # 1 rhizomatous begonia (same colour, tighter cluster) — guide BEGONIA 03
+            "......dmd.......",
+            ".....dmCmd......",
+            "....dmd.dmd.....",
+            "...dmCm.dmCm....",
+            "....dmd.dmd.....",
+            ".......dmd......",
+            "................",
+            "................",
+        ],
+    ),
+    'orkide': _u(
+        [  # 0 dendrobium spray (paired blooms) — guide ORCHID 02
+            "......dmd.......",
+            ".....dmCmd......",
+            "......dmd.......",
+            "....dmd.dmd.....",
+            "...dmCm.dmCm....",
+            "....dmd.dmd.....",
+            "................",
+            "................",
+        ],
+        [  # 1 oncidium (many small blooms, same colour) — guide ORCHID 04
+            "....dmd.dmd.....",
+            "...dmCm.dmCm....",
+            "....dmd.dmd.....",
+            "......dmd.......",
+            ".....dmCmd......",
+            "......dmd.......",
+            "................",
+            "................",
+        ],
+    ),
+    # --- special shapes: full 16-row grids (own body / foliage) ---------------
+    'kaktus': [
+        [  # 0 round barrel cactus + flower, no pot — guide CACTUS 01
+            ".......d........",
+            "......dmd.......",
+            ".....dmCmd......",
+            "......ddd.......",
+            "....GGGGGGG.....",
+            "...GkGGGkGGk....",
+            "..GkGGGGGkGGk...",
+            "..GGGGGGGGGGG...",
+            "..GkGGGGGkGGk...",
+            "..GkGGGGGkGGk...",
+            "...GGGGGGGGG....",
+            "....GGGGGGG.....",
+            ".....GGGGG......",
+            "......kkk.......",
+            "................",
+            "................",
+        ],
+        [  # 1 columnar cactus + side arm + flower, no pot — guide CACTUS 02
+            "......d.........",
+            ".....dmd........",
+            "....dmCmd.......",
+            ".....ddd........",
+            "......GGG.......",
+            "......GkG.......",
+            "...GG.GkG.......",
+            "..GkG.GkG.......",
+            "..GkG.GkG.......",
+            "..GkGGGkG.......",
+            "...GGGGkG.......",
+            "......GkG.......",
+            "......GkG.......",
+            "......GkG.......",
+            ".....GGGGG......",
+            "................",
         ],
     ],
-    'kamelya': [
-        [  # 0 layered camellia bloom (solid white centre)
-            ".....dddddd.....",
-            "...ddmmmmmmdd...",
-            "..dmmllmmllmmd..",
-            "..dmmmCCCCmmmd..",
-            "..dmmlCCCClmmd..",
-            "..dmmmCCCCmmmd..",
-            "..dmmllmmllmmd..",
-            "...ddmmmmmmdd...",
-            ".....dddddd.....",
+    'menekse': [
+        [  # 0 two upright violet blooms over a leaf mound — guide VIOLET 02 (2 blooms)
+            "................",
+            "..d.d.....d.d...",
+            ".dmCmd...dmCmd..",
+            "..dmd.....dmd...",
+            "...S.......S....",
+            "...S.......S....",
+            "...GGGGGGGGG....",
+            "..GGGGGGGGGGG...",
+            ".GGkGGGGGGGkGG..",
+            "..GGGGGGGGGGG...",
+            "...GGGGGGGGG....",
+            "....GGGGG.......",
+            "................",
+            "................",
+            "................",
+            "................",
         ],
-        [  # 1 camellia bud (tighter, small white peek)
-            "......dddd......",
-            "....ddmmmmdd....",
-            "...dmmllllmmd...",
-            "...dmlmCCmlmd...",
-            "...dmmlCClmmd...",
-            "...dmmmllmmmd...",
-            "....dmmmmmmd....",
-            ".....dmmmmd.....",
-            "......dddd......",
+        [  # 1 single upward violet bloom over a leaf mound — guide VIOLET 04 (no side bloom)
+            "................",
+            "......d.d.......",
+            ".....dmCmd......",
+            "......dmd.......",
+            ".......S........",
+            ".......S........",
+            "...GGGGGGGGG....",
+            "..GGGGGGGGGGG...",
+            ".GGkGGGGGGGkGG..",
+            "..GGGGGGGGGGG...",
+            "...GGGGGGGGG....",
+            "....GGGGG.......",
+            "................",
+            "................",
+            "................",
+            "................",
+        ],
+    ],
+    'nilufer': [
+        [  # 0 partially-open water lily on a pad — guide WATER LILY 02
+            "................",
+            "................",
+            "......ddd.......",
+            ".....dmCmd......",
+            "....dmlClmd.....",
+            ".....dmmmd......",
+            "......ddd.......",
+            "...GGGGGGGGG....",
+            "..GGGGGGGGGGG...",
+            ".GGGGGGGGGGGGG..",
+            "..GGGGGGGGGGG...",
+            "...GGGGGGGGG....",
+            "................",
+            "................",
+            "................",
+            "................",
+        ],
+        [  # 1 full-bloom water lily on a pad — guide WATER LILY 03
+            "................",
+            "......l.l.......",
+            ".....dmlmld.....",
+            "....dmlCClmd....",
+            "....dmlCClmd....",
+            ".....dmlmld.....",
+            "......ddd.......",
+            "...GGGGGGGGG....",
+            "..GGGGGGGGGGG...",
+            ".GGGGGGGGGGGGG..",
+            "..GGGGGGGGGGG...",
+            "...GGGGGGGGG....",
+            "................",
+            "................",
+            "................",
+            "................",
         ],
     ],
 }
@@ -767,24 +989,23 @@ def _flower_pal(fid):
 
 
 def flower_variant(fid, v):
-    """One model of a (non-rose) flower: a per-flower bloom over the shared stem,
-    outlined like the rose (bloom rim from the petal colour, stem rim green)."""
+    """One model of a (non-rose) flower as a full self-contained grid: petal chars
+    d/m/l + centre C are the bloom (outlined with the flower's dark rim); green
+    chars S/G/k are the stem/leaves/body (outlined dark green); composited so the
+    two materials read apart, like the rose. Each grid already carries its own
+    foliage — an upright stem (via _u) or a custom body (cactus/violet/water lily)."""
     pal = _flower_pal(fid)
-    bloom_rows = _FLOWER_BLOOMS[fid][v]
-    stem = (_ROSE_STEM_OFFSET, _ROSE_STEM_OFFSET_R)[v]  # 2 models: left-first / right-first leaves
-    bh = len(bloom_rows)
-    h = bh + len(stem) - 1
+    rows = _FLOWER_BLOOMS[fid][v]
+    h = len(rows)
     bloom = blank(16, h)
     plant = blank(16, h)
-    for r, line in enumerate(bloom_rows):
+    for r, line in enumerate(rows):
         for c in range(min(len(line), 16)):
-            if line[c] in 'dmlC':
-                bloom[r][c] = pal[line[c]]
-    for r, line in enumerate(stem):
-        rr = bh - 1 + r
-        for c in range(min(len(line), 16)):
-            if line[c] in 'SGk':
-                plant[rr][c] = pal[line[c]]
+            ch = line[c]
+            if ch in 'dmlC':
+                bloom[r][c] = pal[ch]
+            elif ch in 'SGk':
+                plant[r][c] = pal[ch]
     bloom = outline(bloom, _FLOWER_PALS[fid][4])
     plant = outline(plant, _ROSE_GRN_OL)
     return _rose_compose([plant, bloom])

@@ -6,7 +6,7 @@ a living wallpaper. Built with the
 [Press Start 2P](https://fonts.google.com/specimen/Press+Start+2P) font for that
 classic arcade look.
 
-> **Status:** **v0.23.5** — one Flutter (Dart) codebase ships **both** an Android APK and an
+> **Status:** **v0.24.0** — one Flutter (Dart) codebase ships **both** an Android APK and an
 > iOS app. On top of the core timer it has a full-screen **living 2.5D garden**, an animated
 > **Android live wallpaper**, an **app blocker** to keep you off distracting apps during a focus
 > session, **session stats** with charts and history, a **coin + shop** economy, **6 themes**,
@@ -49,8 +49,9 @@ You don't build anything yourself — every release attaches a ready-to-install 
 - **🌱 Living garden** — a full-screen, portrait **2.5D world** drawn by a tiny custom engine (no Unity/Flame).
   Plant your flowers on a grass **clearing** ringed by a **forest** (trees, bushes, rocks). **EXPAND** grows the
   plot from the center; **two-finger twist to rotate**, **pinch-zoom and pan**. **Bee, butterfly and ladybug**
-  critters drift in to visit your flowers. Several flowers (rose, tulip, camellia, …) ship multiple hand-drawn
-  models so a flower bed looks varied.
+  critters drift in to visit your flowers. **Every** flower ships **two** hand-drawn models (shape variants in
+  one colour — rose, tulip, camellia, cactus, chrysanthemum, violet, daisy, water lily, begonia, orchid) so a
+  flower bed looks varied.
 - **📸 Camera & live wallpaper** — a **peek** button hides all the UI; **camera mode** lets you frame any angle, then
   **CAPTURE** to **share** the shot or, on **Android**, **set it as an animated live wallpaper** — your real garden,
   swaying plants and a visiting bug, redrawn on your home screen. **Settings → HOME SCREEN `CLEAN | GARDEN`** can also

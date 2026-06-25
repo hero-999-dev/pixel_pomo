@@ -438,11 +438,10 @@ void main() {
       expect(Placeables.flowerBase('papatya'), 'papatya');
     });
 
-    test('variantsFor: restyled flowers have 2 models, others default to 1', () {
-      expect(Flowers.variantsFor('gul'), 2);
-      expect(Flowers.variantsFor('lale'), 2);
-      expect(Flowers.variantsFor('kamelya'), 2);
-      expect(Flowers.variantsFor('papatya'), 1);
+    test('variantsFor: every species has 2 models; unknown defaults to 1', () {
+      for (final f in Flowers.all) {
+        expect(Flowers.variantsFor(f.id), 2, reason: '${f.id} should have 2 models');
+      }
       expect(Flowers.variantsFor('unknown'), 1);
     });
 
