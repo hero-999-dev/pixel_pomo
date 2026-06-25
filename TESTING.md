@@ -127,7 +127,7 @@ The Dart port carries its own tests, gating the **`build-flutter.yml`** macOS pi
 **3.44.2 / Dart 3.12.2** and green in CI.
 
 ```bash
-cd flutter && flutter analyze && flutter test   # 72 tests
+cd flutter && flutter analyze && flutter test   # 77 tests
 ```
 
 **v22:** count rises to **60** (+5 pure tests for the flower **variant system**: `flowerBase` strips the `~N` suffix;
@@ -243,6 +243,19 @@ background so nothing advanced the phase. The service now drives the transition 
 **auto-break on → it rolls straight into the BREAK countdown; auto-break off → it settles on a static "FOCUS DONE!"**
 (no chronometer, so no negative tick), then detaches (swipeable) and stops. `timer_notif_test.dart` asserts the plan in
 the `show` payload (`nextMs`/`nextTitle`/`doneTitle`) for both auto-break states.
+
+**v23 follow-up 5 (device feedback):** count stays **77** (both fixes are visual/native — no host-testable logic). Two
+on-device items:
+- **Wallpaper road at an angle** — the native `GardenRenderer.drawRoad` drew an **axis-aligned** rect at the projected
+tile centre, so a path ignored the camera **yaw**: a wallpaper set from an angled capture didn't match it. It now draws
+the road sprite as the **rotated/squashed tile quad** under the same garden→screen affine the grass uses (new
+`gridMatrix()` helper, also reused by `fillClearing`), mirroring the in-app `_paintRoads`. The in-app capture was already
+correct (it draws roads under the affine); only the native wallpaper was off. **Device-verified** (the Kotlin renderer is
+outside the Dart gate; `toImage` hangs headless).
+- **Peek (eye) button under the nav bar** — peek/camera run the garden **edge-to-edge** (`SafeArea(bottom:false)`), so
+the on-scene chips at `bottom: 4` slid under the Android nav buttons. The three chips (peek / recenter / camera) now use
+`bottom: 4 + navInset` (`MediaQuery.padding.bottom` — 0 in normal mode since the SafeArea consumed it; the nav-bar height
+edge-to-edge). The smoke test already taps `peekButton`; the offset is visual, **device-verified**.
 
 **v21:** count stays **55**. The **TREND/line chart** no longer draws the highlighted (red) selected-bucket label on
 top of the fixed gray label at the **first/last** tick — the highlighted label is skipped when the selected bucket is

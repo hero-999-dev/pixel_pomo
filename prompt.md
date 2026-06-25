@@ -293,7 +293,8 @@ now Flutter-exclusive and richer** than the native grid (see below) — keep the
 - **Peek + camera + wallpaper:** `GardenView` has a bottom-left **peek** button (`peekButton`, hides
   all `GardenScreen` HUD — peeking goes **full-bleed** with transparent system bars) and a **camera**
   button (`cameraButton`, clean framing — yaw/zoom/pan, tilt fixed). On-scene icons sit on **themed
-  `panel` chips** so they recolor with the theme and stay readable on the dark scene. Camera mode is **full-bleed**
+  `panel` chips** so they recolor with the theme and stay readable on the dark scene; their bottom offset adds
+  `MediaQuery.padding.bottom` so they stay **above the Android nav bar** when the garden runs edge-to-edge (peek/camera). Camera mode is **full-bleed**
   — `main()` sets `SystemUiMode.edgeToEdge` so the garden paints **behind transparent status + nav bars** (matching
   the live-wallpaper preview — no leftover gray strip); the `GardenView` fills the screen and **CAPTURE · CANCEL**
   float over it (`SafeArea`); **CAPTURE** screenshots the `RepaintBoundary` (`captureKey`) and opens a sheet with
@@ -312,7 +313,8 @@ now Flutter-exclusive and richer** than the native grid (see below) — keep the
   `WallpaperService`) drives a **Choreographer render loop** that re-draws the saved garden on the wallpaper
   `Surface` via `GardenData` (reads the garden/theme/framing from `FlutterSharedPreferences`, loads the sprites
   from `flutter_assets/`) + `GardenRenderer` (Kotlin `Canvas` port of the garden painter: same isometric ground,
-  real road sprites, **low-poly 3D fence meshes** (posts + linking rails, like the app), billboards, flat daisies,
+  **road sprites drawn under the yaw affine** (so paths rotate with the framing like the app, not flat squares),
+  **low-poly 3D fence meshes** (posts + linking rails, like the app), billboards, flat daisies,
   and **bee/butterfly/ladybug critters** — `CritterSim`, a port of the in-app `CritterSystem`, so the wallpaper shows
   the same variety as the garden and adding a creature later (incl. pets/NPCs) is a small two-place edit). The
   **preview pane is force-centered** (`isPreview` → `xOffset=0.5`) so it isn't parallax-shifted left. It re-reads the

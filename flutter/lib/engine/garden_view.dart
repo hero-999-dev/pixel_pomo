@@ -169,6 +169,10 @@ class _GardenViewState extends State<GardenView> with SingleTickerProviderStateM
   @override
   Widget build(BuildContext context) {
     final ui = Color(widget.uiColor);
+    // Lift the bottom corner controls above the Android nav bar when the garden
+    // runs edge-to-edge (peek mode drops the SafeArea); 0 in normal mode since the
+    // SafeArea already consumed the inset (#2).
+    final navInset = MediaQuery.of(context).padding.bottom;
     return LayoutBuilder(
       builder: (context, constraints) {
         _lastSize = Size(constraints.maxWidth, constraints.maxHeight);
@@ -200,7 +204,7 @@ class _GardenViewState extends State<GardenView> with SingleTickerProviderStateM
               // recenter / reset zoom
               Positioned(
                 right: 6,
-                bottom: 4,
+                bottom: 4 + navInset,
                 child: _chip(ui, Icons.center_focus_strong, widget.tr('recenter'),
                     () => setState(_cam.reset), null),
               ),
@@ -208,7 +212,7 @@ class _GardenViewState extends State<GardenView> with SingleTickerProviderStateM
               if (widget.onPeek != null)
                 Positioned(
                   left: 6,
-                  bottom: 4,
+                  bottom: 4 + navInset,
                   child: _chip(ui, Icons.visibility, widget.tr('peek'), widget.onPeek,
                       const Key('peekButton')),
                 ),
@@ -216,7 +220,7 @@ class _GardenViewState extends State<GardenView> with SingleTickerProviderStateM
               if (widget.onCamera != null)
                 Positioned(
                   left: 50,
-                  bottom: 4,
+                  bottom: 4 + navInset,
                   child: _chip(ui, Icons.photo_camera, widget.tr('camera'), widget.onCamera,
                       const Key('cameraButton')),
                 ),
