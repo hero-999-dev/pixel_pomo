@@ -5,6 +5,29 @@ Each entry notes the **prompt** (what you asked for) and the **changes** made.
 
 ---
 
+## v23 (fb5) — wallpaper road-at-angle parity + peek button above the nav bar (Flutter, 0.23.5+29)
+**Date:** 2026-06-25
+
+**Prompt:** device feedback — (1) in live-wallpaper **capture mode**, framing the garden at an **angle**
+with a **path/road** in it rendered wrong on the set wallpaper (didn't match the capture); (2) tapping the
+garden **peek (eye)** button dropped the on-scene buttons **under the Android nav buttons**.
+
+**Changes (`flutter/`):**
+- **Wallpaper road parity (`android_overlay/GardenRenderer.kt`):** `drawRoad` drew an **axis-aligned** rect
+  at the projected tile centre, so paths ignored the camera **yaw** — an angled wallpaper didn't match the
+  captured framing. It now draws the road sprite as the **rotated/squashed tile quad** under the same
+  garden→screen affine the grass uses (new `gridMatrix()` helper, also reused by `fillClearing`), mirroring
+  the in-app `_paintRoads`. The in-app capture was already correct; only the native wallpaper was off.
+- **Peek button above the nav bar (`engine/garden_view.dart`):** in peek/camera the garden runs edge-to-edge
+  (`SafeArea(bottom:false)`), so the bottom-corner chips at `bottom: 4` slid under the system nav buttons.
+  The three chips (peek / recenter / camera) now use `bottom: 4 + navInset`, where
+  `navInset = MediaQuery.padding.bottom` (0 in normal mode since the SafeArea already consumed it; the
+  nav-bar height when edge-to-edge).
+- analyze clean; **77 tests** green (visual/native fixes — device-verified). Local Android APK re-clobbers
+  **`flutter-v23`** (no iOS — macOS CI minutes out).
+
+---
+
 ## v23 (fb4) — timer notification polish + count-past-zero / phase-transition fix (Flutter, 0.23.4+28)
 **Date:** 2026-06-23
 

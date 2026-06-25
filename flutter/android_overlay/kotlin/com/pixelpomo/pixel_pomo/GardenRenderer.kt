@@ -155,13 +155,7 @@ class GardenRenderer(private val data: GardenData) {
         }
         canvas.save()
         canvas.clipPath(path)
-        // affine garden(tile)->screen, mirroring Projector.gridToScreen (column form).
-        val m = Matrix()
-        m.setValues(floatArrayOf(
-            (t * cosY).toFloat(), (-t * sinY).toFloat(), cx.toFloat(),
-            (t * KVY * sinY).toFloat(), (t * KVY * cosY).toFloat(), cy.toFloat(),
-            0f, 0f, 1f))
-        canvas.concat(m)
+        canvas.concat(gridMatrix()) // garden(tile)->screen affine (yaw+squash)
         // one grass tile == one garden unit (scale bitmap px -> unit), tiled.
         val shader = BitmapShader(grass, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
         shader.setLocalMatrix(Matrix().apply { setScale(1f / grass.width, 1f / grass.height) })
@@ -170,12 +164,23 @@ class GardenRenderer(private val data: GardenData) {
         canvas.restore()
     }
 
-    // draw the actual road sprite flat on the tile (was a gray square — looked bad #v20)
+    /// Garden(tile)->screen affine (yaw + squash), mirroring Projector.gridToScreen.
+    private fun gridMatrix(): Matrix = Matrix().apply {
+        setValues(floatArrayOf(
+            (t * cosY).toFloat(), (-t * sinY).toFloat(), cx.toFloat(),
+            (t * KVY * sinY).toFloat(), (t * KVY * cosY).toFloat(), cy.toFloat(),
+            0f, 0f, 1f))
+    }
+
+    // Draw the road sprite as the rotated/squashed tile quad under the same
+    // garden->screen affine as the grass, so paths rotate with the camera yaw like
+    // the in-app _paintRoads. Was an axis-aligned rect that ignored yaw, so an
+    // angled wallpaper didn't match the captured framing (#v23 fb5).
     private fun drawRoad(canvas: Canvas, c: Int, r: Int, road: String) {
-        val (x, y) = ground(c, r)
-        val hs = t / 2
-        val dst = RectF((x - hs).toFloat(), (y - (hs * KVY)).toFloat(),
-            (x + hs).toFloat(), (y + (hs * KVY)).toFloat())
+        val (gx, gy) = gridXY(c, r)
+        val dst = RectF((gx - 0.5).toFloat(), (gy - 0.5).toFloat(), (gx + 0.5).toFloat(), (gy + 0.5).toFloat())
+        canvas.save()
+        canvas.concat(gridMatrix())
         val bmp = data.bitmap(road)
         if (bmp != null) {
             canvas.drawBitmap(bmp, null, dst, paint)
@@ -183,6 +188,7 @@ class GardenRenderer(private val data: GardenData) {
             paint.color = Color.rgb(0x88, 0x88, 0x88)
             canvas.drawRect(dst, paint)
         }
+        canvas.restore()
     }
 
     // sparse white daisies on empty grass tiles — mirrors the in-app
