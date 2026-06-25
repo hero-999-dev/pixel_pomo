@@ -5,6 +5,21 @@ Each entry notes the **prompt** (what you asked for) and the **changes** made.
 
 ---
 
+## v24.1 — flower style-consistency polish: bolder violet / begonia / orchid (Flutter, 0.24.1+31)
+**Date:** 2026-06-25
+
+**Prompt:** make the new flowers consistent with each other (like the rose) — re-check and only fix what's off.
+
+**Changes (`flutter/`):**
+- Re-reviewed all 10 species together (montage). Rose / tulip / camellia / chrysanthemum / cactus / daisy / water
+  lily already read as one family (dark rim + `d/m/l` shading + green stem). **Violet, begonia and orchid were too
+  small / sparse** (scattered dots) → redrawn **bolder and fuller** in `tools/gen_objects.py`: violet = two (v0) /
+  one (v1) fuller 5-petal blooms with gold eyes; begonia = a full rounded pink cluster with gold flower-centres;
+  orchid = two bold blooms with gold throats (v0) / a fuller spray (v1). Same colours and same rim/shading style as
+  the rest; the rose stays untouched. Sprites regenerated. Version **0.24.1+31**.
+
+---
+
 ## v24 — all 9 non-rose flowers redesigned (2 models each) + bigger capture zoom-out (Flutter, 0.24.0+30)
 **Date:** 2026-06-25
 
