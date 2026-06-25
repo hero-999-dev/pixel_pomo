@@ -6,7 +6,7 @@ a living wallpaper. Built with the
 [Press Start 2P](https://fonts.google.com/specimen/Press+Start+2P) font for that
 classic arcade look.
 
-> **Status:** **v0.24.0** — one Flutter (Dart) codebase ships **both** an Android APK and an
+> **Status:** **v0.24.2** — one Flutter (Dart) codebase ships **both** an Android APK and an
 > iOS app. On top of the core timer it has a full-screen **living 2.5D garden**, an animated
 > **Android live wallpaper**, an **app blocker** to keep you off distracting apps during a focus
 > session, **session stats** with charts and history, a **coin + shop** economy, **6 themes**,
@@ -20,7 +20,7 @@ classic arcade look.
 You don't build anything yourself — every release attaches a ready-to-install file.
 
 **Android**
-1. Open this repo on GitHub → **Releases** → **`flutter-v23`** (or the rolling **`latest-flutter`**).
+1. Open this repo on GitHub → **Releases** → **`flutter-v24`** (or the rolling **`latest-flutter`**).
 2. Download **`pixel_pomo_flutter.apk`** and tap to install.
    - If Android warns about "unknown sources", allow installs for your browser / file app, then re-open the APK.
    - Installs alongside the old native build (different app id), so you can keep both.
