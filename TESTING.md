@@ -257,6 +257,13 @@ the on-scene chips at `bottom: 4` slid under the Android nav buttons. The three 
 `bottom: 4 + navInset` (`MediaQuery.padding.bottom` — 0 in normal mode since the SafeArea consumed it; the nav-bar height
 edge-to-edge). The smoke test already taps `peekButton`; the offset is visual, **device-verified**.
 
+**v24 (all flowers redesigned):** suite stays **77** — the flower-variant test now iterates `Flowers.all` and
+asserts **every** species has 2 models (`unknown` still defaults to 1; was rose/tulip/camellia-only). The rest is
+pure art: all 9 non-rose species got 2 hand-pixelled models via the generalised modular pipeline in
+`gen_objects.py` (each model a full self-contained grid), regenerated into `assets/objects/flower_*_0/1.png`. The
+sprites are **visual** — verified by rendering a montage of all 20 models and eyeballing each against the user's
+guide sheets (headless `toImage` can't preview them in a widget test); the garden/shop are device-verified.
+
 **v21:** count stays **55**. The **TREND/line chart** no longer draws the highlighted (red) selected-bucket label on
 top of the fixed gray label at the **first/last** tick — the highlighted label is skipped when the selected bucket is
 an endpoint (`s != 0 && s != n-1`), so the ends keep one fixed number while every middle bucket still shows the

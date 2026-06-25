@@ -5,6 +5,19 @@ Each entry notes the **prompt** (what you asked for) and the **changes** made.
 
 ---
 
+## v24 — all 9 non-rose flowers redesigned (2 models each) + bigger capture zoom-out (Flutter, 0.24.0+30)
+**Date:** 2026-06-25
+
+**Prompt:** (1) in capture mode you couldn't zoom out far enough to frame the whole garden from some angles — raise the zoom-out limit. (2) The rose is the reference; every other flower was wrong. Redraw them all in the rose's style, **2 shape-models each** (same colour within a species, not different colours), following the per-flower guide sheets. Picks: tulip 02+03, camellia 02+03, cactus 01+02 (no pot), chrysanthemum 02+03, violet 02 (2 blooms) + 04 (single upward, no side bloom), daisy 01+02, water lily 02+03, begonia 02+03 (same colour), orchid 02+04 (same colour). Don't touch the rose.
+
+**Changes (`flutter/`):**
+- **Capture zoom-out (`engine/garden_view.dart`):** min zoom **1.0 → 0.5** so a yaw-rotated garden (whose bounding box is larger) fits fully on screen when framing; zoom-in cap unchanged (4.0).
+- **Flower art (`tools/gen_objects.py`):** generalised the modular flower pipeline so each model is a **full self-contained grid** (petals `d/m/l` + centre `C` outlined with the flower's dark rim; body/leaves `S/G/k` outlined dark green) — this lets non-rose shapes (cactus body, water-lily pad, violet leaf mound) render properly, not just bloom-on-a-rose-stem. Authored **2 hand-pixelled models** for all 9 species (`lale, kamelya, kaktus, kasimpati, menekse, papatya, nilufer, begonya, orkide`) in one consistent APICO/Littlewood style, same colour within each species, matching the guide picks. **Rose untouched.**
+- **`logic.dart`:** `variantCounts` now lists all 10 species at 2 models (was rose/tulip/camellia only); a random model is planted each time.
+- Sprites regenerated (`assets/objects/flower_*_0/1.png` for every species). Verified by rendering a montage and eyeballing each (headless `toImage` can't preview in-app). Version **0.24.0+30**.
+
+---
+
 ## v23 (fb5) — wallpaper road-at-angle parity + peek button above the nav bar (Flutter, 0.23.5+29)
 **Date:** 2026-06-25
 
