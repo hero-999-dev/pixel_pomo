@@ -469,4 +469,45 @@ void main() {
       expect(g.groundAt(0), 'road_dirt');
     });
   });
+
+  group('phase-end action (#v25 item1)', () {
+    test('a finished run is always done, regardless of auto-start', () {
+      expect(phaseEndAction(isFinished: true, autoBreak: true), PhaseEnd.done);
+      expect(phaseEndAction(isFinished: true, autoBreak: false), PhaseEnd.done);
+    });
+    test('auto-start on rolls into the next phase; off asks first (both ways)', () {
+      expect(phaseEndAction(isFinished: false, autoBreak: true), PhaseEnd.autoStart);
+      expect(phaseEndAction(isFinished: false, autoBreak: false), PhaseEnd.prompt);
+    });
+  });
+
+  group('Paging (#v25 item3)', () {
+    test('pageCount rounds up; empty still has one page', () {
+      expect(Paging.pageCount(0, 50), 1);
+      expect(Paging.pageCount(1, 50), 1);
+      expect(Paging.pageCount(50, 50), 1);
+      expect(Paging.pageCount(51, 50), 2);
+      expect(Paging.pageCount(100, 50), 2);
+      expect(Paging.pageCount(101, 50), 3);
+    });
+    test('page slices the right window and clamps the partial/over-end pages', () {
+      final items = [for (var i = 0; i < 120; i++) i];
+      expect(Paging.page(items, 0, 50).first, 0);
+      expect(Paging.page(items, 0, 50).length, 50);
+      expect(Paging.page(items, 1, 50).first, 50);
+      expect(Paging.page(items, 2, 50), [for (var i = 100; i < 120; i++) i]); // partial
+      expect(Paging.page(items, 3, 50), isEmpty); // past the end
+    });
+  });
+
+  group('SessionRecord.copyWith (#v25)', () {
+    test('relabel keeps day/minutes/timestamp', () {
+      const r = SessionRecord(100, 60, 'MATH', minuteOfDay: 540);
+      final r2 = r.copyWith(label: 'CODING');
+      expect(r2.label, 'CODING');
+      expect(r2.epochDay, 100);
+      expect(r2.minutes, 60);
+      expect(r2.minuteOfDay, 540); // timestamp preserved → trend keeps its shape
+    });
+  });
 }

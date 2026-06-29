@@ -572,6 +572,11 @@ class SessionRecord {
   final String label;
   final int? minuteOfDay; // 0..1439 start-of-session; null = legacy (#2)
   const SessionRecord(this.epochDay, this.minutes, this.label, {this.minuteOfDay});
+
+  /// Copy with a new [label], preserving the timestamp (used by log-history
+  /// relabel and rename so the daily trend keeps its hourly shape). (#v25)
+  SessionRecord copyWith({String? label}) =>
+      SessionRecord(epochDay, minutes, label ?? this.label, minuteOfDay: minuteOfDay);
 }
 
 class StatTotals {
@@ -584,6 +589,27 @@ int epochDayOf(DateTime d) =>
 
 DateTime dateOfEpochDay(int e) =>
     DateTime.fromMillisecondsSinceEpoch(e * 86400000, isUtc: true);
+
+/// What the timer should do when a phase ends mid-run (#v25 item1): auto-start
+/// on → roll into the next phase; off → ask first, for BOTH focus→break AND
+/// break→next-session (previously only focus→break prompted).
+enum PhaseEnd { autoStart, prompt, done }
+
+PhaseEnd phaseEndAction({required bool isFinished, required bool autoBreak}) =>
+    isFinished ? PhaseEnd.done : (autoBreak ? PhaseEnd.autoStart : PhaseEnd.prompt);
+
+/// Pure pagination for the log-history list (#v25 item3): 50 records a page.
+class Paging {
+  static int pageCount(int total, int perPage) =>
+      total <= 0 ? 1 : (total + perPage - 1) ~/ perPage;
+
+  static List<T> page<T>(List<T> items, int pageIndex, int perPage) {
+    final start = pageIndex * perPage;
+    if (start < 0 || start >= items.length) return <T>[];
+    final end = (start + perPage) > items.length ? items.length : start + perPage;
+    return items.sublist(start, end);
+  }
+}
 
 enum StatPeriod { daily, weekly, monthly, yearly, allTime }
 

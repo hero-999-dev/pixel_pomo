@@ -40,7 +40,7 @@ void main() {
     await tester.tap(find.byKey(const Key('settingsButton')));
     await tester.pumpAndSettle();
     expect(find.text('GARDEN'), findsWidgets); // the gardenMode button
-    expect(find.text('AUTO-START BREAK'), findsWidgets); // the auto-break toggle (#4)
+    expect(find.text('AUTO-START'), findsWidgets); // the auto-start toggle (#v25 item1; was AUTO-START BREAK)
     await tester.ensureVisible(find.text('GARDEN').last);
     await tester.tap(find.text('GARDEN').last);
     await tester.pump();
@@ -111,6 +111,18 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('CURRENT'), findsWidgets); // trend current/avg/best block (#2)
     await tester.tap(find.text('PIE'));
+    await tester.pumpAndSettle();
+    // log history: open the paginated session list, then close back to stats (#v25 item3)
+    final logBtn = find.text('LOG HISTORY');
+    await tester.ensureVisible(logBtn);
+    await tester.pumpAndSettle();
+    await tester.tap(logBtn);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('PAGE'), findsWidgets); // paginated list rendered over seeded data
+    final logClose = find.text('CLOSE');
+    await tester.ensureVisible(logClose);
+    await tester.pumpAndSettle();
+    await tester.tap(logClose);
     await tester.pumpAndSettle();
     final statsClose = find.text('CLOSE');
     await tester.ensureVisible(statsClose);

@@ -5,7 +5,8 @@
 const Map<String, Map<String, String>> _s = {
   'en': {
     'work': 'FOCUS', 'break': 'BREAK', 'start': 'START', 'pause': 'PAUSE', 'reset': 'RESET',
-    'autoBreak': 'AUTO-START BREAK', 'startBreakTitle': 'Start the break?',
+    'autoBreak': 'AUTO-START', 'startBreakTitle': 'Start the break?', 'startSessionTitle': 'Start the next session?',
+    'logHistory': 'LOG HISTORY', 'changeLabel': 'CHANGE LABEL', 'noLogs': 'No sessions yet', 'pageOf': 'PAGE {0}/{1}',
     'switchMode': '>> SWITCH MODE', 'session': 'SESSION {0} / {1}', 'allDone': 'ALL DONE!',
     'workDone': 'FOCUS DONE!', 'breakDone': 'BREAK OVER!',
     'settings': 'SETTINGS', 'theme': 'THEME', 'save': 'SAVE', 'close': 'CLOSE',
@@ -44,7 +45,8 @@ const Map<String, Map<String, String>> _s = {
   },
   'tr': {
     'work': 'ODAK', 'break': 'MOLA', 'start': 'BAŞLAT', 'pause': 'DURAKLAT', 'reset': 'SIFIRLA',
-    'autoBreak': 'MOLAYI OTOMATİK BAŞLAT', 'startBreakTitle': 'Molayı başlat?',
+    'autoBreak': 'OTOMATİK BAŞLAT', 'startBreakTitle': 'Molayı başlat?', 'startSessionTitle': 'Sonraki seans başlasın mı?',
+    'logHistory': 'KAYIT GEÇMİŞİ', 'changeLabel': 'ETİKETİ DEĞİŞTİR', 'noLogs': 'Henüz seans yok', 'pageOf': 'SAYFA {0}/{1}',
     'switchMode': '>> MOD DEĞİŞTİR', 'session': 'SEANS {0} / {1}', 'allDone': 'BİTTİ!',
     'workDone': 'ODAK BİTTİ!', 'breakDone': 'MOLA BİTTİ!',
     'settings': 'AYARLAR', 'theme': 'TEMA', 'save': 'KAYDET', 'close': 'KAPAT',
@@ -83,7 +85,8 @@ const Map<String, Map<String, String>> _s = {
   },
   'pl': {
     'work': 'SKUPIENIE', 'break': 'PRZERWA', 'start': 'START', 'pause': 'PAUZA', 'reset': 'RESET',
-    'autoBreak': 'AUTO-START PRZERWY', 'startBreakTitle': 'Zacząć przerwę?',
+    'autoBreak': 'AUTO-START', 'startBreakTitle': 'Zacząć przerwę?', 'startSessionTitle': 'Zacząć następną sesję?',
+    'logHistory': 'HISTORIA', 'changeLabel': 'ZMIEŃ ETYKIETĘ', 'noLogs': 'Brak sesji', 'pageOf': 'STRONA {0}/{1}',
     'switchMode': '>> ZMIEŃ TRYB', 'session': 'SESJA {0} / {1}', 'allDone': 'GOTOWE!',
     'workDone': 'KONIEC SKUPIENIA!', 'breakDone': 'KONIEC PRZERWY!',
     'settings': 'USTAWIENIA', 'theme': 'MOTYW', 'save': 'ZAPISZ', 'close': 'ZAMKNIJ',
@@ -122,7 +125,8 @@ const Map<String, Map<String, String>> _s = {
   },
   'de': {
     'work': 'FOKUS', 'break': 'PAUSE', 'start': 'START', 'pause': 'PAUSE', 'reset': 'ZURÜCK',
-    'autoBreak': 'PAUSE AUTOMATISCH', 'startBreakTitle': 'Pause starten?',
+    'autoBreak': 'AUTO-START', 'startBreakTitle': 'Pause starten?', 'startSessionTitle': 'Nächste Sitzung starten?',
+    'logHistory': 'VERLAUF', 'changeLabel': 'LABEL ÄNDERN', 'noLogs': 'Noch keine Sitzungen', 'pageOf': 'SEITE {0}/{1}',
     'switchMode': '>> MODUS WECHSELN', 'session': 'RUNDE {0} / {1}', 'allDone': 'FERTIG!',
     'workDone': 'FOKUS FERTIG!', 'breakDone': 'PAUSE VORBEI!',
     'settings': 'EINSTELLUNGEN', 'theme': 'THEMA', 'save': 'SPEICHERN', 'close': 'SCHLIESSEN',
@@ -161,7 +165,8 @@ const Map<String, Map<String, String>> _s = {
   },
   'fr': {
     'work': 'FOCUS', 'break': 'PAUSE', 'start': 'DÉMARRER', 'pause': 'PAUSE', 'reset': 'RÉINIT.',
-    'autoBreak': 'PAUSE AUTO', 'startBreakTitle': 'Commencer la pause ?',
+    'autoBreak': 'DÉMARRAGE AUTO', 'startBreakTitle': 'Commencer la pause ?', 'startSessionTitle': 'Démarrer la prochaine session ?',
+    'logHistory': 'HISTORIQUE', 'changeLabel': "CHANGER L'ÉTIQUETTE", 'noLogs': 'Aucune session', 'pageOf': 'PAGE {0}/{1}',
     'switchMode': '>> CHANGER MODE', 'session': 'SESSION {0} / {1}', 'allDone': 'TERMINÉ !',
     'workDone': 'FOCUS TERMINÉ !', 'breakDone': 'PAUSE FINIE !',
     'settings': 'RÉGLAGES', 'theme': 'THÈME', 'save': 'ENREGISTRER', 'close': 'FERMER',
@@ -200,7 +205,8 @@ const Map<String, Map<String, String>> _s = {
   },
   'it': {
     'work': 'FOCUS', 'break': 'PAUSA', 'start': 'AVVIA', 'pause': 'PAUSA', 'reset': 'AZZERA',
-    'autoBreak': 'AVVIO AUTO PAUSA', 'startBreakTitle': 'Iniziare la pausa?',
+    'autoBreak': 'AVVIO AUTO', 'startBreakTitle': 'Iniziare la pausa?', 'startSessionTitle': 'Iniziare la prossima sessione?',
+    'logHistory': 'CRONOLOGIA', 'changeLabel': 'CAMBIA ETICHETTA', 'noLogs': 'Nessuna sessione', 'pageOf': 'PAGINA {0}/{1}',
     'switchMode': '>> CAMBIA MODO', 'session': 'SESSIONE {0} / {1}', 'allDone': 'FATTO!',
     'workDone': 'FOCUS FINITO!', 'breakDone': 'PAUSA FINITA!',
     'settings': 'IMPOSTAZIONI', 'theme': 'TEMA', 'save': 'SALVA', 'close': 'CHIUDI',

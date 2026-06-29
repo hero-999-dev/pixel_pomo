@@ -327,7 +327,10 @@ class GardenRenderer(private val data: GardenData) {
             val (sx, sy) = projGrid(c.x, c.y)
             val cellW = bmp.width / 8 // atlases are 8-wide; always frame 0 (#v20)
             val src = Rect(0, 0, cellW, bmp.height)
-            val px = sx.toFloat(); val py = (sy + bob - t * 0.25).toFloat() // hover above ground
+            // while visiting (HOVER) sit at the flower's bloom (colourful top), not
+            // the green stem/base; fly low otherwise (#v25 item4, mirrors in-app)
+            val lift = if (c.state == CState.HOVER) t * 0.78 else t * 0.25
+            val px = sx.toFloat(); val py = (sy + bob - lift).toFloat()
             canvas.drawBitmap(bmp, src, RectF(px - s / 2, py - s / 2, px + s / 2, py + s / 2), paint)
         }
     }

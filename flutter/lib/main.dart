@@ -166,6 +166,9 @@ class HomeScreen extends StatelessWidget {
         final modeColor = e.isFinished ? th.accent : th.phaseColor(e.mode);
         // auto-break off: ask before starting the break (#4)
         if (s.awaitingBreakPrompt) {
+          // after focus the next phase is a break; after a break it's the next
+          // focus session — ask the matching question (#v25 item1)
+          final promptKey = e.mode == Mode.work ? 'startSessionTitle' : 'startBreakTitle';
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!s.awaitingBreakPrompt) return;
             s.awaitingBreakPrompt = false; // guard against re-entry
@@ -173,7 +176,7 @@ class HomeScreen extends StatelessWidget {
               context: context,
               builder: (ctx) => AlertDialog(
                 backgroundColor: col(th.panel),
-                title: Text(t(lang, 'startBreakTitle'), style: pixelStyle(lang, 12, col(th.onSurface), text: t(lang, 'startBreakTitle'))),
+                title: Text(t(lang, promptKey), style: pixelStyle(lang, 12, col(th.onSurface), text: t(lang, promptKey))),
                 actions: [
                   TextButton(onPressed: () { Navigator.pop(ctx); s.confirmBreak(false); },
                       child: Text(t(lang, 'no'), style: pixelStyle(lang, 11, col(th.onSurfaceDim), text: t(lang, 'no')))),
@@ -914,6 +917,12 @@ class StatsScreen extends StatelessWidget {
               ],
             ),
           ),
+      // a paginated list of every past session (tap a row to relabel) — sits
+      // right above the auto-appended CLOSE button (#v25 item3)
+      const SizedBox(height: 20),
+      secondaryBtn(th, lang, t(lang, 'logHistory'),
+          () => openPanel(context, s, () => LogHistoryScreen(s)),
+          padding: const EdgeInsets.all(14)),
     ]);
   }
 
@@ -935,6 +944,124 @@ class StatsScreen extends StatelessWidget {
       case StatPeriod.allTime:
         return t(lang, 'pAll');
     }
+  }
+}
+
+// ---- log history ------------------------------------------------------------
+
+/// A paginated list of every past focus session (newest first, 50 a page).
+/// Tap a row to reassign that session's label (#v25 item3).
+class LogHistoryScreen extends StatefulWidget {
+  final AppStore s;
+  const LogHistoryScreen(this.s, {super.key});
+  @override
+  State<LogHistoryScreen> createState() => _LogHistoryScreenState();
+}
+
+class _LogHistoryScreenState extends State<LogHistoryScreen> {
+  static const _perPage = 50;
+  int _page = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = widget.s;
+    final th = s.theme;
+    final lang = s.lang;
+    // newest first, keeping each record's ORIGINAL index so we can relabel it.
+    final ordered = [for (var i = 0; i < s.records.length; i++) (i, s.records[i])]
+      ..sort((a, b) {
+        final byDay = b.$2.epochDay.compareTo(a.$2.epochDay);
+        return byDay != 0 ? byDay : (b.$2.minuteOfDay ?? 0).compareTo(a.$2.minuteOfDay ?? 0);
+      });
+    final pages = Paging.pageCount(ordered.length, _perPage);
+    if (_page >= pages) _page = pages - 1;
+    final shown = Paging.page(ordered, _page, _perPage);
+
+    return overlayScaffold(context, s, t(lang, 'logHistory'), [
+      if (ordered.isEmpty)
+        Text(t(lang, 'noLogs'), style: pixelStyle(lang, 10, col(th.onSurfaceDim), text: t(lang, 'noLogs')))
+      else ...[
+        for (final (idx, r) in shown) _logRow(context, s, th, lang, idx, r),
+        const SizedBox(height: 14),
+        Row(children: [
+          SizedBox(
+            width: 52,
+            child: secondaryBtn(th, lang, '<',
+                () => setState(() => _page = (_page - 1).clamp(0, pages - 1)),
+                fontSize: 13, padding: const EdgeInsets.all(10)),
+          ),
+          Expanded(
+            child: Center(
+              child: Text(tf(lang, 'pageOf', [_page + 1, pages]),
+                  style: pixelStyle(lang, 10, col(th.onSurface), text: tf(lang, 'pageOf', [_page + 1, pages]))),
+            ),
+          ),
+          SizedBox(
+            width: 52,
+            child: PixelButton(
+                text: '>', fill: th.panel, border: th.onSurfaceDim, textColor: th.onSurface, shadow: th.shadow,
+                lang: lang, fontSize: 13, padding: const EdgeInsets.all(10),
+                opacity: _page < pages - 1 ? 1 : 0.35,
+                onTap: () => setState(() => _page = (_page + 1).clamp(0, pages - 1))),
+          ),
+        ]),
+      ],
+    ]);
+  }
+
+  Widget _logRow(BuildContext context, AppStore s, PixelTheme th, String lang, int index, SessionRecord r) {
+    final d = dateOfEpochDay(r.epochDay);
+    final time = r.minuteOfDay == null
+        ? ''
+        : '${(r.minuteOfDay! ~/ 60).toString().padLeft(2, '0')}:${(r.minuteOfDay! % 60).toString().padLeft(2, '0')}';
+    final when = '${d.day} ${monthName(lang, d.month)}  $time';
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => _changeLabel(context, s, index, r),
+        child: Row(children: [
+          Swatch(color: s.labelColorOf(r.label), border: th.onSurfaceDim, size: 14),
+          const SizedBox(width: 10),
+          Expanded(child: Text(when, style: pixelStyle(lang, 8, col(th.onSurfaceDim), text: when))),
+          const SizedBox(width: 8),
+          Text(r.label, style: pixelStyle(lang, 9, col(th.onSurface), text: r.label)),
+          const SizedBox(width: 10),
+          Text(StatsAggregator.formatMinutes(r.minutes),
+              style: pixelStyle(lang, 9, col(th.onSurfaceDim), text: StatsAggregator.formatMinutes(r.minutes))),
+        ]),
+      ),
+    );
+  }
+
+  void _changeLabel(BuildContext context, AppStore s, int index, SessionRecord r) {
+    final th = s.theme;
+    final lang = s.lang;
+    showDialog(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        backgroundColor: col(th.panel),
+        title: Text(t(lang, 'changeLabel'), style: pixelStyle(lang, 11, col(th.onSurface), text: t(lang, 'changeLabel'))),
+        children: [
+          for (final label in s.labels)
+            SimpleDialogOption(
+              onPressed: () {
+                s.relabelRecord(index, label);
+                Navigator.pop(ctx);
+                setState(() {});
+              },
+              child: Row(children: [
+                Swatch(color: s.labelColorOf(label), border: th.onSurfaceDim, size: 14),
+                const SizedBox(width: 10),
+                Text(label,
+                    style: pixelStyle(lang, 10,
+                        col(label.toUpperCase() == r.label.toUpperCase() ? th.accent : th.onSurface),
+                        text: label)),
+              ]),
+            ),
+        ],
+      ),
+    );
   }
 }
 

@@ -713,7 +713,10 @@ class GardenPainter extends CustomPainter {
       final img = sprites.critter(c.kind);
       final amp = c.kind.startsWith('ladybug') ? 0.6 : 2.2; // ladybugs barely bob
       final bob = math.sin((time + c.phase) * 9) * amp;
-      final at = p.projectGrid(c.pos).translate(0, bob - t * 0.25); // hover above ground
+      // while visiting a flower, sit at its BLOOM (the colourful top) instead of
+      // the green stem/base; fly low the rest of the time (#v25 item4)
+      final lift = c.state == _CState.hover ? t * 0.78 : t * 0.25;
+      final at = p.projectGrid(c.pos).translate(0, bob - lift);
       final rect = Rect.fromCenter(center: at, width: s, height: s);
       if (img != null) {
         // always the same facet (frame 0) so the critter keeps ONE shape and

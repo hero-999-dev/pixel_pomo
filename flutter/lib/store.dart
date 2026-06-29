@@ -211,14 +211,20 @@ class AppStore extends ChangeNotifier {
     if (finished == Mode.work) _recordWork();
     messenger?.call(finished == Mode.work ? 'workDone' : 'breakDone');
     _publishBlocker();
-    if (engine.isFinished) {
-      notifyListeners();
-    } else if (finished == Mode.work && !autoBreak) {
-      // pause before the break and ask the user first (#4)
-      awaitingBreakPrompt = true;
-      notifyListeners();
-    } else {
-      start();
+    switch (phaseEndAction(isFinished: engine.isFinished, autoBreak: autoBreak)) {
+      case PhaseEnd.done:
+        notifyListeners();
+        break;
+      case PhaseEnd.prompt:
+        // auto-start off → ask before the NEXT phase: the break after a focus
+        // session, OR the next focus session after a break (#v25 item1 — was
+        // focus→break only; break→work used to auto-start unconditionally)
+        awaitingBreakPrompt = true;
+        notifyListeners();
+        break;
+      case PhaseEnd.autoStart:
+        start();
+        break;
     }
   }
 
@@ -319,6 +325,7 @@ class AppStore extends ChangeNotifier {
         records.add(SessionRecord(epochDayOf(now), spent, currentLabel,
             minuteOfDay: now.hour * 60 + now.minute));
         _saveStats();
+        _prefs.setString(_kCurrentLabel, currentLabel); // #v25 item2 hardening
         coins += Economy.coinsFor(spent);
         _saveWallet();
       }
@@ -343,6 +350,9 @@ class AppStore extends ChangeNotifier {
     records.add(SessionRecord(epochDayOf(now), workMin, currentLabel,
         minuteOfDay: now.hour * 60 + now.minute));
     _saveStats();
+    // re-affirm the active label on this durable write so it can't be lost
+    // between sessions (#v25 item2 hardening)
+    _prefs.setString(_kCurrentLabel, currentLabel);
     coins += Economy.coinsFor(workMin);
     _saveWallet();
   }
@@ -421,10 +431,19 @@ class AppStore extends ChangeNotifier {
     if (currentLabel.toUpperCase() == oldU) currentLabel = newName;
     records = [
       for (final r in records)
-        r.label.toUpperCase() == oldU ? SessionRecord(r.epochDay, r.minutes, newName) : r
+        r.label.toUpperCase() == oldU ? r.copyWith(label: newName) : r
     ];
     _saveStats();
     _saveLabels();
+    notifyListeners();
+  }
+
+  /// Reassign one past session's label (from the log-history screen, #v25 item3).
+  /// [index] indexes into [records].
+  void relabelRecord(int index, String newLabel) {
+    if (index < 0 || index >= records.length) return;
+    records[index] = records[index].copyWith(label: newLabel);
+    _saveStats();
     notifyListeners();
   }
 
