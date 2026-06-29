@@ -37,8 +37,9 @@ You don't build anything yourself — every release attaches a ready-to-install 
 ## 🎮 What it does
 
 - **Focus timer** — **FOCUS** and **BREAK** phases with your own durations (defaults 25:00 / 5:00),
-  **START / PAUSE / RESET**, and a **session counter** that ends on **ALL DONE!**. A finished focus session
-  **auto-starts the break** (or asks first, per a Settings toggle), and a running session shows a phone
+  **START / PAUSE / RESET**, and a **session counter** that ends on **ALL DONE!**. With **AUTO-START** on, a finished
+  focus session rolls into the break and the break into the next session; with it **off** the app asks first **both
+  times** ("Start the break?" / "Start the next session?"). A running session shows a phone
   **notification** so the countdown is visible outside the app. **Cancelling a started session still pays out
   the minutes you spent.**
 - **🏷️ Focus labels** — a tappable chip tags what you're working on (**STUDY / MATH / CODING / READING** to start).
@@ -49,7 +50,7 @@ You don't build anything yourself — every release attaches a ready-to-install 
 - **🌱 Living garden** — a full-screen, portrait **2.5D world** drawn by a tiny custom engine (no Unity/Flame).
   Plant your flowers on a grass **clearing** ringed by a **forest** (trees, bushes, rocks). **EXPAND** grows the
   plot from the center; **two-finger twist to rotate**, **pinch-zoom and pan**. **Bee, butterfly and ladybug**
-  critters drift in to visit your flowers. **Every** flower ships **two** hand-drawn models (shape variants in
+  critters drift in and hover on each flower's **colourful bloom**. **Every** flower ships **two** hand-drawn models (shape variants in
   one colour — rose, tulip, camellia, cactus, chrysanthemum, violet, daisy, water lily, begonia, orchid) so a
   flower bed looks varied.
 - **📸 Camera & live wallpaper** — a **peek** button hides all the UI; **camera mode** lets you frame any angle, then
@@ -61,8 +62,9 @@ You don't build anything yourself — every release attaches a ready-to-install 
   permission (Settings walks you through it).
 - **📊 Stats** — every focus block is logged. Totals for **today / week / month / year / all-time**, a
   **DAILY → ALL-TIME** selector with a **◀ ▶ history navigator**, **bar / pie / TREND** charts (DAILY fills up hour by
-  hour), a per-label breakdown, and **CURRENT / AVERAGE / BEST** in trend view.
-- **⚙️ Settings** — steppers for **focus / break / sessions**, **auto-start break**, the **app blocker**, a **home-screen
+  hour), a per-label breakdown, and **CURRENT / AVERAGE / BEST** in trend view. A **LOG HISTORY** button opens a
+  **paginated list of every past session** (50 a page) where you can **change a session's label**.
+- **⚙️ Settings** — steppers for **focus / break / sessions**, **auto-start**, the **app blocker**, a **home-screen
   garden** toggle, and a **language** picker — **English / Türkçe / Polski / Deutsch / Français / Italiano** — applied instantly.
 - **🎨 Themes** — six live pixel themes: **Dark, Light, Mocha, Frappe, Latte, Matcha**. The system bars match the theme and
   there's no white tap ripple.
