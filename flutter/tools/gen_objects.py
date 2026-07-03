@@ -1016,14 +1016,14 @@ _FLOWER_BLOOMS = {
         ],
     ],
     # --- cactus 2.0 (#v26): two NEW species picked from the user's guide-sheet
-    # study (cactus_study, 2 methods). kaktusf = FLOWER CACTUS, traced from the
+    # study (now flower_study\cactus, 2 methods). kaktusf = FLOWER CACTUS, traced from the
     # rendered guide art (rose method); kaktusd = DESERT CACTUS (no bloom):
     # model 0 hand-authored crisp saguaro, model 1 = the traced prickly pear of
     # kaktusf-style shape 03, de-flowered. 'o' = interior seam (dark rim green).
     'kaktusf': [
         [  # 0 tall columnar, pink crown flower — traced guide shape 01
             # (#v27: gold scatter removed — ONE centred darker-gold C per bloom,
-            #  like the approved cactus_study m1_flower_3 caps)
+            #  like the approved flower_study\cactus m1_flower_3 caps)
             '.......m........',
             '.....mldl.......',
             '.....ldCdmm.....',
@@ -1037,9 +1037,11 @@ _FLOWER_BLOOMS = {
             '...GGSSGGkG.G...',
             '...SSkSGGkSkG...',
             '....GkSGGkSkS...',
-            '.....kSGSkS.....',
-            '.....kSSSkS.....',
-            '.....kSSSkS.....',
+            # (#v27.1: silhouette-edge k lightened to S — edge-k + the near-black
+            #  rim read as a 2px-wide border; k stays only on interior ribs)
+            '.....SSGSkS.....',
+            '.....SSSSkS.....',
+            '.....SSSSkS.....',
         ],
         [  # 1 round barrel, pink top flower — traced guide shape 02
             # (#v27: single centred darker-gold C, edge golds re-pinked)
@@ -1049,47 +1051,55 @@ _FLOWER_BLOOMS = {
             '......mdmdm.....',
             '...GGSlldd.kSG..',
             '..GSSGklkdkSGSS.',
-            '..SGGSkkkkkkSGG.',
-            '..kGSGGSGSSGkSG.',
+            # (#v27.1: edge-k and the solid-k bottom bands brightened to S so the
+            #  border reads 1px thin like the rose; o seams + single-k creases
+            #  keep the barrel folds)
+            '..SGGSSkkkkSSGG.',
+            '..SGSGGSGSSGkSG.',
             '..SGkGGkGGkGSSG.',
             '..SSkSSoSGkSSkS.',
-            '..kkkSSoGSkSGok.',
-            '..kkkSkkSSokSkk.',
-            '...kkSkoSSkkkk..',
+            '..SSkSSoGSkSGoS.',
+            '..SSkSSkSSokSkS.',
+            '...SkSSoSSkSSk..',
         ],
     ],
     'kaktusd': [
-        [  # 0 saguaro — hand-authored, k edge + seamed arms, no ridge dots
+        [  # 0 saguaro — hand-authored, no ridge dots. #v27.1: the k edge column
+           # merged with the near-black rim into a fat 2px border — edges are S
+           # now; k survives only as the 1px arm-trunk seams (study rule: parts
+           # touch with a single dark seam).
             '.......SG.......',
-            '......kSGG......',
-            '......kSGG......',
-            '......kSGG......',
-            '......kSGG......',
-            '..SG..kSGG......',
-            '.kSG..kSGG..SG..',
-            '.kSG..kSGG..SGk.',
-            '.kSGGkkSGG..SGk.',
-            '..kSGkkSGGkGSk..',
-            '......kSGGkGk...',
-            '......kSGG......',
-            '......kSGG......',
-            '......kSGG......',
-            '......kkSG......',
+            '......SSGG......',
+            '......SSGG......',
+            '......SSGG......',
+            '......SSGG......',
+            '..SG..SSGG......',
+            '.SSG..SSGG..SG..',
+            '.SSG..SSGG..SGG.',
+            '.SSGGkSSGG..SGG.',
+            '..SSGkSSGGkGSG..',
+            '......SSGGkGG...',
+            '......SSGG......',
+            '......SSGG......',
+            '......SSGG......',
+            '......SSSG......',
         ],
-        [  # 1 prickly pear — de-flowered trace of guide shape 03
-            '...........kG...',
+        [  # 1 prickly pear — de-flowered trace of guide shape 03. #v27.1: the
+           # solid-k lower pads + edge-k read as a wide dark blob — brightened
+           # to S; single-k creases keep the pad separations.
+            '...........SG...',
             '...........GGSS.',
             '..GSSG....SGSSS.',
-            '..kSGG....SGSSk.',
-            '..GSSS..GGkkkk..',
-            '..SSSSkGGGSk....',
-            '...kSkSGGGGS....',
+            '..SSGG....SGSSS.',
+            '..GSSS..GGkSSk..',
+            '..SSSSkGGGSS....',
+            '...SSkSGGGGS....',
             '....GkGSGGSS....',
-            '.....kSSSSSS....',
-            '.....kGSkSSS....',
-            '.....kSkSSkk....',
-            '......kkkkkk....',
-            '......kkkkkk....',
+            '.....SSSSSSS....',
+            '.....SGSkSSS....',
+            '.....SSkSSSS....',
+            '......SSSSSS....',
+            '......SSSSSS....',
         ],
     ],
 }

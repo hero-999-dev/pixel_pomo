@@ -567,7 +567,13 @@ class LabelColors {
   static const palette = [
     0xFFE5484D, 0xFFF2994A, 0xFFF2C94C, 0xFF46A03C, 0xFF2A9D8F,
     0xFF2A7DE1, 0xFF8E4FE0, 0xFFE0457B, 0xFF9C6B4A, 0xFF8E8E8E,
+    0xFF56CCF2, 0xFFA8D93A, 0xFFD138C9, 0xFFEDEDED, // sky/lime/magenta/white (#v27.1)
   ];
+
+  /// Hash-derived defaults stay in the ORIGINAL 10 — growing the palette must
+  /// not silently recolor every label the user never customized (#v27.1). The
+  /// new colors are reachable through the picker only.
+  static const _defaultCount = 10;
 
   static int _stableHash(String s) {
     var h = 0;
@@ -579,7 +585,7 @@ class LabelColors {
 
   static int defaultFor(String label) {
     final key = label.trim().toUpperCase();
-    return palette[_stableHash(key) % palette.length];
+    return palette[_stableHash(key) % _defaultCount];
   }
 
   static int colorFor(String label, Map<String, int> chosen) =>

@@ -1015,37 +1015,47 @@ class _LogHistoryScreenState extends State<LogHistoryScreen> {
         ? ''
         : '${(r.minuteOfDay! ~/ 60).toString().padLeft(2, '0')}:${(r.minuteOfDay! % 60).toString().padLeft(2, '0')}';
     // 3-letter month keeps the date column narrow enough that the bigger font
-    // still fits four aligned columns on a phone (#v27 feedback).
+    // still fits four aligned columns on a phone (#v27 feedback). Rows from
+    // another year show a 2-digit year — the seeded 2025 history made
+    // "12 NOV" sort after "14 APR" look wrong without it (#v27.1 feedback).
     final month = monthName(lang, d.month);
-    final date = '${d.day} ${month.length > 3 ? month.substring(0, 3) : month}';
+    final year = d.year == DateTime.now().year ? '' : ' ${d.year % 100}';
+    final date = '${d.day} ${month.length > 3 ? month.substring(0, 3) : month}$year';
     final dur = StatsAggregator.formatMinutes(r.minutes);
-    // Fixed columns so every row lines up (#v27 feedback): date left, time in
-    // its own column pulled toward the centre, label left-justified in its
-    // column (was ragged right-aligned), duration on the right. Font bumped.
+    // Fixed columns so every row lines up: date | time (toward the centre) |
+    // label (left-justified) | duration. The duration sits in a FLEX column
+    // right-aligned — as a bare Text its per-row width let every other
+    // column edge wander row to row, the "not in order" look (#v27.1). Fonts
+    // and the swatch bumped again (#v27.1 feedback: still too small).
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () => _changeLabel(context, s, index, r),
         child: Row(children: [
-          Swatch(color: s.labelColorOf(r.label), border: th.onSurfaceDim, size: 15),
+          Swatch(color: s.labelColorOf(r.label), border: th.onSurfaceDim, size: 18),
           const SizedBox(width: 8),
           Expanded(
-              flex: 7,
+              flex: 9,
               child: Text(date,
                   maxLines: 1,
                   overflow: TextOverflow.clip,
-                  style: pixelStyle(lang, 9, col(th.onSurfaceDim), text: date))),
+                  style: pixelStyle(lang, 10, col(th.onSurfaceDim), text: date))),
           Expanded(
-              flex: 6,
-              child: Text(time, style: pixelStyle(lang, 9, col(th.onSurfaceDim), text: time))),
+              flex: 5,
+              child: Text(time, style: pixelStyle(lang, 10, col(th.onSurfaceDim), text: time))),
           Expanded(
-              flex: 11,
+              flex: 10,
               child: Text(r.label,
                   maxLines: 1,
                   overflow: TextOverflow.clip,
-                  style: pixelStyle(lang, 10, col(th.onSurface), text: r.label))),
-          Text(dur, style: pixelStyle(lang, 9, col(th.onSurfaceDim), text: dur)),
+                  style: pixelStyle(lang, 11, col(th.onSurface), text: r.label))),
+          Expanded(
+              flex: 6,
+              child: Text(dur,
+                  maxLines: 1,
+                  textAlign: TextAlign.right,
+                  style: pixelStyle(lang, 10, col(th.onSurfaceDim), text: dur))),
         ]),
       ),
     );

@@ -365,6 +365,15 @@ void main() {
       final colors = {'MATH': 0xFFE5484D, 'CODING': 0xFF2A7DE1};
       expect(LabelColors.decode(LabelColors.encode(colors)), colors);
     });
+
+    test('palette grew to 14 but hash defaults stay in the original 10 (#v27.1)', () {
+      expect(LabelColors.palette.length, 14);
+      for (final l in ['STUDY', 'MATH', 'CODING', 'READING', 'ANYTHING', 'Q']) {
+        final i = LabelColors.palette.indexOf(LabelColors.defaultFor(l));
+        expect(i, isNonNegative);
+        expect(i, lessThan(10)); // growing the palette must never recolor old labels
+      }
+    });
   });
 
   group('Stats', () {
