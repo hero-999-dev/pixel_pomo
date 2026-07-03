@@ -189,6 +189,8 @@ class Flowers {
     Flower('papatya', _loc('Daisy', 'Papatya', 'Stokrotka', 'Gänseblümchen', '데이지', 'Margherita'), 0xFFFFFFFF, 0xFFF2C94C, _bloom),
     Flower('lale', _loc('Tulip', 'Lale', 'Tulipan', 'Tulpe', '튤립', 'Tulipano'), 0xFFE0457B, 0xFFC02060, _tulip),
     Flower('kaktus', _loc('Cactus', 'Kaktüs', 'Kaktus', 'Kaktus', '선인장', 'Cactus'), 0xFF46A03C, 0xFFF2C94C, _cactus),
+    Flower('kaktusf', _loc('Flower Cactus', 'Çiçekli Kaktüs', 'Kaktus kwitnący', 'Blühender Kaktus', '꽃선인장', 'Cactus fiorito'), 0xFFF06A92, 0xFFF2C94C, _cactus),
+    Flower('kaktusd', _loc('Desert Cactus', 'Çöl Kaktüsü', 'Kaktus pustynny', 'Wüstenkaktus', '사막선인장', 'Cactus del deserto'), 0xFF46A03C, 0xFF5FBF4A, _cactus),
     Flower('kasimpati', _loc('Chrysanthemum', 'Kasımpatı', 'Chryzantema', 'Chrysantheme', '국화', 'Crisantemo'), 0xFFF2994A, 0xFFC9710B, _bloom),
     Flower('menekse', _loc('Violet', 'Menekşe', 'Fiołek', 'Veilchen', '제비꽃', 'Viola'), 0xFF8E4FE0, 0xFFF2C94C, _bloom),
     Flower('nilufer', _loc('Water Lily', 'Nilüfer', 'Lilia wodna', 'Seerose', '수련', 'Ninfea'), 0xFFF4A6C0, 0xFFF2C94C, _bloom),
@@ -211,6 +213,7 @@ class Flowers {
   static const variantCounts = <String, int>{
     'gul': 2, 'lale': 2, 'kamelya': 2, 'kaktus': 2, 'kasimpati': 2,
     'menekse': 2, 'papatya': 2, 'nilufer': 2, 'begonya': 2, 'orkide': 2,
+    'kaktusf': 2, 'kaktusd': 2, // cactus 2.0 from the guide-sheet study (#v26)
   };
   static int variantsFor(String id) => variantCounts[id] ?? 1;
 }

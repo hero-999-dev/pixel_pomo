@@ -257,6 +257,8 @@ FLOWERS = {
     'papatya':   ('FFFFFF', 'F2C94C', BLOOM),
     'lale':      ('E0457B', 'C02060', TULIP),
     'kaktus':    ('46A03C', 'F2C94C', CACTUS),
+    'kaktusf':   ('F06A92', 'F2C94C', CACTUS),   # flower cactus (#v26)
+    'kaktusd':   ('46A03C', '5FBF4A', CACTUS),   # desert cactus, no bloom (#v26)
     'kasimpati': ('F2994A', 'C9710B', BLOOM),
     'menekse':   ('8E4FE0', 'F2C94C', BLOOM),
     'nilufer':   ('F4A6C0', 'F2C94C', BLOOM),
@@ -707,6 +709,8 @@ _FLOWER_PALS = {  # id: (dark, mid, light, centre, bloom-outline) — hex
     'lale':      ('9C1B2E', 'D93645', 'F2737C', 'F2C94C', '2E0810'),  # red tulip
     'kamelya':   ('A21250', 'E02C6D', 'F573A2', 'F2D24C', '37041F'),  # pink-red camellia, gold eye
     'kaktus':    ('E0457B', 'F06A92', 'F9A8C2', 'F2C94C', '5A1030'),  # pink flower; body = greens
+    'kaktusf':   ('E0457B', 'F06A92', 'F9A8C2', 'F2C94C', '5A1030'),  # flower cactus — same pinks (#v26)
+    'kaktusd':   ('E0457B', 'F06A92', 'F9A8C2', 'F2C94C', '5A1030'),  # desert cactus — bloom unused (#v26)
     'kasimpati': ('C9710B', 'F2A03A', 'F8C66A', 'E0860B', '5A3206'),  # gold chrysanthemum
     'menekse':   ('5B2A9E', '8E4FE0', 'B98CF0', 'F2C94C', '24104A'),  # purple violet, gold eye
     'papatya':   ('CFD4DA', 'FFFFFF', 'FFFFFF', 'F2C94C', '4F555C'),  # white daisy, gold eye, bold rim
@@ -992,6 +996,80 @@ _FLOWER_BLOOMS = {
             "................",
         ],
     ],
+    # --- cactus 2.0 (#v26): two NEW species picked from the user's guide-sheet
+    # study (cactus_study, 2 methods). kaktusf = FLOWER CACTUS, traced from the
+    # rendered guide art (rose method); kaktusd = DESERT CACTUS (no bloom):
+    # model 0 hand-authored crisp saguaro, model 1 = the traced prickly pear of
+    # kaktusf-style shape 03, de-flowered. 'o' = interior seam (dark rim green).
+    'kaktusf': [
+        [  # 0 tall columnar, pink crown flower — traced guide shape 01
+            '.......C........',
+            '.....Cldl.......',
+            '.....ldldmC.....',
+            '.....mmCCdl.....',
+            '......dmdl......',
+            '.....SSkSkS.....',
+            '.....SGGGkG.....',
+            '.....SGGGkG.....',
+            '...GGSGGGkG.....',
+            '...GGSSGSkS.....',
+            '...GGSSGGkG.G...',
+            '...SSkSGGkSkG...',
+            '....GkSGGkSkS...',
+            '.....kSGSkS.....',
+            '.....kSSSkS.....',
+            '.....kSSSkS.....',
+        ],
+        [  # 1 round barrel, pink top flower — traced guide shape 02
+            '........C.......',
+            '......CmmdC.....',
+            '......mdmmm.....',
+            '......mdCCm.....',
+            '...GGSlldd.kSG..',
+            '..GSSGklkdkSGSS.',
+            '..SGGSkkkkkkSGG.',
+            '..kGSGGSGSSGkSG.',
+            '..SGkGGkGGkGSSG.',
+            '..SSkSSoSGkSSkS.',
+            '..kkkSSoGSkSGok.',
+            '..kkkSkkSSokSkk.',
+            '...kkSkoSSkkkk..',
+        ],
+    ],
+    'kaktusd': [
+        [  # 0 saguaro — hand-authored, k edge + seamed arms, no ridge dots
+            '.......SG.......',
+            '......kSGG......',
+            '......kSGG......',
+            '......kSGG......',
+            '......kSGG......',
+            '..SG..kSGG......',
+            '.kSG..kSGG..SG..',
+            '.kSG..kSGG..SGk.',
+            '.kSGGkkSGG..SGk.',
+            '..kSGkkSGGkGSk..',
+            '......kSGGkGk...',
+            '......kSGG......',
+            '......kSGG......',
+            '......kSGG......',
+            '......kkSG......',
+        ],
+        [  # 1 prickly pear — de-flowered trace of guide shape 03
+            '...........kG...',
+            '...........GGSS.',
+            '..GSSG....SGSSS.',
+            '..kSGG....SGSSk.',
+            '..GSSS..GGkkkk..',
+            '..SSSSkGGGSk....',
+            '...kSkSGGGGS....',
+            '....GkGSGGSS....',
+            '.....kSSSSSS....',
+            '.....kGSkSSS....',
+            '.....kSkSSkk....',
+            '......kkkkkk....',
+            '......kkkkkk....',
+        ],
+    ],
 }
 
 
@@ -1001,6 +1079,7 @@ def _flower_pal(fid):
         'd': hexrgb(d) + (255,), 'm': hexrgb(m) + (255,), 'l': hexrgb(l) + (255,),
         'C': hexrgb(cen) + (255,),
         'S': _ROSE_PAL['S'], 'G': _ROSE_PAL['G'], 'k': _ROSE_PAL['k'],
+        'o': hexrgb(_ROSE_GRN_OL) + (255,),   # interior seam between plant parts (#v26)
     }
 
 
@@ -1020,7 +1099,7 @@ def flower_variant(fid, v):
             ch = line[c]
             if ch in 'dmlC':
                 bloom[r][c] = pal[ch]
-            elif ch in 'SGk':
+            elif ch in 'SGko':
                 plant[r][c] = pal[ch]
     bloom = outline(bloom, _FLOWER_PALS[fid][4])
     plant = outline(plant, _ROSE_GRN_OL)
