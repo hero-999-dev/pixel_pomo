@@ -16,7 +16,6 @@ class GardenWallpaperService : WallpaperService() {
 
     inner class GardenEngine : WallpaperService.Engine(), Choreographer.FrameCallback {
         private var visible = false
-        private var xOffset = 0.5f
         private val startNanos = System.nanoTime()
         private val data = GardenData(this@GardenWallpaperService)
         private val renderer = GardenRenderer(data)
@@ -30,11 +29,6 @@ class GardenWallpaperService : WallpaperService() {
                 Choreographer.getInstance().removeFrameCallback(this)
             }
         }
-
-        override fun onOffsetsChanged(
-            xOffset: Float, yOffset: Float, xStep: Float, yStep: Float,
-            xPixels: Int, yPixels: Int
-        ) { this.xOffset = xOffset }
 
         override fun onSurfaceDestroyed(holder: SurfaceHolder) {
             visible = false
@@ -56,13 +50,11 @@ class GardenWallpaperService : WallpaperService() {
         }
 
         private fun drawFrame(canvas: Canvas, timeSec: Double) {
-            // In the live-wallpaper PREVIEW pane the system reports xOffset≈0 (there's
-            // no home-screen paging context), and the renderer's parallax would then
-            // slide the garden ~0.75 tile to the LEFT — so the preview looked off
-            // even though the applied wallpaper (real launcher offsets) is centred.
-            // Force the centred offset in preview so what you framed is what you see.
-            val xo = if (isPreview) 0.5f else xOffset
-            renderer.draw(canvas, canvas.width, canvas.height, timeSec, xo)
+            // Parallax removed entirely (#v27): the user's launcher reported
+            // xOffset=0 on the APPLIED wallpaper too (single-page home), shifting
+            // the garden left of the framed angle. Preview and home screen now
+            // both draw the exact captured framing.
+            renderer.draw(canvas, canvas.width, canvas.height, timeSec)
         }
     }
 }

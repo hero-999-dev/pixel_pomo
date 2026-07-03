@@ -115,9 +115,17 @@ class AppStore extends ChangeNotifier {
 
     records = StatsCodec.decode(_prefs.getString(_kStats));
     coins = _prefs.getInt(_kCoins) ?? 0;
-    owned = _decodeOwned(_prefs.getString(_kOwned));
-    garden = Garden.decode(_prefs.getString(_kGarden))
+    final rawOwned = _decodeOwned(_prefs.getString(_kOwned));
+    final rawGarden = Garden.decode(_prefs.getString(_kGarden))
         .atLeast(Economy.baseGardenCols, Economy.baseGardenRows); // migrate to the bigger base (#7)
+    owned = Flowers.migrateOwned(rawOwned);
+    garden = Flowers.migrateGarden(rawGarden);
+    if (!identical(owned, rawOwned) || !identical(garden, rawGarden)) {
+      // one-time legacy-species rewrite (#v27) — persist immediately so the
+      // native wallpaper/services read the migrated ids too.
+      _saveWallet();
+      _saveGarden();
+    }
     homeGardenBackdrop = _prefs.getBool(_kHomeMode) ?? false;
     autoBreak = _prefs.getBool(_kAutoBreak) ?? false;
     wallpaperCam = WallpaperCam.decode(_prefs.getString(_kWallpaperCam));

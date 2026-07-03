@@ -1014,21 +1014,38 @@ class _LogHistoryScreenState extends State<LogHistoryScreen> {
     final time = r.minuteOfDay == null
         ? ''
         : '${(r.minuteOfDay! ~/ 60).toString().padLeft(2, '0')}:${(r.minuteOfDay! % 60).toString().padLeft(2, '0')}';
-    final when = '${d.day} ${monthName(lang, d.month)}  $time';
+    // 3-letter month keeps the date column narrow enough that the bigger font
+    // still fits four aligned columns on a phone (#v27 feedback).
+    final month = monthName(lang, d.month);
+    final date = '${d.day} ${month.length > 3 ? month.substring(0, 3) : month}';
+    final dur = StatsAggregator.formatMinutes(r.minutes);
+    // Fixed columns so every row lines up (#v27 feedback): date left, time in
+    // its own column pulled toward the centre, label left-justified in its
+    // column (was ragged right-aligned), duration on the right. Font bumped.
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 5),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () => _changeLabel(context, s, index, r),
         child: Row(children: [
-          Swatch(color: s.labelColorOf(r.label), border: th.onSurfaceDim, size: 14),
-          const SizedBox(width: 10),
-          Expanded(child: Text(when, style: pixelStyle(lang, 8, col(th.onSurfaceDim), text: when))),
+          Swatch(color: s.labelColorOf(r.label), border: th.onSurfaceDim, size: 15),
           const SizedBox(width: 8),
-          Text(r.label, style: pixelStyle(lang, 9, col(th.onSurface), text: r.label)),
-          const SizedBox(width: 10),
-          Text(StatsAggregator.formatMinutes(r.minutes),
-              style: pixelStyle(lang, 9, col(th.onSurfaceDim), text: StatsAggregator.formatMinutes(r.minutes))),
+          Expanded(
+              flex: 7,
+              child: Text(date,
+                  maxLines: 1,
+                  overflow: TextOverflow.clip,
+                  style: pixelStyle(lang, 9, col(th.onSurfaceDim), text: date))),
+          Expanded(
+              flex: 6,
+              child: Text(time, style: pixelStyle(lang, 9, col(th.onSurfaceDim), text: time))),
+          Expanded(
+              flex: 11,
+              child: Text(r.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.clip,
+                  style: pixelStyle(lang, 10, col(th.onSurface), text: r.label))),
+          Text(dur, style: pixelStyle(lang, 9, col(th.onSurfaceDim), text: dur)),
         ]),
       ),
     );

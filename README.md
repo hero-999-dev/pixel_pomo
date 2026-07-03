@@ -51,8 +51,8 @@ You don't build anything yourself — every release attaches a ready-to-install 
   Plant your flowers on a grass **clearing** ringed by a **forest** (trees, bushes, rocks). **EXPAND** grows the
   plot from the center; **two-finger twist to rotate**, **pinch-zoom and pan**. **Bee, butterfly and ladybug**
   critters drift in and hover on each flower's **colourful bloom**. **Every** flower ships **two** hand-drawn models (shape variants in
-  one colour — rose, tulip, camellia, cactus, chrysanthemum, violet, daisy, water lily, begonia, orchid) so a
-  flower bed looks varied.
+  one colour — rose, tulip, camellia, flower cactus, desert cactus, chrysanthemum, violet, daisy, water lily,
+  begonia, orchid) so a flower bed looks varied.
 - **📸 Camera & live wallpaper** — a **peek** button hides all the UI; **camera mode** lets you frame any angle, then
   **CAPTURE** to **share** the shot or, on **Android**, **set it as an animated live wallpaper** — your real garden,
   swaying plants and a visiting bug, redrawn on your home screen. **Settings → HOME SCREEN `CLEAN | GARDEN`** can also

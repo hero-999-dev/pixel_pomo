@@ -470,6 +470,37 @@ void main() {
     });
   });
 
+  group('legacy species migration (#v27)', () {
+    test('kaktus is gone from the catalogue', () {
+      expect(Flowers.byId('kaktus'), isNull);
+      expect(Flowers.byId('kaktusd'), isNotNull);
+    });
+
+    test('migrateId maps the base id and keeps variant + composite parts', () {
+      expect(Flowers.migrateId('kaktus'), 'kaktusd');
+      expect(Flowers.migrateId('kaktus~1'), 'kaktusd~1');
+      expect(Flowers.migrateId('gul~1'), 'gul~1');
+      expect(Flowers.migrateId('road_dirt+fence_wood'), 'road_dirt+fence_wood');
+    });
+
+    test('migrateGarden rewrites planted legacy tiles, else returns same', () {
+      final g = Garden(cols: 4, rows: 4, tiles: const {0: 'kaktus~1', 1: 'gul', 2: 'road_dirt'});
+      final m = Flowers.migrateGarden(g);
+      expect(m.tiles[0], 'kaktusd~1');
+      expect(m.tiles[1], 'gul');
+      expect(m.tiles[2], 'road_dirt');
+      final clean = Garden(cols: 4, rows: 4, tiles: const {0: 'gul'});
+      expect(identical(Flowers.migrateGarden(clean), clean), true);
+    });
+
+    test('migrateOwned merges legacy counts into the replacement', () {
+      expect(Flowers.migrateOwned({'kaktus': 2, 'kaktusd': 1, 'gul': 3}),
+          {'kaktusd': 3, 'gul': 3});
+      final clean = {'gul': 1};
+      expect(identical(Flowers.migrateOwned(clean), clean), true);
+    });
+  });
+
   group('phase-end action (#v25 item1)', () {
     test('a finished run is always done, regardless of auto-start', () {
       expect(phaseEndAction(isFinished: true, autoBreak: true), PhaseEnd.done);

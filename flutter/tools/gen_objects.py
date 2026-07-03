@@ -708,8 +708,8 @@ FENCES = {
 _FLOWER_PALS = {  # id: (dark, mid, light, centre, bloom-outline) — hex
     'lale':      ('9C1B2E', 'D93645', 'F2737C', 'F2C94C', '2E0810'),  # red tulip
     'kamelya':   ('A21250', 'E02C6D', 'F573A2', 'F2D24C', '37041F'),  # pink-red camellia, gold eye
-    'kaktus':    ('E0457B', 'F06A92', 'F9A8C2', 'F2C94C', '5A1030'),  # pink flower; body = greens
-    'kaktusf':   ('E0457B', 'F06A92', 'F9A8C2', 'F2C94C', '5A1030'),  # flower cactus — same pinks (#v26)
+    'kaktus':    ('E0457B', 'F06A92', 'F9A8C2', 'F2C94C', '5A1030'),  # LEGACY (#v27: off-catalogue; PNGs kept for old saves' wallpaper)
+    'kaktusf':   ('E0457B', 'F06A92', 'F9A8C2', 'C98A1B', '5A1030'),  # flower cactus — single darker-gold bloom dot (#v27)
     'kaktusd':   ('E0457B', 'F06A92', 'F9A8C2', 'F2C94C', '5A1030'),  # desert cactus — bloom unused (#v26)
     'kasimpati': ('C9710B', 'F2A03A', 'F8C66A', 'E0860B', '5A3206'),  # gold chrysanthemum
     'menekse':   ('5B2A9E', '8E4FE0', 'B98CF0', 'F2C94C', '24104A'),  # purple violet, gold eye
@@ -733,28 +733,41 @@ def _u(b0, b1):
 
 _FLOWER_BLOOMS = {
     # --- upright flowers: an 8-row bloom standing on the shared stem -----------
-    'lale': _u(
-        [  # 0 tall tulip (narrow upright closed cup) — guide TULIP 02
-            "......mmm.......",
-            "......mmm.......",
-            ".....mmmmm......",
-            ".....dmmmd......",
-            ".....dmlmd......",
-            ".....dmmmd......",
-            "......dmd.......",
-            ".......d........",
+    'lale': [  # guide-sheet study picks (#v27, flower_study/tulip)
+        [  # 0 classic closed tulip — smooth cup, blade leaves (guide TULIP 01)
+            "................",
+            ".......ll.......",
+            "......lmml......",
+            ".....dmmmmd.....",
+            ".....dmmmmd.....",
+            ".....dmlmld.....",
+            "......dmmd......",
+            ".......S........",
+            ".......S........",
+            ".....G.S.G......",
+            "....GGkSkGG.....",
+            ".....GGSGG......",
+            "......kSk.......",
+            ".......S........",
+            "................",
         ],
-        [  # 1 open tulip (3 petals fan out at the top) — guide TULIP 03
-            "....m..m..m.....",
-            "....mm.mm.mm....",
-            "...dmmmmmmmmd...",
+        [  # 1 open tulip — flared crown with three tips (guide TULIP 03)
+            "................",
+            ".....l..l..l....",
+            ".....mllmllm....",
             "....dmmmmmmd....",
-            "....dmlmmlmd....",
+            "....dmmmmmmd....",
             ".....dmmmmd.....",
             "......dmmd......",
-            ".......dd.......",
+            ".......S........",
+            ".......S........",
+            "....GkkSkkG.....",
+            ".....GGSGG......",
+            "......kSk.......",
+            ".......S........",
+            "................",
         ],
-    ),
+    ],
     'kamelya': _u(
         [  # 0 semi-open camellia — guide CAMELLIA 02
             "......mmmm......",
@@ -777,63 +790,73 @@ _FLOWER_BLOOMS = {
             ".....dmmmd......",
         ],
     ),
-    'kasimpati': _u(
-        [  # 0 half-open mum (spiky, gold) — guide CHRYSANTHEMUM 02
-            "......mmmm......",
-            "....dmlmlmld....",
-            "...dmlmlmlmld...",
-            "...dmlCCCClmd...",
-            "...dmlmlmlmld...",
-            "....dmlmlmld....",
-            ".....dmmmmd.....",
-            ".......dd.......",
-        ],
-        [  # 1 full dense mum — guide CHRYSANTHEMUM 03
-            ".....mlmlml.....",
-            "...dmlmlmlmld...",
-            "..dmlmlmlmlmd...",
-            "..dmlCCCCClmd...",
-            "..dmlmlmlmlmd...",
-            "...dmlmlmlmld...",
-            "....dmlmlmd.....",
-            ".....dmmmd......",
-        ],
-    ),
-    'papatya': [
-        [  # 0 CLASSIC daisy — 8 distinct white petals around a bold gold eye, 2 leaves (guide DAISY 01)
+    'kasimpati': [  # guide-sheet study picks (#v27, flower_study/chrysanthemum)
+        [  # 0 pom-pom mum — dense round bloom, curl speckles (guide MUM 01)
             "................",
-            ".......mm.......",
-            "...mm..mm..mm...",
-            "...mm......mm...",
-            "......CCCC......",
-            ".mm...CCCC...mm.",
-            ".mm...CCCC...mm.",
-            "......CCCC......",
-            "...mm......mm...",
-            "...mm..mm..mm...",
-            ".......mm.......",
-            ".......SS.......",
-            "....GGkSSkGG....",
-            "...GGGkSSkGGG...",
-            ".......SS.......",
+            "......mmm.......",
+            "....mlmlmlm.....",
+            "....lmdmlml.....",
+            "...mlmldmlmm....",
+            "...mmdmlmdlm....",
+            "....lmldmlm.....",
+            ".....mdmdm......",
+            "......mmm.......",
+            ".......S........",
+            ".......S........",
+            "....GGkSkGG.....",
+            ".....GGSGG......",
+            ".......S........",
             "................",
         ],
-        [  # 1 BUSHY daisy — three small solid heads (gold eyes) on a leafy clump, wide footprint (guide DAISY 04)
+        [  # 1 spider mum — thin radiating petals (guide MUM 02)
             "................",
-            "..mmm...mmm.....",
-            ".mmCmm.mmCmm....",
-            "..mmm...mmm.....",
-            ".....mmm........",
-            "....mmCmm.......",
-            ".....mmm........",
-            "....k.SS.k......",
-            "..GG.GGGG.GG....",
-            ".GGGGGGGGGGGG...",
-            "GGkGGGGGGGGkGG..",
-            ".GGGGGGGGGGGG...",
-            "..GGGGGGGGGG....",
-            "...GG.GG.GG.....",
+            "....d..m..d.....",
+            "....md.m.dm.....",
+            ".....mmmmm......",
+            "...mmldmdlmm....",
+            ".....mmmmm......",
+            "....md.m.dm.....",
+            "....d..m..d.....",
+            ".......S........",
+            ".......S........",
+            "....GGkSkGG.....",
+            ".....GGSGG......",
+            ".......S........",
             "................",
+        ],
+    ],
+    'papatya': [  # guide-sheet study picks (#v27, flower_study/daisy)
+        [  # 0 wide daisy — spread white petals, gold oval eye (guide DAISY 02)
+            "................",
+            ".....m.mm.m.....",
+            "....mmlmmlmm....",
+            "...dmlCCCClmm...",
+            "...mmlCCCClmm...",
+            "....mldCCdlm....",
+            ".....lm.ml......",
+            "......mdm.......",
+            ".......S........",
+            "...GGGkSkGGG....",
+            "..GGSGGSGGSGG...",
+            "....kGGSGGk.....",
+            ".......S........",
+            "................",
+        ],
+        [  # 1 bushy daisy — three blooms over a leafy mound (guide DAISY 04)
+            "................",
+            "......mmm.......",
+            ".....mlCml......",
+            ".....mmCmm......",
+            "..mmm..S..mmm...",
+            ".mlCml.S.mlCml..",
+            "..mdm..S..mdm...",
+            "...k...S...k....",
+            "...k...S...k....",
+            "..GGGkGSGkGGG...",
+            ".GGSGGkSkGGSGG..",
+            "..GGkSGSGSkGG...",
+            "...kGGkSkGGk....",
+            ".....kkkkk......",
             "................",
         ],
     ],
@@ -920,41 +943,37 @@ _FLOWER_BLOOMS = {
             "................",
         ],
     ],
-    'menekse': [
-        [  # 0 two upright violet blooms (fuller 5-petal) over a leaf mound — guide VIOLET 02
+    'menekse': [  # guide-sheet study picks (#v27, flower_study/violet)
+        [  # 0 classic violet — five-petal bloom, gold eye, leaf mound (guide VIOLET 01)
             "................",
-            "..mm.mm..mm.mm..",
-            "..mlClm..mlClm..",
-            "..mmmmm..mmmmm..",
-            "....S......S....",
-            "..GGGGGGGGGGG...",
-            ".GGkGGGGGGGkGG..",
-            "..GGGGGGGGGGG...",
-            "...GGGGGGGGG....",
-            "................",
-            "................",
-            "................",
-            "................",
-            "................",
-            "................",
+            ".....mm.mm......",
+            "....lmmlmml.....",
+            "....lmmCmml.....",
+            ".....mmlmm......",
+            "......mmm.......",
+            ".......S........",
+            ".......S........",
+            "....GkkSkkG.....",
+            "...GGSGGSGGG....",
+            "....kGGSGGk.....",
+            ".....kkkkk......",
             "................",
         ],
-        [  # 1 single upward violet bloom (fuller) over a leaf mound — guide VIOLET 04 (no side bloom)
+        [  # 1 upright violets — two blooms + side bud over the mound (guide VIOLET 02)
             "................",
-            ".....mm..mm.....",
-            "....mmlClmm.....",
-            ".....mmmmm......",
-            ".......S........",
-            ".......S........",
-            "..GGGGGGGGGGG...",
-            ".GGkGGGGGGGkGG..",
-            "..GGGGGGGGGGG...",
-            "...GGGGGGGGG....",
-            "................",
-            "................",
-            "................",
-            "................",
-            "................",
+            "......mm........",
+            ".....lmml.......",
+            ".....mlCm.ll....",
+            "......mm..mm....",
+            ".......S..d.....",
+            ".......S.S......",
+            "..ll...S.S......",
+            "..lmd..SS.......",
+            "...d...S........",
+            "...S...S........",
+            "..GGSkGSGkGG....",
+            "...GGkSGGkG.....",
+            "....kkkkk.......",
             "................",
         ],
     ],
@@ -1003,10 +1022,12 @@ _FLOWER_BLOOMS = {
     # kaktusf-style shape 03, de-flowered. 'o' = interior seam (dark rim green).
     'kaktusf': [
         [  # 0 tall columnar, pink crown flower — traced guide shape 01
-            '.......C........',
-            '.....Cldl.......',
-            '.....ldldmC.....',
-            '.....mmCCdl.....',
+            # (#v27: gold scatter removed — ONE centred darker-gold C per bloom,
+            #  like the approved cactus_study m1_flower_3 caps)
+            '.......m........',
+            '.....mldl.......',
+            '.....ldCdmm.....',
+            '.....mmdmdl.....',
             '......dmdl......',
             '.....SSkSkS.....',
             '.....SGGGkG.....',
@@ -1021,10 +1042,11 @@ _FLOWER_BLOOMS = {
             '.....kSSSkS.....',
         ],
         [  # 1 round barrel, pink top flower — traced guide shape 02
-            '........C.......',
-            '......CmmdC.....',
-            '......mdmmm.....',
-            '......mdCCm.....',
+            # (#v27: single centred darker-gold C, edge golds re-pinked)
+            '........m.......',
+            '......mmmdm.....',
+            '......mdCmm.....',
+            '......mdmdm.....',
             '...GGSlldd.kSG..',
             '..GSSGklkdkSGSS.',
             '..SGGSkkkkkkSGG.',
@@ -1083,6 +1105,13 @@ def _flower_pal(fid):
     }
 
 
+# Near-black plant rim for the all-green cactuses (#v27): the default dark-green
+# rim (1E5A24) vanished against grass, while the rose's near-black bloom rim
+# made it instantly readable — the user asked for the same on the cactuses.
+# Interior 'o' seams stay 1E5A24, so ribs/arms read softer than the silhouette.
+_PLANT_OL = {'kaktusf': '0B1A0D', 'kaktusd': '0B1A0D'}
+
+
 def flower_variant(fid, v):
     """One model of a (non-rose) flower as a full self-contained grid: petal chars
     d/m/l + centre C are the bloom (outlined with the flower's dark rim); green
@@ -1102,7 +1131,7 @@ def flower_variant(fid, v):
             elif ch in 'SGko':
                 plant[r][c] = pal[ch]
     bloom = outline(bloom, _FLOWER_PALS[fid][4])
-    plant = outline(plant, _ROSE_GRN_OL)
+    plant = outline(plant, _PLANT_OL.get(fid, _ROSE_GRN_OL))
     return _rose_compose([plant, bloom])
 
 

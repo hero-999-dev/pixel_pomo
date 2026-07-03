@@ -49,14 +49,17 @@ class GardenRenderer(private val data: GardenData) {
 
     private data class Item(val depth: Double, val x: Double, val y: Double, val id: String, val flower: Boolean, val c: Int, val r: Int)
 
-    fun draw(canvas: Canvas, w: Int, h: Int, timeSec: Double, xOffset: Float) {
+    fun draw(canvas: Canvas, w: Int, h: Int, timeSec: Double) {
         cols = data.cols; rows = data.rows
         val cam = data.cam
         val fitW = w / (cols + 2.0) // plot-based fit + small forest margin, matches the in-app Projector (#v18)
         val fitH = h / ((rows + 2.0) * KVY)
         t = min(fitW, fitH) * cam.zoom
-        val parallax = (xOffset - 0.5) * t * 1.5 // gentle home-screen scroll
-        cx = w / 2.0 + cam.panXFrac * t + parallax
+        // No launcher parallax: many launchers report xOffset=0 (single page /
+        // scroll-wallpaper off), which slid the scene ~0.75 tile LEFT of the
+        // framing the user captured (#v27). The wallpaper now always draws
+        // exactly the framed camera, like the in-app capture.
+        cx = w / 2.0 + cam.panXFrac * t
         cy = h / 2.0 + cam.panYFrac * t
         cosY = cos(cam.yaw); sinY = sin(cam.yaw)
 

@@ -188,7 +188,6 @@ class Flowers {
     Flower('gul', _loc('Rose', 'Gül', 'Róża', 'Rose', '장미', 'Rosa'), 0xFFE5484D, 0xFFB01030, _bloom),
     Flower('papatya', _loc('Daisy', 'Papatya', 'Stokrotka', 'Gänseblümchen', '데이지', 'Margherita'), 0xFFFFFFFF, 0xFFF2C94C, _bloom),
     Flower('lale', _loc('Tulip', 'Lale', 'Tulipan', 'Tulpe', '튤립', 'Tulipano'), 0xFFE0457B, 0xFFC02060, _tulip),
-    Flower('kaktus', _loc('Cactus', 'Kaktüs', 'Kaktus', 'Kaktus', '선인장', 'Cactus'), 0xFF46A03C, 0xFFF2C94C, _cactus),
     Flower('kaktusf', _loc('Flower Cactus', 'Çiçekli Kaktüs', 'Kaktus kwitnący', 'Blühender Kaktus', '꽃선인장', 'Cactus fiorito'), 0xFFF06A92, 0xFFF2C94C, _cactus),
     Flower('kaktusd', _loc('Desert Cactus', 'Çöl Kaktüsü', 'Kaktus pustynny', 'Wüstenkaktus', '사막선인장', 'Cactus del deserto'), 0xFF46A03C, 0xFF5FBF4A, _cactus),
     Flower('kasimpati', _loc('Chrysanthemum', 'Kasımpatı', 'Chryzantema', 'Chrysantheme', '국화', 'Crisantemo'), 0xFFF2994A, 0xFFC9710B, _bloom),
@@ -211,11 +210,48 @@ class Flowers {
   /// models in one consistent APICO/Littlewood style (rose is the reference;
   /// the rest were rolled out from the user's per-flower guide sheets, #v24).
   static const variantCounts = <String, int>{
-    'gul': 2, 'lale': 2, 'kamelya': 2, 'kaktus': 2, 'kasimpati': 2,
+    'gul': 2, 'lale': 2, 'kamelya': 2, 'kasimpati': 2,
     'menekse': 2, 'papatya': 2, 'nilufer': 2, 'begonya': 2, 'orkide': 2,
     'kaktusf': 2, 'kaktusd': 2, // cactus 2.0 from the guide-sheet study (#v26)
   };
   static int variantsFor(String id) => variantCounts[id] ?? 1;
+
+  /// Species removed from the catalogue → replacement (#v27: the original
+  /// blind-ASCII `kaktus` was superseded by the studied cactuses). Old saves
+  /// migrate on load; the legacy PNGs are still generated so a not-yet-opened
+  /// app's live wallpaper keeps rendering pre-migration prefs.
+  static const legacyIds = <String, String>{'kaktus': 'kaktusd'};
+
+  /// Map one tile value (possibly `road+flower~v` composite) through
+  /// [legacyIds], keeping any `~variant` suffix.
+  static String migrateId(String id) => id.split('+').map((part) {
+        final base = Placeables.flowerBase(part);
+        final to = legacyIds[base];
+        return to == null ? part : part.replaceFirst(base, to);
+      }).join('+');
+
+  /// Returns [g] itself when nothing needed migrating.
+  static Garden migrateGarden(Garden g) {
+    var changed = false;
+    final tiles = <int, String>{};
+    g.tiles.forEach((k, v) {
+      final nv = migrateId(v);
+      if (nv != v) changed = true;
+      tiles[k] = nv;
+    });
+    return changed ? Garden(cols: g.cols, rows: g.rows, tiles: tiles) : g;
+  }
+
+  /// Returns [owned] itself when nothing needed migrating.
+  static Map<String, int> migrateOwned(Map<String, int> owned) {
+    if (!owned.keys.any(legacyIds.containsKey)) return owned;
+    final out = <String, int>{};
+    owned.forEach((id, n) {
+      final to = legacyIds[id] ?? id;
+      out[to] = (out[to] ?? 0) + n;
+    });
+    return out;
+  }
 }
 
 /// Pure app-blocker rules (#v23). The native AccessibilityService mirrors
