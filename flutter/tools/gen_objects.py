@@ -827,20 +827,19 @@ _FLOWER_BLOOMS = {
     ],
     'papatya': [  # USER PICKS from the hand-authored daisy round 3 (#v28,
         # flower_study/daisy: m2_0 + m2_3 — chosen 2026-07-04)
-        [  # 0 classic daisy (#v28.2 — idea1's FULL radiating seams, user note:
-           # "I didn't say remove the other lines"): packed head on the mound,
-           # gold PLUS heart, and 8 thin black 'x' seam lines running center →
-           # rim so every cardinal petal is separated from the diagonals, like
-           # idea1's pizza-slice petals
+        [  # 0 classic daisy (#v28.3): idea1's FULL radiating petal seams, but
+           # drawn in the daisy's own light-gray 'd' — like the rose, whose
+           # interior lines are its dark MIDTONE, not outline-black (black 'x'
+           # on white read fat); black stays only on the silhouette rim
             "......mmmm......",
-            "....mmxmmxmm....",
-            "...mmmxmmxmmm...",
-            "...xxxmCCmxxx...",
+            "....mmdmmdmm....",
+            "...mmmdmmdmmm...",
+            "...dddmCCmddd...",
             "...mmmCCCCmmm...",
             "...mmmCCCCmmm...",
-            "...xxxmCCmxxx...",
-            "...mmmxmmxmmm...",
-            "....mmxmmxmm....",
+            "...dddmCCmddd...",
+            "...mmmdmmdmmm...",
+            "....mmdmmdmm....",
             "......mmmm......",
             "..GG.GGGGGG.GG..",
             "..GGGGkkkkGGGG..",
