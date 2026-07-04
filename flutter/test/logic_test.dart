@@ -550,4 +550,150 @@ void main() {
       expect(r2.minuteOfDay, 540); // timestamp preserved → trend keeps its shape
     });
   });
+
+  group('habits (#v29)', () {
+    test('add rejects empty + case-insensitive dupes; codec round-trips', () {
+      var hs = <Habit>[];
+      hs = Habits.add(hs, ' water ', 0xFF2A7DE1);
+      hs = Habits.add(hs, 'WATER', 0xFFE5484D); // dupe
+      hs = Habits.add(hs, '   ', 0xFF46A03C); // empty
+      expect(hs.length, 1);
+      expect(hs.first.name, 'WATER'); // cleaned + uppercased
+      hs = Habits.add(hs, 'Read', 0xFF8E4FE0);
+      final rt = Habits.decode(Habits.encode(hs));
+      expect(rt.map((h) => h.name), ['WATER', 'READ']);
+      expect(rt[1].color, 0xFF8E4FE0);
+    });
+
+    test('remove drops by name', () {
+      final hs = [const Habit('WATER', 1), const Habit('READ', 2)];
+      expect(Habits.remove(hs, 'WATER').map((h) => h.name), ['READ']);
+    });
+
+    test('log bump adds/clamps and codec round-trips', () {
+      var log = <String, Map<int, int>>{};
+      log = HabitLog.bump(log, 'WATER', 100);
+      log = HabitLog.bump(log, 'WATER', 100); // 2nd time same day
+      log = HabitLog.bump(log, 'WATER', 101);
+      expect(HabitLog.daysDone(log['WATER']!), 2);
+      expect(HabitLog.totalTimes(log['WATER']!), 3);
+      log = HabitLog.bump(log, 'WATER', 101, -1); // undo → day removed
+      expect(log['WATER']!.containsKey(101), false);
+      log = HabitLog.bump(log, 'WATER', 100, -5); // over-undo clamps + drops
+      expect(log.containsKey('WATER'), false);
+      final rt = HabitLog.decode(HabitLog.encode(HabitLog.bump({}, 'X', 5, 3)));
+      expect(rt['X']![5], 3);
+    });
+
+    test('streak counts back from today or yesterday, stops at a gap', () {
+      final days = {10: 1, 9: 1, 8: 2, 5: 1};
+      expect(HabitLog.streak(days, 10), 3); // 10,9,8
+      expect(HabitLog.streak(days, 11), 3); // counts from yesterday
+      expect(HabitLog.streak(days, 12), 0); // 2-day gap
+      expect(HabitLog.streak(days, 5), 1);
+    });
+
+    test('label habits derive counts straight from records', () {
+      final recs = [
+        const SessionRecord(100, 60, 'TURKISH'),
+        const SessionRecord(100, 30, 'TURKISH'),
+        const SessionRecord(101, 45, 'TURKISH'),
+        const SessionRecord(101, 20, 'MATH'),
+      ];
+      final byLabel = LabelHabits.fromRecords(recs);
+      expect(HabitLog.daysDone(byLabel['TURKISH']!), 2);
+      expect(HabitLog.totalTimes(byLabel['TURKISH']!), 3); // "2 days · 3 times"
+      expect(byLabel['MATH']![101], 1);
+    });
+
+    test('moods codec keeps only 1..5', () {
+      expect(Moods.decode(Moods.encode({100: 5, 101: 3})), {100: 5, 101: 3});
+      expect(Moods.decode('100:0\n101:6\n102:4'), {102: 4}); // out-of-range dropped
+    });
+  });
+
+  group('money manager (#v29)', () {
+    final rates = {'USD': 1.0, 'EUR': 0.5, 'TRY': 40.0};
+
+    test('tx codec round-trips incl. note with spaces', () {
+      final txs = [
+        const MoneyTx(100, 540, 12345, 'TRY', 'FOOD', true, 'lunch out'),
+        const MoneyTx(100, 600, 500000, 'TRY', 'SALARY', false),
+      ];
+      final rt = MoneyBook.decode(MoneyBook.encode(txs));
+      expect(rt.length, 2);
+      expect(rt[0].amountMinor, 12345);
+      expect(rt[0].note, 'lunch out');
+      expect(rt[1].isExpense, false);
+    });
+
+    test('toMain converts via USD cross-rate', () {
+      // 40 TRY at USD-rate 40 = 1 USD = 0.5 EUR
+      const t = MoneyTx(100, 0, 4000, 'TRY', 'FOOD', true);
+      expect(MoneyBook.toMain(t, rates, 'USD'), closeTo(1.0, 1e-9));
+      expect(MoneyBook.toMain(t, rates, 'EUR'), closeTo(0.5, 1e-9));
+      expect(MoneyBook.toMain(t, rates, 'TRY'), closeTo(40.0, 1e-9)); // same cur
+    });
+
+    test('unknown currency falls back to raw amount', () {
+      const t = MoneyTx(100, 0, 1000, 'XYZ', 'FOOD', true);
+      expect(MoneyBook.toMain(t, rates, 'USD'), closeTo(10.0, 1e-9));
+    });
+
+    test('month totals + category split in the main currency', () {
+      final d = dateOfEpochDay(epochDayOf(DateTime(2026, 7, 3)));
+      final day = epochDayOf(DateTime(d.year, d.month, 3));
+      final txs = [
+        MoneyTx(day, 0, 4000, 'TRY', 'FOOD', true), // 1 USD
+        MoneyTx(day, 0, 8000, 'TRY', 'HOME', true), // 2 USD
+        MoneyTx(day, 0, 400000, 'TRY', 'SALARY', false), // 100 USD income
+      ];
+      final (inc, exp) = MoneyBook.monthTotals(txs, d.year, d.month, rates, 'USD');
+      expect(inc, closeTo(100.0, 1e-9));
+      expect(exp, closeTo(3.0, 1e-9));
+      final cats = MoneyBook.byCategory(txs, d.year, d.month, rates, 'USD');
+      expect(cats.first.key, 'HOME'); // 2 > 1, sorted
+      expect(cats.first.value, closeTo(2.0, 1e-9));
+    });
+
+    test('fx cache codec + 1h TTL', () {
+      final enc = Fx.encode({'USD': 1.0, 'TRY': 40.0}, 1000);
+      final (r, at) = Fx.decode(enc);
+      expect(r['TRY'], 40.0);
+      expect(at, 1000);
+      expect(Fx.needsRefresh(1000 + Fx.ttlMs + 1, 1000), true);
+      expect(Fx.needsRefresh(1000 + Fx.ttlMs - 1, 1000), false);
+    });
+
+    test('reward: +1 per completed under-budget day, cursor advances', () {
+      final rates1 = {'USD': 1.0};
+      // rate = \$20/day. day 10 spent \$10 (under), day 11 spent \$30 (over),
+      // day 12 no spend (under). today = 13 → evaluates days 11..12 (10 already done).
+      final txs = [
+        const MoneyTx(11, 0, 3000, 'USD', 'FOOD', true),
+        const MoneyTx(10, 0, 1000, 'USD', 'FOOD', true),
+      ];
+      final (coins, cursor) = MoneyReward.accrue(
+          txs: txs, rateMinor: 2000, lastDoneDay: 10, today: 13,
+          rates: rates1, main: 'USD');
+      expect(coins, 1); // only day 12
+      expect(cursor, 12);
+    });
+
+    test('reward off (rate 0) awards nothing but still advances the cursor', () {
+      final (coins, cursor) = MoneyReward.accrue(
+          txs: const [], rateMinor: 0, lastDoneDay: 5, today: 10,
+          rates: const {'USD': 1.0}, main: 'USD');
+      expect(coins, 0);
+      expect(cursor, 9); // so enabling later never back-pays
+    });
+
+    test('reward is a no-op when already caught up to yesterday', () {
+      final (coins, cursor) = MoneyReward.accrue(
+          txs: const [], rateMinor: 2000, lastDoneDay: 9, today: 10,
+          rates: const {'USD': 1.0}, main: 'USD');
+      expect(coins, 0);
+      expect(cursor, 9);
+    });
+  });
 }

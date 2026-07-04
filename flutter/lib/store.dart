@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'fx_fetch.dart';
 import 'logic.dart';
 import 'strings.dart';
 import 'timer_notif.dart';
@@ -30,6 +31,15 @@ class AppStore extends ChangeNotifier {
   static const _kBlocker = 'app_blocker'; // app blocker on/off (#v23)
   static const _kBlocked = 'blocked_apps'; // csv of blocked package names (#v23)
   static const _kWallpaperCam = 'wallpaper_cam'; // live-wallpaper framing (v15)
+  // habit tracker + money manager (#v29)
+  static const _kHabits = 'habits';
+  static const _kHabitLog = 'habit_log';
+  static const _kMoods = 'moods';
+  static const _kMoney = 'money_txs';
+  static const _kFx = 'fx_rates';
+  static const _kMainCur = 'main_currency';
+  static const _kDailyRate = 'daily_rate_minor';
+  static const _kMoneyRewardDay = 'money_last_reward_day';
   static const _kSeeded = 'test_seeded_v5';
 
   late SharedPreferences _prefs;
@@ -63,6 +73,18 @@ class AppStore extends ChangeNotifier {
   /// screen asks first via [awaitingBreakPrompt].
   bool autoBreak = false; // off on a fresh install (#v23 fb)
   bool awaitingBreakPrompt = false;
+
+  // ---- habit tracker + money manager (#v29) ---------------------------------
+  List<Habit> habits = [];
+  Map<String, Map<int, int>> habitLog = {}; // manual habit -> day -> count
+  Map<int, int> moods = {}; // epochDay -> 1..5
+  List<MoneyTx> money = [];
+  Map<String, double> fxRates = {}; // per-USD
+  int fxFetchedAt = 0;
+  String mainCurrency = 'USD';
+  int dailyRateMinor = 0; // 0 = daily-budget coin off
+  int _moneyRewardDay = 0; // last day evaluated for the budget coin
+  bool _fxFetching = false;
 
   late PomodoroEngine engine;
 
@@ -130,9 +152,45 @@ class AppStore extends ChangeNotifier {
     autoBreak = _prefs.getBool(_kAutoBreak) ?? false;
     wallpaperCam = WallpaperCam.decode(_prefs.getString(_kWallpaperCam));
 
+    // habit tracker + money manager (#v29)
+    habits = Habits.decode(_prefs.getString(_kHabits));
+    habitLog = HabitLog.decode(_prefs.getString(_kHabitLog));
+    moods = Moods.decode(_prefs.getString(_kMoods));
+    money = MoneyBook.decode(_prefs.getString(_kMoney));
+    final (fr, fat) = Fx.decode(_prefs.getString(_kFx));
+    fxRates = fr;
+    fxFetchedAt = fat;
+    mainCurrency = _prefs.getString(_kMainCur) ?? 'USD';
+    dailyRateMinor = _prefs.getInt(_kDailyRate) ?? 0;
+    _moneyRewardDay = _prefs.getInt(_kMoneyRewardDay) ?? (epochDayOf(DateTime.now()) - 1);
+
     _seedOnce();
+    _accrueMoneyReward();
     engine = _buildEngine();
     notifyListeners();
+    unawaited(refreshFx()); // best-effort; updates silently when it lands
+  }
+
+  /// Award +1 coin per completed day (yesterday-and-earlier) that stayed under
+  /// the daily rate (#v29). Idempotent via the [_kMoneyRewardDay] cursor.
+  void _accrueMoneyReward() {
+    final today = epochDayOf(DateTime.now());
+    final (earned, cursor) = MoneyReward.accrue(
+      txs: money,
+      rateMinor: dailyRateMinor,
+      lastDoneDay: _moneyRewardDay,
+      today: today,
+      rates: fxRates,
+      main: mainCurrency,
+    );
+    if (cursor != _moneyRewardDay) {
+      _moneyRewardDay = cursor;
+      _prefs.setInt(_kMoneyRewardDay, cursor);
+    }
+    if (earned > 0) {
+      coins += earned;
+      _saveWallet();
+    }
   }
 
   void _seedOnce() {
@@ -188,6 +246,111 @@ class AppStore extends ChangeNotifier {
   }
 
   void _saveGarden() => _prefs.setString(_kGarden, garden.encode());
+
+  // ---- habit tracker (#v29) -------------------------------------------------
+
+  /// All habits shown on the tracker: manual habits + focus-session labels as
+  /// automatic habits (derived from records). Manual first, then labels not
+  /// already used as a manual habit name.
+  Map<String, Map<int, int>> get labelHabitCounts => LabelHabits.fromRecords(records);
+
+  void addHabit(String name, int color) {
+    final next = Habits.add(habits, name, color);
+    if (identical(next, habits)) return;
+    habits = next;
+    _prefs.setString(_kHabits, Habits.encode(habits));
+    notifyListeners();
+  }
+
+  void removeHabit(String name) {
+    habits = Habits.remove(habits, name);
+    habitLog.remove(name);
+    _prefs.setString(_kHabits, Habits.encode(habits));
+    _prefs.setString(_kHabitLog, HabitLog.encode(habitLog));
+    notifyListeners();
+  }
+
+  /// Manual habit completion for today, [delta] +1/-1. Label habits are
+  /// automatic (driven by sessions) and are not bumped here.
+  void bumpHabit(String name, [int delta = 1]) {
+    habitLog = HabitLog.bump(habitLog, name, epochDayOf(DateTime.now()), delta);
+    _prefs.setString(_kHabitLog, HabitLog.encode(habitLog));
+    notifyListeners();
+  }
+
+  void setMood(int mood) {
+    if (mood < 1 || mood > 5) return;
+    moods[epochDayOf(DateTime.now())] = mood;
+    _prefs.setString(_kMoods, Moods.encode(moods));
+    notifyListeners();
+  }
+
+  int? get todayMood => moods[epochDayOf(DateTime.now())];
+
+  // ---- money manager (#v29) -------------------------------------------------
+
+  void addMoneyTx(int amountMinor, String currency, String category,
+      bool isExpense, String note) {
+    if (amountMinor <= 0) return;
+    final now = DateTime.now();
+    money.add(MoneyTx(epochDayOf(now), now.hour * 60 + now.minute, amountMinor,
+        currency, category, isExpense, note));
+    _prefs.setString(_kMoney, MoneyBook.encode(money));
+    notifyListeners();
+  }
+
+  void deleteMoneyTx(MoneyTx tx) {
+    money.remove(tx);
+    _prefs.setString(_kMoney, MoneyBook.encode(money));
+    notifyListeners();
+  }
+
+  void setMainCurrency(String cur) {
+    mainCurrency = cur;
+    _prefs.setString(_kMainCur, cur);
+    notifyListeners();
+  }
+
+  void setDailyRate(int minor) {
+    dailyRateMinor = minor < 0 ? 0 : minor;
+    _prefs.setInt(_kDailyRate, dailyRateMinor);
+    notifyListeners();
+  }
+
+  /// Currencies offered in the picker: the fetched set if we have one, else the
+  /// seed list (always includes the current main currency).
+  List<String> get currencyOptions {
+    final set = {...Fx.seedCurrencies, ...fxRates.keys, mainCurrency};
+    final list = set.toList()..sort();
+    return list;
+  }
+
+  double moneyToMain(MoneyTx t) => MoneyBook.toMain(t, fxRates, mainCurrency);
+
+  /// Fetch USD-based rates from open.er-api.com when online + stale (>1h). Uses
+  /// dart:io directly (no new dep); silent on any failure so it never blocks.
+  Future<void> refreshFx({bool force = false}) async {
+    if (_fxFetching) return;
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    if (!force && fxRates.isNotEmpty && !Fx.needsRefresh(nowMs, fxFetchedAt)) {
+      return;
+    }
+    _fxFetching = true;
+    try {
+      final rates = await fetchFxRates();
+      if (rates != null && rates.isNotEmpty) {
+        fxRates = rates;
+        fxFetchedAt = DateTime.now().millisecondsSinceEpoch;
+        _prefs.setString(_kFx, Fx.encode(fxRates, fxFetchedAt));
+        _accrueMoneyReward(); // fresh rates may complete a pending under-budget day
+        notifyListeners();
+      }
+    } catch (_) {
+      // offline / transient — keep the cache, try again next time.
+    } finally {
+      _fxFetching = false;
+    }
+  }
 
   // ---- timer ----------------------------------------------------------------
 

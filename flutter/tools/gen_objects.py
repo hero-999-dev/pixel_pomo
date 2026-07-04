@@ -473,14 +473,15 @@ def grass_grid():
 # the wallet shows it as a flat 2D coin with no animation.
 
 def coin_grid():
-    # The v19 coin the user preferred (restored per request): dark outline, a gold
-    # rim ring, a lighter inner face with a top→bottom bevel, and one small
-    # top-left shine. No marks. (v20's diagonal upper-left highlight was reverted.)
-    out = hexrgb("5A3A0A") + (255,)      # dark outline
-    rim = hexrgb("C98A1B") + (255,)      # gold rim ring
-    face_hi = hexrgb("FFDE73") + (255,)  # lighter gold inner (upper)
-    face_lo = hexrgb("E8B43A") + (255,)  # gold inner (lower)
-    shine = hexrgb("FFF2C8") + (255,)    # top-left highlight
+    # v29 coin from the user's "MONEY 01 — COIN (NO NUMBER)" guide sheet: black
+    # outline, light-gold bevel arc on the top-left edge, brown shadow on the
+    # bottom-right edge, plain gold face with a 1px darker-gold inner ring.
+    # Palette straight from the sheet.
+    out = hexrgb("1A1A1A") + (255,)     # outline
+    shadow = hexrgb("6B4A1E") + (255,)  # bottom-right edge shadow
+    ring = hexrgb("B9781F") + (255,)    # dark-gold inner ring
+    face = hexrgb("F2C14E") + (255,)    # gold face
+    shine = hexrgb("FFF29A") + (255,)   # top-left edge light
     g = blank(16, 16)
     cx = cy = 7.5
     for r in range(16):
@@ -489,13 +490,47 @@ def coin_grid():
             if d <= 7.6:
                 if d > 6.5:
                     g[r][c] = out
-                elif d > 5.2:
-                    g[r][c] = rim
+                elif d > 5.5:
+                    g[r][c] = shine if (r + c) < 14 else shadow  # edge bevel
+                elif 4.2 < d <= 5.1:
+                    g[r][c] = ring                               # inner ring
                 else:
-                    g[r][c] = face_hi if r <= cy else face_lo  # bevel
-    for (r, c) in ((4, 5), (4, 6), (5, 4), (5, 5)):
-        g[r][c] = shine
+                    g[r][c] = face
     return g
+
+
+# ---- mood faces (#v29 habit tracker) -----------------------------------------
+# Daylio-style daily mood, but round-BOX pixel faces (user: not circle emojis).
+# 14x14 rounded square + 1px near-black rim (via outline), dark features, one
+# flat mood color each. 1=awful .. 5=great.
+
+_FACE_COLORS = {1: 'E5484D', 2: 'F2994A', 3: 'F2C94C', 4: 'A8D93A', 5: '46A03C'}
+
+
+def face_grid(mood):
+    box = hexrgb(_FACE_COLORS[mood]) + (255,)
+    ink = hexrgb("1A1D22") + (255,)
+    g = blank(14, 14)
+    for r in range(14):
+        for c in range(14):
+            corner = (r in (0, 13) and c in (0, 1, 12, 13)) or \
+                     (r in (1, 12) and c in (0, 13))
+            if not corner:
+                g[r][c] = box
+    for (r, c) in [(4, 3), (4, 4), (5, 3), (5, 4), (4, 9), (4, 10), (5, 9), (5, 10)]:
+        g[r][c] = ink                                   # eyes
+    mouths = {
+        1: [(3, 4), (3, 9),                              # angry brow tips
+            (9, 5), (9, 6), (9, 7), (9, 8), (10, 4), (10, 9)],   # deep frown
+        2: [(9, 5), (9, 6), (9, 7), (9, 8), (10, 4), (10, 9)],   # frown
+        3: [(10, 4), (10, 5), (10, 6), (10, 7), (10, 8), (10, 9)],  # flat
+        4: [(9, 4), (9, 9), (10, 5), (10, 6), (10, 7), (10, 8)],    # smile
+        5: [(9, 3), (9, 10), (10, 4), (10, 9),                       # big open
+            (10, 5), (10, 6), (10, 7), (10, 8), (11, 5), (11, 6), (11, 7), (11, 8)],
+    }
+    for (r, c) in mouths[mood]:
+        g[r][c] = ink
+    return outline(g, "1A1D22")
 
 
 # ---- tiny garden creatures (bee / butterfly / ladybug) -----------------------
@@ -1195,6 +1230,8 @@ def main():
     for i in range(5):
         write_png(os.path.join(OUT, f"rock_{i:02d}.png"), upscale(_rock_variant(i + 1), SCALE))
     write_png(os.path.join(OUT, "coin.png"), upscale(coin_grid(), SCALE))
+    for mood in range(1, 6):  # habit-tracker mood faces (#v29)
+        write_png(os.path.join(OUT, f"face_{mood}.png"), upscale(face_grid(mood), 8))
     for rid, fn in ROADS.items():
         write_png(os.path.join(OUT, f"{rid}.png"), upscale(fn(), SCALE))
 

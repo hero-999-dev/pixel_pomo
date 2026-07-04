@@ -305,17 +305,24 @@ class HomeScreen extends StatelessWidget {
         ? const [Shadow(offset: Offset(2, 2), color: Color(0xCC000000))]
         : const <Shadow>[];
     final coinColor = s.homeGardenBackdrop ? const Color(0xFFF4F4F4) : col(th.onSurface);
+    // 5 icons now live on the left (theme/garden/stats/habits/money) — tight
+    // padding + 26px glyphs keep them on one row on a phone (#v29).
     Widget icon(String name, VoidCallback onTap, Key key) => IconButton(
           key: key,
-          icon: Image.asset('assets/icon/icon_$name.png', width: 30, height: 30, filterQuality: FilterQuality.none),
+          padding: const EdgeInsets.all(4),
+          constraints: const BoxConstraints(),
+          visualDensity: VisualDensity.compact,
+          icon: Image.asset('assets/icon/icon_$name.png', width: 26, height: 26, filterQuality: FilterQuality.none),
           onPressed: onTap,
         );
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       child: Row(children: [
         icon('theme', () => openPanel(context, s, () => ThemeScreen(s)), const Key('themeButton')),
         icon('garden', () => openPanel(context, s, () => GardenScreen(s)), const Key('gardenButton')),
         icon('stats', () => openPanel(context, s, () => StatsScreen(s)), const Key('statsButton')),
+        icon('habit', () => openPanel(context, s, () => HabitScreen(s)), const Key('habitButton')),
+        icon('money', () => openPanel(context, s, () => MoneyScreen(s)), const Key('moneyButton')),
         const Spacer(),
         icon('settings', () => openPanel(context, s, () => SettingsScreen(s)), const Key('settingsButton')),
         icon('store', () => openPanel(context, s, () => ShopScreen(s)), const Key('storeButton')),
@@ -1461,5 +1468,573 @@ class _GardenScreenState extends State<GardenScreen> {
         ],
       ),
     );
+  }
+}
+
+// ---- habit tracker (#v29) ---------------------------------------------------
+// Daylio-style daily mood + HabitKit-style habit cards. Manual habits (with a
+// +1 tap) plus focus-session labels as AUTOMATIC habits ("7 days · 15 times").
+// No icons on the rows — text labels only, per the brief.
+
+class HabitScreen extends StatefulWidget {
+  final AppStore s;
+  const HabitScreen(this.s, {super.key});
+  @override
+  State<HabitScreen> createState() => _HabitScreenState();
+}
+
+class _HabitScreenState extends State<HabitScreen> {
+  @override
+  Widget build(BuildContext context) {
+    final s = widget.s;
+    final th = s.theme;
+    final lang = s.lang;
+    final today = epochDayOf(DateTime.now());
+    final labelCounts = s.labelHabitCounts;
+    final manualNames = s.habits.map((h) => h.name).toSet();
+    return overlayScaffold(context, s, t(lang, 'habits'), [
+      // --- mood row (5 round-box faces, one per day) ---
+      Text(t(lang, 'mood'), style: pixelStyle(lang, 12, col(th.onSurfaceDim), text: t(lang, 'mood'))),
+      const SizedBox(height: 10),
+      Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          for (var m = 1; m <= 5; m++)
+            GestureDetector(
+              onTap: () => s.setMood(m),
+              child: Opacity(
+                opacity: s.todayMood == null || s.todayMood == m ? 1 : 0.35,
+                child: Container(
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                        color: col(s.todayMood == m ? th.onSurface : th.bg), width: 2),
+                  ),
+                  child: Image.asset('assets/objects/face_$m.png',
+                      width: 40, height: 40, filterQuality: FilterQuality.none),
+                ),
+              ),
+            ),
+        ],
+      ),
+      const SizedBox(height: 24),
+      // --- manual habits ---
+      for (final h in s.habits)
+        _habitCard(s, th, lang, today, h.name, h.color, s.habitLog[h.name] ?? const {},
+            manual: true),
+      // --- focus-session labels as automatic habits ---
+      for (final entry in labelCounts.entries)
+        if (!manualNames.contains(entry.key))
+          _habitCard(s, th, lang, today, entry.key, s.labelColorOf(entry.key), entry.value,
+              manual: false),
+      if (s.habits.isEmpty && labelCounts.isEmpty)
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 24),
+          child: Text(t(lang, 'noHabits'),
+              textAlign: TextAlign.center,
+              style: pixelStyle(lang, 10, col(th.onSurfaceDim), text: t(lang, 'noHabits'))),
+        ),
+      const SizedBox(height: 8),
+      primaryBtn(th, lang, t(lang, 'addHabit'), () => _addHabit(context, s),
+          fontSize: 12, padding: const EdgeInsets.all(14)),
+    ]);
+  }
+
+  Widget _habitCard(AppStore s, PixelTheme th, String lang, int today, String name,
+      int color, Map<int, int> days,
+      {required bool manual}) {
+    final doneToday = (days[today] ?? 0) > 0;
+    final subtitle = tf(lang, 'daysTimes',
+        [HabitLog.daysDone(days), HabitLog.totalTimes(days)]);
+    final streak = HabitLog.streak(days, today);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: col(th.panel),
+        border: Border.all(color: col(th.onSurfaceDim), width: 2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(name, style: pixelStyle(lang, 12, col(th.onSurface), text: name)),
+                  const SizedBox(height: 4),
+                  Text(
+                      streak > 1 ? '$subtitle · ${tf(lang, 'streakN', [streak])}' : subtitle,
+                      style: pixelStyle(lang, 8, col(th.onSurfaceDim),
+                          text: streak > 1 ? '$subtitle · ${tf(lang, 'streakN', [streak])}' : subtitle)),
+                  if (!manual)
+                    Text(t(lang, 'labelHabit'),
+                        style: pixelStyle(lang, 7, col(color), text: t(lang, 'labelHabit'))),
+                ],
+              ),
+            ),
+            // manual habits get the +1 / done toggle; label habits are driven by
+            // sessions (read-only here) — long-press a manual card to delete.
+            if (manual)
+              GestureDetector(
+                onTap: () => s.bumpHabit(name, doneToday ? -1 : 1),
+                onLongPress: () => _removeHabit(context, s, name),
+                child: Container(
+                  width: 44,
+                  height: 44,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: col(doneToday ? color : th.bg),
+                    border: Border.all(color: col(color), width: 2),
+                  ),
+                  child: Text(doneToday ? '✓' : '+',
+                      style: pixelStyle(lang, 16, col(doneToday ? th.onAccent : color),
+                          text: doneToday ? '✓' : '+')),
+                ),
+              ),
+          ]),
+          const SizedBox(height: 10),
+          _HabitHeatmap(days: days, color: color, today: today, emptyColor: th.bg),
+        ],
+      ),
+    );
+  }
+
+  void _addHabit(BuildContext context, AppStore s) {
+    final th = s.theme;
+    final lang = s.lang;
+    final ctrl = TextEditingController();
+    var color = LabelColors.palette.first;
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          backgroundColor: col(th.panel),
+          title: Text(t(lang, 'addHabit'), style: pixelStyle(lang, 12, col(th.onSurface), text: t(lang, 'addHabit'))),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: ctrl,
+                autofocus: true,
+                style: pixelStyle(lang, 11, col(th.onSurface), text: 'Aa'),
+                decoration: InputDecoration(
+                  hintText: t(lang, 'habitName'),
+                  hintStyle: pixelStyle(lang, 10, col(th.onSurfaceDim), text: t(lang, 'habitName')),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final c in LabelColors.palette)
+                    GestureDetector(
+                      onTap: () => setLocal(() => color = c),
+                      child: Swatch(color: c, border: color == c ? th.onSurface : th.onSurfaceDim, size: color == c ? 26 : 22),
+                    ),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            secondaryBtn(th, lang, t(lang, 'cancel'), () => Navigator.pop(ctx), fontSize: 10, padding: const EdgeInsets.all(10)),
+            primaryBtn(th, lang, t(lang, 'add'), () {
+              s.addHabit(ctrl.text, color);
+              Navigator.pop(ctx);
+            }, fontSize: 10, padding: const EdgeInsets.all(10)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _removeHabit(BuildContext context, AppStore s, String name) {
+    final th = s.theme;
+    final lang = s.lang;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: col(th.panel),
+        content: Text(tf(lang, 'removeHabitMsg', [name]),
+            style: pixelStyle(lang, 11, col(th.onSurface), text: tf(lang, 'removeHabitMsg', [name]))),
+        actions: [
+          secondaryBtn(th, lang, t(lang, 'no'), () => Navigator.pop(ctx), fontSize: 10, padding: const EdgeInsets.all(10)),
+          primaryBtn(th, lang, t(lang, 'yes'), () {
+            s.removeHabit(name);
+            Navigator.pop(ctx);
+          }, fontSize: 10, padding: const EdgeInsets.all(10)),
+        ],
+      ),
+    );
+  }
+}
+
+// ---- money manager (#v29) ---------------------------------------------------
+// Simple single ledger: income/expense entries in any currency, aggregated in
+// the user's MAIN currency via cached rates. Monthly totals + category bars,
+// in-screen settings (main currency + daily budget), daily-budget coin.
+
+const _expenseCats = [
+  'catFood', 'catTransport', 'catHome', 'catFun',
+  'catHealth', 'catShopping', 'catEducation', 'catOther'
+];
+const _incomeCats = ['catSalary', 'catGift', 'catOther'];
+
+String _money(double v, String cur) {
+  final s = v.abs().toStringAsFixed(2);
+  return '$cur $s';
+}
+
+class MoneyScreen extends StatefulWidget {
+  final AppStore s;
+  const MoneyScreen(this.s, {super.key});
+  @override
+  State<MoneyScreen> createState() => _MoneyScreenState();
+}
+
+class _MoneyScreenState extends State<MoneyScreen> {
+  int _offset = 0; // months back from now
+
+  @override
+  void initState() {
+    super.initState();
+    widget.s.refreshFx(); // fetch on open if the cache is stale (>1h)
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = widget.s;
+    final th = s.theme;
+    final lang = s.lang;
+    final cur = s.mainCurrency;
+    final now = DateTime.now();
+    final view = DateTime(now.year, now.month - _offset);
+    final (income, expense) = MoneyBook.monthTotals(s.money, view.year, view.month, s.fxRates, cur);
+    final cats = MoneyBook.byCategory(s.money, view.year, view.month, s.fxRates, cur);
+    final maxCat = cats.isEmpty ? 1.0 : cats.first.value;
+    final monthTxs = s.money
+        .where((t) {
+          final d = dateOfEpochDay(t.epochDay);
+          return d.year == view.year && d.month == view.month;
+        })
+        .toList()
+      ..sort((a, b) => b.epochDay != a.epochDay
+          ? b.epochDay - a.epochDay
+          : b.minuteOfDay - a.minuteOfDay);
+    return overlayScaffold(context, s, t(lang, 'money'), [
+      // --- month navigator ---
+      Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          IconButton(
+            onPressed: () => setState(() => _offset++),
+            icon: Text('<', style: pixelStyle(lang, 18, col(th.onSurface), text: '<')),
+          ),
+          Text('${monthName(lang, view.month)} ${view.year}',
+              style: pixelStyle(lang, 13, col(th.onSurface), text: '${monthName(lang, view.month)} ${view.year}')),
+          IconButton(
+            onPressed: _offset == 0 ? null : () => setState(() => _offset--),
+            icon: Text('>', style: pixelStyle(lang, 18, col(_offset == 0 ? th.onSurfaceDim : th.onSurface), text: '>')),
+          ),
+        ],
+      ),
+      // --- income / expense totals ---
+      Row(children: [
+        Expanded(child: _total(th, lang, t(lang, 'income'), _money(income, cur), th.work)),
+        Expanded(child: _total(th, lang, t(lang, 'expense'), _money(expense, cur), th.accent)),
+      ]),
+      const SizedBox(height: 16),
+      Row(children: [
+        Expanded(child: primaryBtn(th, lang, t(lang, 'addExpense'), () => _addTx(context, s, true), fontSize: 10, padding: const EdgeInsets.all(12))),
+        const SizedBox(width: 10),
+        Expanded(child: secondaryBtn(th, lang, t(lang, 'addIncome'), () => _addTx(context, s, false), fontSize: 10, padding: const EdgeInsets.all(12))),
+      ]),
+      const SizedBox(height: 20),
+      // --- category bars (this month's expenses) ---
+      if (cats.isNotEmpty) ...[
+        for (final e in cats) _catBar(th, lang, e.key, e.value, maxCat, cur),
+        const SizedBox(height: 16),
+      ],
+      // --- entries ---
+      if (monthTxs.isEmpty)
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Text(t(lang, 'noTx'),
+              textAlign: TextAlign.center,
+              style: pixelStyle(lang, 10, col(th.onSurfaceDim), text: t(lang, 'noTx'))),
+        )
+      else
+        for (final tx in monthTxs.take(40)) _txRow(context, s, th, lang, tx, cur),
+      const SizedBox(height: 20),
+      _moneySettings(context, s, th, lang),
+    ]);
+  }
+
+  Widget _total(PixelTheme th, String lang, String label, String value, int accent) => Column(
+        children: [
+          Text(label, style: pixelStyle(lang, 9, col(th.onSurfaceDim), text: label)),
+          const SizedBox(height: 4),
+          Text(value, style: pixelStyle(lang, 12, col(accent), text: value)),
+        ],
+      );
+
+  Widget _catBar(PixelTheme th, String lang, String cat, double value, double max, String cur) {
+    final label = t(lang, cat);
+    final color = LabelColors.defaultFor(cat);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            Text(label, style: pixelStyle(lang, 9, col(th.onSurface), text: label)),
+            Text(_money(value, cur), style: pixelStyle(lang, 9, col(th.onSurfaceDim), text: _money(value, cur))),
+          ]),
+          const SizedBox(height: 3),
+          LayoutBuilder(builder: (context, box) {
+            final w = (box.maxWidth * (max <= 0 ? 0 : value / max)).clamp(3.0, box.maxWidth);
+            return Stack(children: [
+              Container(height: 8, color: col(th.panel)),
+              Container(height: 8, width: w, color: col(color)),
+            ]);
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _txRow(BuildContext context, AppStore s, PixelTheme th, String lang, MoneyTx tx, String cur) {
+    final d = dateOfEpochDay(tx.epochDay);
+    final main = s.moneyToMain(tx);
+    final sign = tx.isExpense ? '-' : '+';
+    final amt = '$sign${_money(main, cur)}';
+    return GestureDetector(
+      onLongPress: () => _deleteTx(context, s, tx),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 5),
+        child: Row(children: [
+          Swatch(color: LabelColors.defaultFor(tx.category), border: th.onSurfaceDim, size: 12),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text('${d.day} ${monthName(lang, d.month).substring(0, monthName(lang, d.month).length.clamp(0, 3))}  ${t(lang, tx.category)}',
+                maxLines: 1, overflow: TextOverflow.clip,
+                style: pixelStyle(lang, 9, col(th.onSurface), text: t(lang, tx.category))),
+          ),
+          Text(amt, style: pixelStyle(lang, 9, col(tx.isExpense ? th.accent : th.work), text: amt)),
+        ]),
+      ),
+    );
+  }
+
+  void _addTx(BuildContext context, AppStore s, bool isExpense) {
+    final th = s.theme;
+    final lang = s.lang;
+    final amountCtrl = TextEditingController();
+    final noteCtrl = TextEditingController();
+    final cats = isExpense ? _expenseCats : _incomeCats;
+    var cat = cats.first;
+    var currency = s.mainCurrency;
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          backgroundColor: col(th.panel),
+          title: Text(t(lang, isExpense ? 'addExpense' : 'addIncome'),
+              style: pixelStyle(lang, 11, col(th.onSurface), text: t(lang, isExpense ? 'addExpense' : 'addIncome'))),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(children: [
+                  Expanded(
+                    child: TextField(
+                      controller: amountCtrl,
+                      autofocus: true,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      style: pixelStyle(lang, 13, col(th.onSurface), text: '0'),
+                      decoration: InputDecoration(
+                        hintText: t(lang, 'amount'),
+                        hintStyle: pixelStyle(lang, 10, col(th.onSurfaceDim), text: t(lang, 'amount')),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  DropdownButton<String>(
+                    value: currency,
+                    dropdownColor: col(th.panel),
+                    style: pixelStyle(lang, 10, col(th.onSurface), text: currency),
+                    items: [for (final c in s.currencyOptions) DropdownMenuItem(value: c, child: Text(c))],
+                    onChanged: (v) => setLocal(() => currency = v ?? currency),
+                  ),
+                ]),
+                const SizedBox(height: 12),
+                Text(t(lang, 'category'), style: pixelStyle(lang, 9, col(th.onSurfaceDim), text: t(lang, 'category'))),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    for (final c in cats)
+                      GestureDetector(
+                        onTap: () => setLocal(() => cat = c),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: col(cat == c ? th.accent : th.bg),
+                            border: Border.all(color: col(th.onSurfaceDim), width: 1),
+                          ),
+                          child: Text(t(lang, c),
+                              style: pixelStyle(lang, 8, col(cat == c ? th.onAccent : th.onSurface), text: t(lang, c))),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: noteCtrl,
+                  style: pixelStyle(lang, 10, col(th.onSurface), text: 'Aa'),
+                  decoration: InputDecoration(
+                    hintText: t(lang, 'note'),
+                    hintStyle: pixelStyle(lang, 9, col(th.onSurfaceDim), text: t(lang, 'note')),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            secondaryBtn(th, lang, t(lang, 'cancel'), () => Navigator.pop(ctx), fontSize: 10, padding: const EdgeInsets.all(10)),
+            primaryBtn(th, lang, t(lang, 'add'), () {
+              final v = double.tryParse(amountCtrl.text.replaceAll(',', '.'));
+              if (v != null && v > 0) {
+                s.addMoneyTx((v * 100).round(), currency, cat, isExpense, noteCtrl.text.trim());
+              }
+              Navigator.pop(ctx);
+            }, fontSize: 10, padding: const EdgeInsets.all(10)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _deleteTx(BuildContext context, AppStore s, MoneyTx tx) {
+    final th = s.theme;
+    final lang = s.lang;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: col(th.panel),
+        content: Text('${t(lang, tx.category)} · ${_money(s.moneyToMain(tx), s.mainCurrency)}',
+            style: pixelStyle(lang, 11, col(th.onSurface), text: t(lang, tx.category))),
+        actions: [
+          secondaryBtn(th, lang, t(lang, 'no'), () => Navigator.pop(ctx), fontSize: 10, padding: const EdgeInsets.all(10)),
+          primaryBtn(th, lang, t(lang, 'yes'), () {
+            s.deleteMoneyTx(tx);
+            Navigator.pop(ctx);
+          }, fontSize: 10, padding: const EdgeInsets.all(10)),
+        ],
+      ),
+    );
+  }
+
+  Widget _moneySettings(BuildContext context, AppStore s, PixelTheme th, String lang) {
+    final rate = (s.dailyRateMinor / 100).toStringAsFixed(0);
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(border: Border.all(color: col(th.onSurfaceDim), width: 2)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(t(lang, 'moneySettings'), style: pixelStyle(lang, 11, col(th.onSurface), text: t(lang, 'moneySettings'))),
+          const SizedBox(height: 12),
+          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            Text(t(lang, 'mainCurrency'), style: pixelStyle(lang, 10, col(th.onSurfaceDim), text: t(lang, 'mainCurrency'))),
+            DropdownButton<String>(
+              value: s.mainCurrency,
+              dropdownColor: col(th.panel),
+              style: pixelStyle(lang, 11, col(th.onSurface), text: s.mainCurrency),
+              items: [for (final c in s.currencyOptions) DropdownMenuItem(value: c, child: Text(c))],
+              onChanged: (v) { if (v != null) s.setMainCurrency(v); },
+            ),
+          ]),
+          const SizedBox(height: 10),
+          Row(children: [
+            Expanded(child: Text(t(lang, 'dailyRate'), style: pixelStyle(lang, 10, col(th.onSurfaceDim), text: t(lang, 'dailyRate')))),
+            SizedBox(
+              width: 110,
+              child: TextField(
+                controller: TextEditingController(text: rate == '0' ? '' : rate),
+                keyboardType: TextInputType.number,
+                textAlign: TextAlign.right,
+                style: pixelStyle(lang, 12, col(th.onSurface), text: rate),
+                decoration: InputDecoration(
+                  hintText: '0',
+                  suffixText: ' ${s.mainCurrency}',
+                  suffixStyle: pixelStyle(lang, 9, col(th.onSurfaceDim), text: s.mainCurrency),
+                ),
+                onSubmitted: (v) {
+                  final d = double.tryParse(v.replaceAll(',', '.')) ?? 0;
+                  s.setDailyRate((d * 100).round());
+                },
+              ),
+            ),
+          ]),
+          const SizedBox(height: 6),
+          Text(t(lang, 'dailyRateHelp'), style: pixelStyle(lang, 8, col(th.onSurfaceDim), text: t(lang, 'dailyRateHelp'))),
+        ],
+      ),
+    );
+  }
+}
+
+/// HabitKit-style contribution grid: 7 rows (weekdays) × N week columns, right
+/// edge = this week. A day is BINARY — completed once or many looks identical
+/// (full habit color); empty days are a faint theme square (the user's rule).
+class _HabitHeatmap extends StatelessWidget {
+  final Map<int, int> days;
+  final int color, today, emptyColor;
+  const _HabitHeatmap(
+      {required this.days, required this.color, required this.today, required this.emptyColor});
+
+  @override
+  Widget build(BuildContext context) {
+    const cols = 18; // ~18 weeks of history fits a phone width
+    // align the right column to the week containing today (Mon..Sun rows)
+    final todayWeekday = dateOfEpochDay(today).weekday; // 1=Mon
+    final lastColStart = today - (todayWeekday - 1);
+    return LayoutBuilder(builder: (context, box) {
+      final cell = ((box.maxWidth - (cols - 1) * 2) / cols).clamp(4.0, 12.0);
+      return Column(
+        children: [
+          for (var row = 0; row < 7; row++)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 2),
+              child: Row(
+                children: [
+                  for (var c = 0; c < cols; c++)
+                    Builder(builder: (_) {
+                      final day = lastColStart - (cols - 1 - c) * 7 + row;
+                      final done = day <= today && (days[day] ?? 0) > 0;
+                      final future = day > today;
+                      return Container(
+                        width: cell,
+                        height: cell,
+                        margin: const EdgeInsets.only(right: 2),
+                        decoration: BoxDecoration(
+                          color: future
+                              ? Colors.transparent
+                              : col(done ? color : emptyColor).withValues(alpha: done ? 1 : 0.5),
+                          borderRadius: BorderRadius.circular(1),
+                        ),
+                      );
+                    }),
+                ],
+              ),
+            ),
+        ],
+      );
+    });
   }
 }

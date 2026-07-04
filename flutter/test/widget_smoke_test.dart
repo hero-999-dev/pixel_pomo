@@ -132,6 +132,31 @@ void main() {
 
     await openClose(const Key('themeButton'), 'THEME');
 
+    // habit tracker (#v29): mood row + habit cards + add-habit dialog.
+    await tester.tap(find.byKey(const Key('habitButton')));
+    await tester.pumpAndSettle();
+    expect(find.text('HABITS'), findsWidgets);
+    expect(find.text('HOW WAS TODAY?'), findsOneWidget); // mood row
+    // seeded focus labels appear as automatic habits (e.g. "N DAYS · M TIMES")
+    expect(find.textContaining('TIMES'), findsWidgets);
+    final habitClose = find.text('CLOSE');
+    await tester.ensureVisible(habitClose);
+    await tester.pumpAndSettle();
+    await tester.tap(habitClose);
+    await tester.pumpAndSettle();
+
+    // money manager (#v29): month totals + add-expense + settings (currency/rate).
+    await tester.tap(find.byKey(const Key('moneyButton')));
+    await tester.pumpAndSettle();
+    expect(find.text('MONEY'), findsWidgets);
+    expect(find.text('+ EXPENSE'), findsWidgets);
+    expect(find.text('MONEY SETTINGS'), findsWidgets);
+    final moneyClose = find.text('CLOSE');
+    await tester.ensureVisible(moneyClose);
+    await tester.pumpAndSettle();
+    await tester.tap(moneyClose);
+    await tester.pumpAndSettle();
+
     // Shop opens from the gold-coin wallet button (no longer a Material icon).
     await tester.tap(find.byKey(const Key('shopButton')));
     await tester.pumpAndSettle();

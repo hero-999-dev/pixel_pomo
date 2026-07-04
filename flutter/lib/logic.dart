@@ -1016,3 +1016,317 @@ class TestData {
     return out;
   }
 }
+
+// ---- habit tracker (#v29) -----------------------------------------------------
+// HabitKit-style manual habits + Daylio-style daily mood. Manual habits are a
+// SEPARATE list from the home-screen focus labels (never shown in the label
+// picker); focus-session labels additionally act as AUTOMATIC habits, derived
+// straight from the session records.
+
+const String _us = ''; // unit separator for user-typed fields
+
+class Habit {
+  final String name;
+  final int color;
+  const Habit(this.name, this.color);
+}
+
+class Habits {
+  static String _clean(String s) =>
+      s.replaceAll('\n', ' ').replaceAll(_us, ' ').trim().toUpperCase();
+
+  static String encode(List<Habit> hs) =>
+      hs.map((h) => '${h.name}$_us${h.color}').join('\n');
+
+  static List<Habit> decode(String? s) {
+    final out = <Habit>[];
+    if (s == null || s.trim().isEmpty) return out;
+    for (final line in s.split('\n')) {
+      final parts = line.split(_us);
+      if (parts.length < 2 || parts[0].trim().isEmpty) continue;
+      final color = int.tryParse(parts[1]);
+      if (color == null) continue;
+      out.add(Habit(parts[0], color));
+    }
+    return out;
+  }
+
+  /// Returns the list unchanged for an empty or duplicate (case-insensitive) name.
+  static List<Habit> add(List<Habit> hs, String name, int color) {
+    final n = _clean(name);
+    if (n.isEmpty || hs.any((h) => h.name == n)) return hs;
+    return [...hs, Habit(n, color)];
+  }
+
+  static List<Habit> remove(List<Habit> hs, String name) =>
+      [for (final h in hs) if (h.name != name) h];
+}
+
+/// Per-habit completion counts: habit name -> epochDay -> count. A habit may be
+/// completed several times a day, but the heatmap renders a day BINARY (once or
+/// more looks identical — the user's HabitKit rule).
+class HabitLog {
+  static String encode(Map<String, Map<int, int>> log) => [
+        for (final e in log.entries)
+          if (e.value.isNotEmpty)
+            '${e.key}$_us${e.value.entries.map((d) => '${d.key}:${d.value}').join(',')}'
+      ].join('\n');
+
+  static Map<String, Map<int, int>> decode(String? s) {
+    final out = <String, Map<int, int>>{};
+    if (s == null || s.trim().isEmpty) return out;
+    for (final line in s.split('\n')) {
+      final parts = line.split(_us);
+      if (parts.length < 2 || parts[0].isEmpty) continue;
+      final days = <int, int>{};
+      for (final cell in parts[1].split(',')) {
+        final kv = cell.split(':');
+        if (kv.length != 2) continue;
+        final d = int.tryParse(kv[0]), n = int.tryParse(kv[1]);
+        if (d == null || n == null || n <= 0) continue;
+        days[d] = n;
+      }
+      if (days.isNotEmpty) out[parts[0]] = days;
+    }
+    return out;
+  }
+
+  /// New map with [delta] applied to (habit, day); counts clamp at 0 and empty
+  /// entries are dropped.
+  static Map<String, Map<int, int>> bump(
+      Map<String, Map<int, int>> log, String habit, int day,
+      [int delta = 1]) {
+    final out = {
+      for (final e in log.entries) e.key: Map<int, int>.from(e.value)
+    };
+    final days = out.putIfAbsent(habit, () => <int, int>{});
+    final n = (days[day] ?? 0) + delta;
+    if (n <= 0) {
+      days.remove(day);
+      if (days.isEmpty) out.remove(habit);
+    } else {
+      days[day] = n;
+    }
+    return out;
+  }
+
+  static int daysDone(Map<int, int> days) => days.length;
+
+  static int totalTimes(Map<int, int> days) =>
+      days.values.fold(0, (a, b) => a + b);
+
+  /// Consecutive done-days ending today (or yesterday, so an unbroken streak
+  /// isn't shown as 0 before today's completion).
+  static int streak(Map<int, int> days, int today) {
+    var start = today;
+    if (!days.containsKey(start)) {
+      if (!days.containsKey(start - 1)) return 0;
+      start = start - 1;
+    }
+    var n = 0;
+    while (days.containsKey(start - n)) {
+      n++;
+    }
+    return n;
+  }
+}
+
+/// Focus-session labels as automatic habits ("you studied TURKISH 7 days and
+/// 15 times"): label -> epochDay -> completed-session count, straight from the
+/// stats records — no extra storage, always in sync with the timer.
+class LabelHabits {
+  static Map<String, Map<int, int>> fromRecords(List<SessionRecord> records) {
+    final out = <String, Map<int, int>>{};
+    for (final r in records) {
+      final days = out.putIfAbsent(r.label, () => <int, int>{});
+      days[r.epochDay] = (days[r.epochDay] ?? 0) + 1;
+    }
+    return out;
+  }
+}
+
+/// Daily mood, 1 (awful) .. 5 (great) — one per epochDay.
+class Moods {
+  static String encode(Map<int, int> m) =>
+      m.entries.map((e) => '${e.key}:${e.value}').join('\n');
+
+  static Map<int, int> decode(String? s) {
+    final out = <int, int>{};
+    if (s == null || s.trim().isEmpty) return out;
+    for (final line in s.split('\n')) {
+      final kv = line.split(':');
+      if (kv.length != 2) continue;
+      final d = int.tryParse(kv[0]), v = int.tryParse(kv[1]);
+      if (d == null || v == null || v < 1 || v > 5) continue;
+      out[d] = v;
+    }
+    return out;
+  }
+}
+
+// ---- money manager (#v29) ------------------------------------------------------
+// Simple single ledger: income/expense entries with a category, entered in any
+// currency, aggregated in the user's MAIN currency via the cached USD-based
+// rates. Spending under the user's DAILY RATE earns +1 garden coin per day.
+
+class MoneyTx {
+  final int epochDay;
+  final int minuteOfDay;
+  final int amountMinor; // always positive, in cents of [currency]
+  final String currency;
+  final String category;
+  final bool isExpense;
+  final String note;
+  const MoneyTx(this.epochDay, this.minuteOfDay, this.amountMinor, this.currency,
+      this.category, this.isExpense,
+      [this.note = '']);
+}
+
+class MoneyBook {
+  static String _clean(String s) =>
+      s.replaceAll('\n', ' ').replaceAll(_us, ' ').trim();
+
+  static String encode(List<MoneyTx> txs) => txs
+      .map((t) => [
+            t.epochDay,
+            t.minuteOfDay,
+            t.amountMinor,
+            t.currency,
+            t.isExpense ? 1 : 0,
+            _clean(t.category),
+            _clean(t.note),
+          ].join(_us))
+      .join('\n');
+
+  static List<MoneyTx> decode(String? s) {
+    final out = <MoneyTx>[];
+    if (s == null || s.trim().isEmpty) return out;
+    for (final line in s.split('\n')) {
+      final p = line.split(_us);
+      if (p.length < 6) continue;
+      final day = int.tryParse(p[0]), min = int.tryParse(p[1]);
+      final amt = int.tryParse(p[2]), exp = int.tryParse(p[4]);
+      if (day == null || min == null || amt == null || exp == null || amt <= 0) {
+        continue;
+      }
+      out.add(MoneyTx(day, min, amt, p[3], p[5], exp == 1,
+          p.length > 6 ? p.sublist(6).join(_us) : ''));
+    }
+    return out;
+  }
+
+  /// Amount in the MAIN currency (rates are per-USD; a missing rate falls back
+  /// to the raw amount so the book never crashes on an unknown currency).
+  static double toMain(MoneyTx t, Map<String, double> rates, String main) {
+    final v = t.amountMinor / 100.0;
+    if (t.currency == main) return v;
+    final rc = rates[t.currency], rm = rates[main];
+    if (rc == null || rm == null || rc == 0) return v;
+    return v / rc * rm;
+  }
+
+  static double spentOnDay(
+      List<MoneyTx> txs, int day, Map<String, double> rates, String main) {
+    var sum = 0.0;
+    for (final t in txs) {
+      if (t.isExpense && t.epochDay == day) sum += toMain(t, rates, main);
+    }
+    return sum;
+  }
+
+  /// (income, expense) for a calendar month in the main currency.
+  static (double, double) monthTotals(List<MoneyTx> txs, int year, int month,
+      Map<String, double> rates, String main) {
+    var inc = 0.0, exp = 0.0;
+    for (final t in txs) {
+      final d = dateOfEpochDay(t.epochDay);
+      if (d.year != year || d.month != month) continue;
+      final v = toMain(t, rates, main);
+      if (t.isExpense) {
+        exp += v;
+      } else {
+        inc += v;
+      }
+    }
+    return (inc, exp);
+  }
+
+  /// Month's expenses per category (main currency), biggest first.
+  static List<MapEntry<String, double>> byCategory(List<MoneyTx> txs, int year,
+      int month, Map<String, double> rates, String main) {
+    final sums = <String, double>{};
+    for (final t in txs) {
+      if (!t.isExpense) continue;
+      final d = dateOfEpochDay(t.epochDay);
+      if (d.year != year || d.month != month) continue;
+      sums[t.category] = (sums[t.category] ?? 0) + toMain(t, rates, main);
+    }
+    final out = sums.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    return out;
+  }
+}
+
+/// USD-based rate cache. Refreshed from open.er-api.com when the app is online
+/// and the cache is older than [ttlMs] (1 hour — the upstream data itself
+/// updates about daily, so this also satisfies "update every 24h").
+class Fx {
+  static const ttlMs = 3600 * 1000;
+
+  /// Picker seed before the first successful fetch.
+  static const seedCurrencies = [
+    'USD', 'EUR', 'TRY', 'GBP', 'JPY', 'CNY', 'KRW', 'INR', 'BRL', 'CAD',
+    'AUD', 'CHF', 'SEK', 'NOK', 'DKK', 'PLN', 'CZK', 'HUF', 'RON', 'BGN',
+    'UAH', 'RUB', 'AED', 'SAR', 'QAR', 'EGP', 'MXN', 'ARS', 'CLP', 'COP',
+    'ZAR', 'NGN', 'ILS', 'THB', 'IDR', 'MYR', 'PHP', 'SGD', 'HKD', 'NZD',
+  ];
+
+  static String encode(Map<String, double> rates, int fetchedAtMs) =>
+      '$fetchedAtMs\n${rates.entries.map((e) => '${e.key}:${e.value}').join(',')}';
+
+  static (Map<String, double>, int) decode(String? s) {
+    if (s == null || s.trim().isEmpty) return (<String, double>{}, 0);
+    final nl = s.indexOf('\n');
+    if (nl < 0) return (<String, double>{}, 0);
+    final at = int.tryParse(s.substring(0, nl)) ?? 0;
+    final rates = <String, double>{};
+    for (final cell in s.substring(nl + 1).split(',')) {
+      final kv = cell.split(':');
+      if (kv.length != 2) continue;
+      final v = double.tryParse(kv[1]);
+      if (v == null || v <= 0) continue;
+      rates[kv[0]] = v;
+    }
+    return (rates, at);
+  }
+
+  static bool needsRefresh(int nowMs, int fetchedAtMs) =>
+      nowMs - fetchedAtMs > ttlMs;
+}
+
+/// The daily-budget coin: every COMPLETED day whose expenses stayed strictly
+/// under the daily rate earns 1 coin. Evaluated lazily (on app load): walks the
+/// days after [lastDoneDay] up to yesterday and returns (coins, newCursor).
+/// A rate of 0 turns the feature off (the cursor still advances so enabling it
+/// later never awards the past).
+class MoneyReward {
+  static (int, int) accrue({
+    required List<MoneyTx> txs,
+    required int rateMinor,
+    required int lastDoneDay,
+    required int today,
+    required Map<String, double> rates,
+    required String main,
+  }) {
+    final cursor = today - 1;
+    if (cursor <= lastDoneDay) return (0, lastDoneDay);
+    if (rateMinor <= 0) return (0, cursor);
+    var coins = 0;
+    for (var d = lastDoneDay + 1; d <= cursor; d++) {
+      if (MoneyBook.spentOnDay(txs, d, rates, main) < rateMinor / 100.0) {
+        coins++;
+      }
+    }
+    return (coins, cursor);
+  }
+}
