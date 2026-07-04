@@ -713,7 +713,7 @@ _FLOWER_PALS = {  # id: (dark, mid, light, centre, bloom-outline) — hex
     'kaktusd':   ('E0457B', 'F06A92', 'F9A8C2', 'F2C94C', '5A1030'),  # desert cactus — bloom unused (#v26)
     'kasimpati': ('C9710B', 'F2A03A', 'F8C66A', 'E0860B', '5A3206'),  # gold chrysanthemum
     'menekse':   ('5B2A9E', '8E4FE0', 'B98CF0', 'F2C94C', '24104A'),  # purple violet, gold eye
-    'papatya':   ('CFD4DA', 'FFFFFF', 'FFFFFF', 'F2C94C', '4F555C'),  # white daisy, gold eye, bold rim
+    'papatya':   ('CFD4DA', 'FFFFFF', 'FFFFFF', 'F2C94C', '181A1F'),  # white daisy, gold eye — near-BLACK thin rim (#v28.1, was slate 4F555C)
     'nilufer':   ('D85C8E', 'F4A6C0', 'FAD0E0', 'F2C94C', '5A1E38'),  # pink water lily, gold eye
     'begonya':   ('C0285A', 'F2585B', 'F78AA0', 'F2C94C', '3A0A1C'),  # pink begonia (both same colour)
     'orkide':    ('7A2EA0', 'C24FE0', 'E0A6F2', 'F2C94C', '2C0E40'),  # purple orchid (both same colour)
@@ -827,36 +827,37 @@ _FLOWER_BLOOMS = {
     ],
     'papatya': [  # USER PICKS from the hand-authored daisy round 3 (#v28,
         # flower_study/daisy: m2_0 + m2_3 — chosen 2026-07-04)
-        [  # 0 classic daisy — idea1 head: 8 SEPARATE petals (4 cardinal + 4
-           # diagonal) around a round 2-4-4-2 gold heart; the 1-cell gaps
-           # between petal masses outline-fill into dark radiating seams
-            ".......mm.......",
-            "....mm.mm.mm....",
-            "....mm.mm.mm....",
-            ".......CC.......",
-            "..mmmmCCCCmmmm..",
-            "..mmmmCCCCmmmm..",
-            ".......CC.......",
-            "....mm.mm.mm....",
-            "....mm.mm.mm....",
-            ".......mm.......",
-            ".......S........",
-            ".......S........",
-            "....G..S..G.....",
-            "...GGkkSkkGG....",
-            "....GGGSGGG.....",
+        [  # 0 classic daisy — the user's edited-contact-sheet design (#v28.1):
+           # PACKED round head docked straight on the leaf mound (no stem),
+           # gold PLUS-shaped heart, thin 1px 'x' seams as petal separators,
+           # near-black rim
+            "......mmmm......",
+            "....mmmmmmmm....",
+            "...mmmxmmxmmm...",
+            "...mmmmCCmmmm...",
+            "...mxmCCCCmxm...",
+            "...mxmCCCCmxm...",
+            "...mmmmCCmmmm...",
+            "...mmmxmmxmmm...",
+            "....mmmmmmmm....",
+            "......mmmm......",
+            "..GG.GGGGGG.GG..",
+            "..GGGGkkkkGGGG..",
+            "...GGGkkkkGGG...",
+            ".....GGGGGG.....",
         ],
-        [  # 1 bushy daisy — three round blooms over the mound (no side bud —
-           # cut on the user's pick)
+        [  # 1 bushy daisy — three round blooms over the mound; side blooms are
+           # exact MIRRORS on the same rows (#v28.1: right was staggered lower,
+           # user flagged it as unequal), no side bud
             "......mmm.......",
             ".....mmCmm......",
             ".....mmCmm......",
             "......mmm.......",
-            "..mmm..S........",
-            ".mmCmm.S.mmm....",
-            ".mmCmm.S.mmCmm..",
-            "..mmm..S.mmCmm..",
-            ".......S..mmm...",
+            "..mmm..S...mmm..",
+            ".mmCmm.S..mmCmm.",
+            ".mmCmm.S..mmCmm.",
+            "..mmm..S...mmm..",
+            ".......S........",
             "..GGGkGSGkGGG...",
             ".GGSGGkSkGGSGG..",
             "..GGkSGSGSkGG...",
@@ -1110,12 +1111,13 @@ _FLOWER_BLOOMS = {
 
 
 def _flower_pal(fid):
-    d, m, l, cen, _ = _FLOWER_PALS[fid]
+    d, m, l, cen, ol = _FLOWER_PALS[fid]
     return {
         'd': hexrgb(d) + (255,), 'm': hexrgb(m) + (255,), 'l': hexrgb(l) + (255,),
         'C': hexrgb(cen) + (255,),
         'S': _ROSE_PAL['S'], 'G': _ROSE_PAL['G'], 'k': _ROSE_PAL['k'],
         'o': hexrgb(_ROSE_GRN_OL) + (255,),   # interior seam between plant parts (#v26)
+        'x': hexrgb(ol) + (255,),  # bloom-interior seam, 1px thin petal separators (#v28.1)
     }
 
 
@@ -1140,7 +1142,7 @@ def flower_variant(fid, v):
     for r, line in enumerate(rows):
         for c in range(min(len(line), 16)):
             ch = line[c]
-            if ch in 'dmlC':
+            if ch in 'dmlCx':
                 bloom[r][c] = pal[ch]
             elif ch in 'SGko':
                 plant[r][c] = pal[ch]
