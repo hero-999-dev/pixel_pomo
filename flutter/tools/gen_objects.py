@@ -827,25 +827,25 @@ _FLOWER_BLOOMS = {
     ],
     'papatya': [  # USER PICKS from the hand-authored daisy round 3 (#v28,
         # flower_study/daisy: m2_0 + m2_3 — chosen 2026-07-04)
-        [  # 0 classic daisy (#v28.4, design-first pass): SCALLOPED silhouette —
-           # 8 petal lobes live in the OUTLINE (notch gaps at r1/r8 rim-fill
-           # into dips; W/E petals protrude 1px) so the petals survive 8x8;
-           # gold PLUS heart + one light-gold highlight 'l' + one shadow (lower
-           # lobe tips 'd'); midtone seams, black rim only
-            "......mmmm......",
+        [  # 0 classic daisy (#v28.5, APICO-critique pass): petal lobe corners
+           # TAPERED with midtone 'd' (square blocks read wrong), heart offset
+           # +1 gold bottom-right (perfect symmetry reads mechanical), leaf
+           # mound ROUNDED (bump top, tapered base); scalloped silhouette,
+           # light-gray seams (never black), one 'l' highlight, black rim only
+            "......dmmd......",
             "....m.mmmm.m....",
             "...mmmdmmdmmm...",
-            "...mmmdCCdmmm...",
+            "...dmmdCCdmmd...",
             "..mmmmlCCCmmmm..",
-            "..mmmmCCCCmmmm..",
-            "...mmmdCCdmmm...",
+            "..dmmmCCCCmmmd..",
+            "...mmmdCCCdmm...",
             "...mmmdmmdmmm...",
             "....d.mmmm.d....",
             "......mmmm......",
-            "..GG.GGGGGG.GG..",
+            "..GG..GGGG..GG..",
             "..GGGGkkkkGGGG..",
-            "...GGGkkkkGGG...",
-            ".....GGGGGG.....",
+            "....GGkkkkGG....",
+            "......GGGG......",
         ],
         [  # 1 bushy daisy — three round blooms over the mound; side blooms are
            # exact MIRRORS on the same rows (#v28.1: right was staggered lower,
