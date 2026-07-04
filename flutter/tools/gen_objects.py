@@ -827,25 +827,25 @@ _FLOWER_BLOOMS = {
     ],
     'papatya': [  # USER PICKS from the hand-authored daisy round 3 (#v28,
         # flower_study/daisy: m2_0 + m2_3 — chosen 2026-07-04)
-        [  # 0 classic daisy (#v28.6, hand-placed pass — "start from symmetry,
-           # then move 1-3 pixels"): top broken by a 1px-offset 3-wide tip;
-           # seam widths VARY row to row (left-only r3, right-only r6); heart
-           # is an organic 2/4/3/2 stagger; TWO overlapping asymmetric leaves
-           # (left one longer) with the stem PEEKING 1px between head & leaves
-            "......dmm.......",
+        [  # 0 classic daisy — FINAL = the #v28.5 design, user's pick over the
+           # #v28.6 "hand-placed" experiment (broken top / varied seams /
+           # two-leaf base read as too irregular): tapered lobe corners,
+           # symmetric midtone seams, 2/4/4/3 heart w/ one 'l' highlight,
+           # rounded solid mound, scalloped silhouette, black rim only
+            "......dmmd......",
             "....m.mmmm.m....",
             "...mmmdmmdmmm...",
-            "...dmmdCCmmmd...",
+            "...dmmdCCdmmd...",
             "..mmmmlCCCmmmm..",
-            "..dmmmCCCmmmmd..",
-            "...mmmmdCCmmm...",
+            "..dmmmCCCCmmmd..",
+            "...mmmdCCCdmm...",
             "...mmmdmmdmmm...",
             "....d.mmmm.d....",
             "......mmmm......",
-            ".......S........",
-            "..GG...S...GG...",
-            ".GGGGGkSkGGGG...",
-            "...GGGGGGGG.....",
+            "..GG..GGGG..GG..",
+            "..GGGGkkkkGGGG..",
+            "....GGkkkkGG....",
+            "......GGGG......",
         ],
         [  # 1 bushy daisy — three round blooms over the mound; side blooms are
            # exact MIRRORS on the same rows (#v28.1: right was staggered lower,
