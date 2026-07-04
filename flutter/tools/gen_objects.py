@@ -492,7 +492,10 @@ def coin_grid():
                     g[r][c] = out
                 elif d > 5.5:
                     g[r][c] = shine if (r + c) < 14 else shadow  # edge bevel
-                elif 4.2 < d <= 5.1:
+                elif 4.2 < d <= 5.5:
+                    # was <=5.1, leaving a 5.1-5.5 gap that fell through to the
+                    # bright face colour — a light seam cutting into what
+                    # should be a continuous dark ring (#v30 item 5).
                     g[r][c] = ring                               # inner ring
                 else:
                     g[r][c] = face
@@ -748,7 +751,7 @@ _FLOWER_PALS = {  # id: (dark, mid, light, centre, bloom-outline) — hex
     'kaktusd':   ('E0457B', 'F06A92', 'F9A8C2', 'F2C94C', '5A1030'),  # desert cactus — bloom unused (#v26)
     'kasimpati': ('C9710B', 'F2A03A', 'F8C66A', 'E0860B', '5A3206'),  # gold chrysanthemum
     'menekse':   ('5B2A9E', '8E4FE0', 'B98CF0', 'F2C94C', '24104A'),  # purple violet, gold eye
-    'papatya':   ('CFD4DA', 'FFFFFF', 'FFDE73', 'F2C94C', '181A1F'),  # white daisy, gold eye — near-BLACK thin rim ('l' light-gold currently unused: the heart is uniform dark gold, #v28.8)
+    'papatya':   ('CFD4DA', 'FFFFFF', 'FFDE73', 'F2C94C', '3D2E0A'),  # white daisy, gold eye — dark warm gold-brown rim, not black (#v30 item 3; was near-black 181A1F in #v28.8)
     'nilufer':   ('D85C8E', 'F4A6C0', 'FAD0E0', 'F2C94C', '5A1E38'),  # pink water lily, gold eye
     'begonya':   ('C0285A', 'F2585B', 'F78AA0', 'F2C94C', '3A0A1C'),  # pink begonia (both same colour)
     'orkide':    ('7A2EA0', 'C24FE0', 'E0A6F2', 'F2C94C', '2C0E40'),  # purple orchid (both same colour)
@@ -1159,11 +1162,12 @@ def _flower_pal(fid):
     }
 
 
-# Near-black plant rim for the all-green cactuses (#v27): the default dark-green
-# rim (1E5A24) vanished against grass, while the rose's near-black bloom rim
-# made it instantly readable — the user asked for the same on the cactuses.
-# Interior 'o' seams stay 1E5A24, so ribs/arms read softer than the silhouette.
-_PLANT_OL = {'kaktusf': '0B1A0D', 'kaktusd': '0B1A0D'}
+# Dark-green plant rim for the cactuses, matching the rose's dark-TONE
+# approach (#v30 item 3 — reverses the #v27 near-black decision at the
+# user's request: rims should be a dark shade of the plant's own colour,
+# never flat black). Same tone as the interior 'o' seams (_ROSE_GRN_OL) so
+# the whole plant reads as one dark-green family, not a black silhouette.
+_PLANT_OL = {'kaktusf': '1E5A24', 'kaktusd': '1E5A24'}
 
 
 def flower_variant(fid, v):

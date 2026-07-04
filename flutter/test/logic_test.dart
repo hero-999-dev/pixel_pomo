@@ -656,6 +656,26 @@ void main() {
       expect(cats.first.value, closeTo(2.0, 1e-9));
     });
 
+    test('window totals + category split for the daily/weekly/monthly chart (#v30)', () {
+      final day = epochDayOf(DateTime(2026, 7, 3));
+      final txs = [
+        MoneyTx(day, 0, 4000, 'TRY', 'FOOD', true), // 1 USD
+        MoneyTx(day, 0, 8000, 'TRY', 'HOME', true), // 2 USD
+        MoneyTx(day, 0, 400000, 'TRY', 'SALARY', false), // 100 USD income
+        MoneyTx(day - 10, 0, 100000, 'TRY', 'FOOD', true), // 25 USD, outside a 1-day window
+      ];
+      final (inc, exp) = MoneyBook.totalsInWindow(txs, day, day, rates, 'USD');
+      expect(inc, closeTo(100.0, 1e-9));
+      expect(exp, closeTo(3.0, 1e-9)); // day-10 entry excluded
+      final cats = MoneyBook.byCategoryInWindow(txs, day, day, rates, 'USD');
+      expect(cats.first.key, 'HOME'); // 2 > 1, sorted, income excluded
+      expect(cats.first.value, closeTo(2.0, 1e-9));
+      // widen the window to include the older entry
+      final (inc2, exp2) = MoneyBook.totalsInWindow(txs, day - 10, day, rates, 'USD');
+      expect(inc2, closeTo(100.0, 1e-9));
+      expect(exp2, closeTo(28.0, 1e-9)); // + 25 USD
+    });
+
     test('fx cache codec + 1h TTL', () {
       final enc = Fx.encode({'USD': 1.0, 'TRY': 40.0}, 1000);
       final (r, at) = Fx.decode(enc);

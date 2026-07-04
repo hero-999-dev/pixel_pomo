@@ -250,7 +250,9 @@ class HomeScreen extends StatelessWidget {
                           child: timerBlock,
                         ),
                       ])
-                    // clean mode: the centered timer (today's layout)
+                    // clean mode: the centered timer, plus a simple mood +
+                    // today's-habits quick entry below it, styled plain like
+                    // the Money screen (#v30 item 8)
                     : Column(children: [
                         _topBar(context, th, lang),
                         Expanded(
@@ -261,6 +263,8 @@ class HomeScreen extends StatelessWidget {
                                 timerBlock,
                                 const SizedBox(height: 24),
                                 sessionText,
+                                const SizedBox(height: 28),
+                                _todayPanel(s, th, lang),
                               ]),
                             ),
                           ),
@@ -271,6 +275,65 @@ class HomeScreen extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+
+  // Simple mood + today's-habits quick entry, styled plain like the Money
+  // screen (no card borders) — #v30 item 8.
+  Widget _todayPanel(AppStore s, PixelTheme th, String lang) {
+    final today = epochDayOf(DateTime.now());
+    return Column(
+      children: [
+        Text(t(lang, 'mood'), style: pixelStyle(lang, 9, col(th.onSurfaceDim), text: t(lang, 'mood'))),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            for (var m = 1; m <= 5; m++)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: GestureDetector(
+                  onTap: () => s.setMood(m),
+                  child: Opacity(
+                    opacity: s.todayMood == null || s.todayMood == m ? 1 : 0.35,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                          border: Border.all(color: col(s.todayMood == m ? th.onSurface : th.bg), width: 2)),
+                      child: Image.asset('assets/objects/face_$m.png',
+                          width: 26, height: 26, filterQuality: FilterQuality.none),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+        if (s.habits.isNotEmpty) ...[
+          const SizedBox(height: 18),
+          for (final h in s.habits)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: GestureDetector(
+                onTap: () => s.bumpHabit(h.name, (s.habitLog[h.name]?[today] ?? 0) > 0 ? -1 : 1),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 16,
+                      height: 16,
+                      decoration: BoxDecoration(
+                        color: col((s.habitLog[h.name]?[today] ?? 0) > 0 ? h.color : th.bg),
+                        border: Border.all(color: col(h.color), width: 2),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(h.name, style: pixelStyle(lang, 9, col(th.onSurface), text: h.name)),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ],
     );
   }
 
@@ -297,7 +360,8 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  // left = theme/garden/stats · right = settings/store/coin (#4).
+  // left = money/habit/stats/garden/theme · right = settings/store/coin
+  // (user-specified order, #v30 item 1).
   Widget _topBar(BuildContext context, PixelTheme th, String lang) {
     // over the live garden wallpaper, give the coin count a hard pixel shadow +
     // a LIGHT colour (th.onSurface is dark on light themes) for legibility (#v19 #6).
@@ -305,24 +369,24 @@ class HomeScreen extends StatelessWidget {
         ? const [Shadow(offset: Offset(2, 2), color: Color(0xCC000000))]
         : const <Shadow>[];
     final coinColor = s.homeGardenBackdrop ? const Color(0xFFF4F4F4) : col(th.onSurface);
-    // 5 icons now live on the left (theme/garden/stats/habits/money) — tight
-    // padding + 26px glyphs keep them on one row on a phone (#v29).
+    // 5 icons on the left; slightly bigger glyphs + looser padding so they
+    // don't read as crammed into the screen corners (#v30 item 1).
     Widget icon(String name, VoidCallback onTap, Key key) => IconButton(
           key: key,
-          padding: const EdgeInsets.all(4),
+          padding: const EdgeInsets.all(6),
           constraints: const BoxConstraints(),
           visualDensity: VisualDensity.compact,
-          icon: Image.asset('assets/icon/icon_$name.png', width: 26, height: 26, filterQuality: FilterQuality.none),
+          icon: Image.asset('assets/icon/icon_$name.png', width: 30, height: 30, filterQuality: FilterQuality.none),
           onPressed: onTap,
         );
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       child: Row(children: [
-        icon('theme', () => openPanel(context, s, () => ThemeScreen(s)), const Key('themeButton')),
-        icon('garden', () => openPanel(context, s, () => GardenScreen(s)), const Key('gardenButton')),
-        icon('stats', () => openPanel(context, s, () => StatsScreen(s)), const Key('statsButton')),
-        icon('habit', () => openPanel(context, s, () => HabitScreen(s)), const Key('habitButton')),
         icon('money', () => openPanel(context, s, () => MoneyScreen(s)), const Key('moneyButton')),
+        icon('habit', () => openPanel(context, s, () => HabitScreen(s)), const Key('habitButton')),
+        icon('stats', () => openPanel(context, s, () => StatsScreen(s)), const Key('statsButton')),
+        icon('garden', () => openPanel(context, s, () => GardenScreen(s)), const Key('gardenButton')),
+        icon('theme', () => openPanel(context, s, () => ThemeScreen(s)), const Key('themeButton')),
         const Spacer(),
         icon('settings', () => openPanel(context, s, () => SettingsScreen(s)), const Key('settingsButton')),
         icon('store', () => openPanel(context, s, () => ShopScreen(s)), const Key('storeButton')),
@@ -332,7 +396,7 @@ class HomeScreen extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 6),
             child: Row(children: [
-              const GoldCoin(size: 28),
+              const GoldCoin(size: 32),
               const SizedBox(width: 6),
               Text('${s.coins}', style: pixelStyle(lang, 14, coinColor, text: '${s.coins}').copyWith(shadows: shadows)),
             ]),
@@ -924,6 +988,9 @@ class StatsScreen extends StatelessWidget {
               ],
             ),
           ),
+      // focus-session heatmaps, relocated out of the habit tracker (#v30 item 6)
+      const SizedBox(height: 20),
+      _focusSessionHeatmaps(th, lang, s, epochDayOf(now)),
       // a paginated list of every past session (tap a row to relabel) — sits
       // right above the auto-appended CLOSE button (#v25 item3)
       const SizedBox(height: 20),
@@ -1476,6 +1543,65 @@ class _GardenScreenState extends State<GardenScreen> {
 // +1 tap) plus focus-session labels as AUTOMATIC habits ("7 days · 15 times").
 // No icons on the rows — text labels only, per the brief.
 
+// Mood colors 1..5 (awful..great), matching gen_objects.py's face_grid palette.
+const List<int> _moodColors = [0xFFE5484D, 0xFFF2994A, 0xFFF2C94C, 0xFFA8D93A, 0xFF46A03C];
+
+// Mood history heatmap — one colour per recorded day (#v30 items 7/9). Shared
+// by the Mood tab and Year in Pixels.
+Widget _moodHeatmap(AppStore s, PixelTheme th, int today) => _HabitHeatmap(
+      days: const {},
+      color: 0,
+      today: today,
+      emptyColor: th.bg,
+      maxCellSize: double.infinity,
+      colorForDay: (d) {
+        final m = s.moods[d];
+        return m == null ? null : _moodColors[m - 1];
+      },
+    );
+
+// Focus-session heatmaps as a plain list — full-width cells, no card frame,
+// no "FOCUS LABEL" caption (#v30 item 6). Shared by Stats + Year in Pixels.
+Widget _focusSessionHeatmaps(PixelTheme th, String lang, AppStore s, int today) {
+  final labelCounts = s.labelHabitCounts;
+  if (labelCounts.isEmpty) return const SizedBox.shrink();
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Text(t(lang, 'focusSessions'), style: pixelStyle(lang, 11, col(th.onSurfaceDim), text: t(lang, 'focusSessions'))),
+      const SizedBox(height: 10),
+      for (final e in labelCounts.entries) ...[
+        Text(e.key, style: pixelStyle(lang, 10, col(s.labelColorOf(e.key)), text: e.key)),
+        const SizedBox(height: 2),
+        Text(tf(lang, 'daysTimes', [HabitLog.daysDone(e.value), HabitLog.totalTimes(e.value)]),
+            style: pixelStyle(lang, 8, col(th.onSurfaceDim),
+                text: tf(lang, 'daysTimes', [HabitLog.daysDone(e.value), HabitLog.totalTimes(e.value)]))),
+        const SizedBox(height: 4),
+        _HabitHeatmap(days: e.value, color: s.labelColorOf(e.key), today: today, emptyColor: th.bg, maxCellSize: double.infinity),
+        const SizedBox(height: 14),
+      ],
+    ],
+  );
+}
+
+// "Your Year in Pixels" — every daily heatmap in one place: mood, manual
+// habits/goals, and focus sessions (#v30 items 6/9 — "(all data)").
+Widget _yearInPixelsContent(PixelTheme th, String lang, AppStore s, int today) {
+  return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+    Text(t(lang, 'moodTracker'), style: pixelStyle(lang, 11, col(th.onSurfaceDim), text: t(lang, 'moodTracker'))),
+    const SizedBox(height: 10),
+    _moodHeatmap(s, th, today),
+    const SizedBox(height: 20),
+    for (final h in s.habits) ...[
+      Text(h.name, style: pixelStyle(lang, 10, col(h.color), text: h.name)),
+      const SizedBox(height: 4),
+      _HabitHeatmap(days: s.habitLog[h.name] ?? const {}, color: h.color, today: today, emptyColor: th.bg, maxCellSize: double.infinity),
+      const SizedBox(height: 14),
+    ],
+    _focusSessionHeatmaps(th, lang, s, today),
+  ]);
+}
+
 class HabitScreen extends StatefulWidget {
   final AppStore s;
   const HabitScreen(this.s, {super.key});
@@ -1484,16 +1610,47 @@ class HabitScreen extends StatefulWidget {
 }
 
 class _HabitScreenState extends State<HabitScreen> {
+  // 0 = mood tracker, 1 = year in pixels (all data), 2 = goals (#v30 items 6/7/9)
+  int _tab = 0;
+
   @override
   Widget build(BuildContext context) {
     final s = widget.s;
     final th = s.theme;
     final lang = s.lang;
     final today = epochDayOf(DateTime.now());
-    final labelCounts = s.labelHabitCounts;
-    final manualNames = s.habits.map((h) => h.name).toSet();
+
+    Widget tabBtn(String text, int i, Key key) {
+      final sel = _tab == i;
+      return Expanded(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: sel
+              ? primaryBtn(th, lang, text, () => setState(() => _tab = i), fontSize: 8, padding: const EdgeInsets.all(8), key: key)
+              : secondaryBtn(th, lang, text, () => setState(() => _tab = i), fontSize: 8, padding: const EdgeInsets.all(8), key: key),
+        ),
+      );
+    }
+
     return overlayScaffold(context, s, t(lang, 'habits'), [
-      // --- mood row (5 round-box faces, one per day) ---
+      Row(children: [
+        tabBtn(t(lang, 'moodTracker'), 0, const Key('moodTabButton')),
+        tabBtn(t(lang, 'yearInPixels'), 1, const Key('yearInPixelsTabButton')),
+        tabBtn(t(lang, 'goals'), 2, const Key('goalsTabButton')),
+      ]),
+      const SizedBox(height: 20),
+      if (_tab == 0)
+        _moodTab(s, th, lang, today)
+      else if (_tab == 1)
+        _yearInPixelsContent(th, lang, s, today)
+      else
+        _goalsTab(s, th, lang, today),
+    ]);
+  }
+
+  // --- mood tracker: today's picker + its own recorded history (#v30 item 7) ---
+  Widget _moodTab(AppStore s, PixelTheme th, String lang, int today) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Text(t(lang, 'mood'), style: pixelStyle(lang, 12, col(th.onSurfaceDim), text: t(lang, 'mood'))),
       const SizedBox(height: 10),
       Row(
@@ -1518,16 +1675,15 @@ class _HabitScreenState extends State<HabitScreen> {
         ],
       ),
       const SizedBox(height: 24),
-      // --- manual habits ---
+      _moodHeatmap(s, th, today),
+    ]);
+  }
+
+  Widget _goalsTab(AppStore s, PixelTheme th, String lang, int today) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       for (final h in s.habits)
-        _habitCard(s, th, lang, today, h.name, h.color, s.habitLog[h.name] ?? const {},
-            manual: true),
-      // --- focus-session labels as automatic habits ---
-      for (final entry in labelCounts.entries)
-        if (!manualNames.contains(entry.key))
-          _habitCard(s, th, lang, today, entry.key, s.labelColorOf(entry.key), entry.value,
-              manual: false),
-      if (s.habits.isEmpty && labelCounts.isEmpty)
+        _habitCard(s, th, lang, today, h.name, h.color, s.habitLog[h.name] ?? const {}),
+      if (s.habits.isEmpty)
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 24),
           child: Text(t(lang, 'noHabits'),
@@ -1541,8 +1697,7 @@ class _HabitScreenState extends State<HabitScreen> {
   }
 
   Widget _habitCard(AppStore s, PixelTheme th, String lang, int today, String name,
-      int color, Map<int, int> days,
-      {required bool manual}) {
+      int color, Map<int, int> days) {
     final doneToday = (days[today] ?? 0) > 0;
     final subtitle = tf(lang, 'daysTimes',
         [HabitLog.daysDone(days), HabitLog.totalTimes(days)]);
@@ -1568,31 +1723,26 @@ class _HabitScreenState extends State<HabitScreen> {
                       streak > 1 ? '$subtitle · ${tf(lang, 'streakN', [streak])}' : subtitle,
                       style: pixelStyle(lang, 8, col(th.onSurfaceDim),
                           text: streak > 1 ? '$subtitle · ${tf(lang, 'streakN', [streak])}' : subtitle)),
-                  if (!manual)
-                    Text(t(lang, 'labelHabit'),
-                        style: pixelStyle(lang, 7, col(color), text: t(lang, 'labelHabit'))),
                 ],
               ),
             ),
-            // manual habits get the +1 / done toggle; label habits are driven by
-            // sessions (read-only here) — long-press a manual card to delete.
-            if (manual)
-              GestureDetector(
-                onTap: () => s.bumpHabit(name, doneToday ? -1 : 1),
-                onLongPress: () => _removeHabit(context, s, name),
-                child: Container(
-                  width: 44,
-                  height: 44,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: col(doneToday ? color : th.bg),
-                    border: Border.all(color: col(color), width: 2),
-                  ),
-                  child: Text(doneToday ? '✓' : '+',
-                      style: pixelStyle(lang, 16, col(doneToday ? th.onAccent : color),
-                          text: doneToday ? '✓' : '+')),
+            // long-press a goal card to delete it.
+            GestureDetector(
+              onTap: () => s.bumpHabit(name, doneToday ? -1 : 1),
+              onLongPress: () => _removeHabit(context, s, name),
+              child: Container(
+                width: 44,
+                height: 44,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: col(doneToday ? color : th.bg),
+                  border: Border.all(color: col(color), width: 2),
                 ),
+                child: Text(doneToday ? '✓' : '+',
+                    style: pixelStyle(lang, 16, col(doneToday ? th.onAccent : color),
+                        text: doneToday ? '✓' : '+')),
               ),
+            ),
           ]),
           const SizedBox(height: 10),
           _HabitHeatmap(days: days, color: color, today: today, emptyColor: th.bg),
@@ -1696,6 +1846,8 @@ class MoneyScreen extends StatefulWidget {
 
 class _MoneyScreenState extends State<MoneyScreen> {
   int _offset = 0; // months back from now
+  StatPeriod _chartPeriod = StatPeriod.monthly; // #v30 item 11
+  ChartMode _chartMode = ChartMode.bar;
 
   @override
   void initState() {
@@ -1745,12 +1897,21 @@ class _MoneyScreenState extends State<MoneyScreen> {
         Expanded(child: _total(th, lang, t(lang, 'income'), _money(income, cur), th.work)),
         Expanded(child: _total(th, lang, t(lang, 'expense'), _money(expense, cur), th.accent)),
       ]),
+      const SizedBox(height: 10),
+      Center(
+        child: _total(th, lang, t(lang, 'net'),
+            '${income - expense >= 0 ? '+' : '-'}${_money(income - expense, cur)}',
+            income - expense >= 0 ? th.work : th.accent),
+      ),
       const SizedBox(height: 16),
       Row(children: [
         Expanded(child: primaryBtn(th, lang, t(lang, 'addExpense'), () => _addTx(context, s, true), fontSize: 10, padding: const EdgeInsets.all(12))),
         const SizedBox(width: 10),
         Expanded(child: secondaryBtn(th, lang, t(lang, 'addIncome'), () => _addTx(context, s, false), fontSize: 10, padding: const EdgeInsets.all(12))),
       ]),
+      const SizedBox(height: 20),
+      // --- income/expense charts: bar + pie, daily/weekly/monthly (#v30 item 11) ---
+      _moneyChart(th, lang, s),
       const SizedBox(height: 20),
       // --- category bars (this month's expenses) ---
       if (cats.isNotEmpty) ...[
@@ -1769,6 +1930,71 @@ class _MoneyScreenState extends State<MoneyScreen> {
         for (final tx in monthTxs.take(40)) _txRow(context, s, th, lang, tx, cur),
       const SizedBox(height: 20),
       _moneySettings(context, s, th, lang),
+    ]);
+  }
+
+  // income/expense bar + pie chart, current daily/weekly/monthly window
+  // (#v30 item 11) — reuses the same StatsChart widget the Stats screen uses.
+  Widget _moneyChart(PixelTheme th, String lang, AppStore s) {
+    final now = DateTime.now();
+    final (start, end) = StatsAggregator.windowDays(now, _chartPeriod);
+    final (inc, exp) = MoneyBook.totalsInWindow(s.money, start, end, s.fxRates, s.mainCurrency);
+    final byCat = MoneyBook.byCategoryInWindow(s.money, start, end, s.fxRates, s.mainCurrency);
+    final entries = _chartMode == ChartMode.pie
+        ? [for (final e in byCat) ChartEntry(t(lang, e.key), e.value.round(), LabelColors.defaultFor(e.key))]
+        : [
+            ChartEntry(t(lang, 'income'), inc.round(), th.work),
+            ChartEntry(t(lang, 'expense'), exp.round(), th.accent),
+          ];
+
+    Widget periodBtn(String text, StatPeriod p) {
+      final sel = _chartPeriod == p;
+      return Expanded(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: sel
+              ? primaryBtn(th, lang, text, () => setState(() => _chartPeriod = p), fontSize: 8, padding: const EdgeInsets.all(8))
+              : secondaryBtn(th, lang, text, () => setState(() => _chartPeriod = p), fontSize: 8, padding: const EdgeInsets.all(8)),
+        ),
+      );
+    }
+
+    Widget modeBtn(String text, ChartMode m) {
+      final sel = _chartMode == m;
+      return Expanded(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 3),
+          child: sel
+              ? primaryBtn(th, lang, text, () => setState(() => _chartMode = m), fontSize: 9, padding: const EdgeInsets.all(12))
+              : secondaryBtn(th, lang, text, () => setState(() => _chartMode = m), fontSize: 9, padding: const EdgeInsets.all(12)),
+        ),
+      );
+    }
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Row(children: [
+        periodBtn(t(lang, 'pDaily'), StatPeriod.daily),
+        periodBtn(t(lang, 'pWeekly'), StatPeriod.weekly),
+        periodBtn(t(lang, 'pMonthly'), StatPeriod.monthly),
+      ]),
+      const SizedBox(height: 12),
+      Row(children: [modeBtn(t(lang, 'chartBar'), ChartMode.bar), modeBtn(t(lang, 'chartPie'), ChartMode.pie)]),
+      const SizedBox(height: 16),
+      SizedBox(
+        height: 200,
+        child: StatsChart(
+          entries: entries,
+          series: const StatSeries([], [], []),
+          average: 0,
+          mode: _chartMode,
+          lang: lang,
+          axisColor: th.onSurfaceDim,
+          textColor: th.onSurface,
+          lineColor: th.accent,
+          panelColor: th.panel,
+          panelBorder: th.onSurfaceDim,
+        ),
+      ),
     ]);
   }
 
@@ -1833,7 +2059,8 @@ class _MoneyScreenState extends State<MoneyScreen> {
     final lang = s.lang;
     final amountCtrl = TextEditingController();
     final noteCtrl = TextEditingController();
-    final cats = isExpense ? _expenseCats : _incomeCats;
+    // built-ins + the user's own custom categories, in one picker (#v30 item 10)
+    var cats = [...(isExpense ? _expenseCats : _incomeCats), ...s.customCategories];
     var cat = cats.first;
     var currency = s.mainCurrency;
     showDialog(
@@ -1890,6 +2117,22 @@ class _MoneyScreenState extends State<MoneyScreen> {
                               style: pixelStyle(lang, 8, col(cat == c ? th.onAccent : th.onSurface), text: t(lang, c))),
                         ),
                       ),
+                    GestureDetector(
+                      onTap: () => _addCategory(context, s, th, lang,
+                          (name) => setLocal(() {
+                                cats = [...cats, name];
+                                cat = name;
+                              })),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: col(th.bg),
+                          border: Border.all(color: col(th.onSurfaceDim), width: 1),
+                        ),
+                        child: Text('+ ${t(lang, 'addCategory')}',
+                            style: pixelStyle(lang, 8, col(th.onSurfaceDim), text: '+ ${t(lang, 'addCategory')}')),
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 10),
@@ -1915,6 +2158,40 @@ class _MoneyScreenState extends State<MoneyScreen> {
             }, fontSize: 10, padding: const EdgeInsets.all(10)),
           ],
         ),
+      ),
+    );
+  }
+
+  // user-defined category (#v30 item 10) — persists to AppStore, then hands
+  // the new name back so the still-open add-tx dialog can select it.
+  void _addCategory(BuildContext context, AppStore s, PixelTheme th, String lang,
+      void Function(String) onAdded) {
+    final ctrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: col(th.panel),
+        title: Text(t(lang, 'addCategory'), style: pixelStyle(lang, 12, col(th.onSurface), text: t(lang, 'addCategory'))),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          style: pixelStyle(lang, 11, col(th.onSurface), text: 'Aa'),
+          decoration: InputDecoration(
+            hintText: t(lang, 'categoryNameHint'),
+            hintStyle: pixelStyle(lang, 10, col(th.onSurfaceDim), text: t(lang, 'categoryNameHint')),
+          ),
+        ),
+        actions: [
+          secondaryBtn(th, lang, t(lang, 'cancel'), () => Navigator.pop(ctx), fontSize: 10, padding: const EdgeInsets.all(10)),
+          primaryBtn(th, lang, t(lang, 'add'), () {
+            final n = ctrl.text.trim().toUpperCase();
+            if (n.isNotEmpty) {
+              s.addCustomCategory(n);
+              onAdded(n);
+            }
+            Navigator.pop(ctx);
+          }, fontSize: 10, padding: const EdgeInsets.all(10)),
+        ],
       ),
     );
   }
@@ -1995,8 +2272,14 @@ class _MoneyScreenState extends State<MoneyScreen> {
 class _HabitHeatmap extends StatelessWidget {
   final Map<int, int> days;
   final int color, today, emptyColor;
+  // optional per-day color override (e.g. mood level) instead of the binary
+  // done/not-done color (#v30). optional upper bound on cell size so a
+  // relocated, frameless heatmap can stretch edge-to-edge (#v30 item 6).
+  final int? Function(int day)? colorForDay;
+  final double maxCellSize;
   const _HabitHeatmap(
-      {required this.days, required this.color, required this.today, required this.emptyColor});
+      {required this.days, required this.color, required this.today, required this.emptyColor,
+      this.colorForDay, this.maxCellSize = 12.0});
 
   @override
   Widget build(BuildContext context) {
@@ -2005,7 +2288,12 @@ class _HabitHeatmap extends StatelessWidget {
     final todayWeekday = dateOfEpochDay(today).weekday; // 1=Mon
     final lastColStart = today - (todayWeekday - 1);
     return LayoutBuilder(builder: (context, box) {
-      final cell = ((box.maxWidth - (cols - 1) * 2) / cols).clamp(4.0, 12.0);
+      // every cell (incl. the last) carries a 2px right margin, so the
+      // budget must divide out cols*2, not (cols-1)*2 — the old formula
+      // under-budgeted by one gap, always rendering 2px too wide. Masked
+      // for years by the 12px cap; exposed once a caller removes the cap
+      // to stretch full-width (#v30 item 6).
+      final cell = ((box.maxWidth - cols * 2) / cols).clamp(4.0, maxCellSize);
       return Column(
         children: [
           for (var row = 0; row < 7; row++)
@@ -2016,8 +2304,10 @@ class _HabitHeatmap extends StatelessWidget {
                   for (var c = 0; c < cols; c++)
                     Builder(builder: (_) {
                       final day = lastColStart - (cols - 1 - c) * 7 + row;
-                      final done = day <= today && (days[day] ?? 0) > 0;
                       final future = day > today;
+                      final dayColor = future
+                          ? null
+                          : (colorForDay != null ? colorForDay!(day) : ((days[day] ?? 0) > 0 ? color : null));
                       return Container(
                         width: cell,
                         height: cell,
@@ -2025,7 +2315,7 @@ class _HabitHeatmap extends StatelessWidget {
                         decoration: BoxDecoration(
                           color: future
                               ? Colors.transparent
-                              : col(done ? color : emptyColor).withValues(alpha: done ? 1 : 0.5),
+                              : col(dayColor ?? emptyColor).withValues(alpha: dayColor != null ? 1 : 0.5),
                           borderRadius: BorderRadius.circular(1),
                         ),
                       );

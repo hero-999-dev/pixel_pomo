@@ -371,10 +371,15 @@ class CritterSystem {
       2 => Offset(rnd(), half),
       _ => Offset(-half, rnd()),
     };
+    // land at a randomized spot NEAR the flower, not its exact tile centre
+    // every time — a fixed target made every visit converge on the same
+    // pixel, which read as snapping/teleporting rather than a real flight (#2).
+    final flower = flowers[_r.nextInt(flowers.length)];
+    final target = flower + Offset((_r.nextDouble() * 2 - 1) * 0.35, (_r.nextDouble() * 2 - 1) * 0.35);
     critters.add(Critter(
       kinds[_r.nextInt(kinds.length)],
       start,
-      flowers[_r.nextInt(flowers.length)],
+      target,
       1.0 + _r.nextDouble() * 0.8, // tiles/sec
       _r.nextDouble() * math.pi * 2,
       2.0 + _r.nextDouble() * 2.5,

@@ -1265,6 +1265,37 @@ class MoneyBook {
       ..sort((a, b) => b.value.compareTo(a.value));
     return out;
   }
+
+  /// (income, expense) within an inclusive epochDay window (main currency) —
+  /// feeds the daily/weekly/monthly bar chart (#v30 item 11).
+  static (double, double) totalsInWindow(List<MoneyTx> txs, int startDay,
+      int endDay, Map<String, double> rates, String main) {
+    var inc = 0.0, exp = 0.0;
+    for (final t in txs) {
+      if (t.epochDay < startDay || t.epochDay > endDay) continue;
+      final v = toMain(t, rates, main);
+      if (t.isExpense) {
+        exp += v;
+      } else {
+        inc += v;
+      }
+    }
+    return (inc, exp);
+  }
+
+  /// Expenses per category within an inclusive epochDay window (main
+  /// currency), biggest first — feeds the pie chart (#v30 item 11).
+  static List<MapEntry<String, double>> byCategoryInWindow(List<MoneyTx> txs,
+      int startDay, int endDay, Map<String, double> rates, String main) {
+    final sums = <String, double>{};
+    for (final t in txs) {
+      if (!t.isExpense || t.epochDay < startDay || t.epochDay > endDay) continue;
+      sums[t.category] = (sums[t.category] ?? 0) + toMain(t, rates, main);
+    }
+    final out = sums.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    return out;
+  }
 }
 
 /// USD-based rate cache. Refreshed from open.er-api.com when the app is online

@@ -40,6 +40,7 @@ class AppStore extends ChangeNotifier {
   static const _kMainCur = 'main_currency';
   static const _kDailyRate = 'daily_rate_minor';
   static const _kMoneyRewardDay = 'money_last_reward_day';
+  static const _kCustomCats = 'custom_categories'; // user-added money categories (#v30)
   static const _kSeeded = 'test_seeded_v5';
 
   late SharedPreferences _prefs;
@@ -84,6 +85,7 @@ class AppStore extends ChangeNotifier {
   String mainCurrency = 'USD';
   int dailyRateMinor = 0; // 0 = daily-budget coin off
   int _moneyRewardDay = 0; // last day evaluated for the budget coin
+  List<String> customCategories = []; // user-added money categories (#v30)
   bool _fxFetching = false;
 
   late PomodoroEngine engine;
@@ -163,6 +165,10 @@ class AppStore extends ChangeNotifier {
     mainCurrency = _prefs.getString(_kMainCur) ?? 'USD';
     dailyRateMinor = _prefs.getInt(_kDailyRate) ?? 0;
     _moneyRewardDay = _prefs.getInt(_kMoneyRewardDay) ?? (epochDayOf(DateTime.now()) - 1);
+    customCategories = (_prefs.getString(_kCustomCats) ?? '')
+        .split('\n')
+        .where((s) => s.trim().isNotEmpty)
+        .toList();
 
     _seedOnce();
     _accrueMoneyReward();
@@ -314,6 +320,16 @@ class AppStore extends ChangeNotifier {
   void setDailyRate(int minor) {
     dailyRateMinor = minor < 0 ? 0 : minor;
     _prefs.setInt(_kDailyRate, dailyRateMinor);
+    notifyListeners();
+  }
+
+  /// Adds a user-defined money category (#v30 item 10). No-op for an empty
+  /// or already-known name (case-insensitive).
+  void addCustomCategory(String name) {
+    final n = name.trim().toUpperCase();
+    if (n.isEmpty || customCategories.contains(n)) return;
+    customCategories = [...customCategories, n];
+    _prefs.setString(_kCustomCats, customCategories.join('\n'));
     notifyListeners();
   }
 
