@@ -1,7 +1,7 @@
 name: pixel_pomo
 description: "Pixel-art Pomodoro timer — Flutter port (one codebase → Android APK + iOS IPA)."
 publish_to: 'none'
-version: 0.27.1+36
+version: 0.28.0+37
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
