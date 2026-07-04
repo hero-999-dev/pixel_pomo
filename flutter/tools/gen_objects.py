@@ -847,17 +847,19 @@ _FLOWER_BLOOMS = {
             "....GGkkkkGG....",
             "......GGGG......",
         ],
-        [  # 1 bushy daisy — three round blooms over the mound; side blooms are
-           # exact MIRRORS on the same rows (#v28.1: right was staggered lower,
-           # user flagged it as unequal), no side bud
+        [  # 1 bushy daisy — three round blooms over the mound, no side bud.
+           # #v28.9: side blooms mirror about the STEM COLUMN c7 (the v28.1 fix
+           # mirrored about the grid's 7|8 midline, leaving the right bloom 1px
+           # farther from the stem — visibly unequal on the phone). Stem, top
+           # bloom, mound and both side blooms now all center on c7.
             "......mmm.......",
             ".....mmCmm......",
             ".....mmCmm......",
             "......mmm.......",
-            "..mmm..S...mmm..",
-            ".mmCmm.S..mmCmm.",
-            ".mmCmm.S..mmCmm.",
-            "..mmm..S...mmm..",
+            "..mmm..S..mmm...",
+            ".mmCmm.S.mmCmm..",
+            ".mmCmm.S.mmCmm..",
+            "..mmm..S..mmm...",
             ".......S........",
             "..GGGkGSGkGGG...",
             ".GGSGGkSkGGSGG..",
