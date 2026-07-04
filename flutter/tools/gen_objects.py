@@ -713,7 +713,7 @@ _FLOWER_PALS = {  # id: (dark, mid, light, centre, bloom-outline) — hex
     'kaktusd':   ('E0457B', 'F06A92', 'F9A8C2', 'F2C94C', '5A1030'),  # desert cactus — bloom unused (#v26)
     'kasimpati': ('C9710B', 'F2A03A', 'F8C66A', 'E0860B', '5A3206'),  # gold chrysanthemum
     'menekse':   ('5B2A9E', '8E4FE0', 'B98CF0', 'F2C94C', '24104A'),  # purple violet, gold eye
-    'papatya':   ('CFD4DA', 'FFFFFF', 'FFDE73', 'F2C94C', '181A1F'),  # white daisy, gold eye — near-BLACK thin rim; 'l' = light-gold heart highlight (#v28.4)
+    'papatya':   ('CFD4DA', 'FFFFFF', 'FFDE73', 'F2C94C', '181A1F'),  # white daisy, gold eye — near-BLACK thin rim ('l' light-gold currently unused: the heart is uniform dark gold, #v28.8)
     'nilufer':   ('D85C8E', 'F4A6C0', 'FAD0E0', 'F2C94C', '5A1E38'),  # pink water lily, gold eye
     'begonya':   ('C0285A', 'F2585B', 'F78AA0', 'F2C94C', '3A0A1C'),  # pink begonia (both same colour)
     'orkide':    ('7A2EA0', 'C24FE0', 'E0A6F2', 'F2C94C', '2C0E40'),  # purple orchid (both same colour)
@@ -827,18 +827,18 @@ _FLOWER_BLOOMS = {
     ],
     'papatya': [  # USER PICKS from the hand-authored daisy round 3 (#v28,
         # flower_study/daisy: m2_0 + m2_3 — chosen 2026-07-04)
-        [  # 0 classic daisy — FINAL = the #v28.5 design, user's pick over the
-           # #v28.6 "hand-placed" experiment (broken top / varied seams /
-           # two-leaf base read as too irregular): tapered lobe corners,
-           # symmetric midtone seams, 2/4/4/3 heart w/ one 'l' highlight,
-           # rounded solid mound, scalloped silhouette, black rim only
+        [  # 0 classic daisy — FINAL (#v28.8 polish on the kept #v28.5 design):
+           # heart is UNIFORM dark gold, symmetric 2/4/4/2 (the 'l' highlight
+           # pixel and the +1-gold offset removed on user request), so all four
+           # gray seams line up at the same columns; tapered lobe corners,
+           # rounded mound, scalloped silhouette, black rim only
             "......dmmd......",
             "....m.mmmm.m....",
             "...mmmdmmdmmm...",
             "...dmmdCCdmmd...",
-            "..mmmmlCCCmmmm..",
+            "..mmmmCCCCmmmm..",
             "..dmmmCCCCmmmd..",
-            "...mmmdCCCdmm...",
+            "...mmmdCCdmmm...",
             "...mmmdmmdmmm...",
             "....d.mmmm.d....",
             "......mmmm......",
