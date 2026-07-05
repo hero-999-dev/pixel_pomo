@@ -234,6 +234,9 @@ class StatsChart extends StatefulWidget {
   final ChartMode mode;
   final String lang;
   final int axisColor, textColor, lineColor, panelColor, panelBorder;
+  // context-appropriate empty-state text — the built-in default talks about
+  // "focus minutes", which read wrong on the money chart (#v30.9).
+  final String? noDataText;
 
   const StatsChart({
     super.key,
@@ -247,6 +250,7 @@ class StatsChart extends StatefulWidget {
     required this.lineColor,
     required this.panelColor,
     required this.panelBorder,
+    this.noDataText,
   });
 
   @override
@@ -305,7 +309,7 @@ class _ChartPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final w = size.width, h = size.height;
     if (!_hasData()) {
-      _text(canvas, _noData(), w / 2, h / 2 + 6, 9, c.textColor, align: TextAlign.center);
+      _text(canvas, c.noDataText ?? _noData(), w / 2, h / 2 + 6, 9, c.textColor, align: TextAlign.center);
       return;
     }
     switch (c.mode) {

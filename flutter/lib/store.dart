@@ -284,9 +284,13 @@ class AppStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setMood(int mood) {
+  void setMood(int mood) => setMoodOn(epochDayOf(DateTime.now()), mood);
+
+  /// Set/overwrite the mood for any past-or-today [day] — tapping a mood
+  /// heatmap cell edits history (#v30.9).
+  void setMoodOn(int day, int mood) {
     if (mood < 1 || mood > 5) return;
-    moods[epochDayOf(DateTime.now())] = mood;
+    moods[day] = mood;
     _prefs.setString(_kMoods, Moods.encode(moods));
     notifyListeners();
   }
@@ -315,6 +319,11 @@ class AppStore extends ChangeNotifier {
     mainCurrency = cur;
     _prefs.setString(_kMainCur, cur);
     notifyListeners();
+    // switching main currency is exactly when conversion rates are needed —
+    // if the cache is empty (fetch never landed) this is what let 150 PLN
+    // display as "EUR 150.00" (#v30.9). TTL-gated, so it's a no-op when the
+    // cache is fresh.
+    unawaited(refreshFx());
   }
 
   void setDailyRate(int minor) {
@@ -329,6 +338,15 @@ class AppStore extends ChangeNotifier {
     final n = name.trim().toUpperCase();
     if (n.isEmpty || customCategories.contains(n)) return;
     customCategories = [...customCategories, n];
+    _prefs.setString(_kCustomCats, customCategories.join('\n'));
+    notifyListeners();
+  }
+
+  /// Removes a user-defined category (#v30.9, long-press its chip). Existing
+  /// entries keep the name — display falls back to the raw string.
+  void removeCustomCategory(String name) {
+    if (!customCategories.contains(name)) return;
+    customCategories = [for (final c in customCategories) if (c != name) c];
     _prefs.setString(_kCustomCats, customCategories.join('\n'));
     notifyListeners();
   }

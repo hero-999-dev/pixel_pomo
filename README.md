@@ -67,16 +67,19 @@ You don't build anything yourself — every release attaches a ready-to-install 
   with **WEEKLY / MONTHLY / 18 WEEKS / YEARLY** views — monthly is a true calendar grid, yearly covers exactly
   365/366 days — and you can **long-press any box** to see that day's session count and time. A **LOG HISTORY**
   button opens a **paginated list of every past session** (50 a page) where you can **change a session's label**.
-- **⭐ Habit tracker** — three tabs. **Mood Tracker**: a daily 5-face mood picker plus a history heatmap. **Your
+- **⭐ Habit tracker** — three tabs. **Mood Tracker**: a daily 5-face mood picker plus a history heatmap —
+  **tap any past day to set its mood too**. **Your
   Year in Pixels**: every heatmap in one place — mood, habits, and focus-session labels, "all data" at a glance.
   **Your Goals**: **HabitKit-style cards**, each with a **contribution heatmap** and a **"N days · M times"**
   streak — add your own, or let your **focus labels count automatically** (study Turkish and it appears as
   *TURKISH · 7 days · 15 times*, no extra tapping).
-- **🐷 Money Tracker** — a simple **income / expense ledger** with categories you can extend with your own via
-  **+ ADD CATEGORY**. **Monthly totals with a signed NET line**, **category bars**, and a **bar / pie chart**
-  (daily / weekly / monthly). Pick a **main currency**; rates refresh from the internet (hourly when online) so
-  entries in any currency convert cleanly. Set a **daily budget** in settings — stay under it for a day and earn
-  **+1 garden coin**.
+- **🐷 Money Tracker** — a simple **income / expense ledger**. **Entries keep the currency you spent in** —
+  earn euros, spend złoty on holiday, and the row still reads 150 PLN with its euro equivalent right under it.
+  Categories are extendable via **+ ADD CATEGORY** (long-press a custom one to remove it). **Monthly totals
+  with a signed NET line**, **category bars**, a **bar / pie chart** (daily / weekly / monthly, with a **◀ ▶
+  history navigator**), and **paged entries**. Pick a **main currency**; rates refresh from the internet
+  (hourly when online). Set a **daily budget** in settings — stay under it for a day and earn **+1 garden
+  coin**.
 - **⚙️ Settings** — steppers for **focus / break / sessions**, **auto-start**, the **app blocker**, a **home-screen
   garden** toggle, and a **language** picker — **English / Türkçe / Polski / Deutsch / Français / Italiano** — applied instantly.
 - **🎨 Themes** — six live pixel themes: **Dark, Light, Mocha, Frappe, Latte, Matcha**. The system bars match the theme and

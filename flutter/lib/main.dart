@@ -867,8 +867,8 @@ class StatsScreen extends StatelessWidget {
             child: secondaryBtn(th, lang, '<', () => s.shiftStatOffset(1),
                 key: const Key('statPrev'), fontSize: 13, padding: const EdgeInsets.all(10)),
           ),
-          Expanded(child: Center(child: Text(_periodLabel(s, lang),
-              style: pixelStyle(lang, 11, col(th.onSurface), text: _periodLabel(s, lang))))),
+          Expanded(child: Center(child: Text(periodWindowLabel(lang, s.statPeriod, s.statOffset),
+              style: pixelStyle(lang, 11, col(th.onSurface), text: periodWindowLabel(lang, s.statPeriod, s.statOffset))))),
           SizedBox(
             width: 52,
             child: PixelButton(
@@ -940,24 +940,27 @@ class StatsScreen extends StatelessWidget {
     ]);
   }
 
-  /// Label for the history navigator, matching the selected period's granularity.
-  String _periodLabel(AppStore s, String lang) {
-    final now = DateTime.now();
-    final a = StatsAggregator.anchorFor(now, s.statPeriod, s.statOffset);
-    switch (s.statPeriod) {
-      case StatPeriod.daily:
-        return '${monthName(lang, a.month)} ${a.day}';
-      case StatPeriod.weekly:
-        final (lo, hi) = StatsAggregator.windowDays(a, StatPeriod.weekly);
-        final loD = dateOfEpochDay(lo), hiD = dateOfEpochDay(hi);
-        return '${loD.day}–${hiD.day} ${monthName(lang, hiD.month)}';
-      case StatPeriod.monthly:
-        return '${monthName(lang, a.month)} ${a.year}';
-      case StatPeriod.yearly:
-        return '${a.year}';
-      case StatPeriod.allTime:
-        return t(lang, 'pAll');
-    }
+}
+
+/// Label for a period window [offset] periods back from now, matching the
+/// period's granularity — shared by the Stats history navigator and the money
+/// chart's ◀▶ navigator (#v30.9 rec 4).
+String periodWindowLabel(String lang, StatPeriod p, int offset) {
+  final now = DateTime.now();
+  final a = StatsAggregator.anchorFor(now, p, offset);
+  switch (p) {
+    case StatPeriod.daily:
+      return '${monthName(lang, a.month)} ${a.day}';
+    case StatPeriod.weekly:
+      final (lo, hi) = StatsAggregator.windowDays(a, StatPeriod.weekly);
+      final loD = dateOfEpochDay(lo), hiD = dateOfEpochDay(hi);
+      return '${loD.day}–${hiD.day} ${monthName(lang, hiD.month)}';
+    case StatPeriod.monthly:
+      return '${monthName(lang, a.month)} ${a.year}';
+    case StatPeriod.yearly:
+      return '${a.year}';
+    case StatPeriod.allTime:
+      return t(lang, 'pAll');
   }
 }
 
@@ -1487,8 +1490,9 @@ class _GardenScreenState extends State<GardenScreen> {
 const List<int> _moodColors = [0xFFE5484D, 0xFFF2994A, 0xFFF2C94C, 0xFFA8D93A, 0xFF46A03C];
 
 // Mood history heatmap — one colour per recorded day (#v30 items 7/9). Shared
-// by the Mood tab and Year in Pixels.
-Widget _moodHeatmap(AppStore s, PixelTheme th, int today) => _HabitHeatmap(
+// by the Mood tab and Year in Pixels. Tapping a past day opens the 5-face
+// picker for THAT day, so mood history is editable (#v30.9).
+Widget _moodHeatmap(BuildContext context, AppStore s, PixelTheme th, String lang, int today) => _HabitHeatmap(
       days: const {},
       color: th.onSurfaceDim,
       today: today,
@@ -1497,7 +1501,48 @@ Widget _moodHeatmap(AppStore s, PixelTheme th, int today) => _HabitHeatmap(
         final m = s.moods[d];
         return m == null ? null : _moodColors[m - 1];
       },
+      onDayTap: (day) => _pickMoodFor(context, s, th, lang, day),
     );
+
+void _pickMoodFor(BuildContext context, AppStore s, PixelTheme th, String lang, int day) {
+  final d = dateOfEpochDay(day);
+  final title = '${d.day} ${monthName(lang, d.month)} ${d.year}';
+  showDialog(
+    context: context,
+    builder: (ctx) => SimpleDialog(
+      backgroundColor: col(th.panel),
+      title: Text(title, style: pixelStyle(lang, 11, col(th.onSurface), text: title)),
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              for (var m = 1; m <= 5; m++)
+                GestureDetector(
+                  onTap: () {
+                    s.setMoodOn(day, m);
+                    Navigator.pop(ctx);
+                  },
+                  child: Opacity(
+                    opacity: s.moods[day] == null || s.moods[day] == m ? 1 : 0.35,
+                    child: Container(
+                      padding: const EdgeInsets.all(3),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: col(s.moods[day] == m ? th.onSurface : th.panel), width: 2),
+                      ),
+                      child: Image.asset('assets/objects/face_$m.png',
+                          width: 36, height: 36, filterQuality: FilterQuality.none),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
 
 // "Session Timeline in a Week" — individual completed sessions (not
 // day-aggregated) as small colour-by-label boxes in chronological order,
@@ -1524,28 +1569,38 @@ class SessionsTimelineWeek extends StatelessWidget {
     }
     if (byDay.isEmpty) return const SizedBox.shrink();
 
+    final weekdayShorts = t(lang, 'weekdayShort').split(',');
     Widget dayGroup(int day) {
       final sessions = byDay[day] ?? const <SessionRecord>[];
+      final wd = weekdayShorts[(dateOfEpochDay(day).weekday - 1) % 7];
       return Padding(
         padding: const EdgeInsets.only(right: 6),
-        child: Container(
-          padding: const EdgeInsets.all(3),
-          decoration: BoxDecoration(border: Border.all(color: col(th.onSurfaceDim), width: 1)),
-          child: Row(
-            children: [
-              for (final r in sessions)
-                Tooltip(
-                  message: '${r.label} · ${StatsAggregator.formatMinutes(r.minutes)}',
-                  child: Container(
-                    width: 10,
-                    height: 10,
-                    margin: const EdgeInsets.only(right: 2),
-                    color: col(s.labelColorOf(r.label)),
-                  ),
-                ),
-              if (sessions.isEmpty) const SizedBox(width: 10, height: 10),
-            ],
-          ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(3),
+              decoration: BoxDecoration(border: Border.all(color: col(th.onSurfaceDim), width: 1)),
+              child: Row(
+                children: [
+                  for (final r in sessions)
+                    Tooltip(
+                      message: '${r.label} · ${StatsAggregator.formatMinutes(r.minutes)}',
+                      child: Container(
+                        width: 10,
+                        height: 10,
+                        margin: const EdgeInsets.only(right: 2),
+                        color: col(s.labelColorOf(r.label)),
+                      ),
+                    ),
+                  if (sessions.isEmpty) const SizedBox(width: 10, height: 10),
+                ],
+              ),
+            ),
+            const SizedBox(height: 3),
+            // weekday initials anchor the boxes to actual days (#v30.9 rec 6)
+            Text(wd, style: pixelStyle(lang, 7, col(th.onSurfaceDim), text: wd)),
+          ],
         ),
       );
     }
@@ -1557,10 +1612,13 @@ class SessionsTimelineWeek extends StatelessWidget {
             style: pixelStyle(lang, 11, col(th.onSurfaceDim), text: t(lang, 'sessionsTimelineWeek'))),
         const SizedBox(height: 10),
         SizedBox(
-          height: 40,
+          height: 54,
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
-            child: Row(children: [for (var d = today - 6; d <= today; d++) dayGroup(d)]),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [for (var d = today - 6; d <= today; d++) dayGroup(d)],
+            ),
           ),
         ),
       ],
@@ -1677,7 +1735,10 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
           periodBtn(t(lang, 'p18Weeks'), _HeatPeriod.days126),
           periodBtn(t(lang, 'pYearly'), _HeatPeriod.yearly),
         ]),
-        const SizedBox(height: 12),
+        const SizedBox(height: 6),
+        // the long-press detail tooltip is invisible until discovered (#v30.9 rec 7)
+        Text(t(lang, 'holdForDetails'), style: pixelStyle(lang, 7, col(th.onSurfaceDim), text: t(lang, 'holdForDetails'))),
+        const SizedBox(height: 10),
         if (_period == _HeatPeriod.monthly)
           // the calendar shape is narrow (7 columns) — fit 3 labels per row
           // instead of stacking each one full-width (#v30 follow-up).
@@ -1708,11 +1769,11 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
 
 // "Your Year in Pixels" — every daily heatmap in one place: mood, manual
 // habits/goals, and focus sessions (#v30 items 6/9 — "(all data)").
-Widget _yearInPixelsContent(PixelTheme th, String lang, AppStore s, int today) {
+Widget _yearInPixelsContent(BuildContext context, PixelTheme th, String lang, AppStore s, int today) {
   return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
     Text(t(lang, 'moodTracker'), style: pixelStyle(lang, 11, col(th.onSurfaceDim), text: t(lang, 'moodTracker'))),
     const SizedBox(height: 10),
-    _moodHeatmap(s, th, today),
+    _moodHeatmap(context, s, th, lang, today),
     const SizedBox(height: 20),
     for (final h in s.habits) ...[
       Text(h.name, style: pixelStyle(lang, 10, col(h.color), text: h.name)),
@@ -1738,13 +1799,18 @@ Widget _yearInPixelsContent(PixelTheme th, String lang, AppStore s, int today) {
 class HabitScreen extends StatefulWidget {
   final AppStore s;
   const HabitScreen(this.s, {super.key});
+
+  /// Last-open tab, remembered for the app session so reopening the tracker
+  /// lands where the user left off instead of always on Mood (#v30.9 rec 5).
+  static int lastTab = 0;
+
   @override
   State<HabitScreen> createState() => _HabitScreenState();
 }
 
 class _HabitScreenState extends State<HabitScreen> {
   // 0 = mood tracker, 1 = year in pixels (all data), 2 = goals (#v30 items 6/7/9)
-  int _tab = 0;
+  int _tab = HabitScreen.lastTab;
 
   @override
   Widget build(BuildContext context) {
@@ -1759,8 +1825,8 @@ class _HabitScreenState extends State<HabitScreen> {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 2),
           child: sel
-              ? primaryBtn(th, lang, text, () => setState(() => _tab = i), fontSize: 8, padding: const EdgeInsets.all(8), key: key)
-              : secondaryBtn(th, lang, text, () => setState(() => _tab = i), fontSize: 8, padding: const EdgeInsets.all(8), key: key),
+              ? primaryBtn(th, lang, text, () => setState(() => _tab = HabitScreen.lastTab = i), fontSize: 8, padding: const EdgeInsets.all(8), key: key)
+              : secondaryBtn(th, lang, text, () => setState(() => _tab = HabitScreen.lastTab = i), fontSize: 8, padding: const EdgeInsets.all(8), key: key),
         ),
       );
     }
@@ -1775,7 +1841,7 @@ class _HabitScreenState extends State<HabitScreen> {
       if (_tab == 0)
         _moodTab(s, th, lang, today)
       else if (_tab == 1)
-        _yearInPixelsContent(th, lang, s, today)
+        _yearInPixelsContent(context, th, lang, s, today)
       else
         _goalsTab(s, th, lang, today),
     ]);
@@ -1808,7 +1874,7 @@ class _HabitScreenState extends State<HabitScreen> {
         ],
       ),
       const SizedBox(height: 24),
-      _moodHeatmap(s, th, today),
+      _moodHeatmap(context, s, th, lang, today),
     ]);
   }
 
@@ -1981,6 +2047,8 @@ class _MoneyScreenState extends State<MoneyScreen> {
   int _offset = 0; // months back from now
   StatPeriod _chartPeriod = StatPeriod.monthly; // #v30 item 11
   ChartMode _chartMode = ChartMode.bar;
+  int _chartOffset = 0; // chart windows back from now (#v30.9 rec 4)
+  int _txPage = 0; // entry-list page, newest first (#v30.9 rec 3)
 
   @override
   void initState() {
@@ -2014,13 +2082,21 @@ class _MoneyScreenState extends State<MoneyScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           IconButton(
-            onPressed: () => setState(() => _offset++),
+            onPressed: () => setState(() {
+              _offset++;
+              _txPage = 0;
+            }),
             icon: Text('<', style: pixelStyle(lang, 18, col(th.onSurface), text: '<')),
           ),
           Text('${monthName(lang, view.month)} ${view.year}',
               style: pixelStyle(lang, 13, col(th.onSurface), text: '${monthName(lang, view.month)} ${view.year}')),
           IconButton(
-            onPressed: _offset == 0 ? null : () => setState(() => _offset--),
+            onPressed: _offset == 0
+                ? null
+                : () => setState(() {
+                      _offset--;
+                      _txPage = 0;
+                    }),
             icon: Text('>', style: pixelStyle(lang, 18, col(_offset == 0 ? th.onSurfaceDim : th.onSurface), text: '>')),
           ),
         ],
@@ -2036,6 +2112,14 @@ class _MoneyScreenState extends State<MoneyScreen> {
             '${income - expense >= 0 ? '+' : '-'}${_money(income - expense, cur)}',
             income - expense >= 0 ? th.work : th.accent),
       ),
+      // rates never loaded → conversions silently fall back to raw amounts;
+      // say so instead of letting mixed-currency totals lie (#v30.9)
+      if (s.fxRates.isEmpty) ...[
+        const SizedBox(height: 8),
+        Text(t(lang, 'noRates'),
+            textAlign: TextAlign.center,
+            style: pixelStyle(lang, 8, col(th.onSurfaceDim), text: t(lang, 'noRates'))),
+      ],
       const SizedBox(height: 16),
       Row(children: [
         Expanded(child: primaryBtn(th, lang, t(lang, 'addExpense'), () => _addTx(context, s, true), fontSize: 10, padding: const EdgeInsets.all(12))),
@@ -2059,8 +2143,43 @@ class _MoneyScreenState extends State<MoneyScreen> {
               textAlign: TextAlign.center,
               style: pixelStyle(lang, 10, col(th.onSurfaceDim), text: t(lang, 'noTx'))),
         )
-      else
-        for (final tx in monthTxs.take(40)) _txRow(context, s, th, lang, tx, cur),
+      else ...[
+        // paged, not silently capped at 40 like before (#v30.9 rec 3)
+        for (final tx in Paging.page(monthTxs, _txPage, 50)) _txRow(context, s, th, lang, tx, cur),
+        if (Paging.pageCount(monthTxs.length, 50) > 1)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Row(children: [
+              SizedBox(
+                width: 52,
+                child: PixelButton(
+                    text: '<', fill: th.panel, border: th.onSurfaceDim, textColor: th.onSurface, shadow: th.shadow,
+                    lang: lang, fontSize: 13, padding: const EdgeInsets.all(10),
+                    opacity: _txPage + 1 < Paging.pageCount(monthTxs.length, 50) ? 1 : 0.35,
+                    onTap: () {
+                      if (_txPage + 1 < Paging.pageCount(monthTxs.length, 50)) setState(() => _txPage++);
+                    }),
+              ),
+              Expanded(
+                child: Center(
+                  child: Text(tf(lang, 'pageOf', [_txPage + 1, Paging.pageCount(monthTxs.length, 50)]),
+                      style: pixelStyle(lang, 10, col(th.onSurface),
+                          text: tf(lang, 'pageOf', [_txPage + 1, Paging.pageCount(monthTxs.length, 50)]))),
+                ),
+              ),
+              SizedBox(
+                width: 52,
+                child: PixelButton(
+                    text: '>', fill: th.panel, border: th.onSurfaceDim, textColor: th.onSurface, shadow: th.shadow,
+                    lang: lang, fontSize: 13, padding: const EdgeInsets.all(10),
+                    opacity: _txPage > 0 ? 1 : 0.35,
+                    onTap: () {
+                      if (_txPage > 0) setState(() => _txPage--);
+                    }),
+              ),
+            ]),
+          ),
+      ],
       const SizedBox(height: 20),
       _moneySettings(context, s, th, lang),
     ]);
@@ -2070,7 +2189,9 @@ class _MoneyScreenState extends State<MoneyScreen> {
   // (#v30 item 11) — reuses the same StatsChart widget the Stats screen uses.
   Widget _moneyChart(PixelTheme th, String lang, AppStore s) {
     final now = DateTime.now();
-    final (start, end) = StatsAggregator.windowDays(now, _chartPeriod);
+    // browse earlier windows with the same anchor mechanism Stats uses (#v30.9 rec 4)
+    final anchor = StatsAggregator.anchorFor(now, _chartPeriod, _chartOffset);
+    final (start, end) = StatsAggregator.windowDays(anchor, _chartPeriod);
     final (inc, exp) = MoneyBook.totalsInWindow(s.money, start, end, s.fxRates, s.mainCurrency);
     final byCat = MoneyBook.byCategoryInWindow(s.money, start, end, s.fxRates, s.mainCurrency);
     final entries = _chartMode == ChartMode.pie
@@ -2082,12 +2203,16 @@ class _MoneyScreenState extends State<MoneyScreen> {
 
     Widget periodBtn(String text, StatPeriod p) {
       final sel = _chartPeriod == p;
+      void pick() => setState(() {
+            _chartPeriod = p;
+            _chartOffset = 0;
+          });
       return Expanded(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 2),
           child: sel
-              ? primaryBtn(th, lang, text, () => setState(() => _chartPeriod = p), fontSize: 8, padding: const EdgeInsets.all(8))
-              : secondaryBtn(th, lang, text, () => setState(() => _chartPeriod = p), fontSize: 8, padding: const EdgeInsets.all(8)),
+              ? primaryBtn(th, lang, text, pick, fontSize: 8, padding: const EdgeInsets.all(8))
+              : secondaryBtn(th, lang, text, pick, fontSize: 8, padding: const EdgeInsets.all(8)),
         ),
       );
     }
@@ -2112,6 +2237,31 @@ class _MoneyScreenState extends State<MoneyScreen> {
       ]),
       const SizedBox(height: 12),
       Row(children: [modeBtn(t(lang, 'chartBar'), ChartMode.bar), modeBtn(t(lang, 'chartPie'), ChartMode.pie)]),
+      const SizedBox(height: 10),
+      Row(children: [
+        SizedBox(
+          width: 52,
+          child: secondaryBtn(th, lang, '<', () => setState(() => _chartOffset++),
+              fontSize: 13, padding: const EdgeInsets.all(10)),
+        ),
+        Expanded(
+          child: Center(
+            child: Text(periodWindowLabel(lang, _chartPeriod, _chartOffset),
+                style: pixelStyle(lang, 11, col(th.onSurface),
+                    text: periodWindowLabel(lang, _chartPeriod, _chartOffset))),
+          ),
+        ),
+        SizedBox(
+          width: 52,
+          child: PixelButton(
+              text: '>', fill: th.panel, border: th.onSurfaceDim, textColor: th.onSurface, shadow: th.shadow,
+              lang: lang, fontSize: 13, padding: const EdgeInsets.all(10),
+              opacity: _chartOffset > 0 ? 1 : 0.35,
+              onTap: () {
+                if (_chartOffset > 0) setState(() => _chartOffset--);
+              }),
+        ),
+      ]),
       const SizedBox(height: 16),
       SizedBox(
         height: 200,
@@ -2126,6 +2276,7 @@ class _MoneyScreenState extends State<MoneyScreen> {
           lineColor: th.accent,
           panelColor: th.panel,
           panelBorder: th.onSurfaceDim,
+          noDataText: t(lang, 'noMoneyData'),
         ),
       ),
     ]);
@@ -2166,9 +2317,17 @@ class _MoneyScreenState extends State<MoneyScreen> {
 
   Widget _txRow(BuildContext context, AppStore s, PixelTheme th, String lang, MoneyTx tx, String cur) {
     final d = dateOfEpochDay(tx.epochDay);
-    final main = s.moneyToMain(tx);
     final sign = tx.isExpense ? '-' : '+';
-    final amt = '$sign${_money(main, cur)}';
+    // the entry KEEPS its original currency (spend złoty on holiday, earn in
+    // euro — the 150 PLN stays 150 PLN); the main-currency equivalent shows
+    // as a dim second line, and ONLY when both rates are actually known —
+    // the old converted-only display fell back to the raw number when rates
+    // were missing, so 150 PLN read as "EUR 150.00" (#v30.9).
+    final orig = '$sign${_money(tx.amountMinor / 100.0, tx.currency)}';
+    final sameCur = tx.currency == cur;
+    final ratesKnown = s.fxRates[tx.currency] != null && s.fxRates[cur] != null;
+    final conv = '= ${_money(s.moneyToMain(tx), cur)}';
+    final amtColor = col(tx.isExpense ? th.accent : th.work);
     return GestureDetector(
       onLongPress: () => _deleteTx(context, s, tx),
       child: Padding(
@@ -2181,7 +2340,14 @@ class _MoneyScreenState extends State<MoneyScreen> {
                 maxLines: 1, overflow: TextOverflow.clip,
                 style: pixelStyle(lang, 9, col(th.onSurface), text: t(lang, tx.category))),
           ),
-          Text(amt, style: pixelStyle(lang, 9, col(tx.isExpense ? th.accent : th.work), text: amt)),
+          if (sameCur)
+            Text(orig, style: pixelStyle(lang, 9, amtColor, text: orig))
+          else
+            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              Text(orig, style: pixelStyle(lang, 9, amtColor, text: orig)),
+              if (ratesKnown)
+                Text(conv, style: pixelStyle(lang, 7, col(th.onSurfaceDim), text: conv)),
+            ]),
         ]),
       ),
     );
@@ -2240,6 +2406,29 @@ class _MoneyScreenState extends State<MoneyScreen> {
                     for (final c in cats)
                       GestureDetector(
                         onTap: () => setLocal(() => cat = c),
+                        // custom categories delete on long-press, like habit
+                        // cards; built-ins have no handler (#v30.9 rec 2)
+                        onLongPress: !s.customCategories.contains(c)
+                            ? null
+                            : () => showDialog(
+                                  context: ctx,
+                                  builder: (ctx2) => AlertDialog(
+                                    backgroundColor: col(th.panel),
+                                    content: Text(tf(lang, 'removeCategoryMsg', [c]),
+                                        style: pixelStyle(lang, 11, col(th.onSurface), text: tf(lang, 'removeCategoryMsg', [c]))),
+                                    actions: [
+                                      secondaryBtn(th, lang, t(lang, 'no'), () => Navigator.pop(ctx2), fontSize: 10, padding: const EdgeInsets.all(10)),
+                                      primaryBtn(th, lang, t(lang, 'yes'), () {
+                                        s.removeCustomCategory(c);
+                                        setLocal(() {
+                                          cats = [for (final x in cats) if (x != c) x];
+                                          if (cat == c) cat = cats.first;
+                                        });
+                                        Navigator.pop(ctx2);
+                                      }, fontSize: 10, padding: const EdgeInsets.all(10)),
+                                    ],
+                                  ),
+                                ),
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                           decoration: BoxDecoration(
@@ -2442,8 +2631,9 @@ Widget _dayCell({
   required int? dayColor,
   required int color,
   required String? tooltip,
+  VoidCallback? onTap,
 }) {
-  final box = Container(
+  Widget box = Container(
     width: cell,
     height: cell,
     margin: const EdgeInsets.only(right: 2),
@@ -2452,7 +2642,11 @@ Widget _dayCell({
       borderRadius: BorderRadius.circular(1),
     ),
   );
-  return blank || tooltip == null || tooltip.isEmpty ? box : Tooltip(message: tooltip, child: box);
+  if (!blank && tooltip != null && tooltip.isNotEmpty) box = Tooltip(message: tooltip, child: box);
+  // tap coexists with the Tooltip: its trigger is long-press, so a plain tap
+  // stays free for the handler (#v30.9 — editable past moods).
+  if (!blank && onTap != null) box = GestureDetector(onTap: onTap, child: box);
+  return box;
 }
 
 /// Weekly view: a single HORIZONTAL row of 7 days (the calendar week
@@ -2554,9 +2748,13 @@ class _HabitHeatmap extends StatelessWidget {
   // lets yearly show exactly 365/366 real days even though the week-based
   // grid rounds up to a whole number of weeks (#v30 follow-up).
   final int? maxDaysBack;
+  // optional tap handler for non-blank cells (#v30.9 — the mood heatmap uses
+  // it to edit past days).
+  final void Function(int day)? onDayTap;
   const _HabitHeatmap(
       {required this.days, required this.color, required this.today,
-      this.colorForDay, this.maxCellSize = 12.0, this.weeks = 18, this.tooltipFor, this.maxDaysBack});
+      this.colorForDay, this.maxCellSize = 12.0, this.weeks = 18, this.tooltipFor, this.maxDaysBack,
+      this.onDayTap});
 
   static const _bandCols = 18; // per-band width, tuned to fit a phone
 
@@ -2604,7 +2802,9 @@ class _HabitHeatmap extends StatelessWidget {
                         ? null
                         : (colorForDay != null ? colorForDay!(day) : ((days[day] ?? 0) > 0 ? color : null));
                     return _dayCell(
-                        cell: cell, blank: blank, dayColor: dayColor, color: color, tooltip: blank ? null : tooltipFor?.call(day));
+                        cell: cell, blank: blank, dayColor: dayColor, color: color,
+                        tooltip: blank ? null : tooltipFor?.call(day),
+                        onTap: blank || onDayTap == null ? null : () => onDayTap!(day));
                   }),
               ],
             ),
