@@ -604,6 +604,12 @@ void main() {
       expect(HabitLog.daysDone(byLabel['TURKISH']!), 2);
       expect(HabitLog.totalTimes(byLabel['TURKISH']!), 3); // "2 days · 3 times"
       expect(byLabel['MATH']![101], 1);
+
+      // same shape, but summing minutes instead of session count — feeds the
+      // heatmap tap-for-details tooltip (#v30 follow-up)
+      final minsByLabel = LabelHabits.minutesFromRecords(recs);
+      expect(minsByLabel['TURKISH'], {100: 90, 101: 45});
+      expect(minsByLabel['MATH'], {101: 20});
     });
 
     test('moods codec keeps only 1..5', () {

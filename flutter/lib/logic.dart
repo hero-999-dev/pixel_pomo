@@ -1143,6 +1143,17 @@ class LabelHabits {
     }
     return out;
   }
+
+  /// Same shape as [fromRecords] but sums MINUTES instead of session count —
+  /// feeds the heatmap tap-for-details tooltip (#v30 follow-up).
+  static Map<String, Map<int, int>> minutesFromRecords(List<SessionRecord> records) {
+    final out = <String, Map<int, int>>{};
+    for (final r in records) {
+      final days = out.putIfAbsent(r.label, () => <int, int>{});
+      days[r.epochDay] = (days[r.epochDay] ?? 0) + (r.minutes < 0 ? 0 : r.minutes);
+    }
+    return out;
+  }
 }
 
 /// Daily mood, 1 (awful) .. 5 (great) — one per epochDay.

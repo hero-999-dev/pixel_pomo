@@ -928,6 +928,8 @@ class StatsScreen extends StatelessWidget {
           ),
       // focus-session heatmaps, relocated out of the habit tracker (#v30 item 6)
       const SizedBox(height: 20),
+      SessionsTimelineWeek(th: th, lang: lang, s: s, today: epochDayOf(now)),
+      const SizedBox(height: 20),
       FocusSessionsSection(th: th, lang: lang, s: s, today: epochDayOf(now)),
       // a paginated list of every past session (tap a row to relabel) — sits
       // right above the auto-appended CLOSE button (#v25 item3)
@@ -1497,6 +1499,75 @@ Widget _moodHeatmap(AppStore s, PixelTheme th, int today) => _HabitHeatmap(
       },
     );
 
+// "Session Timeline in a Week" — individual completed sessions (not
+// day-aggregated) as small colour-by-label boxes in chronological order,
+// oldest to newest left-to-right, grouped by day with a bordered rectangle
+// per day. Fixed trailing 7 days (today and the 6 before it). Sits above
+// Focus Sessions in both Stats and Year in Pixels (#v30 follow-up).
+class SessionsTimelineWeek extends StatelessWidget {
+  final PixelTheme th;
+  final String lang;
+  final AppStore s;
+  final int today;
+  const SessionsTimelineWeek(
+      {super.key, required this.th, required this.lang, required this.s, required this.today});
+
+  @override
+  Widget build(BuildContext context) {
+    final byDay = <int, List<SessionRecord>>{};
+    for (final r in s.records) {
+      if (r.epochDay < today - 6 || r.epochDay > today) continue;
+      byDay.putIfAbsent(r.epochDay, () => []).add(r);
+    }
+    for (final list in byDay.values) {
+      list.sort((a, b) => (a.minuteOfDay ?? 0).compareTo(b.minuteOfDay ?? 0));
+    }
+    if (byDay.isEmpty) return const SizedBox.shrink();
+
+    Widget dayGroup(int day) {
+      final sessions = byDay[day] ?? const <SessionRecord>[];
+      return Padding(
+        padding: const EdgeInsets.only(right: 6),
+        child: Container(
+          padding: const EdgeInsets.all(3),
+          decoration: BoxDecoration(border: Border.all(color: col(th.onSurfaceDim), width: 1)),
+          child: Row(
+            children: [
+              for (final r in sessions)
+                Tooltip(
+                  message: '${r.label} · ${StatsAggregator.formatMinutes(r.minutes)}',
+                  child: Container(
+                    width: 10,
+                    height: 10,
+                    margin: const EdgeInsets.only(right: 2),
+                    color: col(s.labelColorOf(r.label)),
+                  ),
+                ),
+              if (sessions.isEmpty) const SizedBox(width: 10, height: 10),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(t(lang, 'sessionsTimelineWeek'),
+            style: pixelStyle(lang, 11, col(th.onSurfaceDim), text: t(lang, 'sessionsTimelineWeek'))),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 40,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(children: [for (var d = today - 6; d <= today; d++) dayGroup(d)]),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 // How much trailing history a Focus Sessions heatmap shows (#v30 follow-up).
 enum _HeatPeriod { weekly, monthly, days126, yearly }
 
@@ -1530,6 +1601,7 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
     final th = widget.th, lang = widget.lang, s = widget.s, today = widget.today;
     final labelCounts = s.labelHabitCounts;
     if (labelCounts.isEmpty) return const SizedBox.shrink();
+    final labelMinutes = LabelHabits.minutesFromRecords(s.records);
 
     Widget periodBtn(String text, _HeatPeriod p) {
       final sel = _period == p;
@@ -1552,7 +1624,7 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
         Row(children: [
           periodBtn(t(lang, 'pWeekly'), _HeatPeriod.weekly),
           periodBtn(t(lang, 'pMonthly'), _HeatPeriod.monthly),
-          periodBtn(t(lang, 'p126Days'), _HeatPeriod.days126),
+          periodBtn(t(lang, 'p18Weeks'), _HeatPeriod.days126),
           periodBtn(t(lang, 'pYearly'), _HeatPeriod.yearly),
         ]),
         const SizedBox(height: 12),
@@ -1563,7 +1635,19 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
               style: pixelStyle(lang, 8, col(th.onSurfaceDim),
                   text: tf(lang, 'daysTimes', [HabitLog.daysDone(e.value), HabitLog.totalTimes(e.value)]))),
           const SizedBox(height: 4),
-          _HabitHeatmap(days: e.value, color: s.labelColorOf(e.key), today: today, maxCellSize: double.infinity, weeks: weeks),
+          _HabitHeatmap(
+            days: e.value,
+            color: s.labelColorOf(e.key),
+            today: today,
+            maxCellSize: double.infinity,
+            weeks: weeks,
+            tooltipFor: (day) {
+              final n = e.value[day] ?? 0;
+              if (n == 0) return null;
+              final mins = labelMinutes[e.key]?[day] ?? 0;
+              return '${n}x · ${StatsAggregator.formatMinutes(mins)}';
+            },
+          ),
           const SizedBox(height: 14),
         ],
       ],
@@ -1582,9 +1666,20 @@ Widget _yearInPixelsContent(PixelTheme th, String lang, AppStore s, int today) {
     for (final h in s.habits) ...[
       Text(h.name, style: pixelStyle(lang, 10, col(h.color), text: h.name)),
       const SizedBox(height: 4),
-      _HabitHeatmap(days: s.habitLog[h.name] ?? const {}, color: h.color, today: today, maxCellSize: double.infinity),
+      _HabitHeatmap(
+        days: s.habitLog[h.name] ?? const {},
+        color: h.color,
+        today: today,
+        maxCellSize: double.infinity,
+        tooltipFor: (day) {
+          final n = (s.habitLog[h.name] ?? const {})[day] ?? 0;
+          return n == 0 ? null : '${n}x';
+        },
+      ),
       const SizedBox(height: 14),
     ],
+    SessionsTimelineWeek(th: th, lang: lang, s: s, today: today),
+    const SizedBox(height: 20),
     FocusSessionsSection(th: th, lang: lang, s: s, today: today),
   ]);
 }
@@ -2269,9 +2364,12 @@ class _HabitHeatmap extends StatelessWidget {
   final int? Function(int day)? colorForDay;
   final double maxCellSize;
   final int weeks;
+  // optional tap-for-details text (e.g. "3x Ā· 1h 15m") shown in a Tooltip;
+  // null/empty for a given day means no tooltip on that cell (#v30 follow-up).
+  final String? Function(int day)? tooltipFor;
   const _HabitHeatmap(
       {required this.days, required this.color, required this.today,
-      this.colorForDay, this.maxCellSize = 12.0, this.weeks = 18});
+      this.colorForDay, this.maxCellSize = 12.0, this.weeks = 18, this.tooltipFor});
 
   static const _bandCols = 18; // per-band width, tuned to fit a phone
 
@@ -2307,7 +2405,7 @@ class _HabitHeatmap extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(bottom: 2),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.end, // right-align a partial (oldest) band
+              mainAxisAlignment: MainAxisAlignment.start, // partial (oldest) band leaves its gap on the right
               children: [
                 for (var c = 0; c < colsInBand; c++)
                   Builder(builder: (_) {
@@ -2317,7 +2415,7 @@ class _HabitHeatmap extends StatelessWidget {
                     final dayColor = future
                         ? null
                         : (colorForDay != null ? colorForDay!(day) : ((days[day] ?? 0) > 0 ? color : null));
-                    return Container(
+                    final box = Container(
                       width: cell,
                       height: cell,
                       margin: const EdgeInsets.only(right: 2),
@@ -2333,6 +2431,9 @@ class _HabitHeatmap extends StatelessWidget {
                         borderRadius: BorderRadius.circular(1),
                       ),
                     );
+                    if (future || tooltipFor == null) return box;
+                    final msg = tooltipFor!(day);
+                    return msg == null || msg.isEmpty ? box : Tooltip(message: msg, child: box);
                   }),
               ],
             ),
