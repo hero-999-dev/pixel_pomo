@@ -381,13 +381,14 @@ class HomeScreen extends StatelessWidget {
         );
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      child: Row(children: [
+      // spread all 8 evenly across the bar, not two clusters split by a
+      // Spacer (that stacked them all on the left, #v30 follow-up).
+      child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
         icon('money', () => openPanel(context, s, () => MoneyScreen(s)), const Key('moneyButton')),
         icon('habit', () => openPanel(context, s, () => HabitScreen(s)), const Key('habitButton')),
         icon('stats', () => openPanel(context, s, () => StatsScreen(s)), const Key('statsButton')),
         icon('garden', () => openPanel(context, s, () => GardenScreen(s)), const Key('gardenButton')),
         icon('theme', () => openPanel(context, s, () => ThemeScreen(s)), const Key('themeButton')),
-        const Spacer(),
         icon('settings', () => openPanel(context, s, () => SettingsScreen(s)), const Key('settingsButton')),
         icon('store', () => openPanel(context, s, () => ShopScreen(s)), const Key('storeButton')),
         GestureDetector(

@@ -27,20 +27,22 @@ def extract(crop, out_path, size=96):
            (crop.width - 1, crop.height - 1), (crop.width // 2, 0),
            (0, crop.height // 2), (crop.width - 1, crop.height // 2),
            (crop.width // 2, crop.height - 1)]
-    # two passes: thresh=48 clears the flat panel background, a looser
-    # thresh=90 second pass eats the anti-aliased blend ring the first pass
-    # leaves behind — that ring is what showed up as a background-colour
-    # fringe around the icon (#v30 item 4).
-    for thresh in (48, 90):
+    # three passes, widening each time: 48 clears the flat panel background,
+    # then 90 and 140 eat progressively more of the anti-aliased blend ring
+    # the previous pass leaves behind — that ring is what still showed up as
+    # a background-colour fringe around the icon (#v30, tightened twice now).
+    for thresh in (48, 90, 140):
         for xy in pts:
             try:
                 ImageDraw.floodfill(crop, xy, (0, 0, 0, 0), thresh=thresh)
             except ValueError:
                 pass
-    # erode the alpha mask by 1px to strip any fringe pixels still standing
-    # (semi-opaque anti-aliasing a connected-region flood-fill can't reach).
+    # erode the alpha mask by 2px (was 1) to strip any fringe pixels still
+    # standing (semi-opaque anti-aliasing a connected-region flood-fill can't
+    # reach) — the source crop is well above 96px so this costs no visible
+    # detail once downscaled.
     r, g, b, a = crop.split()
-    crop = Image.merge("RGBA", (r, g, b, a.filter(ImageFilter.MinFilter(3))))
+    crop = Image.merge("RGBA", (r, g, b, a.filter(ImageFilter.MinFilter(5))))
     bbox = crop.getbbox()
     assert bbox, out_path
     crop = crop.crop(bbox)

@@ -474,14 +474,16 @@ def grass_grid():
 
 def coin_grid():
     # v29 coin from the user's "MONEY 01 — COIN (NO NUMBER)" guide sheet: black
-    # outline, light-gold bevel arc on the top-left edge, brown shadow on the
-    # bottom-right edge, plain gold face with a 1px darker-gold inner ring.
-    # Palette straight from the sheet.
+    # outline, uniform dark-brown edge band, plain gold face with a 1px
+    # darker-gold inner ring. Palette straight from the sheet.
+    # v30 follow-up: the edge band used to split light-top-left / dark-
+    # bottom-right (a "shine" highlight) — the user wants NO light pixels on
+    # the outer ring at all, so it's now one uniform dark tone all the way
+    # round (the old `shine` colour is gone).
     out = hexrgb("1A1A1A") + (255,)     # outline
-    shadow = hexrgb("6B4A1E") + (255,)  # bottom-right edge shadow
+    shadow = hexrgb("6B4A1E") + (255,)  # uniform dark-brown edge band
     ring = hexrgb("B9781F") + (255,)    # dark-gold inner ring
     face = hexrgb("F2C14E") + (255,)    # gold face
-    shine = hexrgb("FFF29A") + (255,)   # top-left edge light
     g = blank(16, 16)
     cx = cy = 7.5
     for r in range(16):
@@ -491,12 +493,9 @@ def coin_grid():
                 if d > 6.5:
                     g[r][c] = out
                 elif d > 5.5:
-                    g[r][c] = shine if (r + c) < 14 else shadow  # edge bevel
+                    g[r][c] = shadow                              # edge band, uniform
                 elif 4.2 < d <= 5.5:
-                    # was <=5.1, leaving a 5.1-5.5 gap that fell through to the
-                    # bright face colour — a light seam cutting into what
-                    # should be a continuous dark ring (#v30 item 5).
-                    g[r][c] = ring                               # inner ring
+                    g[r][c] = ring                                # inner ring
                 else:
                     g[r][c] = face
     return g
