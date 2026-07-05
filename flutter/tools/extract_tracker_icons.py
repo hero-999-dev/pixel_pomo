@@ -1,24 +1,31 @@
-# Extracts the v29 tracker icons from the user's ChatGPT icon sheet (LOCAL tool,
-# needs Pillow — not run in CI, like extract_icons.py): crops the picked panels
-# (HABIT 02 STAR calendar, MONEY 03 PIGGY BANK), flood-fills the tan panel
-# background to transparency from the borders (the icons' own black outlines
-# stop the fill), autocrops, squares, and saves 96px PNGs into assets/icon/.
+# Extracts the tracker icons + the coin from the user's ChatGPT guide sheets
+# (LOCAL tool, needs Pillow — not run in CI, like extract_icons.py): crops the
+# picked panel, flood-fills the tan background to transparency from the
+# borders (the icons' own black outlines stop the fill), autocrops, squares,
+# and saves 96px PNGs.
 import os
 from collections import deque
 
 from PIL import Image, ImageDraw, ImageFilter
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SHEET = os.path.normpath(os.path.join(
-    HERE, "..", "..", "feedback & guides", "Guides", "Tracker Guides",
-    "Habit Tracker", "ChatGPT Image Jul 4, 2026, 01_29_46 PM.png"))
-OUT = os.path.normpath(os.path.join(HERE, "..", "assets", "icon"))
+GUIDES = os.path.normpath(os.path.join(
+    HERE, "..", "..", "feedback & guides", "Guides", "Tracker Guides"))
+ICON_OUT = os.path.normpath(os.path.join(HERE, "..", "assets", "icon"))
+OBJ_OUT = os.path.normpath(os.path.join(HERE, "..", "assets", "objects"))
 
-# panel boxes as fractions of the sheet (art panel only, inset past the frame)
-PANELS = {
-    "icon_habit.png": (0.295, 0.125, 0.465, 0.345),   # HABIT 02 - STAR calendar
-    "icon_money.png": (0.535, 0.640, 0.705, 0.850),   # MONEY 03 - PIGGY BANK
-}
+# (sheet path, fractional panel box, extra inset, output path).
+# The 0.10 inset skips a panel's rounded frame; the coin sheet is a single
+# full-frame render with no frame, so it only needs a small edge trim (#v30.8
+# — the coin is now the user's art too, not a gen_objects.py drawing).
+JOBS = [
+    (os.path.join(GUIDES, "Habit Tracker", "ChatGPT Image Jul 4, 2026, 01_29_46 PM.png"),
+     (0.295, 0.125, 0.465, 0.345), 0.10, os.path.join(ICON_OUT, "icon_habit.png")),   # HABIT 02 - STAR calendar
+    (os.path.join(GUIDES, "Habit Tracker", "ChatGPT Image Jul 4, 2026, 01_29_46 PM.png"),
+     (0.535, 0.640, 0.705, 0.850), 0.10, os.path.join(ICON_OUT, "icon_money.png")),   # MONEY 03 - PIGGY BANK
+    (os.path.join(GUIDES, "Coin Icon", "ChatGPT Image Jul 4, 2026, 01_30_08 PM.png"),
+     (0.0, 0.0, 1.0, 1.0), 0.02, os.path.join(OBJ_OUT, "coin.png")),                  # MONEY 01 - COIN (full-frame render)
+]
 
 
 def _keep_largest_component(img):
@@ -63,9 +70,9 @@ def _keep_largest_component(img):
                 px[x, y] = (0, 0, 0, 0)
 
 
-def extract(crop, out_path, size=96):
+def extract(crop, out_path, size=96, inset=0.10):
     w, h = crop.size
-    crop = crop.crop((int(w * 0.10), int(h * 0.10), int(w * 0.90), int(h * 0.90)))
+    crop = crop.crop((int(w * inset), int(h * inset), int(w * (1 - inset)), int(h * (1 - inset))))
     cw, ch = crop.size
     # sparse seeds on 3 sides (corners + one midpoint each), but DENSE along
     # the BOTTOM edge specifically (every ~10px) — a background pocket
@@ -118,12 +125,11 @@ def extract(crop, out_path, size=96):
 
 
 def main():
-    im = Image.open(SHEET).convert("RGBA")
-    W, H = im.size
-    print(f"sheet {W}x{H}")
-    for name, (fx0, fy0, fx1, fy1) in PANELS.items():
+    for sheet, (fx0, fy0, fx1, fy1), inset, out_path in JOBS:
+        im = Image.open(sheet).convert("RGBA")
+        W, H = im.size
         crop = im.crop((int(fx0 * W), int(fy0 * H), int(fx1 * W), int(fy1 * H)))
-        extract(crop, os.path.join(OUT, name))
+        extract(crop, out_path, inset=inset)
 
 
 if __name__ == "__main__":

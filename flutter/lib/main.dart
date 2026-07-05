@@ -1571,13 +1571,6 @@ class SessionsTimelineWeek extends StatelessWidget {
 // How much trailing history a Focus Sessions heatmap shows (#v30 follow-up).
 enum _HeatPeriod { weekly, monthly, days126, yearly }
 
-int _heatWeeks(_HeatPeriod p) => switch (p) {
-      _HeatPeriod.weekly => 1,
-      _HeatPeriod.monthly => 5, // ~30 days
-      _HeatPeriod.days126 => 18, // the original default (126 days)
-      _HeatPeriod.yearly => 52, // real span is capped to 365/366 via maxDaysBack
-    };
-
 bool _isLeapYear(int year) => (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
 
 /// Exactly how many real days are in the calendar year [today] falls in —
@@ -1631,8 +1624,7 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
 
     // each period gets the shape that actually fits it: a single horizontal
     // week row, a real calendar month, or the trailing-weeks column grid
-    // (18 weeks / yearly — yearly capped to exactly 365/366 real days via
-    // maxDaysBack, #v30 follow-up).
+    // (18 weeks / yearly, #v30 follow-up).
     Widget heatmapFor(MapEntry<String, Map<int, int>> e) {
       final color = s.labelColorOf(e.key);
       switch (_period) {
@@ -1641,13 +1633,19 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
         case _HeatPeriod.monthly:
           return _MonthCalendar(days: e.value, color: color, today: today, tooltipFor: (d) => tooltipFor(e, d));
         case _HeatPeriod.yearly:
+          // enough whole-week columns to actually HOLD 365/366 trailing days
+          // (a flat 52 could only ever hold 52×7=364 slots, so the span came
+          // up 1-7 days short — found in the #v30.8 bug sweep); the oldest,
+          // partly-out-of-span column is blanked by maxDaysBack.
+          final yearDays = _daysInYearOf(today);
+          final weeks = (yearDays - dateOfEpochDay(today).weekday + 6) ~/ 7 + 1;
           return _HabitHeatmap(
               days: e.value, color: color, today: today, maxCellSize: double.infinity,
-              weeks: _heatWeeks(_period), maxDaysBack: _daysInYearOf(today), tooltipFor: (d) => tooltipFor(e, d));
+              weeks: weeks, maxDaysBack: yearDays, tooltipFor: (d) => tooltipFor(e, d));
         case _HeatPeriod.days126:
           return _HabitHeatmap(
               days: e.value, color: color, today: today, maxCellSize: double.infinity,
-              weeks: _heatWeeks(_period), tooltipFor: (d) => tooltipFor(e, d));
+              weeks: 18, tooltipFor: (d) => tooltipFor(e, d));
       }
     }
 
@@ -2352,7 +2350,6 @@ class _MoneyScreenState extends State<MoneyScreen> {
   }
 
   Widget _moneySettings(BuildContext context, AppStore s, PixelTheme th, String lang) {
-    final rate = (s.dailyRateMinor / 100).toStringAsFixed(0);
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(border: Border.all(color: col(th.onSurfaceDim), width: 2)),
@@ -2374,29 +2371,64 @@ class _MoneyScreenState extends State<MoneyScreen> {
           const SizedBox(height: 10),
           Row(children: [
             Expanded(child: Text(t(lang, 'dailyRate'), style: pixelStyle(lang, 10, col(th.onSurfaceDim), text: t(lang, 'dailyRate')))),
-            SizedBox(
-              width: 110,
-              child: TextField(
-                controller: TextEditingController(text: rate == '0' ? '' : rate),
-                keyboardType: TextInputType.number,
-                textAlign: TextAlign.right,
-                style: pixelStyle(lang, 12, col(th.onSurface), text: rate),
-                decoration: InputDecoration(
-                  hintText: '0',
-                  suffixText: ' ${s.mainCurrency}',
-                  suffixStyle: pixelStyle(lang, 9, col(th.onSurfaceDim), text: s.mainCurrency),
-                ),
-                onSubmitted: (v) {
-                  final d = double.tryParse(v.replaceAll(',', '.')) ?? 0;
-                  s.setDailyRate((d * 100).round());
-                },
-              ),
-            ),
+            SizedBox(width: 110, child: _BudgetField(s: s, th: th, lang: lang)),
           ]),
           const SizedBox(height: 6),
           Text(t(lang, 'dailyRateHelp'), style: pixelStyle(lang, 8, col(th.onSurfaceDim), text: t(lang, 'dailyRateHelp'))),
         ],
       ),
+    );
+  }
+}
+
+/// The DAILY BUDGET input. Owns its controller in State — the old inline
+/// `TextEditingController(...)` in the parent's build() was recreated on
+/// EVERY AppStore notification, wiping an in-progress edit (the fx refresh
+/// fired seconds after the screen opened, which is exactly when the user is
+/// typing here — found in the #v30.8 bug sweep). Also fixes the controller
+/// leak (the inline one was never disposed).
+class _BudgetField extends StatefulWidget {
+  final AppStore s;
+  final PixelTheme th;
+  final String lang;
+  const _BudgetField({required this.s, required this.th, required this.lang});
+  @override
+  State<_BudgetField> createState() => _BudgetFieldState();
+}
+
+class _BudgetFieldState extends State<_BudgetField> {
+  late final TextEditingController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    final rate = (widget.s.dailyRateMinor / 100).toStringAsFixed(0);
+    _ctrl = TextEditingController(text: rate == '0' ? '' : rate);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = widget.s, th = widget.th, lang = widget.lang;
+    return TextField(
+      controller: _ctrl,
+      keyboardType: TextInputType.number,
+      textAlign: TextAlign.right,
+      style: pixelStyle(lang, 12, col(th.onSurface), text: _ctrl.text),
+      decoration: InputDecoration(
+        hintText: '0',
+        suffixText: ' ${s.mainCurrency}',
+        suffixStyle: pixelStyle(lang, 9, col(th.onSurfaceDim), text: s.mainCurrency),
+      ),
+      onSubmitted: (v) {
+        final d = double.tryParse(v.replaceAll(',', '.')) ?? 0;
+        s.setDailyRate((d * 100).round());
+      },
     );
   }
 }

@@ -467,38 +467,10 @@ def grass_grid():
     return g
 
 
-# ---- plain gold coin (static, 2D — #5) ---------------------------------------
-# A clean struck-gold disc: dark rim, gold face, one small top-left shine.
-# No "$", no smiley, no inner bevel marks that could read as a face. Static —
-# the wallet shows it as a flat 2D coin with no animation.
-
-def coin_grid():
-    # v29 coin from the user's "MONEY 01 — COIN (NO NUMBER)" guide sheet: black
-    # outline, uniform dark-brown edge band, plain gold face with a 1px
-    # darker-gold inner ring. Palette straight from the sheet.
-    # v30 follow-up: the edge band used to split light-top-left / dark-
-    # bottom-right (a "shine" highlight) — the user wants NO light pixels on
-    # the outer ring at all, so it's now one uniform dark tone all the way
-    # round (the old `shine` colour is gone).
-    out = hexrgb("1A1A1A") + (255,)     # outline
-    shadow = hexrgb("6B4A1E") + (255,)  # uniform dark-brown edge band
-    ring = hexrgb("B9781F") + (255,)    # dark-gold inner ring
-    face = hexrgb("F2C14E") + (255,)    # gold face
-    g = blank(16, 16)
-    cx = cy = 7.5
-    for r in range(16):
-        for c in range(16):
-            d = ((r - cy) ** 2 + (c - cx) ** 2) ** 0.5
-            if d <= 7.6:
-                if d > 6.5:
-                    g[r][c] = out
-                elif d > 5.5:
-                    g[r][c] = shadow                              # edge band, uniform
-                elif 4.2 < d <= 5.5:
-                    g[r][c] = ring                                # inner ring
-                else:
-                    g[r][c] = face
-    return g
+# NB: coin.png is NO LONGER generated here (#v30.8) — after three rounds of
+# approximating the guide procedurally, the coin is now the user's actual art,
+# extracted from the Coin Icon guide sheet by tools/extract_tracker_icons.py
+# (same rule as the #v18 menu icons: never reintroduce generation for it).
 
 
 # ---- mood faces (#v29 habit tracker) -----------------------------------------
@@ -1232,7 +1204,6 @@ def main():
         write_png(os.path.join(OUT, f"bush_{i:02d}.png"), upscale(_bush_variant(i + 1), SCALE))
     for i in range(5):
         write_png(os.path.join(OUT, f"rock_{i:02d}.png"), upscale(_rock_variant(i + 1), SCALE))
-    write_png(os.path.join(OUT, "coin.png"), upscale(coin_grid(), SCALE))
     for mood in range(1, 6):  # habit-tracker mood faces (#v29)
         write_png(os.path.join(OUT, f"face_{mood}.png"), upscale(face_grid(mood), 8))
     for rid, fn in ROADS.items():
@@ -1244,10 +1215,11 @@ def main():
         p = os.path.join(OUT, old)
         if os.path.exists(p):
             os.remove(p)
-    n = len(FLOWERS) + len(CRITTERS) + len(FENCES) + len(ROADS) + 4  # +grass +forest +tree +coin
+    n = len(FLOWERS) + len(CRITTERS) + len(FENCES) + len(ROADS) + 3  # +grass +forest +tree
     print("wrote", n, "sprites to", os.path.abspath(OUT), f"(FRAMES={FRAMES})")
-    # NB: the menu icons in assets/icon/ now come from tools/extract_icons.py
-    # (the user's ChatGPT art, navy keyed to transparent) — NOT generated here (#v18).
+    # NB: the menu icons in assets/icon/ come from tools/extract_icons.py (#v18)
+    # and coin.png from tools/extract_tracker_icons.py (#v30.8) — the user's
+    # own ChatGPT art, NOT generated here.
 
 
 if __name__ == "__main__":

@@ -62,14 +62,16 @@ You don't build anything yourself — every release attaches a ready-to-install 
   permission (Settings walks you through it).
 - **📊 Stats** — every focus block is logged. Totals for **today / week / month / year / all-time**, a
   **DAILY → ALL-TIME** selector with a **◀ ▶ history navigator**, **bar / pie / TREND** charts (DAILY fills up hour by
-  hour), a per-label breakdown, and **CURRENT / AVERAGE / BEST** in trend view. A **LOG HISTORY** button opens a
-  **paginated list of every past session** (50 a page) where you can **change a session's label**, plus a **focus
-  sessions** section with a full-width heatmap per label.
+  hour), a per-label breakdown, and **CURRENT / AVERAGE / BEST** in trend view. A **SESSION TIMELINE IN A WEEK**
+  shows each completed session as a colored box, grouped per day. Below it, **FOCUS SESSIONS** heatmaps per label
+  with **WEEKLY / MONTHLY / 18 WEEKS / YEARLY** views — monthly is a true calendar grid, yearly covers exactly
+  365/366 days — and you can **long-press any box** to see that day's session count and time. A **LOG HISTORY**
+  button opens a **paginated list of every past session** (50 a page) where you can **change a session's label**.
 - **⭐ Habit tracker** — three tabs. **Mood Tracker**: a daily 5-face mood picker plus a history heatmap. **Your
   Year in Pixels**: every heatmap in one place — mood, habits, and focus-session labels, "all data" at a glance.
   **Your Goals**: **HabitKit-style cards**, each with a **contribution heatmap** and a **"N days · M times"**
   streak — add your own, or let your **focus labels count automatically** (study Turkish and it appears as
-  *TURKISH · 7 days · 15 times*, no extra tapping). A quick mood + habit check-in also sits right on the home screen.
+  *TURKISH · 7 days · 15 times*, no extra tapping).
 - **🐷 Money Tracker** — a simple **income / expense ledger** with categories you can extend with your own via
   **+ ADD CATEGORY**. **Monthly totals with a signed NET line**, **category bars**, and a **bar / pie chart**
   (daily / weekly / monthly). Pick a **main currency**; rates refresh from the internet (hourly when online) so
