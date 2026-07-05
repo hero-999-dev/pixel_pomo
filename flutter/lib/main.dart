@@ -250,9 +250,7 @@ class HomeScreen extends StatelessWidget {
                           child: timerBlock,
                         ),
                       ])
-                    // clean mode: the centered timer, plus a simple mood +
-                    // today's-habits quick entry below it, styled plain like
-                    // the Money screen (#v30 item 8)
+                    // clean mode: the centered timer (today's layout)
                     : Column(children: [
                         _topBar(context, th, lang),
                         Expanded(
@@ -263,8 +261,6 @@ class HomeScreen extends StatelessWidget {
                                 timerBlock,
                                 const SizedBox(height: 24),
                                 sessionText,
-                                const SizedBox(height: 28),
-                                _todayPanel(s, th, lang),
                               ]),
                             ),
                           ),
@@ -275,65 +271,6 @@ class HomeScreen extends StatelessWidget {
           ),
         );
       },
-    );
-  }
-
-  // Simple mood + today's-habits quick entry, styled plain like the Money
-  // screen (no card borders) — #v30 item 8.
-  Widget _todayPanel(AppStore s, PixelTheme th, String lang) {
-    final today = epochDayOf(DateTime.now());
-    return Column(
-      children: [
-        Text(t(lang, 'mood'), style: pixelStyle(lang, 9, col(th.onSurfaceDim), text: t(lang, 'mood'))),
-        const SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            for (var m = 1; m <= 5; m++)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: GestureDetector(
-                  onTap: () => s.setMood(m),
-                  child: Opacity(
-                    opacity: s.todayMood == null || s.todayMood == m ? 1 : 0.35,
-                    child: Container(
-                      padding: const EdgeInsets.all(2),
-                      decoration: BoxDecoration(
-                          border: Border.all(color: col(s.todayMood == m ? th.onSurface : th.bg), width: 2)),
-                      child: Image.asset('assets/objects/face_$m.png',
-                          width: 26, height: 26, filterQuality: FilterQuality.none),
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
-        if (s.habits.isNotEmpty) ...[
-          const SizedBox(height: 18),
-          for (final h in s.habits)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: GestureDetector(
-                onTap: () => s.bumpHabit(h.name, (s.habitLog[h.name]?[today] ?? 0) > 0 ? -1 : 1),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 16,
-                      height: 16,
-                      decoration: BoxDecoration(
-                        color: col((s.habitLog[h.name]?[today] ?? 0) > 0 ? h.color : th.bg),
-                        border: Border.all(color: col(h.color), width: 2),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(h.name, style: pixelStyle(lang, 9, col(th.onSurface), text: h.name)),
-                  ],
-                ),
-              ),
-            ),
-        ],
-      ],
     );
   }
 
