@@ -1575,8 +1575,15 @@ int _heatWeeks(_HeatPeriod p) => switch (p) {
       _HeatPeriod.weekly => 1,
       _HeatPeriod.monthly => 5, // ~30 days
       _HeatPeriod.days126 => 18, // the original default (126 days)
-      _HeatPeriod.yearly => 53, // ~365 days
+      _HeatPeriod.yearly => 52, // real span is capped to 365/366 via maxDaysBack
     };
+
+bool _isLeapYear(int year) => (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
+
+/// Exactly how many real days are in the calendar year [today] falls in —
+/// 365, or 366 in a leap year (#v30 follow-up: yearly must show exactly this
+/// many days, not a rounded-up whole-week count).
+int _daysInYearOf(int today) => _isLeapYear(dateOfEpochDay(today).year) ? 366 : 365;
 
 // Focus-session heatmaps as a plain list — full-width cells, no card frame,
 // no "FOCUS LABEL" caption (#v30 item 6), with its own WEEKLY/MONTHLY/126
@@ -1615,7 +1622,52 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
       );
     }
 
-    final weeks = _heatWeeks(_period);
+    String? tooltipFor(MapEntry<String, Map<int, int>> e, int day) {
+      final n = e.value[day] ?? 0;
+      if (n == 0) return null;
+      final mins = labelMinutes[e.key]?[day] ?? 0;
+      return '${n}x · ${StatsAggregator.formatMinutes(mins)}';
+    }
+
+    // each period gets the shape that actually fits it: a single horizontal
+    // week row, a real calendar month, or the trailing-weeks column grid
+    // (18 weeks / yearly — yearly capped to exactly 365/366 real days via
+    // maxDaysBack, #v30 follow-up).
+    Widget heatmapFor(MapEntry<String, Map<int, int>> e) {
+      final color = s.labelColorOf(e.key);
+      switch (_period) {
+        case _HeatPeriod.weekly:
+          return _WeekRow(days: e.value, color: color, today: today, tooltipFor: (d) => tooltipFor(e, d));
+        case _HeatPeriod.monthly:
+          return _MonthCalendar(days: e.value, color: color, today: today, tooltipFor: (d) => tooltipFor(e, d));
+        case _HeatPeriod.yearly:
+          return _HabitHeatmap(
+              days: e.value, color: color, today: today, maxCellSize: double.infinity,
+              weeks: _heatWeeks(_period), maxDaysBack: _daysInYearOf(today), tooltipFor: (d) => tooltipFor(e, d));
+        case _HeatPeriod.days126:
+          return _HabitHeatmap(
+              days: e.value, color: color, today: today, maxCellSize: double.infinity,
+              weeks: _heatWeeks(_period), tooltipFor: (d) => tooltipFor(e, d));
+      }
+    }
+
+    Widget labelBlock(MapEntry<String, Map<int, int>> e) => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(e.key, style: pixelStyle(lang, 10, col(s.labelColorOf(e.key)), text: e.key)),
+            // the 3-per-row monthly layout is narrow — skip the days/times
+            // line there so 3 calendars actually fit (#v30 follow-up).
+            if (_period != _HeatPeriod.monthly) ...[
+              const SizedBox(height: 2),
+              Text(tf(lang, 'daysTimes', [HabitLog.daysDone(e.value), HabitLog.totalTimes(e.value)]),
+                  style: pixelStyle(lang, 8, col(th.onSurfaceDim),
+                      text: tf(lang, 'daysTimes', [HabitLog.daysDone(e.value), HabitLog.totalTimes(e.value)]))),
+            ],
+            const SizedBox(height: 4),
+            heatmapFor(e),
+          ],
+        );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1628,28 +1680,29 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
           periodBtn(t(lang, 'pYearly'), _HeatPeriod.yearly),
         ]),
         const SizedBox(height: 12),
-        for (final e in labelCounts.entries) ...[
-          Text(e.key, style: pixelStyle(lang, 10, col(s.labelColorOf(e.key)), text: e.key)),
-          const SizedBox(height: 2),
-          Text(tf(lang, 'daysTimes', [HabitLog.daysDone(e.value), HabitLog.totalTimes(e.value)]),
-              style: pixelStyle(lang, 8, col(th.onSurfaceDim),
-                  text: tf(lang, 'daysTimes', [HabitLog.daysDone(e.value), HabitLog.totalTimes(e.value)]))),
-          const SizedBox(height: 4),
-          _HabitHeatmap(
-            days: e.value,
-            color: s.labelColorOf(e.key),
-            today: today,
-            maxCellSize: double.infinity,
-            weeks: weeks,
-            tooltipFor: (day) {
-              final n = e.value[day] ?? 0;
-              if (n == 0) return null;
-              final mins = labelMinutes[e.key]?[day] ?? 0;
-              return '${n}x · ${StatsAggregator.formatMinutes(mins)}';
-            },
-          ),
-          const SizedBox(height: 14),
-        ],
+        if (_period == _HeatPeriod.monthly)
+          // the calendar shape is narrow (7 columns) — fit 3 labels per row
+          // instead of stacking each one full-width (#v30 follow-up).
+          for (var i = 0; i < labelCounts.length; i += 3)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: Builder(builder: (_) {
+                final batch = labelCounts.entries.skip(i).take(3).toList();
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (final e in batch)
+                      Expanded(child: Padding(padding: const EdgeInsets.only(right: 6), child: labelBlock(e))),
+                    for (var k = batch.length; k < 3; k++) const Expanded(child: SizedBox()),
+                  ],
+                );
+              }),
+            )
+        else
+          for (final e in labelCounts.entries) ...[
+            labelBlock(e),
+            const SizedBox(height: 14),
+          ],
       ],
     );
   }
@@ -2348,6 +2401,104 @@ class _MoneyScreenState extends State<MoneyScreen> {
   }
 }
 
+/// Shared cell painter used by [_WeekRow] and [_MonthCalendar] so the three
+/// heatmap shapes (column grid, single week row, calendar month) all render
+/// a day cell identically (#v30 follow-up).
+Widget _dayCell({
+  required double cell,
+  required bool blank,
+  required int? dayColor,
+  required int color,
+  required String? tooltip,
+}) {
+  final box = Container(
+    width: cell,
+    height: cell,
+    margin: const EdgeInsets.only(right: 2),
+    decoration: BoxDecoration(
+      color: blank ? Colors.transparent : col(dayColor ?? color).withValues(alpha: dayColor != null ? 1 : 0.18),
+      borderRadius: BorderRadius.circular(1),
+    ),
+  );
+  return blank || tooltip == null || tooltip.isEmpty ? box : Tooltip(message: tooltip, child: box);
+}
+
+/// Weekly view: a single HORIZONTAL row of 7 days (the calendar week
+/// containing today, Mon..Sun) — the column grid would otherwise render a
+/// 1-week span as a vertical 7-row strip, which read wrong (#v30 follow-up).
+class _WeekRow extends StatelessWidget {
+  final Map<int, int> days;
+  final int color, today;
+  final String? Function(int day)? tooltipFor;
+  const _WeekRow({required this.days, required this.color, required this.today, this.tooltipFor});
+
+  @override
+  Widget build(BuildContext context) {
+    final monday = today - (dateOfEpochDay(today).weekday - 1);
+    return LayoutBuilder(builder: (context, box) {
+      const cols = 7;
+      final cell = ((box.maxWidth - cols * 2) / cols).clamp(4.0, 32.0);
+      return Row(children: [
+        for (var c = 0; c < cols; c++)
+          Builder(builder: (_) {
+            final day = monday + c;
+            final blank = day > today;
+            final dayColor = blank ? null : ((days[day] ?? 0) > 0 ? color : null);
+            return _dayCell(
+                cell: cell, blank: blank, dayColor: dayColor, color: color, tooltip: blank ? null : tooltipFor?.call(day));
+          }),
+      ]);
+    });
+  }
+}
+
+/// Monthly view: a real calendar-month grid (rows = weeks in the CURRENT
+/// calendar month, 7 weekday columns, Mon-aligned) instead of the
+/// trailing-weeks column grid — e.g. April reads as 4 full rows + a 3-box
+/// final row (#v30 follow-up).
+class _MonthCalendar extends StatelessWidget {
+  final Map<int, int> days;
+  final int color, today;
+  final String? Function(int day)? tooltipFor;
+  const _MonthCalendar({required this.days, required this.color, required this.today, this.tooltipFor});
+
+  @override
+  Widget build(BuildContext context) {
+    final now = dateOfEpochDay(today);
+    final first = DateTime.utc(now.year, now.month, 1);
+    final firstEpoch = epochDayOf(first);
+    final daysInMonth = DateTime.utc(now.year, now.month + 1, 0).day;
+    final leadingBlanks = first.weekday - 1; // 0 if the 1st is a Monday
+    final rows = ((leadingBlanks + daysInMonth) / 7).ceil();
+    return LayoutBuilder(builder: (context, box) {
+      const cols = 7;
+      final cell = ((box.maxWidth - cols * 2) / cols).clamp(4.0, 20.0);
+      return Column(children: [
+        for (var r = 0; r < rows; r++)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 2),
+            child: Row(children: [
+              for (var c = 0; c < cols; c++)
+                Builder(builder: (_) {
+                  final dayOfMonth = r * 7 + c - leadingBlanks + 1;
+                  final inMonth = dayOfMonth >= 1 && dayOfMonth <= daysInMonth;
+                  final day = inMonth ? firstEpoch + dayOfMonth - 1 : -1;
+                  final blank = !inMonth || day > today;
+                  final dayColor = blank ? null : ((days[day] ?? 0) > 0 ? color : null);
+                  return _dayCell(
+                      cell: cell,
+                      blank: blank,
+                      dayColor: dayColor,
+                      color: color,
+                      tooltip: blank ? null : tooltipFor?.call(day));
+                }),
+            ]),
+          ),
+      ]);
+    });
+  }
+}
+
 /// HabitKit-style contribution grid: 7 rows (weekdays) × N week columns, right
 /// edge = this week. A day is BINARY — completed once or many looks identical
 /// (full habit color); empty days are a faint theme square (the user's rule).
@@ -2367,9 +2518,13 @@ class _HabitHeatmap extends StatelessWidget {
   // optional tap-for-details text (e.g. "3x Ā· 1h 15m") shown in a Tooltip;
   // null/empty for a given day means no tooltip on that cell (#v30 follow-up).
   final String? Function(int day)? tooltipFor;
+  // if set, a day older than this many days before today renders blank too —
+  // lets yearly show exactly 365/366 real days even though the week-based
+  // grid rounds up to a whole number of weeks (#v30 follow-up).
+  final int? maxDaysBack;
   const _HabitHeatmap(
       {required this.days, required this.color, required this.today,
-      this.colorForDay, this.maxCellSize = 12.0, this.weeks = 18, this.tooltipFor});
+      this.colorForDay, this.maxCellSize = 12.0, this.weeks = 18, this.tooltipFor, this.maxDaysBack});
 
   static const _bandCols = 18; // per-band width, tuned to fit a phone
 
@@ -2411,29 +2566,13 @@ class _HabitHeatmap extends StatelessWidget {
                   Builder(builder: (_) {
                     final weeksAgo = b * _bandCols + (colsInBand - 1 - c);
                     final day = lastColStart - weeksAgo * 7 + row;
-                    final future = day > today;
-                    final dayColor = future
+                    final tooOld = maxDaysBack != null && day < today - (maxDaysBack! - 1);
+                    final blank = day > today || tooOld;
+                    final dayColor = blank
                         ? null
                         : (colorForDay != null ? colorForDay!(day) : ((days[day] ?? 0) > 0 ? color : null));
-                    final box = Container(
-                      width: cell,
-                      height: cell,
-                      margin: const EdgeInsets.only(right: 2),
-                      decoration: BoxDecoration(
-                        // empty/not-done days are a DIM shade of the row's
-                        // own colour (HabitKit style — screen_1.png), not a
-                        // separate neutral tone: an "empty" cell using the
-                        // screen's own bg colour was invisible once the
-                        // heatmap lost its card frame (#v30 follow-up).
-                        color: future
-                            ? Colors.transparent
-                            : col(dayColor ?? color).withValues(alpha: dayColor != null ? 1 : 0.18),
-                        borderRadius: BorderRadius.circular(1),
-                      ),
-                    );
-                    if (future || tooltipFor == null) return box;
-                    final msg = tooltipFor!(day);
-                    return msg == null || msg.isEmpty ? box : Tooltip(message: msg, child: box);
+                    return _dayCell(
+                        cell: cell, blank: blank, dayColor: dayColor, color: color, tooltip: blank ? null : tooltipFor?.call(day));
                   }),
               ],
             ),

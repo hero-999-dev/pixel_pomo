@@ -1002,6 +1002,37 @@ class TestData {
     add(today.subtract(const Duration(days: 9)), 150, 'TURKISH', 14 * 60);
     add(today.subtract(const Duration(days: 14)), 150, 'TURKISH', 19 * 60);
 
+    // a scattered few weeks of history (roughly every 7-10 days, 2-4 hours
+    // per active day across 2-3 sessions) so the 18-week / yearly heatmaps
+    // read as a real pattern instead of two or three isolated days. Kept at
+    // 20+ days back so none of it lands in the current month/week and
+    // disturbs the exact 360/700/1000 buckets asserted above (#v30 follow-up).
+    add(today.subtract(const Duration(days: 20)), 90, 'CODING', 10 * 60);
+    add(today.subtract(const Duration(days: 20)), 60, 'MATH', 14 * 60);
+    add(today.subtract(const Duration(days: 28)), 120, 'HISTORY', 9 * 60);
+    add(today.subtract(const Duration(days: 28)), 60, 'ENGLISH', 15 * 60);
+    add(today.subtract(const Duration(days: 35)), 200, 'SCIENCE', 11 * 60);
+    add(today.subtract(const Duration(days: 35)), 40, 'READING', 18 * 60);
+    add(today.subtract(const Duration(days: 42)), 90, 'MATH', 8 * 60 + 30);
+    add(today.subtract(const Duration(days: 42)), 150, 'CODING', 16 * 60);
+    add(today.subtract(const Duration(days: 49)), 180, 'TURKISH', 13 * 60);
+    add(today.subtract(const Duration(days: 49)), 60, 'ENGLISH', 17 * 60 + 30);
+    add(today.subtract(const Duration(days: 56)), 100, 'HISTORY', 10 * 60);
+    add(today.subtract(const Duration(days: 56)), 80, 'MATH', 15 * 60);
+    add(today.subtract(const Duration(days: 56)), 50, 'SCIENCE', 19 * 60);
+    add(today.subtract(const Duration(days: 65)), 210, 'CODING', 14 * 60);
+    add(today.subtract(const Duration(days: 65)), 30, 'READING', 20 * 60);
+    add(today.subtract(const Duration(days: 75)), 120, 'MATH', 9 * 60);
+    add(today.subtract(const Duration(days: 75)), 90, 'ENGLISH', 16 * 60);
+    add(today.subtract(const Duration(days: 85)), 150, 'HISTORY', 11 * 60);
+    add(today.subtract(const Duration(days: 85)), 100, 'TURKISH', 18 * 60);
+    add(today.subtract(const Duration(days: 95)), 180, 'SCIENCE', 10 * 60 + 30);
+    add(today.subtract(const Duration(days: 95)), 60, 'CODING', 17 * 60);
+    add(today.subtract(const Duration(days: 110)), 200, 'MATH', 8 * 60);
+    add(today.subtract(const Duration(days: 110)), 40, 'READING', 21 * 60);
+    add(today.subtract(const Duration(days: 125)), 160, 'ENGLISH', 13 * 60 + 30);
+    add(today.subtract(const Duration(days: 125)), 80, 'HISTORY', 19 * 60);
+
     add(DateTime(today.year, today.month - 1, 10), 120, 'CODING', 20 * 60);
     add(DateTime(today.year, today.month - 1, 18), 90, 'MATH', 7 * 60 + 30);
     add(DateTime(today.year, today.month - 2, 6), 75, 'READING', 22 * 60);
