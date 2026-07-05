@@ -437,12 +437,14 @@ class _ChartPainter extends CustomPainter {
   /// A bordered callout with right-aligned values (#2), clamped fully inside the
   /// chart so the text never spills outside the plot.
   void _callout(Canvas canvas, double w, double h, double anchorX, List<(String, String)> rows) {
-    const fs = 7.0, pad = 4.0, lh = 11.0, gap = 8.0;
+    const fs = 7.0, pad = 4.0, gap = 8.0;
+    var textH = 0.0;
     double colW(String s) {
       final tp = TextPainter(
         text: TextSpan(text: s, style: pixelStyle(c.lang, fs, col(c.textColor), text: s)),
         textDirection: TextDirection.ltr,
       )..layout();
+      textH = math.max(textH, tp.height);
       return tp.width;
     }
     var lW = 0.0, rW = 0.0;
@@ -450,14 +452,19 @@ class _ChartPainter extends CustomPainter {
       lW = math.max(lW, colW(l));
       rW = math.max(rW, colW(r));
     }
+    // size the box from MEASURED text (fonts differ per language), and place
+    // the first row's baseline a full text-height below the top padding —
+    // _text() treats y as the text BOTTOM, so the old fixed math painted the
+    // first line ~5px above the box's top border (#v31 item 2).
+    final lh = textH + 3;
     final boxW = lW + gap + rW + pad * 2;
-    final boxH = rows.length * lh + pad * 2;
+    final boxH = rows.length * lh - 3 + pad * 2;
     final left = (anchorX + 6).clamp(0.0, math.max(0.0, w - boxW)).toDouble();
     final top = (12.0).clamp(0.0, math.max(0.0, h - boxH)).toDouble(); // stay inside the chart
     final rect = Rect.fromLTWH(left, top, boxW, boxH);
     canvas.drawRect(rect, Paint()..color = col(c.panelColor));
     canvas.drawRect(rect, Paint()..style = PaintingStyle.stroke..strokeWidth = 1..color = col(c.panelBorder));
-    _alignedRows(canvas, rows, left + pad, top + pad - lh, left + boxW - pad, fs: fs, lh: lh);
+    _alignedRows(canvas, rows, left + pad, top + pad + textH - lh, left + boxW - pad, fs: fs, lh: lh);
   }
 
   void _pie(Canvas canvas, double w, double h) {

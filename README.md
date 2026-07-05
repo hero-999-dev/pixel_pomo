@@ -63,9 +63,11 @@ You don't build anything yourself — every release attaches a ready-to-install 
 - **📊 Stats** — every focus block is logged. Totals for **today / week / month / year / all-time**, a
   **DAILY → ALL-TIME** selector with a **◀ ▶ history navigator**, **bar / pie / TREND** charts (DAILY fills up hour by
   hour), a per-label breakdown, and **CURRENT / AVERAGE / BEST** in trend view. A **SESSION TIMELINE IN A WEEK**
-  shows each completed session as a colored box, grouped per day. Below it, **FOCUS SESSIONS** heatmaps per label
+  shows each completed session as a colored box, grouped per day with weekday initials, spread evenly across the
+  width — **tap a box** to see which label it was and how long. Below it, **FOCUS SESSIONS** heatmaps per label
   with **WEEKLY / MONTHLY / 18 WEEKS / YEARLY** views — monthly is a true calendar grid, yearly covers exactly
-  365/366 days — and you can **long-press any box** to see that day's session count and time. A **LOG HISTORY**
+  365/366 days, and only labels actually used in the selected window are listed. **Tap any box** for a small
+  callout with that day's session count and time. A **LOG HISTORY**
   button opens a **paginated list of every past session** (50 a page) where you can **change a session's label**.
 - **⭐ Habit tracker** — three tabs. **Mood Tracker**: a daily 5-face mood picker plus a history heatmap —
   **tap any past day to set its mood too**. **Your

@@ -334,7 +334,7 @@ class HomeScreen extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 6),
             child: Row(children: [
-              const GoldCoin(size: 32),
+              const GoldCoin(size: 30), // same size as the other top-bar icons (#v31 item 1)
               const SizedBox(width: 6),
               Text('${s.coins}', style: pixelStyle(lang, 14, coinColor, text: '${s.coins}').copyWith(shadows: shadows)),
             ]),
@@ -1549,16 +1549,23 @@ void _pickMoodFor(BuildContext context, AppStore s, PixelTheme th, String lang, 
 // oldest to newest left-to-right, grouped by day with a bordered rectangle
 // per day. Fixed trailing 7 days (today and the 6 before it). Sits above
 // Focus Sessions in both Stats and Year in Pixels (#v30 follow-up).
-class SessionsTimelineWeek extends StatelessWidget {
+class SessionsTimelineWeek extends StatefulWidget {
   final PixelTheme th;
   final String lang;
   final AppStore s;
   final int today;
   const SessionsTimelineWeek(
       {super.key, required this.th, required this.lang, required this.s, required this.today});
+  @override
+  State<SessionsTimelineWeek> createState() => _SessionsTimelineWeekState();
+}
+
+class _SessionsTimelineWeekState extends State<SessionsTimelineWeek> {
+  (int, int)? _sel; // (epochDay, index within that day's sorted sessions)
 
   @override
   Widget build(BuildContext context) {
+    final th = widget.th, lang = widget.lang, s = widget.s, today = widget.today;
     final byDay = <int, List<SessionRecord>>{};
     for (final r in s.records) {
       if (r.epochDay < today - 6 || r.epochDay > today) continue;
@@ -1569,62 +1576,124 @@ class SessionsTimelineWeek extends StatelessWidget {
     }
     if (byDay.isEmpty) return const SizedBox.shrink();
 
-    final weekdayShorts = t(lang, 'weekdayShort').split(',');
-    Widget dayGroup(int day) {
-      final sessions = byDay[day] ?? const <SessionRecord>[];
-      final wd = weekdayShorts[(dateOfEpochDay(day).weekday - 1) % 7];
-      return Padding(
-        padding: const EdgeInsets.only(right: 6),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(3),
-              decoration: BoxDecoration(border: Border.all(color: col(th.onSurfaceDim), width: 1)),
-              child: Row(
-                children: [
-                  for (final r in sessions)
-                    Tooltip(
-                      message: '${r.label} · ${StatsAggregator.formatMinutes(r.minutes)}',
-                      child: Container(
-                        width: 10,
-                        height: 10,
-                        margin: const EdgeInsets.only(right: 2),
-                        color: col(s.labelColorOf(r.label)),
-                      ),
-                    ),
-                  if (sessions.isEmpty) const SizedBox(width: 10, height: 10),
-                ],
-              ),
-            ),
-            const SizedBox(height: 3),
-            // weekday initials anchor the boxes to actual days (#v30.9 rec 6)
-            Text(wd, style: pixelStyle(lang, 7, col(th.onSurfaceDim), text: wd)),
-          ],
-        ),
-      );
+    SessionRecord? selRec;
+    if (_sel != null) {
+      final list = byDay[_sel!.$1];
+      if (list != null && _sel!.$2 < list.length) selRec = list[_sel!.$2];
     }
 
+    final weekdayShorts = t(lang, 'weekdayShort').split(',');
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(t(lang, 'sessionsTimelineWeek'),
             style: pixelStyle(lang, 11, col(th.onSurfaceDim), text: t(lang, 'sessionsTimelineWeek'))),
         const SizedBox(height: 10),
-        SizedBox(
-          height: 54,
-          child: SingleChildScrollView(
+        LayoutBuilder(builder: (context, box) {
+          // session squares use the SAME cell formula as the label heatmaps
+          // above/below, so both read at one scale (#v31 item 7)
+          final cell = ((box.maxWidth - 18 * 2) / 18).clamp(4.0, double.infinity);
+
+          Widget dayGroup(int day) {
+            final sessions = byDay[day] ?? const <SessionRecord>[];
+            final wd = weekdayShorts[(dateOfEpochDay(day).weekday - 1) % 7];
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(border: Border.all(color: col(th.onSurfaceDim), width: 1)),
+                  child: Row(
+                    children: [
+                      for (var i = 0; i < sessions.length; i++)
+                        GestureDetector(
+                          // tap shows what was studied (#v31 item 8)
+                          onTap: () => setState(() => _sel = _sel == (day, i) ? null : (day, i)),
+                          child: Container(
+                            width: cell,
+                            height: cell,
+                            margin: EdgeInsets.only(right: i == sessions.length - 1 ? 0 : 2),
+                            decoration: BoxDecoration(
+                              color: col(s.labelColorOf(sessions[i].label)),
+                              border: _sel == (day, i)
+                                  ? Border.all(color: col(th.onSurface), width: 2)
+                                  : null,
+                            ),
+                          ),
+                        ),
+                      if (sessions.isEmpty) SizedBox(width: cell, height: cell),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 3),
+                // weekday initials anchor the boxes to actual days (#v30.9 rec 6)
+                Text(wd, style: pixelStyle(lang, 7, col(th.onSurfaceDim), text: wd)),
+              ],
+            );
+          }
+
+          return SingleChildScrollView(
             scrollDirection: Axis.horizontal,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [for (var d = today - 6; d <= today; d++) dayGroup(d)],
+            // spread the 7 day groups evenly across the full width instead of
+            // packing them left with a dead gap on the right; overflow (a very
+            // busy day) still scrolls (#v31 item 3)
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minWidth: box.maxWidth),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (var d = today - 6; d <= today; d++)
+                    Padding(
+                      padding: EdgeInsets.only(right: d == today ? 0 : 6),
+                      child: dayGroup(d),
+                    ),
+                ],
+              ),
             ),
+          );
+        }),
+        if (selRec != null) ...[
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: _infoCallout(th, lang, [
+              selRec.label,
+              '${StatsAggregator.formatMinutes(selRec.minutes)}${_timeSuffix(selRec)}',
+            ]),
           ),
-        ),
+        ],
       ],
     );
   }
+
+  String _timeSuffix(SessionRecord r) {
+    final m = r.minuteOfDay;
+    if (m == null) return '';
+    return ' · ${(m ~/ 60).toString().padLeft(2, '0')}:${(m % 60).toString().padLeft(2, '0')}';
+  }
 }
+
+/// Small TREND-callout-styled info box (panel fill + 1px border, pixel rows) —
+/// shown on tap instead of a long-press Tooltip (#v31 item 5/8).
+Widget _infoCallout(PixelTheme th, String lang, List<String> rows) => Container(
+      padding: const EdgeInsets.all(6),
+      decoration: BoxDecoration(
+        color: col(th.panel),
+        border: Border.all(color: col(th.onSurfaceDim), width: 1),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final r in rows)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 1),
+              child: Text(r, style: pixelStyle(lang, 8, col(th.onSurface), text: r)),
+            ),
+        ],
+      ),
+    );
 
 // How much trailing history a Focus Sessions heatmap shows (#v30 follow-up).
 enum _HeatPeriod { weekly, monthly, days126, yearly }
@@ -1653,31 +1722,77 @@ class FocusSessionsSection extends StatefulWidget {
 
 class _FocusSessionsSectionState extends State<FocusSessionsSection> {
   _HeatPeriod _period = _HeatPeriod.days126;
+  String? _selLabel; // tapped cell → TREND-style callout (#v31 item 5)
+  int? _selDay;
+
+  /// The inclusive epochDay span each period's shape actually displays —
+  /// labels with no session inside it are hidden (#v31 item 6).
+  (int, int) _windowFor(_HeatPeriod p, int today) {
+    final weekday = dateOfEpochDay(today).weekday;
+    switch (p) {
+      case _HeatPeriod.weekly:
+        return (today - (weekday - 1), today);
+      case _HeatPeriod.monthly:
+        final now = dateOfEpochDay(today);
+        return (epochDayOf(DateTime.utc(now.year, now.month, 1)), today);
+      case _HeatPeriod.days126:
+        return (today - (weekday - 1) - 17 * 7, today);
+      case _HeatPeriod.yearly:
+        return (today - (_daysInYearOf(today) - 1), today);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final th = widget.th, lang = widget.lang, s = widget.s, today = widget.today;
     final labelCounts = s.labelHabitCounts;
-    if (labelCounts.isEmpty) return const SizedBox.shrink();
+    final title = Text(t(lang, 'focusSessions'),
+        style: pixelStyle(lang, 11, col(th.onSurfaceDim), text: t(lang, 'focusSessions')));
+    final noSessions = Text(t(lang, 'noSessionsPeriod'),
+        style: pixelStyle(lang, 9, col(th.onSurfaceDim), text: t(lang, 'noSessionsPeriod')));
+    // never any session at all → just the text (#v31 item 6)
+    if (labelCounts.isEmpty) {
+      return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        title,
+        const SizedBox(height: 10),
+        noSessions,
+      ]);
+    }
     final labelMinutes = LabelHabits.minutesFromRecords(s.records);
+    final (lo, hi) = _windowFor(_period, today);
+    final visible = [
+      for (final e in labelCounts.entries)
+        if (e.value.keys.any((d) => d >= lo && d <= hi)) e
+    ];
 
     Widget periodBtn(String text, _HeatPeriod p) {
       final sel = _period == p;
+      void pick() => setState(() {
+            _period = p;
+            _selLabel = null;
+            _selDay = null;
+          });
       return Expanded(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 2),
           child: sel
-              ? primaryBtn(th, lang, text, () => setState(() => _period = p), fontSize: 8, padding: const EdgeInsets.all(8))
-              : secondaryBtn(th, lang, text, () => setState(() => _period = p), fontSize: 8, padding: const EdgeInsets.all(8)),
+              ? primaryBtn(th, lang, text, pick, fontSize: 8, padding: const EdgeInsets.all(8))
+              : secondaryBtn(th, lang, text, pick, fontSize: 8, padding: const EdgeInsets.all(8)),
         ),
       );
     }
 
-    String? tooltipFor(MapEntry<String, Map<int, int>> e, int day) {
-      final n = e.value[day] ?? 0;
-      if (n == 0) return null;
-      final mins = labelMinutes[e.key]?[day] ?? 0;
-      return '${n}x · ${StatsAggregator.formatMinutes(mins)}';
+    // tap a day with data → callout; tap it again or an empty day → clear
+    void onTap(MapEntry<String, Map<int, int>> e, int day) {
+      setState(() {
+        if ((e.value[day] ?? 0) == 0 || (_selLabel == e.key && _selDay == day)) {
+          _selLabel = null;
+          _selDay = null;
+        } else {
+          _selLabel = e.key;
+          _selDay = day;
+        }
+      });
     }
 
     // each period gets the shape that actually fits it: a single horizontal
@@ -1687,9 +1802,9 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
       final color = s.labelColorOf(e.key);
       switch (_period) {
         case _HeatPeriod.weekly:
-          return _WeekRow(days: e.value, color: color, today: today, tooltipFor: (d) => tooltipFor(e, d));
+          return _WeekRow(days: e.value, color: color, today: today, onDayTap: (d) => onTap(e, d));
         case _HeatPeriod.monthly:
-          return _MonthCalendar(days: e.value, color: color, today: today, tooltipFor: (d) => tooltipFor(e, d));
+          return _MonthCalendar(days: e.value, color: color, today: today, onDayTap: (d) => onTap(e, d));
         case _HeatPeriod.yearly:
           // enough whole-week columns to actually HOLD 365/366 trailing days
           // (a flat 52 could only ever hold 52×7=364 slots, so the span came
@@ -1699,11 +1814,11 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
           final weeks = (yearDays - dateOfEpochDay(today).weekday + 6) ~/ 7 + 1;
           return _HabitHeatmap(
               days: e.value, color: color, today: today, maxCellSize: double.infinity,
-              weeks: weeks, maxDaysBack: yearDays, tooltipFor: (d) => tooltipFor(e, d));
+              weeks: weeks, maxDaysBack: yearDays, onDayTap: (d) => onTap(e, d));
         case _HeatPeriod.days126:
           return _HabitHeatmap(
               days: e.value, color: color, today: today, maxCellSize: double.infinity,
-              weeks: 18, tooltipFor: (d) => tooltipFor(e, d));
+              weeks: 18, onDayTap: (d) => onTap(e, d));
       }
     }
 
@@ -1721,13 +1836,30 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
             ],
             const SizedBox(height: 4),
             heatmapFor(e),
+            // TREND-style callout for the tapped day, right under this
+            // label's heatmap (#v31 item 5)
+            if (_selLabel == e.key && _selDay != null) ...[
+              const SizedBox(height: 6),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Builder(builder: (_) {
+                  final d = dateOfEpochDay(_selDay!);
+                  final n = e.value[_selDay!] ?? 0;
+                  final mins = labelMinutes[e.key]?[_selDay!] ?? 0;
+                  return _infoCallout(th, lang, [
+                    '${d.day} ${monthName(lang, d.month)}',
+                    '${n}x · ${StatsAggregator.formatMinutes(mins)}',
+                  ]);
+                }),
+              ),
+            ],
           ],
         );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(t(lang, 'focusSessions'), style: pixelStyle(lang, 11, col(th.onSurfaceDim), text: t(lang, 'focusSessions'))),
+        title,
         const SizedBox(height: 10),
         Row(children: [
           periodBtn(t(lang, 'pWeekly'), _HeatPeriod.weekly),
@@ -1735,18 +1867,18 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
           periodBtn(t(lang, 'p18Weeks'), _HeatPeriod.days126),
           periodBtn(t(lang, 'pYearly'), _HeatPeriod.yearly),
         ]),
-        const SizedBox(height: 6),
-        // the long-press detail tooltip is invisible until discovered (#v30.9 rec 7)
-        Text(t(lang, 'holdForDetails'), style: pixelStyle(lang, 7, col(th.onSurfaceDim), text: t(lang, 'holdForDetails'))),
-        const SizedBox(height: 10),
-        if (_period == _HeatPeriod.monthly)
+        const SizedBox(height: 12),
+        if (visible.isEmpty)
+          // labels exist but none were used inside this period's window
+          noSessions
+        else if (_period == _HeatPeriod.monthly)
           // the calendar shape is narrow (7 columns) — fit 3 labels per row
           // instead of stacking each one full-width (#v30 follow-up).
-          for (var i = 0; i < labelCounts.length; i += 3)
+          for (var i = 0; i < visible.length; i += 3)
             Padding(
               padding: const EdgeInsets.only(bottom: 14),
               child: Builder(builder: (_) {
-                final batch = labelCounts.entries.skip(i).take(3).toList();
+                final batch = visible.skip(i).take(3).toList();
                 return Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -1758,7 +1890,7 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
               }),
             )
         else
-          for (final e in labelCounts.entries) ...[
+          for (final e in visible) ...[
             labelBlock(e),
             const SizedBox(height: 14),
           ],
@@ -2655,8 +2787,8 @@ Widget _dayCell({
 class _WeekRow extends StatelessWidget {
   final Map<int, int> days;
   final int color, today;
-  final String? Function(int day)? tooltipFor;
-  const _WeekRow({required this.days, required this.color, required this.today, this.tooltipFor});
+  final void Function(int day)? onDayTap;
+  const _WeekRow({required this.days, required this.color, required this.today, this.onDayTap});
 
   @override
   Widget build(BuildContext context) {
@@ -2671,7 +2803,8 @@ class _WeekRow extends StatelessWidget {
             final blank = day > today;
             final dayColor = blank ? null : ((days[day] ?? 0) > 0 ? color : null);
             return _dayCell(
-                cell: cell, blank: blank, dayColor: dayColor, color: color, tooltip: blank ? null : tooltipFor?.call(day));
+                cell: cell, blank: blank, dayColor: dayColor, color: color, tooltip: null,
+                onTap: blank || onDayTap == null ? null : () => onDayTap!(day));
           }),
       ]);
     });
@@ -2685,8 +2818,8 @@ class _WeekRow extends StatelessWidget {
 class _MonthCalendar extends StatelessWidget {
   final Map<int, int> days;
   final int color, today;
-  final String? Function(int day)? tooltipFor;
-  const _MonthCalendar({required this.days, required this.color, required this.today, this.tooltipFor});
+  final void Function(int day)? onDayTap;
+  const _MonthCalendar({required this.days, required this.color, required this.today, this.onDayTap});
 
   @override
   Widget build(BuildContext context) {
@@ -2716,7 +2849,8 @@ class _MonthCalendar extends StatelessWidget {
                       blank: blank,
                       dayColor: dayColor,
                       color: color,
-                      tooltip: blank ? null : tooltipFor?.call(day));
+                      tooltip: null,
+                      onTap: blank || onDayTap == null ? null : () => onDayTap!(day));
                 }),
             ]),
           ),
