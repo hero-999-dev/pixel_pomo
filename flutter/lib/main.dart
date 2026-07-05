@@ -928,7 +928,7 @@ class StatsScreen extends StatelessWidget {
           ),
       // focus-session heatmaps, relocated out of the habit tracker (#v30 item 6)
       const SizedBox(height: 20),
-      _focusSessionHeatmaps(th, lang, s, epochDayOf(now)),
+      FocusSessionsSection(th: th, lang: lang, s: s, today: epochDayOf(now)),
       // a paginated list of every past session (tap a row to relabel) — sits
       // right above the auto-appended CLOSE button (#v25 item3)
       const SizedBox(height: 20),
@@ -1497,28 +1497,78 @@ Widget _moodHeatmap(AppStore s, PixelTheme th, int today) => _HabitHeatmap(
       },
     );
 
+// How much trailing history a Focus Sessions heatmap shows (#v30 follow-up).
+enum _HeatPeriod { weekly, monthly, days126, yearly }
+
+int _heatWeeks(_HeatPeriod p) => switch (p) {
+      _HeatPeriod.weekly => 1,
+      _HeatPeriod.monthly => 5, // ~30 days
+      _HeatPeriod.days126 => 18, // the original default (126 days)
+      _HeatPeriod.yearly => 53, // ~365 days
+    };
+
 // Focus-session heatmaps as a plain list — full-width cells, no card frame,
-// no "FOCUS LABEL" caption (#v30 item 6). Shared by Stats + Year in Pixels.
-Widget _focusSessionHeatmaps(PixelTheme th, String lang, AppStore s, int today) {
-  final labelCounts = s.labelHabitCounts;
-  if (labelCounts.isEmpty) return const SizedBox.shrink();
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      Text(t(lang, 'focusSessions'), style: pixelStyle(lang, 11, col(th.onSurfaceDim), text: t(lang, 'focusSessions'))),
-      const SizedBox(height: 10),
-      for (final e in labelCounts.entries) ...[
-        Text(e.key, style: pixelStyle(lang, 10, col(s.labelColorOf(e.key)), text: e.key)),
-        const SizedBox(height: 2),
-        Text(tf(lang, 'daysTimes', [HabitLog.daysDone(e.value), HabitLog.totalTimes(e.value)]),
-            style: pixelStyle(lang, 8, col(th.onSurfaceDim),
-                text: tf(lang, 'daysTimes', [HabitLog.daysDone(e.value), HabitLog.totalTimes(e.value)]))),
-        const SizedBox(height: 4),
-        _HabitHeatmap(days: e.value, color: s.labelColorOf(e.key), today: today, maxCellSize: double.infinity),
-        const SizedBox(height: 14),
+// no "FOCUS LABEL" caption (#v30 item 6), with its own WEEKLY/MONTHLY/126
+// DAYS/YEARLY period picker (#v30 follow-up). Shared by Stats + Year in
+// Pixels; owns its own period state so neither parent screen needs to.
+class FocusSessionsSection extends StatefulWidget {
+  final PixelTheme th;
+  final String lang;
+  final AppStore s;
+  final int today;
+  const FocusSessionsSection(
+      {super.key, required this.th, required this.lang, required this.s, required this.today});
+  @override
+  State<FocusSessionsSection> createState() => _FocusSessionsSectionState();
+}
+
+class _FocusSessionsSectionState extends State<FocusSessionsSection> {
+  _HeatPeriod _period = _HeatPeriod.days126;
+
+  @override
+  Widget build(BuildContext context) {
+    final th = widget.th, lang = widget.lang, s = widget.s, today = widget.today;
+    final labelCounts = s.labelHabitCounts;
+    if (labelCounts.isEmpty) return const SizedBox.shrink();
+
+    Widget periodBtn(String text, _HeatPeriod p) {
+      final sel = _period == p;
+      return Expanded(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: sel
+              ? primaryBtn(th, lang, text, () => setState(() => _period = p), fontSize: 8, padding: const EdgeInsets.all(8))
+              : secondaryBtn(th, lang, text, () => setState(() => _period = p), fontSize: 8, padding: const EdgeInsets.all(8)),
+        ),
+      );
+    }
+
+    final weeks = _heatWeeks(_period);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(t(lang, 'focusSessions'), style: pixelStyle(lang, 11, col(th.onSurfaceDim), text: t(lang, 'focusSessions'))),
+        const SizedBox(height: 10),
+        Row(children: [
+          periodBtn(t(lang, 'pWeekly'), _HeatPeriod.weekly),
+          periodBtn(t(lang, 'pMonthly'), _HeatPeriod.monthly),
+          periodBtn(t(lang, 'p126Days'), _HeatPeriod.days126),
+          periodBtn(t(lang, 'pYearly'), _HeatPeriod.yearly),
+        ]),
+        const SizedBox(height: 12),
+        for (final e in labelCounts.entries) ...[
+          Text(e.key, style: pixelStyle(lang, 10, col(s.labelColorOf(e.key)), text: e.key)),
+          const SizedBox(height: 2),
+          Text(tf(lang, 'daysTimes', [HabitLog.daysDone(e.value), HabitLog.totalTimes(e.value)]),
+              style: pixelStyle(lang, 8, col(th.onSurfaceDim),
+                  text: tf(lang, 'daysTimes', [HabitLog.daysDone(e.value), HabitLog.totalTimes(e.value)]))),
+          const SizedBox(height: 4),
+          _HabitHeatmap(days: e.value, color: s.labelColorOf(e.key), today: today, maxCellSize: double.infinity, weeks: weeks),
+          const SizedBox(height: 14),
+        ],
       ],
-    ],
-  );
+    );
+  }
 }
 
 // "Your Year in Pixels" — every daily heatmap in one place: mood, manual
@@ -1535,7 +1585,7 @@ Widget _yearInPixelsContent(PixelTheme th, String lang, AppStore s, int today) {
       _HabitHeatmap(days: s.habitLog[h.name] ?? const {}, color: h.color, today: today, maxCellSize: double.infinity),
       const SizedBox(height: 14),
     ],
-    _focusSessionHeatmaps(th, lang, s, today),
+    FocusSessionsSection(th: th, lang: lang, s: s, today: today),
   ]);
 }
 
@@ -2206,6 +2256,10 @@ class _MoneyScreenState extends State<MoneyScreen> {
 /// HabitKit-style contribution grid: 7 rows (weekdays) × N week columns, right
 /// edge = this week. A day is BINARY — completed once or many looks identical
 /// (full habit color); empty days are a faint theme square (the user's rule).
+/// [weeks] is how much trailing history to show; once it exceeds one band's
+/// width (18 columns, tuned to fit a phone) the grid STACKS more bands
+/// growing downward instead of stretching wider than the screen — oldest
+/// band on top, the band containing today at the bottom (#v30 follow-up).
 class _HabitHeatmap extends StatelessWidget {
   final Map<int, int> days;
   final int color, today;
@@ -2214,59 +2268,76 @@ class _HabitHeatmap extends StatelessWidget {
   // relocated, frameless heatmap can stretch edge-to-edge (#v30 item 6).
   final int? Function(int day)? colorForDay;
   final double maxCellSize;
+  final int weeks;
   const _HabitHeatmap(
       {required this.days, required this.color, required this.today,
-      this.colorForDay, this.maxCellSize = 12.0});
+      this.colorForDay, this.maxCellSize = 12.0, this.weeks = 18});
+
+  static const _bandCols = 18; // per-band width, tuned to fit a phone
 
   @override
   Widget build(BuildContext context) {
-    const cols = 18; // ~18 weeks of history fits a phone width
-    // align the right column to the week containing today (Mon..Sun rows)
+    // align the right column of the bottom band to the week containing
+    // today (Mon..Sun rows)
     final todayWeekday = dateOfEpochDay(today).weekday; // 1=Mon
     final lastColStart = today - (todayWeekday - 1);
+    final numBands = (weeks / _bandCols).ceil().clamp(1, 1000000);
     return LayoutBuilder(builder: (context, box) {
       // every cell (incl. the last) carries a 2px right margin, so the
-      // budget must divide out cols*2, not (cols-1)*2 — the old formula
-      // under-budgeted by one gap, always rendering 2px too wide. Masked
-      // for years by the 12px cap; exposed once a caller removes the cap
-      // to stretch full-width (#v30 item 6).
-      final cell = ((box.maxWidth - cols * 2) / cols).clamp(4.0, maxCellSize);
+      // budget must divide out bandCols*2, not (bandCols-1)*2 — the old
+      // formula under-budgeted by one gap, always rendering 2px too wide.
+      // Masked for years by the 12px cap; exposed once a caller removes the
+      // cap to stretch full-width (#v30 item 6).
+      final cell = ((box.maxWidth - _bandCols * 2) / _bandCols).clamp(4.0, maxCellSize);
       return Column(
         children: [
-          for (var row = 0; row < 7; row++)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 2),
-              child: Row(
-                children: [
-                  for (var c = 0; c < cols; c++)
-                    Builder(builder: (_) {
-                      final day = lastColStart - (cols - 1 - c) * 7 + row;
-                      final future = day > today;
-                      final dayColor = future
-                          ? null
-                          : (colorForDay != null ? colorForDay!(day) : ((days[day] ?? 0) > 0 ? color : null));
-                      return Container(
-                        width: cell,
-                        height: cell,
-                        margin: const EdgeInsets.only(right: 2),
-                        decoration: BoxDecoration(
-                          // empty/not-done days are a DIM shade of the row's
-                          // own colour (HabitKit style — screen_1.png), not a
-                          // separate neutral tone: an "empty" cell using the
-                          // screen's own bg colour was invisible once the
-                          // heatmap lost its card frame (#v30 follow-up).
-                          color: future
-                              ? Colors.transparent
-                              : col(dayColor ?? color).withValues(alpha: dayColor != null ? 1 : 0.18),
-                          borderRadius: BorderRadius.circular(1),
-                        ),
-                      );
-                    }),
-                ],
-              ),
-            ),
+          for (var b = numBands - 1; b >= 0; b--) ...[
+            if (b != numBands - 1) const SizedBox(height: 6),
+            _band(b, b == numBands - 1 ? weeks - b * _bandCols : _bandCols, lastColStart, cell),
+          ],
         ],
       );
     });
+  }
+
+  Widget _band(int b, int colsInBand, int lastColStart, double cell) {
+    return Column(
+      children: [
+        for (var row = 0; row < 7; row++)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 2),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end, // right-align a partial (oldest) band
+              children: [
+                for (var c = 0; c < colsInBand; c++)
+                  Builder(builder: (_) {
+                    final weeksAgo = b * _bandCols + (colsInBand - 1 - c);
+                    final day = lastColStart - weeksAgo * 7 + row;
+                    final future = day > today;
+                    final dayColor = future
+                        ? null
+                        : (colorForDay != null ? colorForDay!(day) : ((days[day] ?? 0) > 0 ? color : null));
+                    return Container(
+                      width: cell,
+                      height: cell,
+                      margin: const EdgeInsets.only(right: 2),
+                      decoration: BoxDecoration(
+                        // empty/not-done days are a DIM shade of the row's
+                        // own colour (HabitKit style — screen_1.png), not a
+                        // separate neutral tone: an "empty" cell using the
+                        // screen's own bg colour was invisible once the
+                        // heatmap lost its card frame (#v30 follow-up).
+                        color: future
+                            ? Colors.transparent
+                            : col(dayColor ?? color).withValues(alpha: dayColor != null ? 1 : 0.18),
+                        borderRadius: BorderRadius.circular(1),
+                      ),
+                    );
+                  }),
+              ],
+            ),
+          ),
+      ],
+    );
   }
 }
