@@ -1488,9 +1488,8 @@ const List<int> _moodColors = [0xFFE5484D, 0xFFF2994A, 0xFFF2C94C, 0xFFA8D93A, 0
 // by the Mood tab and Year in Pixels.
 Widget _moodHeatmap(AppStore s, PixelTheme th, int today) => _HabitHeatmap(
       days: const {},
-      color: 0,
+      color: th.onSurfaceDim,
       today: today,
-      emptyColor: th.bg,
       maxCellSize: double.infinity,
       colorForDay: (d) {
         final m = s.moods[d];
@@ -1515,7 +1514,7 @@ Widget _focusSessionHeatmaps(PixelTheme th, String lang, AppStore s, int today) 
             style: pixelStyle(lang, 8, col(th.onSurfaceDim),
                 text: tf(lang, 'daysTimes', [HabitLog.daysDone(e.value), HabitLog.totalTimes(e.value)]))),
         const SizedBox(height: 4),
-        _HabitHeatmap(days: e.value, color: s.labelColorOf(e.key), today: today, emptyColor: th.bg, maxCellSize: double.infinity),
+        _HabitHeatmap(days: e.value, color: s.labelColorOf(e.key), today: today, maxCellSize: double.infinity),
         const SizedBox(height: 14),
       ],
     ],
@@ -1533,7 +1532,7 @@ Widget _yearInPixelsContent(PixelTheme th, String lang, AppStore s, int today) {
     for (final h in s.habits) ...[
       Text(h.name, style: pixelStyle(lang, 10, col(h.color), text: h.name)),
       const SizedBox(height: 4),
-      _HabitHeatmap(days: s.habitLog[h.name] ?? const {}, color: h.color, today: today, emptyColor: th.bg, maxCellSize: double.infinity),
+      _HabitHeatmap(days: s.habitLog[h.name] ?? const {}, color: h.color, today: today, maxCellSize: double.infinity),
       const SizedBox(height: 14),
     ],
     _focusSessionHeatmaps(th, lang, s, today),
@@ -1683,7 +1682,7 @@ class _HabitScreenState extends State<HabitScreen> {
             ),
           ]),
           const SizedBox(height: 10),
-          _HabitHeatmap(days: days, color: color, today: today, emptyColor: th.bg),
+          _HabitHeatmap(days: days, color: color, today: today),
         ],
       ),
     );
@@ -2209,14 +2208,14 @@ class _MoneyScreenState extends State<MoneyScreen> {
 /// (full habit color); empty days are a faint theme square (the user's rule).
 class _HabitHeatmap extends StatelessWidget {
   final Map<int, int> days;
-  final int color, today, emptyColor;
+  final int color, today;
   // optional per-day color override (e.g. mood level) instead of the binary
   // done/not-done color (#v30). optional upper bound on cell size so a
   // relocated, frameless heatmap can stretch edge-to-edge (#v30 item 6).
   final int? Function(int day)? colorForDay;
   final double maxCellSize;
   const _HabitHeatmap(
-      {required this.days, required this.color, required this.today, required this.emptyColor,
+      {required this.days, required this.color, required this.today,
       this.colorForDay, this.maxCellSize = 12.0});
 
   @override
@@ -2251,9 +2250,14 @@ class _HabitHeatmap extends StatelessWidget {
                         height: cell,
                         margin: const EdgeInsets.only(right: 2),
                         decoration: BoxDecoration(
+                          // empty/not-done days are a DIM shade of the row's
+                          // own colour (HabitKit style — screen_1.png), not a
+                          // separate neutral tone: an "empty" cell using the
+                          // screen's own bg colour was invisible once the
+                          // heatmap lost its card frame (#v30 follow-up).
                           color: future
                               ? Colors.transparent
-                              : col(dayColor ?? emptyColor).withValues(alpha: dayColor != null ? 1 : 0.5),
+                              : col(dayColor ?? color).withValues(alpha: dayColor != null ? 1 : 0.18),
                           borderRadius: BorderRadius.circular(1),
                         ),
                       );
