@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Copy the committed native files into the (gitignored, CI-regenerated) android/
-tree and idempotently patch AndroidManifest.xml to declare the wallpaper service.
+tree, idempotently patch AndroidManifest.xml to declare the wallpaper service, and
+pin the release build to a stable, committed debug keystore (so every CI build is
+signed identically and in-place APK updates don't break with "package conflicts
+with an existing package", #v30.2 — a fresh debug key was being auto-generated on
+every ephemeral CI runner otherwise).
 Run from flutter/ after `flutter create`. Safe to run repeatedly."""
 import os
 import shutil
@@ -20,6 +24,44 @@ def copy_tree(rel):
             os.makedirs(os.path.dirname(d), exist_ok=True)
             shutil.copy2(s, d)
             print("copied", os.path.relpath(d, ANDROID))
+
+
+def copy_keystore():
+    src = os.path.join(HERE, "debug.keystore")
+    dst = os.path.join(HERE, "..", "android", "app", "debug.keystore")
+    shutil.copy2(src, dst)
+    print("copied debug.keystore")
+
+
+def patch_build_gradle():
+    """Point the auto-generated `debug` signingConfig at our committed keystore
+    (same standard alias/passwords Android tooling itself uses) instead of
+    whatever debug.keystore Gradle would otherwise auto-generate per-machine —
+    `buildTypes.release` already signs with `signingConfigs.debug`, so this is
+    the only change needed for release builds to sign consistently."""
+    path = os.path.join(HERE, "..", "android", "app", "build.gradle.kts")
+    with open(path, "r", encoding="utf-8") as fh:
+        kts = fh.read()
+    if "debug.keystore" in kts:
+        print("build.gradle.kts already patched (signing)")
+        return
+    marker = "    buildTypes {"
+    if marker not in kts:
+        raise SystemExit("apply_overlay: could not find buildTypes block to patch signing config")
+    signing = (
+        "    signingConfigs {\n"
+        '        getByName("debug") {\n'
+        "            storeFile = file(\"debug.keystore\")\n"
+        '            storePassword = "android"\n'
+        '            keyAlias = "androiddebugkey"\n'
+        '            keyPassword = "android"\n'
+        "        }\n"
+        "    }\n\n"
+    )
+    kts = kts.replace(marker, signing + marker, 1)
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(kts)
+    print("patched build.gradle.kts: stable debug signing key")
 
 
 def patch_manifest():
@@ -103,7 +145,9 @@ def main():
     copy_tree(PKG)
     copy_tree(os.path.join("res", "xml"))
     copy_tree(os.path.join("res", "drawable"))
+    copy_keystore()
     patch_manifest()
+    patch_build_gradle()
 
 
 if __name__ == "__main__":
