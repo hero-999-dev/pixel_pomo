@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -1698,13 +1699,6 @@ Widget _infoCallout(PixelTheme th, String lang, List<String> rows) => Container(
 // How much trailing history a Focus Sessions heatmap shows (#v30 follow-up).
 enum _HeatPeriod { weekly, monthly, days126, yearly }
 
-bool _isLeapYear(int year) => (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
-
-/// Exactly how many real days are in the calendar year [today] falls in —
-/// 365, or 366 in a leap year (#v30 follow-up: yearly must show exactly this
-/// many days, not a rounded-up whole-week count).
-int _daysInYearOf(int today) => _isLeapYear(dateOfEpochDay(today).year) ? 366 : 365;
-
 // Focus-session heatmaps as a plain list — full-width cells, no card frame,
 // no "FOCUS LABEL" caption (#v30 item 6), with its own WEEKLY/MONTHLY/126
 // DAYS/YEARLY period picker (#v30 follow-up). Shared by Stats + Year in
@@ -1724,21 +1718,22 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
   _HeatPeriod _period = _HeatPeriod.days126;
   String? _selLabel; // tapped cell → TREND-style callout (#v31 item 5)
   int? _selDay;
+  String? _yearLabel; // yearly shows ONE label, chosen via a popup (#v31.1 item 4)
 
   /// The inclusive epochDay span each period's shape actually displays —
   /// labels with no session inside it are hidden (#v31 item 6).
   (int, int) _windowFor(_HeatPeriod p, int today) {
-    final weekday = dateOfEpochDay(today).weekday;
+    final now = dateOfEpochDay(today);
     switch (p) {
       case _HeatPeriod.weekly:
-        return (today - (weekday - 1), today);
+        return (today - (now.weekday - 1), today);
       case _HeatPeriod.monthly:
-        final now = dateOfEpochDay(today);
         return (epochDayOf(DateTime.utc(now.year, now.month, 1)), today);
       case _HeatPeriod.days126:
-        return (today - (weekday - 1) - 17 * 7, today);
+        return (today - (now.weekday - 1) - 17 * 7, today);
       case _HeatPeriod.yearly:
-        return (today - (_daysInYearOf(today) - 1), today);
+        // the CALENDAR year ("never used it in 2026 → not in yearly")
+        return (epochDayOf(DateTime.utc(now.year, 1, 1)), today);
     }
   }
 
@@ -1795,30 +1790,49 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
       });
     }
 
-    // each period gets the shape that actually fits it: a single horizontal
-    // week row, a real calendar month, or the trailing-weeks column grid
-    // (18 weeks / yearly, #v30 follow-up).
+    // the floating callout for a tapped cell, handed INTO the heatmap so it
+    // can position it right next to the cell, like the trend chart (#v31.1)
+    Widget? calloutFor(MapEntry<String, Map<int, int>> e) {
+      if (_selLabel != e.key || _selDay == null) return null;
+      final d = dateOfEpochDay(_selDay!);
+      final n = e.value[_selDay!] ?? 0;
+      final mins = labelMinutes[e.key]?[_selDay!] ?? 0;
+      return _infoCallout(th, lang, [
+        '${d.day} ${monthName(lang, d.month)}',
+        '${n}x · ${StatsAggregator.formatMinutes(mins)}',
+      ]);
+    }
+
+    int? selFor(MapEntry<String, Map<int, int>> e) => _selLabel == e.key ? _selDay : null;
+
+    // every period is the SAME 18-weeks-style band grid over a different
+    // span (#v31.1 item 1): weekly = a single 7-box row, monthly = the
+    // calendar month's weeks, 18 weeks = trailing, yearly = the calendar
+    // year banded 18 + 18 + the rest (#v31.1 item 3).
     Widget heatmapFor(MapEntry<String, Map<int, int>> e) {
       final color = s.labelColorOf(e.key);
+      final now = dateOfEpochDay(today);
       switch (_period) {
         case _HeatPeriod.weekly:
-          return _WeekRow(days: e.value, color: color, today: today, onDayTap: (d) => onTap(e, d));
+          return _WeekRow(
+              days: e.value, color: color, today: today,
+              onDayTap: (d) => onTap(e, d), selectedDay: selFor(e), callout: calloutFor(e));
         case _HeatPeriod.monthly:
-          return _MonthCalendar(days: e.value, color: color, today: today, onDayTap: (d) => onTap(e, d));
-        case _HeatPeriod.yearly:
-          // enough whole-week columns to actually HOLD 365/366 trailing days
-          // (a flat 52 could only ever hold 52×7=364 slots, so the span came
-          // up 1-7 days short — found in the #v30.8 bug sweep); the oldest,
-          // partly-out-of-span column is blanked by maxDaysBack.
-          final yearDays = _daysInYearOf(today);
-          final weeks = (yearDays - dateOfEpochDay(today).weekday + 6) ~/ 7 + 1;
           return _HabitHeatmap(
               days: e.value, color: color, today: today, maxCellSize: double.infinity,
-              weeks: weeks, maxDaysBack: yearDays, onDayTap: (d) => onTap(e, d));
+              spanStart: epochDayOf(DateTime.utc(now.year, now.month, 1)),
+              spanEnd: epochDayOf(DateTime.utc(now.year, now.month + 1, 0)),
+              onDayTap: (d) => onTap(e, d), selectedDay: selFor(e), callout: calloutFor(e));
+        case _HeatPeriod.yearly:
+          return _HabitHeatmap(
+              days: e.value, color: color, today: today, maxCellSize: double.infinity,
+              spanStart: epochDayOf(DateTime.utc(now.year, 1, 1)),
+              spanEnd: epochDayOf(DateTime.utc(now.year, 12, 31)),
+              onDayTap: (d) => onTap(e, d), selectedDay: selFor(e), callout: calloutFor(e));
         case _HeatPeriod.days126:
           return _HabitHeatmap(
               days: e.value, color: color, today: today, maxCellSize: double.infinity,
-              weeks: 18, onDayTap: (d) => onTap(e, d));
+              weeks: 18, onDayTap: (d) => onTap(e, d), selectedDay: selFor(e), callout: calloutFor(e));
       }
     }
 
@@ -1826,35 +1840,43 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(e.key, style: pixelStyle(lang, 10, col(s.labelColorOf(e.key)), text: e.key)),
-            // the 3-per-row monthly layout is narrow — skip the days/times
-            // line there so 3 calendars actually fit (#v30 follow-up).
-            if (_period != _HeatPeriod.monthly) ...[
-              const SizedBox(height: 2),
-              Text(tf(lang, 'daysTimes', [HabitLog.daysDone(e.value), HabitLog.totalTimes(e.value)]),
-                  style: pixelStyle(lang, 8, col(th.onSurfaceDim),
-                      text: tf(lang, 'daysTimes', [HabitLog.daysDone(e.value), HabitLog.totalTimes(e.value)]))),
-            ],
+            const SizedBox(height: 2),
+            Text(tf(lang, 'daysTimes', [HabitLog.daysDone(e.value), HabitLog.totalTimes(e.value)]),
+                style: pixelStyle(lang, 8, col(th.onSurfaceDim),
+                    text: tf(lang, 'daysTimes', [HabitLog.daysDone(e.value), HabitLog.totalTimes(e.value)]))),
             const SizedBox(height: 4),
             heatmapFor(e),
-            // TREND-style callout for the tapped day, right under this
-            // label's heatmap (#v31 item 5)
-            if (_selLabel == e.key && _selDay != null) ...[
-              const SizedBox(height: 6),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Builder(builder: (_) {
-                  final d = dateOfEpochDay(_selDay!);
-                  final n = e.value[_selDay!] ?? 0;
-                  final mins = labelMinutes[e.key]?[_selDay!] ?? 0;
-                  return _infoCallout(th, lang, [
-                    '${d.day} ${monthName(lang, d.month)}',
-                    '${n}x · ${StatsAggregator.formatMinutes(mins)}',
-                  ]);
-                }),
-              ),
-            ],
           ],
         );
+
+    // yearly: one label at a time, chosen from a popup (#v31.1 item 4)
+    void pickYearLabel() {
+      showDialog(
+        context: context,
+        builder: (ctx) => SimpleDialog(
+          backgroundColor: col(th.panel),
+          title: Text(t(lang, 'label'), style: pixelStyle(lang, 12, col(th.onSurface), text: t(lang, 'label'))),
+          children: [
+            for (final e in visible)
+              SimpleDialogOption(
+                onPressed: () {
+                  setState(() {
+                    _yearLabel = e.key;
+                    _selLabel = null;
+                    _selDay = null;
+                  });
+                  Navigator.pop(ctx);
+                },
+                child: Row(children: [
+                  Swatch(color: s.labelColorOf(e.key), border: th.onSurfaceDim, size: 14),
+                  const SizedBox(width: 10),
+                  Text(e.key, style: pixelStyle(lang, 11, col(th.onSurface), text: e.key)),
+                ]),
+              ),
+          ],
+        ),
+      );
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1871,25 +1893,18 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
         if (visible.isEmpty)
           // labels exist but none were used inside this period's window
           noSessions
-        else if (_period == _HeatPeriod.monthly)
-          // the calendar shape is narrow (7 columns) — fit 3 labels per row
-          // instead of stacking each one full-width (#v30 follow-up).
-          for (var i = 0; i < visible.length; i += 3)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 14),
-              child: Builder(builder: (_) {
-                final batch = visible.skip(i).take(3).toList();
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    for (final e in batch)
-                      Expanded(child: Padding(padding: const EdgeInsets.only(right: 6), child: labelBlock(e))),
-                    for (var k = batch.length; k < 3; k++) const Expanded(child: SizedBox()),
-                  ],
-                );
-              }),
-            )
-        else
+        else if (_period == _HeatPeriod.yearly) ...[
+          // a full-year grid per label is tall — show ONE, picked via popup
+          Builder(builder: (_) {
+            final chosen = visible.firstWhere((e) => e.key == _yearLabel, orElse: () => visible.first);
+            return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              secondaryBtn(th, lang, chosen.key, pickYearLabel,
+                  key: const Key('yearLabelPicker'), fontSize: 10, padding: const EdgeInsets.all(10)),
+              const SizedBox(height: 12),
+              labelBlock(chosen),
+            ]);
+          }),
+        ] else
           for (final e in visible) ...[
             labelBlock(e),
             const SizedBox(height: 14),
@@ -2788,7 +2803,11 @@ class _WeekRow extends StatelessWidget {
   final Map<int, int> days;
   final int color, today;
   final void Function(int day)? onDayTap;
-  const _WeekRow({required this.days, required this.color, required this.today, this.onDayTap});
+  final int? selectedDay;
+  final Widget? callout;
+  const _WeekRow(
+      {required this.days, required this.color, required this.today, this.onDayTap,
+      this.selectedDay, this.callout});
 
   @override
   Widget build(BuildContext context) {
@@ -2796,76 +2815,52 @@ class _WeekRow extends StatelessWidget {
     return LayoutBuilder(builder: (context, box) {
       const cols = 7;
       final cell = ((box.maxWidth - cols * 2) / cols).clamp(4.0, 32.0);
-      return Row(children: [
+      final row = Row(children: [
         for (var c = 0; c < cols; c++)
           Builder(builder: (_) {
             final day = monday + c;
-            final blank = day > today;
-            final dayColor = blank ? null : ((days[day] ?? 0) > 0 ? color : null);
+            // future days stay boxed but faint and inert, so the week always
+            // shows all 7 boxes (#v31.1 item 2)
+            final future = day > today;
+            final dayColor = future ? null : ((days[day] ?? 0) > 0 ? color : null);
             return _dayCell(
-                cell: cell, blank: blank, dayColor: dayColor, color: color, tooltip: null,
-                onTap: blank || onDayTap == null ? null : () => onDayTap!(day));
+                cell: cell, blank: false, dayColor: dayColor, color: color, tooltip: null,
+                onTap: future || onDayTap == null ? null : () => onDayTap!(day));
           }),
       ]);
-    });
-  }
-}
-
-/// Monthly view: a real calendar-month grid (rows = weeks in the CURRENT
-/// calendar month, 7 weekday columns, Mon-aligned) instead of the
-/// trailing-weeks column grid — e.g. April reads as 4 full rows + a 3-box
-/// final row (#v30 follow-up).
-class _MonthCalendar extends StatelessWidget {
-  final Map<int, int> days;
-  final int color, today;
-  final void Function(int day)? onDayTap;
-  const _MonthCalendar({required this.days, required this.color, required this.today, this.onDayTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final now = dateOfEpochDay(today);
-    final first = DateTime.utc(now.year, now.month, 1);
-    final firstEpoch = epochDayOf(first);
-    final daysInMonth = DateTime.utc(now.year, now.month + 1, 0).day;
-    final leadingBlanks = first.weekday - 1; // 0 if the 1st is a Monday
-    final rows = ((leadingBlanks + daysInMonth) / 7).ceil();
-    return LayoutBuilder(builder: (context, box) {
-      const cols = 7;
-      final cell = ((box.maxWidth - cols * 2) / cols).clamp(4.0, 20.0);
-      return Column(children: [
-        for (var r = 0; r < rows; r++)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 2),
-            child: Row(children: [
-              for (var c = 0; c < cols; c++)
-                Builder(builder: (_) {
-                  final dayOfMonth = r * 7 + c - leadingBlanks + 1;
-                  final inMonth = dayOfMonth >= 1 && dayOfMonth <= daysInMonth;
-                  final day = inMonth ? firstEpoch + dayOfMonth - 1 : -1;
-                  final blank = !inMonth || day > today;
-                  final dayColor = blank ? null : ((days[day] ?? 0) > 0 ? color : null);
-                  return _dayCell(
-                      cell: cell,
-                      blank: blank,
-                      dayColor: dayColor,
-                      color: color,
-                      tooltip: null,
-                      onTap: blank || onDayTap == null ? null : () => onDayTap!(day));
-                }),
-            ]),
-          ),
+      if (selectedDay == null || callout == null) return row;
+      final c = (selectedDay! - monday).clamp(0, 6);
+      const estW = 140.0;
+      return Stack(clipBehavior: Clip.none, children: [
+        row,
+        Positioned(
+          left: (c * (cell + 2)).clamp(0.0, math.max(0.0, box.maxWidth - estW)),
+          top: cell + 4,
+          child: callout!,
+        ),
       ]);
     });
   }
 }
 
-/// HabitKit-style contribution grid: 7 rows (weekdays) × N week columns, right
-/// edge = this week. A day is BINARY — completed once or many looks identical
-/// (full habit color); empty days are a faint theme square (the user's rule).
-/// [weeks] is how much trailing history to show; once it exceeds one band's
-/// width (18 columns, tuned to fit a phone) the grid STACKS more bands
-/// growing downward instead of stretching wider than the screen — oldest
-/// band on top, the band containing today at the bottom (#v30 follow-up).
+/// HabitKit-style contribution grid: 7 rows (weekdays) × N week columns. A day
+/// is BINARY — completed once or many looks identical (full habit color);
+/// empty days are a faint theme square (the user's rule), and FUTURE days
+/// inside the span render the same faint square, so the grid is always fully
+/// boxed — e.g. the current week always shows all 7 boxes and Wednesday's box
+/// colours in when Wednesday is focused (#v31.1 item 2).
+///
+/// The span is either trailing [weeks] ending at the current week (default —
+/// the rolling 18-weeks view drops the oldest column as a new week starts) or
+/// an explicit [spanStart]..[spanEnd] window (monthly = the calendar month,
+/// yearly = the calendar year). Columns are Monday-aligned weeks; days outside
+/// the span render blank. Past one band's width (18 columns, tuned to fit a
+/// phone) the grid stacks bands downward IN CHRONOLOGICAL ORDER — full 18-week
+/// bands first, the partial remainder LAST (#v31.1 item 3: yearly reads
+/// 18 + 18 + the rest of the year).
+///
+/// [selectedDay] + [callout] float a TREND-style callout next to the tapped
+/// cell, overlaying the grid like the chart's own callout (#v31.1 item 2).
 class _HabitHeatmap extends StatelessWidget {
   final Map<int, int> days;
   final int color, today;
@@ -2875,30 +2870,32 @@ class _HabitHeatmap extends StatelessWidget {
   final int? Function(int day)? colorForDay;
   final double maxCellSize;
   final int weeks;
-  // optional tap-for-details text (e.g. "3x Ā· 1h 15m") shown in a Tooltip;
-  // null/empty for a given day means no tooltip on that cell (#v30 follow-up).
+  final int? spanStart, spanEnd; // explicit window (epochDays), else trailing [weeks]
+  // optional tap-for-details text shown in a Tooltip (goals cards keep this).
   final String? Function(int day)? tooltipFor;
-  // if set, a day older than this many days before today renders blank too —
-  // lets yearly show exactly 365/366 real days even though the week-based
-  // grid rounds up to a whole number of weeks (#v30 follow-up).
-  final int? maxDaysBack;
-  // optional tap handler for non-blank cells (#v30.9 — the mood heatmap uses
-  // it to edit past days).
+  // optional tap handler for in-span, non-future cells (#v30.9 — the mood
+  // heatmap edits past days; focus sessions show the callout).
   final void Function(int day)? onDayTap;
+  final int? selectedDay;
+  final Widget? callout;
   const _HabitHeatmap(
       {required this.days, required this.color, required this.today,
-      this.colorForDay, this.maxCellSize = 12.0, this.weeks = 18, this.tooltipFor, this.maxDaysBack,
-      this.onDayTap});
+      this.colorForDay, this.maxCellSize = 12.0, this.weeks = 18,
+      this.spanStart, this.spanEnd, this.tooltipFor, this.onDayTap,
+      this.selectedDay, this.callout});
 
   static const _bandCols = 18; // per-band width, tuned to fit a phone
 
   @override
   Widget build(BuildContext context) {
-    // align the right column of the bottom band to the week containing
-    // today (Mon..Sun rows)
     final todayWeekday = dateOfEpochDay(today).weekday; // 1=Mon
-    final lastColStart = today - (todayWeekday - 1);
-    final numBands = (weeks / _bandCols).ceil().clamp(1, 1000000);
+    // default = trailing [weeks] window ending on Sunday of the current week
+    final hi = spanEnd ?? (today - (todayWeekday - 1) + 6);
+    final lo = spanStart ?? (hi - 6 - (weeks - 1) * 7);
+    final startMonday = lo - (dateOfEpochDay(lo).weekday - 1);
+    final endMonday = hi - (dateOfEpochDay(hi).weekday - 1);
+    final cols = (endMonday - startMonday) ~/ 7 + 1;
+    final numBands = (cols / _bandCols).ceil().clamp(1, 1000000);
     return LayoutBuilder(builder: (context, box) {
       // every cell (incl. the last) carries a 2px right margin, so the
       // budget must divide out bandCols*2, not (bandCols-1)*2 — the old
@@ -2906,39 +2903,60 @@ class _HabitHeatmap extends StatelessWidget {
       // Masked for years by the 12px cap; exposed once a caller removes the
       // cap to stretch full-width (#v30 item 6).
       final cell = ((box.maxWidth - _bandCols * 2) / _bandCols).clamp(4.0, maxCellSize);
-      return Column(
+      final grid = Column(
         children: [
-          for (var b = numBands - 1; b >= 0; b--) ...[
-            if (b != numBands - 1) const SizedBox(height: 6),
-            _band(b, b == numBands - 1 ? weeks - b * _bandCols : _bandCols, lastColStart, cell),
+          // chronological: oldest full band on top, the partial remainder last
+          for (var b = 0; b < numBands; b++) ...[
+            if (b != 0) const SizedBox(height: 6),
+            _band(b, math.min(_bandCols, cols - b * _bandCols), startMonday, lo, hi, cell),
           ],
         ],
       );
+      if (selectedDay == null || callout == null || selectedDay! < lo || selectedDay! > hi) {
+        return grid;
+      }
+      // float the callout right next to the tapped cell, like the trend
+      // chart's callout (#v31.1 item 2 — it used to sit bottom-left).
+      final selMonday = selectedDay! - (dateOfEpochDay(selectedDay!).weekday - 1);
+      final selCol = (selMonday - startMonday) ~/ 7;
+      final b = selCol ~/ _bandCols, c = selCol % _bandCols;
+      final row = dateOfEpochDay(selectedDay!).weekday - 1;
+      final bandH = 7 * (cell + 2);
+      final cellX = c * (cell + 2), cellY = b * (bandH + 6) + row * (cell + 2);
+      final totalH = numBands * bandH + (numBands - 1) * 6;
+      const estW = 140.0, estH = 44.0;
+      final left = cellX.clamp(0.0, math.max(0.0, box.maxWidth - estW)).toDouble();
+      final top = (cellY + cell + 4 + estH > totalH + estH / 2
+              ? math.max(0.0, cellY - estH) // bottom rows: pop above the cell
+              : cellY + cell + 4)
+          .toDouble();
+      return Stack(clipBehavior: Clip.none, children: [
+        grid,
+        Positioned(left: left, top: top, child: callout!),
+      ]);
     });
   }
 
-  Widget _band(int b, int colsInBand, int lastColStart, double cell) {
+  Widget _band(int b, int colsInBand, int startMonday, int lo, int hi, double cell) {
     return Column(
       children: [
         for (var row = 0; row < 7; row++)
           Padding(
             padding: const EdgeInsets.only(bottom: 2),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.start, // partial (oldest) band leaves its gap on the right
               children: [
                 for (var c = 0; c < colsInBand; c++)
                   Builder(builder: (_) {
-                    final weeksAgo = b * _bandCols + (colsInBand - 1 - c);
-                    final day = lastColStart - weeksAgo * 7 + row;
-                    final tooOld = maxDaysBack != null && day < today - (maxDaysBack! - 1);
-                    final blank = day > today || tooOld;
-                    final dayColor = blank
+                    final day = startMonday + (b * _bandCols + c) * 7 + row;
+                    final blank = day < lo || day > hi; // outside the span
+                    final future = !blank && day > today; // boxed but faint, inert
+                    final dayColor = blank || future
                         ? null
                         : (colorForDay != null ? colorForDay!(day) : ((days[day] ?? 0) > 0 ? color : null));
                     return _dayCell(
                         cell: cell, blank: blank, dayColor: dayColor, color: color,
-                        tooltip: blank ? null : tooltipFor?.call(day),
-                        onTap: blank || onDayTap == null ? null : () => onDayTap!(day));
+                        tooltip: blank || future ? null : tooltipFor?.call(day),
+                        onTap: blank || future || onDayTap == null ? null : () => onDayTap!(day));
                   }),
               ],
             ),

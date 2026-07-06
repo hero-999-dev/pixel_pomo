@@ -65,9 +65,11 @@ You don't build anything yourself — every release attaches a ready-to-install 
   hour), a per-label breakdown, and **CURRENT / AVERAGE / BEST** in trend view. A **SESSION TIMELINE IN A WEEK**
   shows each completed session as a colored box, grouped per day with weekday initials, spread evenly across the
   width — **tap a box** to see which label it was and how long. Below it, **FOCUS SESSIONS** heatmaps per label
-  with **WEEKLY / MONTHLY / 18 WEEKS / YEARLY** views — monthly is a true calendar grid, yearly covers exactly
-  365/366 days, and only labels actually used in the selected window are listed. **Tap any box** for a small
-  callout with that day's session count and time. A **LOG HISTORY**
+  with **WEEKLY / MONTHLY / 18 WEEKS / YEARLY** views, all in the same week-column grid: monthly spans the
+  calendar month, 18 weeks rolls forward as weeks pass, and yearly shows the whole calendar year (rows of
+  18 + 18 + the rest) for **one label picked from a popup**. Grids always show every box — future days sit
+  faint until they color in — and only labels actually used in the selected window are listed. **Tap any box**
+  for a floating callout with that day's session count and time. A **LOG HISTORY**
   button opens a **paginated list of every past session** (50 a page) where you can **change a session's label**.
 - **⭐ Habit tracker** — three tabs. **Mood Tracker**: a daily 5-face mood picker plus a history heatmap —
   **tap any past day to set its mood too**. **Your

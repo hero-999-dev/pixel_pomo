@@ -33,12 +33,26 @@ void main() {
     await tester.pumpWidget(host(s));
     await tester.pumpAndSettle();
     // seeded MATH has a session TODAY → visible in every window
-    for (final period in ['WEEKLY', 'MONTHLY', '18 WEEKS', 'YEARLY']) {
+    for (final period in ['WEEKLY', 'MONTHLY', '18 WEEKS']) {
       await tester.tap(find.text(period));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull, reason: '$period threw');
       expect(find.text('MATH'), findsOneWidget, reason: '$period lost MATH');
     }
+    // yearly shows ONE label behind a popup picker (#v31.1 item 4): the first
+    // visible label (MATH) appears as both the picker button and the block title
+    await tester.tap(find.text('YEARLY'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull, reason: 'YEARLY threw');
+    expect(find.byKey(const Key('yearLabelPicker')), findsOneWidget);
+    expect(find.text('MATH'), findsWidgets);
+    // pick a different label from the popup → its year grid replaces MATH's
+    await tester.tap(find.byKey(const Key('yearLabelPicker')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('HISTORY').last);
+    await tester.pumpAndSettle();
+    expect(find.text('HISTORY'), findsWidgets); // picker button + block title
+    expect(find.text('MATH'), findsNothing);
   });
 
   testWidgets('labels unused in the window are hidden; unused-today label still in 18 WEEKS', (tester) async {
