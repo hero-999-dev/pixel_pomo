@@ -64,18 +64,18 @@ You don't build anything yourself — every release attaches a ready-to-install 
   **DAILY → ALL-TIME** selector with a **◀ ▶ history navigator**, **bar / pie / TREND** charts (DAILY fills up hour by
   hour), a per-label breakdown, and **CURRENT / AVERAGE / BEST** in trend view. A **SESSION TIMELINE IN A WEEK**
   shows each completed session as a colored box, grouped per day with weekday initials, spread evenly across the
-  width — **tap a box** to see which label it was and how long. Below it, **FOCUS SESSIONS** heatmaps per label
-  with **WEEKLY / MONTHLY / 18 WEEKS / YEARLY** views, all in the same week-column grid: monthly shows **3
-  labels side by side**, 18 weeks rolls forward as weeks pass (a **LABEL button** with pixel switches picks
-  which labels to show), and yearly is **one label at a time** (the button carries its name) drawn as a
-  single **left-to-right scrolling 52-week band with each month framed** like the timeline's day boxes.
-  **Browsing the ◀ ▶ history navigator moves everything together** — pick last week and the timeline +
-  heatmaps show last week; same for months and years. Grids always show every box — future days sit faint
-  until they color in, and each label's day-count caption reflects only what's on screen. **Tap any box** for
-  a floating callout with that day's session count and time. A **SESSION HEATMAP** button opens your whole
-  history as one continuous strip — one box per **day / week / month / year** — scrolling back from today,
-  same as **LOG HISTORY** just below it, a **paginated list of every past session** (50 a page) where you can
-  **change a session's label**.
+  width — **tap a box** to see which label it was and how long. A **SESSIONS IN PIXELS** button opens a
+  dedicated screen with two parts: a **SESSION HEATMAP** — your whole history as one continuous strip, one box
+  per **day / week / month / year**, scrolled to today by default — and below it, **FOCUS SESSIONS** heatmaps
+  per label with **WEEKLY / MONTHLY / 18 WEEKS / YEARLY** views, all in the same week-column grid: weekly and
+  monthly show **2 and 3 labels side by side**, 18 weeks rolls forward as weeks pass (a **LABEL button** with
+  pixel switches picks which labels to show), and yearly is **one label at a time** (the button carries its
+  name) drawn as a single **left-to-right scrolling 52-week band with each month framed** like the timeline's
+  day boxes. **Browsing the ◀ ▶ history navigator moves the timeline and the focus heatmaps together** — pick
+  last week and both show last week; same for months and years. Grids always show every box — future days sit
+  faint until they color in, and each label's day-count caption reflects only what's on screen. **Tap any box**
+  for a floating callout with that day's session count and time. **LOG HISTORY**, right below it, is a
+  **paginated list of every past session** (50 a page) where you can **change a session's label**.
 - **⭐ Habit tracker** — three tabs. **Mood Tracker**: a daily 5-face mood picker plus a history heatmap —
   **tap any past day to set its mood too**. **Your
   Year in Pixels**: every heatmap in one place — mood, habits, and focus-session labels, "all data" at a glance.

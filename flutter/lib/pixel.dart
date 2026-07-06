@@ -142,7 +142,13 @@ class Swatch extends StatelessWidget {
       child: Container(
         width: size,
         height: size,
-        decoration: BoxDecoration(color: col(color), border: Border.all(color: col(border), width: 2)),
+        // rounded corners specifically here (label colour swatches) at the
+        // user's request — buttons/headings keep their hard pixel edges (#v31.5)
+        decoration: BoxDecoration(
+          color: col(color),
+          border: Border.all(color: col(border), width: 2),
+          borderRadius: BorderRadius.circular(4),
+        ),
       ),
     );
   }

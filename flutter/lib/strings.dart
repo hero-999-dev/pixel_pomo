@@ -61,6 +61,7 @@ const Map<String, Map<String, String>> _s = {
     'weekdayShort': 'MO,TU,WE,TH,FR,SA,SU',
     'yearInPixels': 'YOUR YEAR IN PIXELS (ALL DATA)', 'moodTracker': 'MOOD TRACKER', 'goals': 'YOUR GOALS', 'focusSessions': 'FOCUS SESSIONS',
     'sessionsTimelineWeek': 'SESSION TIMELINE IN A WEEK', 'sessionHeatmap': 'SESSION HEATMAP',
+    'sessionsInPixels': 'SESSIONS IN PIXELS',
   },
   'tr': {
     'work': 'ODAK', 'break': 'MOLA', 'start': 'BAŞLAT', 'pause': 'DURAKLAT', 'reset': 'SIFIRLA',
@@ -120,6 +121,7 @@ const Map<String, Map<String, String>> _s = {
     'weekdayShort': 'PT,SA,ÇA,PE,CU,CT,PZ',
     'yearInPixels': 'PİKSELLERDE YILIN (TÜM VERİ)', 'moodTracker': 'RUH HALİ TAKİBİ', 'goals': 'HEDEFLERİN', 'focusSessions': 'ODAK SEANSLARI',
     'sessionsTimelineWeek': 'HAFTALIK SEANS ÇİZELGESİ', 'sessionHeatmap': 'SEANS ISI HARİTASI',
+    'sessionsInPixels': 'PİKSELLERDE SEANSLAR',
   },
   'pl': {
     'work': 'SKUPIENIE', 'break': 'PRZERWA', 'start': 'START', 'pause': 'PAUZA', 'reset': 'RESET',
@@ -179,6 +181,7 @@ const Map<String, Map<String, String>> _s = {
     'weekdayShort': 'PN,WT,ŚR,CZ,PT,SO,ND',
     'yearInPixels': 'TWÓJ ROK W PIKSELACH (WSZYSTKO)', 'moodTracker': 'ŚLEDZENIE NASTROJU', 'goals': 'TWOJE CELE', 'focusSessions': 'SESJE SKUPIENIA',
     'sessionsTimelineWeek': 'OŚ SESJI W TYGODNIU', 'sessionHeatmap': 'MAPA CIEPŁA SESJI',
+    'sessionsInPixels': 'SESJE W PIKSELACH',
   },
   'de': {
     'work': 'FOKUS', 'break': 'PAUSE', 'start': 'START', 'pause': 'PAUSE', 'reset': 'ZURÜCK',
@@ -238,6 +241,7 @@ const Map<String, Map<String, String>> _s = {
     'weekdayShort': 'MO,DI,MI,DO,FR,SA,SO',
     'yearInPixels': 'DEIN JAHR IN PIXELN (ALLE DATEN)', 'moodTracker': 'STIMMUNGS-TRACKER', 'goals': 'DEINE ZIELE', 'focusSessions': 'FOKUS-SITZUNGEN',
     'sessionsTimelineWeek': 'SITZUNGSVERLAUF DER WOCHE', 'sessionHeatmap': 'SITZUNGS-HEATMAP',
+    'sessionsInPixels': 'SITZUNGEN IN PIXELN',
   },
   'fr': {
     'work': 'FOCUS', 'break': 'PAUSE', 'start': 'DÉMARRER', 'pause': 'PAUSE', 'reset': 'RÉINIT.',
@@ -297,6 +301,7 @@ const Map<String, Map<String, String>> _s = {
     'weekdayShort': 'LU,MA,ME,JE,VE,SA,DI',
     'yearInPixels': 'TON ANNÉE EN PIXELS (TOUT)', 'moodTracker': 'SUIVI HUMEUR', 'goals': 'TES OBJECTIFS', 'focusSessions': 'SESSIONS DE FOCUS',
     'sessionsTimelineWeek': 'CHRONOLOGIE HEBDO DES SESSIONS', 'sessionHeatmap': 'HEATMAP DES SESSIONS',
+    'sessionsInPixels': 'SESSIONS EN PIXELS',
   },
   'it': {
     'work': 'FOCUS', 'break': 'PAUSA', 'start': 'AVVIA', 'pause': 'PAUSA', 'reset': 'AZZERA',
@@ -356,6 +361,7 @@ const Map<String, Map<String, String>> _s = {
     'weekdayShort': 'LU,MA,ME,GI,VE,SA,DO',
     'yearInPixels': 'IL TUO ANNO IN PIXEL (TUTTI I DATI)', 'moodTracker': 'MONITOR UMORE', 'goals': 'I TUOI OBIETTIVI', 'focusSessions': 'SESSIONI DI FOCUS',
     'sessionsTimelineWeek': 'CRONOLOGIA SESSIONI SETTIMANA', 'sessionHeatmap': 'HEATMAP SESSIONI',
+    'sessionsInPixels': 'SESSIONI IN PIXEL',
   },
 };
 

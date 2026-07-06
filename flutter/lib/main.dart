@@ -927,22 +927,19 @@ class StatsScreen extends StatelessWidget {
               ],
             ),
           ),
-      // focus-session heatmaps, relocated out of the habit tracker (#v30 item 6).
-      // Both follow the ◀▶ history navigator above: browse to a previous
-      // week/month/year and the timeline + heatmaps move with it (#v31.2 item 3).
+      // the session timeline, relocated out of the habit tracker (#v30 item 6),
+      // follows the ◀▶ history navigator above (#v31.2 item 3) and stays
+      // right here on Stats (#v31.5) — Focus Sessions moved into its own
+      // screen below, merged with Session Heatmap as SESSIONS IN PIXELS.
       const SizedBox(height: 20),
       SessionsTimelineWeek(
           th: th, lang: lang, s: s, today: epochDayOf(now),
           anchor: epochDayOf(StatsAggregator.anchorFor(now, s.statPeriod, s.statOffset))),
+      // opens its own screen, like LOG HISTORY: the all-history contiguous
+      // strip PLUS the per-label Focus Sessions heatmaps, one screen (#v31.5)
       const SizedBox(height: 20),
-      FocusSessionsSection(
-          th: th, lang: lang, s: s, today: epochDayOf(now),
-          anchor: epochDayOf(StatsAggregator.anchorFor(now, s.statPeriod, s.statOffset))),
-      // opens its own screen, like LOG HISTORY, instead of crowding this
-      // scroll with an inline strip (#v31.4)
-      const SizedBox(height: 20),
-      secondaryBtn(th, lang, t(lang, 'sessionHeatmap'),
-          () => openPanel(context, s, () => SessionHeatmapScreen(s)),
+      secondaryBtn(th, lang, t(lang, 'sessionsInPixels'),
+          () => openPanel(context, s, () => SessionsInPixelsScreen(s)),
           padding: const EdgeInsets.all(14)),
       // a paginated list of every past session (tap a row to relabel) — sits
       // right above the auto-appended CLOSE button (#v25 item3)
@@ -1720,32 +1717,61 @@ Widget _infoCallout(PixelTheme th, String lang, List<String> rows) => Container(
 // SESSION HEATMAP granularity (#v31.3 item 5).
 enum _HeatUnit { day, week, month, year }
 
-/// "Session Heatmap" — its own screen, opened from Stats like LOG HISTORY
-/// (#v31.4; the inline section crowded the Stats scroll): ALL focus history
-/// as one contiguous left→right strip of boxes — one box per
-/// day/week/month/year, picked from a classic button row — coloured when
-/// that unit had any session, faint otherwise. Scrolls sideways, starts at
-/// the most recent end; tapping an active box floats the usual callout with
-/// the unit + count + total time (#v31.3 item 5).
-class SessionHeatmapScreen extends StatefulWidget {
+/// "Sessions in Pixels" — its own screen, opened from Stats like LOG HISTORY:
+/// the all-history Session Heatmap strip PLUS the per-label Focus Sessions
+/// heatmaps, one screen (#v31.5 — Focus Sessions used to sit inline on Stats;
+/// merging the two here matches the existing "Year in Pixels" naming/shape —
+/// several heatmap sections stacked under one roof).
+///
+/// SESSION HEATMAP: ALL focus history as one contiguous left→right strip of
+/// boxes — one box per day/week/month/year, picked from a classic button
+/// row — coloured when that unit had any session, faint otherwise. Scrolls
+/// sideways, starts at the most recent end (an explicit `ScrollController` +
+/// post-frame `jumpTo(maxScrollExtent)` — `reverse: true` alone was tried
+/// first and actually opens on the OLDEST end: it anchors the child's own
+/// leading edge, i.e. the first box built, to the far side of the viewport,
+/// which is backwards without also feeding it in reverse order; found in the
+/// #v31.5 bug report). Tapping an active box floats the usual callout with
+/// the unit + count + total time.
+class SessionsInPixelsScreen extends StatefulWidget {
   final AppStore s;
-  const SessionHeatmapScreen(this.s, {super.key});
+  const SessionsInPixelsScreen(this.s, {super.key});
   @override
-  State<SessionHeatmapScreen> createState() => _SessionHeatmapScreenState();
+  State<SessionsInPixelsScreen> createState() => _SessionsInPixelsScreenState();
 }
 
-class _SessionHeatmapScreenState extends State<SessionHeatmapScreen> {
+class _SessionsInPixelsScreenState extends State<SessionsInPixelsScreen> {
   _HeatUnit _unit = _HeatUnit.day;
   int? _selIdx;
+  final _scrollCtrl = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _jumpToEnd();
+  }
+
+  @override
+  void dispose() {
+    _scrollCtrl.dispose();
+    super.dispose();
+  }
+
+  void _jumpToEnd() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollCtrl.hasClients) _scrollCtrl.jumpTo(_scrollCtrl.position.maxScrollExtent);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final s = widget.s;
     final th = s.theme;
     final lang = s.lang;
-    final today = epochDayOf(DateTime.now());
+    final now = DateTime.now();
+    final today = epochDayOf(now);
     if (s.records.isEmpty) {
-      return overlayScaffold(context, s, t(lang, 'sessionHeatmap'), [
+      return overlayScaffold(context, s, t(lang, 'sessionsInPixels'), [
         Text(t(lang, 'noSessionsPeriod'),
             style: pixelStyle(lang, 9, col(th.onSurfaceDim), text: t(lang, 'noSessionsPeriod'))),
       ]);
@@ -1818,10 +1844,14 @@ class _SessionHeatmapScreenState extends State<SessionHeatmapScreen> {
 
     Widget unitBtn(String text, _HeatUnit u) {
       final sel = _unit == u;
-      void pick() => setState(() {
-            _unit = u;
-            _selIdx = null;
-          });
+      void pick() {
+        setState(() {
+          _unit = u;
+          _selIdx = null;
+        });
+        _jumpToEnd(); // the new unit has a different content width/extent
+      }
+
       return Expanded(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 2),
@@ -1832,7 +1862,9 @@ class _SessionHeatmapScreenState extends State<SessionHeatmapScreen> {
       );
     }
 
-    return overlayScaffold(context, s, t(lang, 'sessionHeatmap'), [
+    return overlayScaffold(context, s, t(lang, 'sessionsInPixels'), [
+      Text(t(lang, 'sessionHeatmap'), style: pixelStyle(lang, 11, col(th.onSurfaceDim), text: t(lang, 'sessionHeatmap'))),
+      const SizedBox(height: 10),
       Row(children: [
         unitBtn(t(lang, 'pDaily'), _HeatUnit.day),
         unitBtn(t(lang, 'pWeekly'), _HeatUnit.week),
@@ -1841,7 +1873,11 @@ class _SessionHeatmapScreenState extends State<SessionHeatmapScreen> {
       ]),
       const SizedBox(height: 12),
       LayoutBuilder(builder: (context, box) {
-        final cell = ((box.maxWidth - 18 * 2) / 18).clamp(4.0, double.infinity);
+        // size cells to the ACTUAL key count (capped at 18) instead of always
+        // dividing by 18 — a sparse period (e.g. YEARLY with 2-3 entries)
+        // used to render tiny boxes with a wall of empty space next to them.
+        final divisor = math.min(keys.length, 18).clamp(1, 18);
+        final cell = ((box.maxWidth - divisor * 2) / divisor).clamp(4.0, double.infinity);
         final totalW = keys.length * (cell + 1);
         final strip = Row(children: [
           for (var i = 0; i < keys.length; i++)
@@ -1851,7 +1887,10 @@ class _SessionHeatmapScreenState extends State<SessionHeatmapScreen> {
                 width: cell,
                 height: cell,
                 margin: const EdgeInsets.only(right: 1), // contiguous
-                color: col(th.accent).withValues(alpha: active ? 1 : 0.18),
+                decoration: BoxDecoration(
+                  color: col(th.accent).withValues(alpha: active ? 1 : 0.18),
+                  borderRadius: BorderRadius.circular(1),
+                ),
               );
               if (active) {
                 cellBox = GestureDetector(
@@ -1877,10 +1916,14 @@ class _SessionHeatmapScreenState extends State<SessionHeatmapScreen> {
         }
         return SizedBox(
           height: cell + (_selIdx != null ? 56 : 4),
-          // reverse pins the initial scroll at the RIGHT (most recent) end
-          child: SingleChildScrollView(scrollDirection: Axis.horizontal, reverse: true, child: content),
+          child: SingleChildScrollView(
+              controller: _scrollCtrl, scrollDirection: Axis.horizontal, child: content),
         );
       }),
+      const SizedBox(height: 24),
+      FocusSessionsSection(
+          th: th, lang: lang, s: s, today: today,
+          anchor: epochDayOf(StatsAggregator.anchorFor(now, s.statPeriod, s.statOffset))),
     ]);
   }
 }
@@ -2061,9 +2104,10 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(e.key, style: pixelStyle(lang, 10, col(s.labelColorOf(e.key)), text: e.key)),
-          // the 3-per-row monthly layout is narrow — skip the days/times
-          // line there so 3 grids actually fit (#v31.2 item 2).
-          if (_period != _HeatPeriod.monthly) ...[
+          // the side-by-side layouts (2 weekly / 3 monthly) are narrow — skip
+          // the days/times line there so the grids actually fit (#v31.2 item
+          // 2, weekly added #v31.5).
+          if (_period != _HeatPeriod.monthly && _period != _HeatPeriod.weekly) ...[
             const SizedBox(height: 2),
             Text(caption, style: pixelStyle(lang, 8, col(th.onSurfaceDim), text: caption)),
           ],
@@ -2154,6 +2198,28 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
       );
     }
 
+    // narrow grids side by side instead of one full-width stack: 2 for
+    // weekly, 3 for monthly (#v31.2 item 2, weekly added #v31.5 item 4) —
+    // the label heatmaps' own LayoutBuilder sizes their cells to whatever
+    // width the Expanded column gives them, so this alone shrinks the boxes.
+    Widget perRowGrid(int perRow) => Column(children: [
+          for (var i = 0; i < visible.length; i += perRow)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: Builder(builder: (_) {
+                final batch = visible.skip(i).take(perRow).toList();
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (final e in batch)
+                      Expanded(child: Padding(padding: const EdgeInsets.only(right: 6), child: labelBlock(e))),
+                    for (var k = batch.length; k < perRow; k++) const Expanded(child: SizedBox()),
+                  ],
+                );
+              }),
+            ),
+        ]);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -2184,23 +2250,10 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
         if (visible.isEmpty)
           // labels exist but none were used inside this period's window
           noSessions
+        else if (_period == _HeatPeriod.weekly)
+          perRowGrid(2)
         else if (_period == _HeatPeriod.monthly)
-          // month grids are narrow — 3 labels side by side (#v31.2 item 2)
-          for (var i = 0; i < visible.length; i += 3)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 14),
-              child: Builder(builder: (_) {
-                final batch = visible.skip(i).take(3).toList();
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    for (final e in batch)
-                      Expanded(child: Padding(padding: const EdgeInsets.only(right: 6), child: labelBlock(e))),
-                    for (var k = batch.length; k < 3; k++) const Expanded(child: SizedBox()),
-                  ],
-                );
-              }),
-            )
+          perRowGrid(3)
         else
           for (final e in visible) ...[
             labelBlock(e),
