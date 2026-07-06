@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pixel_pomo/logic.dart';
 import 'package:pixel_pomo/main.dart';
 import 'package:pixel_pomo/store.dart';
+import 'package:pixel_pomo/strings.dart';
 
 /// #v31 — the Focus Sessions section across its four period shapes. The user
 /// reported "monthly shows no boxes"; this pins the layout down: every period
@@ -83,6 +84,32 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('READING'), findsNothing);
     expect(find.text('MATH'), findsOneWidget);
+  });
+
+  testWidgets('days/times caption is scoped to the shown window, not all-time (#v31.4 bug)', (tester) async {
+    final s = await boot();
+    // MATH's seeded history spans all of 2025 plus 2026 — its ALL-TIME
+    // days/times is far bigger than any single window, so this string can
+    // only appear if a caption wrongly falls back to whole-history totals.
+    final allTime = s.labelHabitCounts['MATH']!;
+    final allTimeCaption =
+        tf('en', 'daysTimes', [HabitLog.daysDone(allTime), HabitLog.totalTimes(allTime)]);
+    await tester.pumpWidget(host(s));
+    await tester.pumpAndSettle();
+    // default period = 18 WEEKS (a ~126-day trailing window)
+    expect(find.text(allTimeCaption), findsNothing);
+
+    await tester.tap(find.text('YEARLY'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('labelFilterButton')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('MATH').last);
+    await tester.pumpAndSettle();
+    expect(find.text(allTimeCaption), findsNothing); // yearly must be scoped too
+
+    await tester.tap(find.text('WEEKLY'));
+    await tester.pumpAndSettle();
+    expect(find.text(allTimeCaption), findsNothing);
   });
 
   testWidgets('monthly calendar cells lay out with a real size', (tester) async {

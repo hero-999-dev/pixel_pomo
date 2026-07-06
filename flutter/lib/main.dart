@@ -938,12 +938,15 @@ class StatsScreen extends StatelessWidget {
       FocusSessionsSection(
           th: th, lang: lang, s: s, today: epochDayOf(now),
           anchor: epochDayOf(StatsAggregator.anchorFor(now, s.statPeriod, s.statOffset))),
-      // the whole history as one contiguous strip, above LOG HISTORY (#v31.3)
+      // opens its own screen, like LOG HISTORY, instead of crowding this
+      // scroll with an inline strip (#v31.4)
       const SizedBox(height: 20),
-      SessionHeatmapSection(th: th, lang: lang, s: s, today: epochDayOf(now)),
+      secondaryBtn(th, lang, t(lang, 'sessionHeatmap'),
+          () => openPanel(context, s, () => SessionHeatmapScreen(s)),
+          padding: const EdgeInsets.all(14)),
       // a paginated list of every past session (tap a row to relabel) — sits
       // right above the auto-appended CLOSE button (#v25 item3)
-      const SizedBox(height: 20),
+      const SizedBox(height: 12),
       secondaryBtn(th, lang, t(lang, 'logHistory'),
           () => openPanel(context, s, () => LogHistoryScreen(s)),
           padding: const EdgeInsets.all(14)),
@@ -1717,36 +1720,32 @@ Widget _infoCallout(PixelTheme th, String lang, List<String> rows) => Container(
 // SESSION HEATMAP granularity (#v31.3 item 5).
 enum _HeatUnit { day, week, month, year }
 
-/// "Session Heatmap" (above LOG HISTORY): ALL focus history as one contiguous
-/// left→right strip of boxes — one box per day/week/month/year, picked from a
-/// classic button row — coloured when that unit had any session, faint
-/// otherwise. Scrolls sideways, starts at the most recent end; tapping an
-/// active box floats the usual callout with the unit + count + total time
-/// (#v31.3 item 5, "session timeline style but contiguous").
-class SessionHeatmapSection extends StatefulWidget {
-  final PixelTheme th;
-  final String lang;
+/// "Session Heatmap" — its own screen, opened from Stats like LOG HISTORY
+/// (#v31.4; the inline section crowded the Stats scroll): ALL focus history
+/// as one contiguous left→right strip of boxes — one box per
+/// day/week/month/year, picked from a classic button row — coloured when
+/// that unit had any session, faint otherwise. Scrolls sideways, starts at
+/// the most recent end; tapping an active box floats the usual callout with
+/// the unit + count + total time (#v31.3 item 5).
+class SessionHeatmapScreen extends StatefulWidget {
   final AppStore s;
-  final int today;
-  const SessionHeatmapSection(
-      {super.key, required this.th, required this.lang, required this.s, required this.today});
+  const SessionHeatmapScreen(this.s, {super.key});
   @override
-  State<SessionHeatmapSection> createState() => _SessionHeatmapSectionState();
+  State<SessionHeatmapScreen> createState() => _SessionHeatmapScreenState();
 }
 
-class _SessionHeatmapSectionState extends State<SessionHeatmapSection> {
+class _SessionHeatmapScreenState extends State<SessionHeatmapScreen> {
   _HeatUnit _unit = _HeatUnit.day;
   int? _selIdx;
 
   @override
   Widget build(BuildContext context) {
-    final th = widget.th, lang = widget.lang, s = widget.s, today = widget.today;
-    final title = Text(t(lang, 'sessionHeatmap'),
-        style: pixelStyle(lang, 11, col(th.onSurfaceDim), text: t(lang, 'sessionHeatmap')));
+    final s = widget.s;
+    final th = s.theme;
+    final lang = s.lang;
+    final today = epochDayOf(DateTime.now());
     if (s.records.isEmpty) {
-      return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        title,
-        const SizedBox(height: 10),
+      return overlayScaffold(context, s, t(lang, 'sessionHeatmap'), [
         Text(t(lang, 'noSessionsPeriod'),
             style: pixelStyle(lang, 9, col(th.onSurfaceDim), text: t(lang, 'noSessionsPeriod'))),
       ]);
@@ -1833,61 +1832,56 @@ class _SessionHeatmapSectionState extends State<SessionHeatmapSection> {
       );
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        title,
-        const SizedBox(height: 10),
-        Row(children: [
-          unitBtn(t(lang, 'pDaily'), _HeatUnit.day),
-          unitBtn(t(lang, 'pWeekly'), _HeatUnit.week),
-          unitBtn(t(lang, 'pMonthly'), _HeatUnit.month),
-          unitBtn(t(lang, 'pYearly'), _HeatUnit.year),
-        ]),
-        const SizedBox(height: 12),
-        LayoutBuilder(builder: (context, box) {
-          final cell = ((box.maxWidth - 18 * 2) / 18).clamp(4.0, double.infinity);
-          final totalW = keys.length * (cell + 1);
-          final strip = Row(children: [
-            for (var i = 0; i < keys.length; i++)
-              Builder(builder: (_) {
-                final active = (mins[keys[i]] ?? 0) > 0;
-                Widget cellBox = Container(
-                  width: cell,
-                  height: cell,
-                  margin: const EdgeInsets.only(right: 1), // contiguous
-                  color: col(th.accent).withValues(alpha: active ? 1 : 0.18),
-                );
-                if (active) {
-                  cellBox = GestureDetector(
-                      onTap: () => setState(() => _selIdx = _selIdx == i ? null : i), child: cellBox);
-                }
-                return cellBox;
-              }),
+    return overlayScaffold(context, s, t(lang, 'sessionHeatmap'), [
+      Row(children: [
+        unitBtn(t(lang, 'pDaily'), _HeatUnit.day),
+        unitBtn(t(lang, 'pWeekly'), _HeatUnit.week),
+        unitBtn(t(lang, 'pMonthly'), _HeatUnit.month),
+        unitBtn(t(lang, 'pYearly'), _HeatUnit.year),
+      ]),
+      const SizedBox(height: 12),
+      LayoutBuilder(builder: (context, box) {
+        final cell = ((box.maxWidth - 18 * 2) / 18).clamp(4.0, double.infinity);
+        final totalW = keys.length * (cell + 1);
+        final strip = Row(children: [
+          for (var i = 0; i < keys.length; i++)
+            Builder(builder: (_) {
+              final active = (mins[keys[i]] ?? 0) > 0;
+              Widget cellBox = Container(
+                width: cell,
+                height: cell,
+                margin: const EdgeInsets.only(right: 1), // contiguous
+                color: col(th.accent).withValues(alpha: active ? 1 : 0.18),
+              );
+              if (active) {
+                cellBox = GestureDetector(
+                    onTap: () => setState(() => _selIdx = _selIdx == i ? null : i), child: cellBox);
+              }
+              return cellBox;
+            }),
+        ]);
+        Widget content = strip;
+        if (_selIdx != null && _selIdx! < keys.length) {
+          final k = keys[_selIdx!];
+          content = Stack(clipBehavior: Clip.none, children: [
+            strip,
+            Positioned(
+              left: (_selIdx! * (cell + 1)).clamp(0.0, math.max(0.0, totalW - 160)),
+              top: cell + 4,
+              child: _infoCallout(th, lang, [
+                labelOf(k),
+                '${counts[k] ?? 0}x · ${StatsAggregator.formatMinutes(mins[k] ?? 0)}',
+              ]),
+            ),
           ]);
-          Widget content = strip;
-          if (_selIdx != null && _selIdx! < keys.length) {
-            final k = keys[_selIdx!];
-            content = Stack(clipBehavior: Clip.none, children: [
-              strip,
-              Positioned(
-                left: (_selIdx! * (cell + 1)).clamp(0.0, math.max(0.0, totalW - 160)),
-                top: cell + 4,
-                child: _infoCallout(th, lang, [
-                  labelOf(k),
-                  '${counts[k] ?? 0}x · ${StatsAggregator.formatMinutes(mins[k] ?? 0)}',
-                ]),
-              ),
-            ]);
-          }
-          return SizedBox(
-            height: cell + (_selIdx != null ? 56 : 4),
-            // reverse pins the initial scroll at the RIGHT (most recent) end
-            child: SingleChildScrollView(scrollDirection: Axis.horizontal, reverse: true, child: content),
-          );
-        }),
-      ],
-    );
+        }
+        return SizedBox(
+          height: cell + (_selIdx != null ? 56 : 4),
+          // reverse pins the initial scroll at the RIGHT (most recent) end
+          child: SingleChildScrollView(scrollDirection: Axis.horizontal, reverse: true, child: content),
+        );
+      }),
+    ]);
   }
 }
 
@@ -2054,22 +2048,30 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
       }
     }
 
-    Widget labelBlock(MapEntry<String, Map<int, int>> e) => Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(e.key, style: pixelStyle(lang, 10, col(s.labelColorOf(e.key)), text: e.key)),
-            // the 3-per-row monthly layout is narrow — skip the days/times
-            // line there so 3 grids actually fit (#v31.2 item 2).
-            if (_period != _HeatPeriod.monthly) ...[
-              const SizedBox(height: 2),
-              Text(tf(lang, 'daysTimes', [HabitLog.daysDone(e.value), HabitLog.totalTimes(e.value)]),
-                  style: pixelStyle(lang, 8, col(th.onSurfaceDim),
-                      text: tf(lang, 'daysTimes', [HabitLog.daysDone(e.value), HabitLog.totalTimes(e.value)]))),
-            ],
-            const SizedBox(height: 4),
-            heatmapFor(e),
+    Widget labelBlock(MapEntry<String, Map<int, int>> e) {
+      // count days/times INSIDE the displayed window only — the caption used
+      // to sum the label's entire history, so YEARLY read "91 days · 101
+      // times" while the grid showed this year's two boxes (#v31.4 bug).
+      final winDays = {
+        for (final kv in e.value.entries)
+          if (kv.key >= lo && kv.key <= hi) kv.key: kv.value
+      };
+      final caption = tf(lang, 'daysTimes', [HabitLog.daysDone(winDays), HabitLog.totalTimes(winDays)]);
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(e.key, style: pixelStyle(lang, 10, col(s.labelColorOf(e.key)), text: e.key)),
+          // the 3-per-row monthly layout is narrow — skip the days/times
+          // line there so 3 grids actually fit (#v31.2 item 2).
+          if (_period != _HeatPeriod.monthly) ...[
+            const SizedBox(height: 2),
+            Text(caption, style: pixelStyle(lang, 8, col(th.onSurfaceDim), text: caption)),
           ],
-        );
+          const SizedBox(height: 4),
+          heatmapFor(e),
+        ],
+      );
+    }
 
     // label picker for the long views: 18 WEEKS = multi-select with the app
     // blocker's pixel on/off switch (the old ✓ read unclear, #v31.3 item 2),

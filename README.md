@@ -71,10 +71,11 @@ You don't build anything yourself — every release attaches a ready-to-install 
   single **left-to-right scrolling 52-week band with each month framed** like the timeline's day boxes.
   **Browsing the ◀ ▶ history navigator moves everything together** — pick last week and the timeline +
   heatmaps show last week; same for months and years. Grids always show every box — future days sit faint
-  until they color in. **Tap any box** for a floating callout with that day's session count and time. A
-  **SESSION HEATMAP** shows your whole history as one continuous strip — one box per **day / week / month /
-  year** — scrolling back from today. A **LOG HISTORY**
-  button opens a **paginated list of every past session** (50 a page) where you can **change a session's label**.
+  until they color in, and each label's day-count caption reflects only what's on screen. **Tap any box** for
+  a floating callout with that day's session count and time. A **SESSION HEATMAP** button opens your whole
+  history as one continuous strip — one box per **day / week / month / year** — scrolling back from today,
+  same as **LOG HISTORY** just below it, a **paginated list of every past session** (50 a page) where you can
+  **change a session's label**.
 - **⭐ Habit tracker** — three tabs. **Mood Tracker**: a daily 5-face mood picker plus a history heatmap —
   **tap any past day to set its mood too**. **Your
   Year in Pixels**: every heatmap in one place — mood, habits, and focus-session labels, "all data" at a glance.
