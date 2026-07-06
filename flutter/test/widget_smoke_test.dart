@@ -101,7 +101,8 @@ void main() {
     await tester.tap(find.byKey(const Key('statsButton')));
     await tester.pumpAndSettle();
     expect(find.text('STATS'), findsWidgets);
-    await tester.tap(find.text('DAILY'));
+    // .first: the SESSION HEATMAP section (#v31.3) has its own DAILY button
+    await tester.tap(find.text('DAILY').first);
     await tester.pumpAndSettle();
     // history navigator: browse one period back (#1)
     expect(find.byKey(const Key('statPrev')), findsOneWidget);

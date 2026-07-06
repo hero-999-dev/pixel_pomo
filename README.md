@@ -66,12 +66,14 @@ You don't build anything yourself — every release attaches a ready-to-install 
   shows each completed session as a colored box, grouped per day with weekday initials, spread evenly across the
   width — **tap a box** to see which label it was and how long. Below it, **FOCUS SESSIONS** heatmaps per label
   with **WEEKLY / MONTHLY / 18 WEEKS / YEARLY** views, all in the same week-column grid: monthly shows **3
-  labels side by side**, 18 weeks rolls forward as weeks pass, and yearly shows the whole calendar year (rows
-  of 18 + 18 + the rest). On 18 weeks and yearly a **LABEL button picks which labels to show**. **Browsing the
-  ◀ ▶ history navigator moves everything together** — pick last week and the timeline + heatmaps show last
-  week; same for months and years. Grids always show every box — future days sit faint until they color in —
-  and only labels actually used in the shown window are listed. **Tap any box** for a floating callout with
-  that day's session count and time. A **LOG HISTORY**
+  labels side by side**, 18 weeks rolls forward as weeks pass (a **LABEL button** with pixel switches picks
+  which labels to show), and yearly is **one label at a time** (the button carries its name) drawn as a
+  single **left-to-right scrolling 52-week band with each month framed** like the timeline's day boxes.
+  **Browsing the ◀ ▶ history navigator moves everything together** — pick last week and the timeline +
+  heatmaps show last week; same for months and years. Grids always show every box — future days sit faint
+  until they color in. **Tap any box** for a floating callout with that day's session count and time. A
+  **SESSION HEATMAP** shows your whole history as one continuous strip — one box per **day / week / month /
+  year** — scrolling back from today. A **LOG HISTORY**
   button opens a **paginated list of every past session** (50 a page) where you can **change a session's label**.
 - **⭐ Habit tracker** — three tabs. **Mood Tracker**: a daily 5-face mood picker plus a history heatmap —
   **tap any past day to set its mood too**. **Your

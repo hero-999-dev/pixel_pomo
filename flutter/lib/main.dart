@@ -938,6 +938,9 @@ class StatsScreen extends StatelessWidget {
       FocusSessionsSection(
           th: th, lang: lang, s: s, today: epochDayOf(now),
           anchor: epochDayOf(StatsAggregator.anchorFor(now, s.statPeriod, s.statOffset))),
+      // the whole history as one contiguous strip, above LOG HISTORY (#v31.3)
+      const SizedBox(height: 20),
+      SessionHeatmapSection(th: th, lang: lang, s: s, today: epochDayOf(now)),
       // a paginated list of every past session (tap a row to relabel) — sits
       // right above the auto-appended CLOSE button (#v25 item3)
       const SizedBox(height: 20),
@@ -1711,6 +1714,183 @@ Widget _infoCallout(PixelTheme th, String lang, List<String> rows) => Container(
       ),
     );
 
+// SESSION HEATMAP granularity (#v31.3 item 5).
+enum _HeatUnit { day, week, month, year }
+
+/// "Session Heatmap" (above LOG HISTORY): ALL focus history as one contiguous
+/// left→right strip of boxes — one box per day/week/month/year, picked from a
+/// classic button row — coloured when that unit had any session, faint
+/// otherwise. Scrolls sideways, starts at the most recent end; tapping an
+/// active box floats the usual callout with the unit + count + total time
+/// (#v31.3 item 5, "session timeline style but contiguous").
+class SessionHeatmapSection extends StatefulWidget {
+  final PixelTheme th;
+  final String lang;
+  final AppStore s;
+  final int today;
+  const SessionHeatmapSection(
+      {super.key, required this.th, required this.lang, required this.s, required this.today});
+  @override
+  State<SessionHeatmapSection> createState() => _SessionHeatmapSectionState();
+}
+
+class _SessionHeatmapSectionState extends State<SessionHeatmapSection> {
+  _HeatUnit _unit = _HeatUnit.day;
+  int? _selIdx;
+
+  @override
+  Widget build(BuildContext context) {
+    final th = widget.th, lang = widget.lang, s = widget.s, today = widget.today;
+    final title = Text(t(lang, 'sessionHeatmap'),
+        style: pixelStyle(lang, 11, col(th.onSurfaceDim), text: t(lang, 'sessionHeatmap')));
+    if (s.records.isEmpty) {
+      return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        title,
+        const SizedBox(height: 10),
+        Text(t(lang, 'noSessionsPeriod'),
+            style: pixelStyle(lang, 9, col(th.onSurfaceDim), text: t(lang, 'noSessionsPeriod'))),
+      ]);
+    }
+
+    int keyOf(int epochDay) {
+      final d = dateOfEpochDay(epochDay);
+      switch (_unit) {
+        case _HeatUnit.day:
+          return epochDay;
+        case _HeatUnit.week:
+          return epochDay - (d.weekday - 1); // Monday epoch-day
+        case _HeatUnit.month:
+          return d.year * 12 + d.month;
+        case _HeatUnit.year:
+          return d.year;
+      }
+    }
+
+    final mins = <int, int>{}, counts = <int, int>{};
+    var firstDay = today;
+    for (final r in s.records) {
+      if (r.epochDay < firstDay) firstDay = r.epochDay;
+      final k = keyOf(r.epochDay);
+      mins[k] = (mins[k] ?? 0) + (r.minutes < 0 ? 0 : r.minutes);
+      counts[k] = (counts[k] ?? 0) + 1;
+    }
+
+    // ordered unit keys, first session → now, INCLUDING empty units so the
+    // strip is truly contiguous and gaps read as faint boxes
+    final keys = <int>[];
+    switch (_unit) {
+      case _HeatUnit.day:
+        for (var d = firstDay; d <= today; d++) {
+          keys.add(d);
+        }
+        break;
+      case _HeatUnit.week:
+        for (var m = keyOf(firstDay); m <= keyOf(today); m += 7) {
+          keys.add(m);
+        }
+        break;
+      case _HeatUnit.month:
+        // y*12+m keys are contiguous across year turns (y*12+12 + 1 == (y+1)*12+1)
+        for (var k = keyOf(firstDay); k <= keyOf(today); k++) {
+          keys.add(k);
+        }
+        break;
+      case _HeatUnit.year:
+        for (var y = keyOf(firstDay); y <= keyOf(today); y++) {
+          keys.add(y);
+        }
+        break;
+    }
+
+    String labelOf(int key) {
+      switch (_unit) {
+        case _HeatUnit.day:
+          final d = dateOfEpochDay(key);
+          return '${d.day} ${monthName(lang, d.month)} ${d.year}';
+        case _HeatUnit.week:
+          final lo = dateOfEpochDay(key), hi = dateOfEpochDay(key + 6);
+          return '${lo.day} ${monthName(lang, lo.month)} – ${hi.day} ${monthName(lang, hi.month)}';
+        case _HeatUnit.month:
+          return '${monthName(lang, (key - 1) % 12 + 1)} ${(key - 1) ~/ 12}';
+        case _HeatUnit.year:
+          return '$key';
+      }
+    }
+
+    Widget unitBtn(String text, _HeatUnit u) {
+      final sel = _unit == u;
+      void pick() => setState(() {
+            _unit = u;
+            _selIdx = null;
+          });
+      return Expanded(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: sel
+              ? primaryBtn(th, lang, text, pick, fontSize: 8, padding: const EdgeInsets.all(8))
+              : secondaryBtn(th, lang, text, pick, fontSize: 8, padding: const EdgeInsets.all(8)),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        title,
+        const SizedBox(height: 10),
+        Row(children: [
+          unitBtn(t(lang, 'pDaily'), _HeatUnit.day),
+          unitBtn(t(lang, 'pWeekly'), _HeatUnit.week),
+          unitBtn(t(lang, 'pMonthly'), _HeatUnit.month),
+          unitBtn(t(lang, 'pYearly'), _HeatUnit.year),
+        ]),
+        const SizedBox(height: 12),
+        LayoutBuilder(builder: (context, box) {
+          final cell = ((box.maxWidth - 18 * 2) / 18).clamp(4.0, double.infinity);
+          final totalW = keys.length * (cell + 1);
+          final strip = Row(children: [
+            for (var i = 0; i < keys.length; i++)
+              Builder(builder: (_) {
+                final active = (mins[keys[i]] ?? 0) > 0;
+                Widget cellBox = Container(
+                  width: cell,
+                  height: cell,
+                  margin: const EdgeInsets.only(right: 1), // contiguous
+                  color: col(th.accent).withValues(alpha: active ? 1 : 0.18),
+                );
+                if (active) {
+                  cellBox = GestureDetector(
+                      onTap: () => setState(() => _selIdx = _selIdx == i ? null : i), child: cellBox);
+                }
+                return cellBox;
+              }),
+          ]);
+          Widget content = strip;
+          if (_selIdx != null && _selIdx! < keys.length) {
+            final k = keys[_selIdx!];
+            content = Stack(clipBehavior: Clip.none, children: [
+              strip,
+              Positioned(
+                left: (_selIdx! * (cell + 1)).clamp(0.0, math.max(0.0, totalW - 160)),
+                top: cell + 4,
+                child: _infoCallout(th, lang, [
+                  labelOf(k),
+                  '${counts[k] ?? 0}x · ${StatsAggregator.formatMinutes(mins[k] ?? 0)}',
+                ]),
+              ),
+            ]);
+          }
+          return SizedBox(
+            height: cell + (_selIdx != null ? 56 : 4),
+            // reverse pins the initial scroll at the RIGHT (most recent) end
+            child: SingleChildScrollView(scrollDirection: Axis.horizontal, reverse: true, child: content),
+          );
+        }),
+      ],
+    );
+  }
+}
+
 // How much trailing history a Focus Sessions heatmap shows (#v30 follow-up).
 enum _HeatPeriod { weekly, monthly, days126, yearly }
 
@@ -1737,9 +1917,11 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
   _HeatPeriod _period = _HeatPeriod.days126;
   String? _selLabel; // tapped cell → TREND-style callout (#v31 item 5)
   int? _selDay;
-  // user-chosen subset of labels for 18 WEEKS / YEARLY (#v31.2 item 1);
-  // null = show all. Labels no longer in the window are ignored.
+  // user-chosen subset of labels for 18 WEEKS (#v31.2 item 1); null = all.
   Set<String>? _chosenLabels;
+  // yearly shows exactly ONE label; the picker button carries its name
+  // (#v31.3 item 3).
+  String? _yearLabel;
 
   /// The inclusive epochDay span each period's shape displays, around the
   /// navigated [anchor] — labels with no session inside it are hidden (#v31
@@ -1783,11 +1965,14 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
       for (final e in labelCounts.entries)
         if (e.value.keys.any((d) => d >= lo && d <= hi)) e
     ];
-    // apply the user's label choice on the long views; an all-filtered-out
-    // choice falls back to everything rather than a dead end
-    final filterable = _period == _HeatPeriod.days126 || _period == _HeatPeriod.yearly;
+    // 18 WEEKS: multi-select filter (an all-filtered-out choice falls back to
+    // everything); YEARLY: exactly one label (#v31.3 item 3).
+    final yearly = _period == _HeatPeriod.yearly;
+    final filterable = _period == _HeatPeriod.days126 || yearly;
     var visible = inWindow;
-    if (filterable && _chosenLabels != null) {
+    if (yearly && inWindow.isNotEmpty) {
+      visible = [inWindow.firstWhere((e) => e.key == _yearLabel, orElse: () => inWindow.first)];
+    } else if (_period == _HeatPeriod.days126 && _chosenLabels != null) {
       final picked = [for (final e in inWindow) if (_chosenLabels!.contains(e.key)) e];
       if (picked.isNotEmpty) visible = picked;
     }
@@ -1855,9 +2040,11 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
               spanStart: lo, spanEnd: hi,
               onDayTap: (d) => onTap(e, d), selectedDay: selFor(e), callout: calloutFor(e));
         case _HeatPeriod.yearly:
-          return _HabitHeatmap(
-              days: e.value, color: color, today: today, maxCellSize: double.infinity,
-              spanStart: lo, spanEnd: hi,
+          // one horizontal 52-week band, left→right, each month framed like
+          // the timeline's day rectangles (#v31.3 item 4)
+          return _YearBand(
+              days: e.value, color: color, today: today,
+              year: dateOfEpochDay(anchor).year, frameColor: th.onSurfaceDim,
               onDayTap: (d) => onTap(e, d), selectedDay: selFor(e), callout: calloutFor(e));
         case _HeatPeriod.days126:
           return _HabitHeatmap(
@@ -1884,38 +2071,77 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
           ],
         );
 
-    // multi-select label filter for the long views (#v31.2 item 1): toggle
-    // rows, CLOSE keeps the choice; nothing selected = show all.
+    // label picker for the long views: 18 WEEKS = multi-select with the app
+    // blocker's pixel on/off switch (the old ✓ read unclear, #v31.3 item 2),
+    // YEARLY = tap a row to pick THE one label. Rows sit right under the
+    // title, bigger text.
     void pickLabels() {
+      void toggle(String key) => setState(() {
+            final set = _chosenLabels ?? inWindow.map((x) => x.key).toSet();
+            set.contains(key) ? set.remove(key) : set.add(key);
+            _chosenLabels = set;
+            _selLabel = null;
+            _selDay = null;
+          });
       showDialog(
         context: context,
         builder: (ctx) => StatefulBuilder(
           builder: (ctx, setLocal) => AlertDialog(
             backgroundColor: col(th.panel),
+            titlePadding: const EdgeInsets.fromLTRB(20, 16, 20, 6),
+            contentPadding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
             title: Text(t(lang, 'label'), style: pixelStyle(lang, 12, col(th.onSurface), text: t(lang, 'label'))),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (final e in inWindow)
-                  SimpleDialogOption(
-                    onPressed: () => setLocal(() {
-                      setState(() {
-                        final set = _chosenLabels ?? inWindow.map((x) => x.key).toSet();
-                        set.contains(e.key) ? set.remove(e.key) : set.add(e.key);
-                        _chosenLabels = set;
-                        _selLabel = null;
-                        _selDay = null;
-                      });
-                    }),
-                    child: Row(children: [
-                      Swatch(color: s.labelColorOf(e.key), border: th.onSurfaceDim, size: 14),
-                      const SizedBox(width: 10),
-                      Expanded(child: Text(e.key, style: pixelStyle(lang, 11, col(th.onSurface), text: e.key))),
-                      Text((_chosenLabels?.contains(e.key) ?? true) ? '✓' : '',
-                          style: pixelStyle(lang, 12, col(th.accent), text: '✓')),
-                    ]),
-                  ),
-              ],
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (final e in inWindow)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 7),
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () {
+                          if (yearly) {
+                            setState(() {
+                              _yearLabel = e.key;
+                              _selLabel = null;
+                              _selDay = null;
+                            });
+                            Navigator.pop(ctx);
+                          } else {
+                            setLocal(() => toggle(e.key));
+                          }
+                        },
+                        child: Row(children: [
+                          Swatch(color: s.labelColorOf(e.key), border: th.onSurfaceDim, size: 18),
+                          const SizedBox(width: 12),
+                          Expanded(child: Text(e.key, style: pixelStyle(lang, 13, col(th.onSurface), text: e.key))),
+                          _BlockToggle(
+                            on: yearly
+                                ? visible.isNotEmpty && visible.first.key == e.key
+                                : (_chosenLabels?.contains(e.key) ?? true),
+                            accent: th.accent,
+                            off: th.onSurfaceDim,
+                            knob: th.onSurface,
+                            onTap: () {
+                              if (yearly) {
+                                setState(() {
+                                  _yearLabel = e.key;
+                                  _selLabel = null;
+                                  _selDay = null;
+                                });
+                                Navigator.pop(ctx);
+                              } else {
+                                setLocal(() => toggle(e.key));
+                              }
+                            },
+                          ),
+                        ]),
+                      ),
+                    ),
+                ],
+              ),
             ),
             actions: [
               primaryBtn(th, lang, t(lang, 'close'), () => Navigator.pop(ctx),
@@ -1939,10 +2165,14 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
         ]),
         const SizedBox(height: 12),
         if (filterable && inWindow.isNotEmpty) ...[
+          // yearly: the button IS the chosen label (#v31.3 item 3);
+          // 18 weeks: LABEL (shown/total)
           secondaryBtn(
               th,
               lang,
-              '${t(lang, 'label')} (${visible.length}/${inWindow.length})',
+              yearly && visible.isNotEmpty
+                  ? visible.first.key
+                  : '${t(lang, 'label')} (${visible.length}/${inWindow.length})',
               pickLabels,
               key: const Key('labelFilterButton'),
               fontSize: 10,
@@ -2908,6 +3138,120 @@ class _WeekRow extends StatelessWidget {
           child: callout!,
         ),
       ]);
+    });
+  }
+}
+
+/// Yearly view: ONE horizontal band of the calendar year's ~53 week columns,
+/// reading left→right and scrolling sideways, with each month's weeks wrapped
+/// in a bordered frame like the session timeline's day rectangles — no month
+/// captions (tapping a cell already shows its date, #v31.3 item 4). Boundary
+/// weeks belong to the month containing their Thursday.
+class _YearBand extends StatelessWidget {
+  final Map<int, int> days;
+  final int color, today, year, frameColor;
+  final void Function(int day)? onDayTap;
+  final int? selectedDay;
+  final Widget? callout;
+  const _YearBand(
+      {required this.days, required this.color, required this.today, required this.year,
+      required this.frameColor, this.onDayTap, this.selectedDay, this.callout});
+
+  @override
+  Widget build(BuildContext context) {
+    final jan1 = epochDayOf(DateTime.utc(year, 1, 1));
+    final dec31 = epochDayOf(DateTime.utc(year, 12, 31));
+    final startMonday = jan1 - (dateOfEpochDay(jan1).weekday - 1);
+    final endMonday = dec31 - (dateOfEpochDay(dec31).weekday - 1);
+    final weeks = (endMonday - startMonday) ~/ 7 + 1;
+
+    int weekMonth(int w) {
+      final thu = dateOfEpochDay(startMonday + w * 7 + 3);
+      if (thu.year < year) return 1;
+      if (thu.year > year) return 12;
+      return thu.month;
+    }
+
+    // consecutive week runs per month: (first week index, count)
+    final groups = <(int, int)>[];
+    var runStart = 0;
+    for (var w = 1; w <= weeks; w++) {
+      if (w == weeks || weekMonth(w) != weekMonth(runStart)) {
+        groups.add((runStart, w - runStart));
+        runStart = w;
+      }
+    }
+
+    return LayoutBuilder(builder: (context, box) {
+      final cell = ((box.maxWidth - 18 * 2) / 18).clamp(4.0, double.infinity);
+      final bandH = 7 * (cell + 2) + 8; // cells + frame padding/border
+
+      Widget weekCol(int w) => Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var row = 0; row < 7; row++)
+                Builder(builder: (_) {
+                  final day = startMonday + w * 7 + row;
+                  final blank = day < jan1 || day > dec31;
+                  final future = !blank && day > today;
+                  final dayColor = blank || future ? null : ((days[day] ?? 0) > 0 ? color : null);
+                  Widget box = Container(
+                    width: cell,
+                    height: cell,
+                    margin: const EdgeInsets.only(right: 2, bottom: 2),
+                    decoration: BoxDecoration(
+                      color: blank
+                          ? Colors.transparent
+                          : col(dayColor ?? color).withValues(alpha: dayColor != null ? 1 : 0.18),
+                      borderRadius: BorderRadius.circular(1),
+                    ),
+                  );
+                  if (!blank && !future && onDayTap != null) {
+                    box = GestureDetector(onTap: () => onDayTap!(day), child: box);
+                  }
+                  return box;
+                }),
+            ],
+          );
+
+      final band = Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (var g = 0; g < groups.length; g++)
+            Container(
+              margin: EdgeInsets.only(right: g == groups.length - 1 ? 0 : 6),
+              padding: const EdgeInsets.fromLTRB(3, 3, 1, 1),
+              decoration: BoxDecoration(border: Border.all(color: col(frameColor), width: 1)),
+              child: Row(children: [for (var i = 0; i < groups[g].$2; i++) weekCol(groups[g].$1 + i)]),
+            ),
+        ],
+      );
+
+      Widget content = band;
+      if (selectedDay != null && callout != null && selectedDay! >= jan1 && selectedDay! <= dec31) {
+        final selMonday = selectedDay! - (dateOfEpochDay(selectedDay!).weekday - 1);
+        final w = (selMonday - startMonday) ~/ 7;
+        final row = dateOfEpochDay(selectedDay!).weekday - 1;
+        var x = 0.0;
+        for (final (start, count) in groups) {
+          if (w < start + count) {
+            x += 4 + (w - start) * (cell + 2); // frame pad+border, then columns
+            break;
+          }
+          x += count * (cell + 2) + 6 + 6; // full group (incl. frame) + gap
+        }
+        final y = 4.0 + row * (cell + 2);
+        final top = row >= 4 ? math.max(0.0, y - 44) : y + cell + 4;
+        content = Stack(clipBehavior: Clip.none, children: [
+          band,
+          Positioned(left: x, top: top, child: callout!),
+        ]);
+      }
+
+      return SizedBox(
+        height: bandH,
+        child: SingleChildScrollView(scrollDirection: Axis.horizontal, child: content),
+      );
     });
   }
 }

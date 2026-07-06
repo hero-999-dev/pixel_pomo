@@ -1039,10 +1039,34 @@ class TestData {
     add(DateTime(today.year, today.month - 2, 22), 130, 'HISTORY', 12 * 60);
     add(DateTime(today.year, today.month - 3, 14), 60, 'ENGLISH', 17 * 60);
 
-    add(DateTime(2025, 11, 12), 200, 'CODING', 18 * 60);
-    add(DateTime(2025, 9, 5), 150, 'MATH', 9 * 60 + 30);
-    add(DateTime(2025, 6, 20), 90, 'READING', 21 * 60);
-    add(DateTime(2025, 3, 8), 110, 'HISTORY', 10 * 60);
+    // a FULL, natural-looking 2025 (#v31.3): most days active, ~1-in-4 rest
+    // days, 1-8h per active day split over 1-3 sessions across varied labels.
+    // Deterministic LCG so every fresh install seeds the same year (no
+    // dart:math in this pure file). 2025 never overlaps the 360/700/1000
+    // bucket assertions, which live in 2026 windows.
+    var h = 0x9E37;
+    int rnd(int n) {
+      h = (h * 48271) % 0x7FFFFFFF;
+      return h % n;
+    }
+
+    final y25start = epochDayOf(DateTime(2025, 1, 1));
+    final y25end = epochDayOf(DateTime(2025, 12, 31));
+    for (var d = y25start; d <= y25end; d++) {
+      if (rnd(4) == 0) continue; // natural gaps
+      final total = 60 + rnd(421); // 1h .. 8h
+      final parts = 1 + rnd(3); // 1-3 sessions
+      var left = total;
+      var minute = 8 * 60 + rnd(120);
+      for (var i = 0; i < parts; i++) {
+        final m = i == parts - 1 ? left : (left ~/ (parts - i));
+        left -= m;
+        if (m <= 0) continue;
+        out.add(SessionRecord(d, m, labels[rnd(labels.length)],
+            minuteOfDay: minute > 1380 ? 1380 : minute));
+        minute += m + 10 + rnd(60);
+      }
+    }
 
     return out;
   }

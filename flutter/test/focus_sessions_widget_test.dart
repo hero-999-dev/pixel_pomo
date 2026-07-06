@@ -33,12 +33,25 @@ void main() {
     await tester.pumpWidget(host(s));
     await tester.pumpAndSettle();
     // seeded MATH has a session TODAY → visible in every window
-    for (final period in ['WEEKLY', 'MONTHLY', '18 WEEKS', 'YEARLY']) {
+    for (final period in ['WEEKLY', 'MONTHLY', '18 WEEKS']) {
       await tester.tap(find.text(period));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull, reason: '$period threw');
       expect(find.text('MATH'), findsOneWidget, reason: '$period lost MATH');
     }
+    // yearly shows ONE label (#v31.3): the picker button carries its name,
+    // so the first label appears twice (button + block title)
+    await tester.tap(find.text('YEARLY'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull, reason: 'YEARLY threw');
+    expect(find.text('MATH'), findsWidgets);
+    // switch the chosen label via the popup (rows carry the blocker toggle)
+    await tester.tap(find.byKey(const Key('labelFilterButton')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('HISTORY').last);
+    await tester.pumpAndSettle();
+    expect(find.text('HISTORY'), findsWidgets); // button + block title
+    expect(find.text('MATH'), findsNothing);
   });
 
   testWidgets('label filter narrows 18 WEEKS to the chosen labels (#v31.2)', (tester) async {
