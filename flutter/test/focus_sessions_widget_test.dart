@@ -33,26 +33,31 @@ void main() {
     await tester.pumpWidget(host(s));
     await tester.pumpAndSettle();
     // seeded MATH has a session TODAY → visible in every window
-    for (final period in ['WEEKLY', 'MONTHLY', '18 WEEKS']) {
+    for (final period in ['WEEKLY', 'MONTHLY', '18 WEEKS', 'YEARLY']) {
       await tester.tap(find.text(period));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull, reason: '$period threw');
       expect(find.text('MATH'), findsOneWidget, reason: '$period lost MATH');
     }
-    // yearly shows ONE label behind a popup picker (#v31.1 item 4): the first
-    // visible label (MATH) appears as both the picker button and the block title
-    await tester.tap(find.text('YEARLY'));
+  });
+
+  testWidgets('label filter narrows 18 WEEKS to the chosen labels (#v31.2)', (tester) async {
+    final s = await boot();
+    await tester.pumpWidget(host(s));
     await tester.pumpAndSettle();
-    expect(tester.takeException(), isNull, reason: 'YEARLY threw');
-    expect(find.byKey(const Key('yearLabelPicker')), findsOneWidget);
-    expect(find.text('MATH'), findsWidgets);
-    // pick a different label from the popup → its year grid replaces MATH's
-    await tester.tap(find.byKey(const Key('yearLabelPicker')));
+    // default period = 18 WEEKS → the filter button is present, all labels shown
+    expect(find.byKey(const Key('labelFilterButton')), findsOneWidget);
+    expect(find.text('MATH'), findsOneWidget);
+    expect(find.text('HISTORY'), findsOneWidget);
+    // open the picker and toggle MATH off
+    await tester.tap(find.byKey(const Key('labelFilterButton')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('HISTORY').last);
+    await tester.tap(find.text('MATH').last); // the dialog row (block title is .first)
     await tester.pumpAndSettle();
-    expect(find.text('HISTORY'), findsWidgets); // picker button + block title
+    await tester.tap(find.text('CLOSE'));
+    await tester.pumpAndSettle();
     expect(find.text('MATH'), findsNothing);
+    expect(find.text('HISTORY'), findsOneWidget);
   });
 
   testWidgets('labels unused in the window are hidden; unused-today label still in 18 WEEKS', (tester) async {
