@@ -214,6 +214,23 @@ void main() {
       expect(Economy.upgradeCost(6, 8), 29);
     });
 
+    test('firstLaunchSeed: debug gets full TestData, a real release build gets a clean 50-gold slate (#v31.11)', () {
+      final now = DateTime(2026, 7, 7);
+      final (debugRecords, debugCoins, debugLabels) = Economy.firstLaunchSeed(true, now);
+      // SessionRecord has no value equality, so compare the deterministic
+      // LCG fill's length (TestData's own exact-total tests already cover
+      // its content elsewhere) rather than deep-equal the two instance lists.
+      expect(debugRecords.length, TestData.records(now).length);
+      expect(debugRecords, isNotEmpty);
+      expect(debugCoins, TestData.seedCoins);
+      expect(debugLabels, TestData.labels);
+
+      final (realRecords, realCoins, realLabels) = Economy.firstLaunchSeed(false, now);
+      expect(realRecords, isEmpty, reason: 'a real user must not get fake pre-filled sessions');
+      expect(realCoins, Economy.startingGold);
+      expect(realLabels, isEmpty, reason: 'a real user must not get auto-added demo labels');
+    });
+
     test('garden base is 4x8 (portrait); atLeast pads each axis keeping plantings', () {
       expect(Economy.baseGardenCols, 4);
       expect(Economy.baseGardenRows, 8);

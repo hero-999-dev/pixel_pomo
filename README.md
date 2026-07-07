@@ -46,7 +46,8 @@ You don't build anything yourself — every release attaches a ready-to-install 
   Tap to switch, tap its **● swatch to pick a color**, **long-press to rename**, **ADD** your own, or **🗑** to remove.
   Every recorded session remembers its label, and the color flows into the stats charts.
 - **🪙 Coins & shop** — finishing a focus block earns coins (**1 per 5 minutes**). Spend them in the **SHOP** on
-  **2D-pixel flowers** (names in your language) and **garden decor** (roads + fences).
+  **2D-pixel flowers** (names in your language) and **garden decor** (roads + fences). A fresh install starts
+  with **50 coins and a genuinely empty history** — no pre-filled sessions or labels.
 - **🌱 Living garden** — a full-screen, portrait **2.5D world** drawn by a tiny custom engine (no Unity/Flame).
   Plant your flowers on a grass **clearing** ringed by a **forest** (trees, bushes, rocks). **EXPAND** grows the
   plot from the center; **two-finger twist to rotate**, **pinch-zoom and pan**. **Bee, butterfly and ladybug**

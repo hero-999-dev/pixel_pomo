@@ -339,6 +339,22 @@ class Economy {
   static const objectCost = 5; // roads + fences
   static const baseGardenCols = 4; // small start (#v23 fb — was 10×20); still the
   static const baseGardenRows = 8; // 1:2 portrait, grows +2×+4 per upgrade (first ⊕ now 2*(4+8)+1=25)
+  static const startingGold = 50; // real users' one-time first-launch grant (#v31.11)
+
+  /// What a fresh install grants, once, before anything is persisted: the
+  /// full pretend `TestData` history in a debug build (a dev/demo
+  /// convenience — screenshots, local testing — that must never reach a
+  /// real release build), or just [startingGold] and nothing else for an
+  /// actual user, whose real data genuinely starts the day they install
+  /// (#v31.11). Kept as pure decision logic (not gated on `kDebugMode`
+  /// directly) so both branches are independently unit-testable.
+  static (List<SessionRecord> records, int coins, List<String> labels) firstLaunchSeed(
+      bool debug, DateTime now) {
+    return debug
+        ? (TestData.records(now), TestData.seedCoins, TestData.labels)
+        : (const <SessionRecord>[], startingGold, const <String>[]);
+  }
+
   static int coinsFor(int minutes) => minutes <= 0 ? 0 : minutes ~/ 5;
 
   /// Whole focus minutes spent so far in a [workMin] session with [timeLeftMillis]

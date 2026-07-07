@@ -201,9 +201,13 @@ class AppStore extends ChangeNotifier {
 
   void _seedOnce() {
     if (_prefs.getBool(_kSeeded) ?? false) return;
-    records.addAll(TestData.records(DateTime.now()));
-    coins += TestData.seedCoins;
-    for (final l in TestData.labels) {
+    // kDebugMode (incl. `flutter test`, which also runs with asserts on) gets
+    // a full pretend history for dev/demo use; a real release build gets a
+    // clean slate — see Economy.firstLaunchSeed (#v31.11).
+    final (seedRecords, seedCoins, seedLabels) = Economy.firstLaunchSeed(kDebugMode, DateTime.now());
+    records.addAll(seedRecords);
+    coins += seedCoins;
+    for (final l in seedLabels) {
       labels = Labels.add(labels, l);
     }
     _prefs.setString(_kStats, StatsCodec.encode(records));
