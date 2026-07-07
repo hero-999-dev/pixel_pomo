@@ -1766,8 +1766,19 @@ class SessionsInPixelsScreen extends StatefulWidget {
   State<SessionsInPixelsScreen> createState() => _SessionsInPixelsScreenState();
 }
 
+// _HeatUnit and StatPeriod's first four cases mean the same thing — reuse
+// StatsAggregator's already-tested window/anchor/label math instead of
+// hand-rolling it a second time (#v31.10).
+StatPeriod _asStatPeriod(_HeatUnit u) => switch (u) {
+      _HeatUnit.day => StatPeriod.daily,
+      _HeatUnit.week => StatPeriod.weekly,
+      _HeatUnit.month => StatPeriod.monthly,
+      _HeatUnit.year => StatPeriod.yearly,
+    };
+
 class _SessionsInPixelsScreenState extends State<SessionsInPixelsScreen> {
   _HeatUnit _unit = _HeatUnit.day;
+  int _offset = 0; // periods back from now — browse earlier day/week/month/year (#v31.10)
   int? _selIdx; // index into the flat, chronological session list
 
   @override
@@ -1776,7 +1787,6 @@ class _SessionsInPixelsScreenState extends State<SessionsInPixelsScreen> {
     final th = s.theme;
     final lang = s.lang;
     final now = DateTime.now();
-    final today = epochDayOf(now);
     if (s.records.isEmpty) {
       return overlayScaffold(context, s, t(lang, 'sessionsInPixels'), [
         Text(t(lang, 'noSessionsPeriod'),
@@ -1790,27 +1800,12 @@ class _SessionsInPixelsScreenState extends State<SessionsInPixelsScreen> {
     // from — DAILY = today, WEEKLY = this week, MONTHLY = this month,
     // YEARLY = this year — and every session in that window becomes exactly
     // one box in one flat chronological sequence; box count == session
-    // count, no padding, no per-day borders/labels.
-    final monday = today - (dateOfEpochDay(today).weekday - 1);
-    final int lo, hi;
-    switch (_unit) {
-      case _HeatUnit.day:
-        lo = today;
-        hi = today;
-        break;
-      case _HeatUnit.week:
-        lo = monday;
-        hi = monday + 6;
-        break;
-      case _HeatUnit.month:
-        lo = epochDayOf(DateTime.utc(now.year, now.month, 1));
-        hi = epochDayOf(DateTime.utc(now.year, now.month + 1, 0));
-        break;
-      case _HeatUnit.year:
-        lo = epochDayOf(DateTime.utc(now.year, 1, 1));
-        hi = epochDayOf(DateTime.utc(now.year, 12, 31));
-        break;
-    }
+    // count, no padding, no per-day borders/labels. A ◀▶ navigator (#v31.10)
+    // browses to earlier days/weeks/months/years via the same anchor/offset
+    // mechanism Stats and the Money chart already use.
+    final period = _asStatPeriod(_unit);
+    final anchor = StatsAggregator.anchorFor(now, period, _offset);
+    final (lo, hi) = StatsAggregator.windowDays(anchor, period);
     final sessions = [for (final r in s.records) if (r.epochDay >= lo && r.epochDay <= hi) r]
       ..sort((a, b) {
         final byDay = a.epochDay.compareTo(b.epochDay);
@@ -1821,6 +1816,7 @@ class _SessionsInPixelsScreenState extends State<SessionsInPixelsScreen> {
       final sel = _unit == u;
       void pick() => setState(() {
             _unit = u;
+            _offset = 0;
             _selIdx = null;
           });
 
@@ -1842,6 +1838,37 @@ class _SessionsInPixelsScreenState extends State<SessionsInPixelsScreen> {
         unitBtn(t(lang, 'pWeekly'), _HeatUnit.week),
         unitBtn(t(lang, 'pMonthly'), _HeatUnit.month),
         unitBtn(t(lang, 'pYearly'), _HeatUnit.year),
+      ]),
+      const SizedBox(height: 10),
+      Row(children: [
+        SizedBox(
+          width: 52,
+          key: const Key('heatmapPrev'),
+          child: secondaryBtn(th, lang, '<', () => setState(() {
+                _offset++;
+                _selIdx = null;
+              }), fontSize: 13, padding: const EdgeInsets.all(10)),
+        ),
+        Expanded(
+          child: Center(
+            child: Text(periodWindowLabel(lang, period, _offset),
+                style: pixelStyle(lang, 11, col(th.onSurface), text: periodWindowLabel(lang, period, _offset))),
+          ),
+        ),
+        SizedBox(
+          width: 52,
+          key: const Key('heatmapNext'),
+          child: PixelButton(
+              text: '>', fill: th.panel, border: th.onSurfaceDim, textColor: th.onSurface, shadow: th.shadow,
+              lang: lang, fontSize: 13, padding: const EdgeInsets.all(10),
+              opacity: _offset > 0 ? 1 : 0.35,
+              onTap: () {
+                if (_offset > 0) setState(() {
+                  _offset--;
+                  _selIdx = null;
+                });
+              }),
+        ),
       ]),
       const SizedBox(height: 12),
       if (sessions.isEmpty)
@@ -1914,7 +1941,7 @@ class _SessionsInPixelsScreenState extends State<SessionsInPixelsScreen> {
         }),
       const SizedBox(height: 24),
       FocusSessionsSection(
-          th: th, lang: lang, s: s, today: today,
+          th: th, lang: lang, s: s, today: epochDayOf(now),
           anchor: epochDayOf(StatsAggregator.anchorFor(now, s.statPeriod, s.statOffset))),
     ]);
   }

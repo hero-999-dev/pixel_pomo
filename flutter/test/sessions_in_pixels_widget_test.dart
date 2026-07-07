@@ -130,6 +130,50 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('WEEKLY prev button browses to last week — box count matches last week exactly (#v31.10)', (tester) async {
+    final s = await boot();
+    await tester.pumpWidget(MaterialApp(home: SessionsInPixelsScreen(s)));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('WEEKLY').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('heatmapPrev')));
+    await tester.pumpAndSettle();
+
+    final now = DateTime.now();
+    final anchor = StatsAggregator.anchorFor(now, StatPeriod.weekly, 1);
+    final (lo, hi) = StatsAggregator.windowDays(anchor, StatPeriod.weekly);
+    final expected = s.records.where((r) => r.epochDay >= lo && r.epochDay <= hi).length;
+    expect(sessionBoxCount(tester), expected);
+  });
+
+  testWidgets('next button is a no-op at the current period (cannot browse into the future)', (tester) async {
+    final s = await boot();
+    await tester.pumpWidget(MaterialApp(home: SessionsInPixelsScreen(s)));
+    await tester.pumpAndSettle();
+    final beforeCount = sessionBoxCount(tester);
+    await tester.tap(find.byKey(const Key('heatmapNext')));
+    await tester.pumpAndSettle();
+    expect(sessionBoxCount(tester), beforeCount);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('switching units resets the navigator back to the current period', (tester) async {
+    final s = await boot();
+    await tester.pumpWidget(MaterialApp(home: SessionsInPixelsScreen(s)));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('WEEKLY').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('heatmapPrev')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('MONTHLY').first);
+    await tester.pumpAndSettle();
+
+    final now = DateTime.now();
+    final (lo, hi) = StatsAggregator.windowDays(now, StatPeriod.monthly);
+    final expected = s.records.where((r) => r.epochDay >= lo && r.epochDay <= hi).length;
+    expect(sessionBoxCount(tester), expected);
+  });
+
   testWidgets('heatmap boxes are coloured by label, not one flat colour', (tester) async {
     final s = await boot();
     await tester.pumpWidget(MaterialApp(home: SessionsInPixelsScreen(s)));

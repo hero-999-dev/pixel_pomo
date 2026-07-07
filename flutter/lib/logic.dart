@@ -1002,57 +1002,31 @@ class TestData {
     add(today.subtract(const Duration(days: 9)), 150, 'TURKISH', 14 * 60);
     add(today.subtract(const Duration(days: 14)), 150, 'TURKISH', 19 * 60);
 
-    // a scattered few weeks of history (roughly every 7-10 days, 2-4 hours
-    // per active day across 2-3 sessions) so the 18-week / yearly heatmaps
-    // read as a real pattern instead of two or three isolated days. Kept at
-    // 20+ days back so none of it lands in the current month/week and
-    // disturbs the exact 360/700/1000 buckets asserted above (#v30 follow-up).
-    add(today.subtract(const Duration(days: 20)), 90, 'CODING', 10 * 60);
-    add(today.subtract(const Duration(days: 20)), 60, 'MATH', 14 * 60);
-    add(today.subtract(const Duration(days: 28)), 120, 'HISTORY', 9 * 60);
-    add(today.subtract(const Duration(days: 28)), 60, 'ENGLISH', 15 * 60);
-    add(today.subtract(const Duration(days: 35)), 200, 'SCIENCE', 11 * 60);
-    add(today.subtract(const Duration(days: 35)), 40, 'READING', 18 * 60);
-    add(today.subtract(const Duration(days: 42)), 90, 'MATH', 8 * 60 + 30);
-    add(today.subtract(const Duration(days: 42)), 150, 'CODING', 16 * 60);
-    add(today.subtract(const Duration(days: 49)), 180, 'TURKISH', 13 * 60);
-    add(today.subtract(const Duration(days: 49)), 60, 'ENGLISH', 17 * 60 + 30);
-    add(today.subtract(const Duration(days: 56)), 100, 'HISTORY', 10 * 60);
-    add(today.subtract(const Duration(days: 56)), 80, 'MATH', 15 * 60);
-    add(today.subtract(const Duration(days: 56)), 50, 'SCIENCE', 19 * 60);
-    add(today.subtract(const Duration(days: 65)), 210, 'CODING', 14 * 60);
-    add(today.subtract(const Duration(days: 65)), 30, 'READING', 20 * 60);
-    add(today.subtract(const Duration(days: 75)), 120, 'MATH', 9 * 60);
-    add(today.subtract(const Duration(days: 75)), 90, 'ENGLISH', 16 * 60);
-    add(today.subtract(const Duration(days: 85)), 150, 'HISTORY', 11 * 60);
-    add(today.subtract(const Duration(days: 85)), 100, 'TURKISH', 18 * 60);
-    add(today.subtract(const Duration(days: 95)), 180, 'SCIENCE', 10 * 60 + 30);
-    add(today.subtract(const Duration(days: 95)), 60, 'CODING', 17 * 60);
-    add(today.subtract(const Duration(days: 110)), 200, 'MATH', 8 * 60);
-    add(today.subtract(const Duration(days: 110)), 40, 'READING', 21 * 60);
-    add(today.subtract(const Duration(days: 125)), 160, 'ENGLISH', 13 * 60 + 30);
-    add(today.subtract(const Duration(days: 125)), 80, 'HISTORY', 19 * 60);
-
     add(DateTime(today.year, today.month - 1, 10), 120, 'CODING', 20 * 60);
     add(DateTime(today.year, today.month - 1, 18), 90, 'MATH', 7 * 60 + 30);
     add(DateTime(today.year, today.month - 2, 6), 75, 'READING', 22 * 60);
     add(DateTime(today.year, today.month - 2, 22), 130, 'HISTORY', 12 * 60);
     add(DateTime(today.year, today.month - 3, 14), 60, 'ENGLISH', 17 * 60);
 
-    // a FULL, natural-looking 2025 (#v31.3): most days active, ~1-in-4 rest
-    // days, 1-8h per active day split over 1-3 sessions across varied labels.
-    // Deterministic LCG so every fresh install seeds the same year (no
-    // dart:math in this pure file). 2025 never overlaps the 360/700/1000
-    // bucket assertions, which live in 2026 windows.
+    // a FULL, natural-looking history from Jan 1 2025 through 20 days before
+    // today (#v31.3, extended #v31.10): most days active, ~1-in-4 rest days,
+    // 1-8h per active day split over 1-3 sessions across varied labels —
+    // covers all of 2025 AND the earlier months of the current year (was
+    // just a dozen scattered points there before, #v31.10), so every month
+    // Sessions in Pixels can browse to has real data, not sparse gaps.
+    // Deterministic LCG so every fresh install seeds the same history (no
+    // dart:math in this pure file). Stops 20 days short of [today] so it
+    // never overlaps the exact 360/700/1000 bucket assertions in
+    // TestDataTest, which live in the current day/week/month window.
     var h = 0x9E37;
     int rnd(int n) {
       h = (h * 48271) % 0x7FFFFFFF;
       return h % n;
     }
 
-    final y25start = epochDayOf(DateTime(2025, 1, 1));
-    final y25end = epochDayOf(DateTime(2025, 12, 31));
-    for (var d = y25start; d <= y25end; d++) {
+    final fillStart = epochDayOf(DateTime(2025, 1, 1));
+    final fillEnd = epochDayOf(today.subtract(const Duration(days: 20)));
+    for (var d = fillStart; d <= fillEnd; d++) {
       if (rnd(4) == 0) continue; // natural gaps
       final total = 60 + rnd(421); // 1h .. 8h
       final parts = 1 + rnd(3); // 1-3 sessions

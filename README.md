@@ -69,7 +69,8 @@ You don't build anything yourself — every release attaches a ready-to-install 
   flat sequence from start to end (no day boxes or borders — just the sessions, in order) with a period
   picker choosing how much history to pull in: **DAILY** shows just today, **WEEKLY** the current week,
   **MONTHLY / YEARLY** every session that month/year — do 30 sessions this week and you get exactly 30
-  boxes, do 1000 this year and you get exactly 1000 — and below it, **FOCUS SESSIONS** heatmaps
+  boxes, do 1000 this year and you get exactly 1000 — plus a **◀ ▶ navigator** to browse an earlier
+  day/week/month/year instead of only ever seeing the current one — and below it, **FOCUS SESSIONS** heatmaps
   per label with **WEEKLY / MONTHLY / 18 WEEKS / YEARLY** views, all in the same week-column grid: weekly and
   monthly show **2 and 3 labels side by side**, 18 weeks rolls forward as weeks pass (a **LABEL button** with
   pixel switches picks which labels to show), and yearly is **one label at a time** (the button carries its
