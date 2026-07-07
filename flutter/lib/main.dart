@@ -1791,13 +1791,28 @@ class _SessionsInPixelsScreenState extends State<SessionsInPixelsScreen> {
       }
     }
 
+    // per-bucket per-label minutes, so each box can be coloured by whichever
+    // label it actually represents — like Session Timeline in a Week — instead
+    // of one flat accent colour for every active box (#v31.6).
     final mins = <int, int>{}, counts = <int, int>{};
+    final labelMins = <int, Map<String, int>>{};
     var firstDay = today;
     for (final r in s.records) {
       if (r.epochDay < firstDay) firstDay = r.epochDay;
       final k = keyOf(r.epochDay);
-      mins[k] = (mins[k] ?? 0) + (r.minutes < 0 ? 0 : r.minutes);
+      final m = r.minutes < 0 ? 0 : r.minutes;
+      mins[k] = (mins[k] ?? 0) + m;
       counts[k] = (counts[k] ?? 0) + 1;
+      final byLabel = labelMins.putIfAbsent(k, () => {});
+      byLabel[r.label] = (byLabel[r.label] ?? 0) + m;
+    }
+
+    // the label with the most minutes in a bucket — the one colour that best
+    // represents a day/week/month/year that may span several labels.
+    String? dominantLabelOf(int key) {
+      final byLabel = labelMins[key];
+      if (byLabel == null || byLabel.isEmpty) return null;
+      return byLabel.entries.reduce((a, b) => b.value > a.value ? b : a).key;
     }
 
     // ordered unit keys, first session → now, INCLUDING empty units so the
@@ -1883,12 +1898,14 @@ class _SessionsInPixelsScreenState extends State<SessionsInPixelsScreen> {
           for (var i = 0; i < keys.length; i++)
             Builder(builder: (_) {
               final active = (mins[keys[i]] ?? 0) > 0;
+              final dominant = active ? dominantLabelOf(keys[i]) : null;
+              final boxColor = dominant != null ? col(s.labelColorOf(dominant)) : col(th.onSurfaceDim);
               Widget cellBox = Container(
                 width: cell,
                 height: cell,
                 margin: const EdgeInsets.only(right: 1), // contiguous
                 decoration: BoxDecoration(
-                  color: col(th.accent).withValues(alpha: active ? 1 : 0.18),
+                  color: boxColor.withValues(alpha: active ? 1 : 0.18),
                   borderRadius: BorderRadius.circular(1),
                 ),
               );
@@ -1910,6 +1927,7 @@ class _SessionsInPixelsScreenState extends State<SessionsInPixelsScreen> {
               child: _infoCallout(th, lang, [
                 labelOf(k),
                 '${counts[k] ?? 0}x · ${StatsAggregator.formatMinutes(mins[k] ?? 0)}',
+                if (dominantLabelOf(k) != null) dominantLabelOf(k)!,
               ]),
             ),
           ]);

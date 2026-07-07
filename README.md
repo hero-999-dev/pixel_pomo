@@ -66,7 +66,9 @@ You don't build anything yourself — every release attaches a ready-to-install 
   shows each completed session as a colored box, grouped per day with weekday initials, spread evenly across the
   width — **tap a box** to see which label it was and how long. A **SESSIONS IN PIXELS** button opens a
   dedicated screen with two parts: a **SESSION HEATMAP** — your whole history as one continuous strip, one box
-  per **day / week / month / year**, scrolled to today by default — and below it, **FOCUS SESSIONS** heatmaps
+  per **day / week / month / year**, scrolled to today by default, each box coloured by whichever label you
+  focused on most that day (a mixed day/week still gets one clear colour, not a single flat tone) — and below
+  it, **FOCUS SESSIONS** heatmaps
   per label with **WEEKLY / MONTHLY / 18 WEEKS / YEARLY** views, all in the same week-column grid: weekly and
   monthly show **2 and 3 labels side by side**, 18 weeks rolls forward as weeks pass (a **LABEL button** with
   pixel switches picks which labels to show), and yearly is **one label at a time** (the button carries its

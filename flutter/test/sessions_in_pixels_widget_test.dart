@@ -63,4 +63,24 @@ void main() {
     expect(find.text('FOCUS SESSIONS'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('heatmap boxes are coloured by label, not one flat colour (#v31.6)', (tester) async {
+    final s = await boot();
+    await tester.pumpWidget(MaterialApp(home: SessionsInPixelsScreen(s)));
+    await tester.pumpAndSettle();
+
+    // seeded TestData spreads MATH/HISTORY/READING/SCIENCE/CODING/TURKISH
+    // across many different days, so a truly single-coloured strip is
+    // impossible unless every active box was forced to one flat colour.
+    final activeColors = <Color>{};
+    for (final el in tester.elementList(find.byType(Container))) {
+      final c = el.widget as Container;
+      final deco = c.decoration;
+      if (deco is BoxDecoration && deco.color != null && deco.color!.a == 1.0) {
+        activeColors.add(deco.color!);
+      }
+    }
+    expect(activeColors.length, greaterThan(1),
+        reason: 'every active box rendered the same colour — the flat-accent bug is back');
+  });
 }
