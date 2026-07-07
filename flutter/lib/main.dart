@@ -1743,25 +1743,6 @@ class SessionsInPixelsScreen extends StatefulWidget {
 class _SessionsInPixelsScreenState extends State<SessionsInPixelsScreen> {
   _HeatUnit _unit = _HeatUnit.day;
   int? _selIdx;
-  final _scrollCtrl = ScrollController();
-
-  @override
-  void initState() {
-    super.initState();
-    _jumpToEnd();
-  }
-
-  @override
-  void dispose() {
-    _scrollCtrl.dispose();
-    super.dispose();
-  }
-
-  void _jumpToEnd() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollCtrl.hasClients) _scrollCtrl.jumpTo(_scrollCtrl.position.maxScrollExtent);
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -1859,13 +1840,10 @@ class _SessionsInPixelsScreenState extends State<SessionsInPixelsScreen> {
 
     Widget unitBtn(String text, _HeatUnit u) {
       final sel = _unit == u;
-      void pick() {
-        setState(() {
-          _unit = u;
-          _selIdx = null;
-        });
-        _jumpToEnd(); // the new unit has a different content width/extent
-      }
+      void pick() => setState(() {
+            _unit = u;
+            _selIdx = null;
+          });
 
       return Expanded(
         child: Padding(
@@ -1888,42 +1866,64 @@ class _SessionsInPixelsScreenState extends State<SessionsInPixelsScreen> {
       ]),
       const SizedBox(height: 12),
       LayoutBuilder(builder: (context, box) {
-        // size cells to the ACTUAL key count (capped at 18) instead of always
-        // dividing by 18 — a sparse period (e.g. YEARLY with 2-3 entries)
-        // used to render tiny boxes with a wall of empty space next to them.
-        final divisor = math.min(keys.length, 18).clamp(1, 18);
-        final cell = ((box.maxWidth - divisor * 2) / divisor).clamp(4.0, double.infinity);
-        final totalW = keys.length * (cell + 1);
-        final strip = Row(children: [
-          for (var i = 0; i < keys.length; i++)
-            Builder(builder: (_) {
-              final active = (mins[keys[i]] ?? 0) > 0;
-              final dominant = active ? dominantLabelOf(keys[i]) : null;
-              final boxColor = dominant != null ? col(s.labelColorOf(dominant)) : col(th.onSurfaceDim);
-              Widget cellBox = Container(
-                width: cell,
-                height: cell,
-                margin: const EdgeInsets.only(right: 1), // contiguous
-                decoration: BoxDecoration(
-                  color: boxColor.withValues(alpha: active ? 1 : 0.18),
-                  borderRadius: BorderRadius.circular(1),
-                ),
-              );
-              if (active) {
-                cellBox = GestureDetector(
-                    onTap: () => setState(() => _selIdx = _selIdx == i ? null : i), child: cellBox);
-              }
-              return cellBox;
-            }),
-        ]);
-        Widget content = strip;
+        // wraps into a grid — like Focus Sessions' monthly view — instead of
+        // one long horizontal-scrolling strip, so the FULL history is visible
+        // at once via the screen's normal vertical scroll (#v31.7). Oldest
+        // top-left, most recent bottom-right: the same reading order the
+        // rest of the app's heatmaps already use (oldest band on top).
+        const target = 16.0;
+        final colsPerRow = math.max(1, (box.maxWidth / (target + 1)).floor());
+        final cell = ((box.maxWidth - colsPerRow * 1) / colsPerRow).clamp(4.0, 24.0);
+        final rows = (keys.length / colsPerRow).ceil();
+
+        Widget cellAt(int i) {
+          final active = (mins[keys[i]] ?? 0) > 0;
+          final dominant = active ? dominantLabelOf(keys[i]) : null;
+          final boxColor = dominant != null ? col(s.labelColorOf(dominant)) : col(th.onSurfaceDim);
+          Widget cellBox = Container(
+            width: cell,
+            height: cell,
+            margin: const EdgeInsets.only(right: 1, bottom: 1),
+            decoration: BoxDecoration(
+              color: boxColor.withValues(alpha: active ? 1 : 0.18),
+              borderRadius: BorderRadius.circular(1),
+            ),
+          );
+          if (active) {
+            cellBox = GestureDetector(
+                onTap: () => setState(() => _selIdx = _selIdx == i ? null : i), child: cellBox);
+          }
+          return cellBox;
+        }
+
+        final grid = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (var r = 0; r < rows; r++)
+              Row(children: [
+                for (var c = 0; c < colsPerRow; c++)
+                  Builder(builder: (_) {
+                    final i = r * colsPerRow + c;
+                    return i < keys.length ? cellAt(i) : SizedBox(width: cell, height: cell);
+                  }),
+              ]),
+          ],
+        );
+
+        Widget content = grid;
         if (_selIdx != null && _selIdx! < keys.length) {
           final k = keys[_selIdx!];
+          final row = _selIdx! ~/ colsPerRow, colInRow = _selIdx! % colsPerRow;
+          // pop above the cell on the last row instead of below, so the
+          // callout doesn't overflow past the bottom of the grid
+          final top = row == rows - 1
+              ? math.max(0.0, row * (cell + 1) - 44)
+              : row * (cell + 1) + cell + 4;
           content = Stack(clipBehavior: Clip.none, children: [
-            strip,
+            grid,
             Positioned(
-              left: (_selIdx! * (cell + 1)).clamp(0.0, math.max(0.0, totalW - 160)),
-              top: cell + 4,
+              left: (colInRow * (cell + 1)).clamp(0.0, math.max(0.0, box.maxWidth - 160)),
+              top: top,
               child: _infoCallout(th, lang, [
                 labelOf(k),
                 '${counts[k] ?? 0}x · ${StatsAggregator.formatMinutes(mins[k] ?? 0)}',
@@ -1932,11 +1932,7 @@ class _SessionsInPixelsScreenState extends State<SessionsInPixelsScreen> {
             ),
           ]);
         }
-        return SizedBox(
-          height: cell + (_selIdx != null ? 56 : 4),
-          child: SingleChildScrollView(
-              controller: _scrollCtrl, scrollDirection: Axis.horizontal, child: content),
-        );
+        return content;
       }),
       const SizedBox(height: 24),
       FocusSessionsSection(
