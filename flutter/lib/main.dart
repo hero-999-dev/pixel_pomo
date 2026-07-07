@@ -1583,14 +1583,7 @@ class _SessionsTimelineWeekState extends State<SessionsTimelineWeek> {
     final a = widget.anchor ?? today;
     // the calendar week (Mon..Sun) containing the anchor day
     final monday = a - (dateOfEpochDay(a).weekday - 1);
-    final byDay = <int, List<SessionRecord>>{};
-    for (final r in s.records) {
-      if (r.epochDay < monday || r.epochDay > monday + 6) continue;
-      byDay.putIfAbsent(r.epochDay, () => []).add(r);
-    }
-    for (final list in byDay.values) {
-      list.sort((a, b) => (a.minuteOfDay ?? 0).compareTo(b.minuteOfDay ?? 0));
-    }
+    final byDay = _sessionsByDay(s.records, monday, monday + 6);
     // hide only for a brand-new user; a NAVIGATED week with no sessions still
     // shows its 7 empty day frames, so the ◀▶ browsing reads as working (#v31.2)
     if (s.records.isEmpty) return const SizedBox.shrink();
@@ -1613,43 +1606,13 @@ class _SessionsTimelineWeekState extends State<SessionsTimelineWeek> {
           // above/below, so both read at one scale (#v31 item 7)
           final cell = ((box.maxWidth - 18 * 2) / 18).clamp(4.0, double.infinity);
 
-          Widget dayGroup(int day) {
-            final sessions = byDay[day] ?? const <SessionRecord>[];
-            final wd = weekdayShorts[(dateOfEpochDay(day).weekday - 1) % 7];
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(3),
-                  decoration: BoxDecoration(border: Border.all(color: col(th.onSurfaceDim), width: 1)),
-                  child: Row(
-                    children: [
-                      for (var i = 0; i < sessions.length; i++)
-                        GestureDetector(
-                          // tap shows what was studied (#v31 item 8)
-                          onTap: () => setState(() => _sel = _sel == (day, i) ? null : (day, i)),
-                          child: Container(
-                            width: cell,
-                            height: cell,
-                            margin: EdgeInsets.only(right: i == sessions.length - 1 ? 0 : 2),
-                            decoration: BoxDecoration(
-                              color: col(s.labelColorOf(sessions[i].label)),
-                              border: _sel == (day, i)
-                                  ? Border.all(color: col(th.onSurface), width: 2)
-                                  : null,
-                            ),
-                          ),
-                        ),
-                      if (sessions.isEmpty) SizedBox(width: cell, height: cell),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 3),
-                // weekday initials anchor the boxes to actual days (#v30.9 rec 6)
-                Text(wd, style: pixelStyle(lang, 7, col(th.onSurfaceDim), text: wd)),
-              ],
-            );
-          }
+          Widget dayGroup(int day) => _sessionDayGroup(
+                th: th, lang: lang, s: s, cell: cell,
+                sessions: byDay[day] ?? const <SessionRecord>[],
+                weekdayLabel: weekdayShorts[(dateOfEpochDay(day).weekday - 1) % 7],
+                isSelected: (i) => _sel == (day, i),
+                onTapSession: (i) => setState(() => _sel = _sel == (day, i) ? null : (day, i)),
+              );
 
           return SingleChildScrollView(
             scrollDirection: Axis.horizontal,
@@ -1678,19 +1641,82 @@ class _SessionsTimelineWeekState extends State<SessionsTimelineWeek> {
             alignment: Alignment.centerLeft,
             child: _infoCallout(th, lang, [
               selRec.label,
-              '${StatsAggregator.formatMinutes(selRec.minutes)}${_timeSuffix(selRec)}',
+              '${StatsAggregator.formatMinutes(selRec.minutes)}${_sessionTimeSuffix(selRec)}',
             ]),
           ),
         ],
       ],
     );
   }
+}
 
-  String _timeSuffix(SessionRecord r) {
-    final m = r.minuteOfDay;
-    if (m == null) return '';
-    return ' · ${(m ~/ 60).toString().padLeft(2, '0')}:${(m % 60).toString().padLeft(2, '0')}';
+/// Groups [records] within [lo]..[hi] (inclusive) by epochDay, each day's
+/// list sorted chronologically by time-of-day — shared by Session Timeline
+/// in a Week and Session Heatmap (#v31.8).
+Map<int, List<SessionRecord>> _sessionsByDay(List<SessionRecord> records, int lo, int hi) {
+  final byDay = <int, List<SessionRecord>>{};
+  for (final r in records) {
+    if (r.epochDay < lo || r.epochDay > hi) continue;
+    byDay.putIfAbsent(r.epochDay, () => []).add(r);
   }
+  for (final list in byDay.values) {
+    list.sort((a, b) => (a.minuteOfDay ?? 0).compareTo(b.minuteOfDay ?? 0));
+  }
+  return byDay;
+}
+
+String _sessionTimeSuffix(SessionRecord r) {
+  final m = r.minuteOfDay;
+  if (m == null) return '';
+  return ' · ${(m ~/ 60).toString().padLeft(2, '0')}:${(m % 60).toString().padLeft(2, '0')}';
+}
+
+/// One day's sessions as a bordered rectangle of small colour-by-label boxes,
+/// chronological by time-of-day — the shared building block behind Session
+/// Timeline in a Week and Session Heatmap (#v31.8).
+Widget _sessionDayGroup({
+  required PixelTheme th,
+  required String lang,
+  required AppStore s,
+  required double cell,
+  required List<SessionRecord> sessions,
+  required bool Function(int i) isSelected,
+  required void Function(int i) onTapSession,
+  String? weekdayLabel,
+}) {
+  return Column(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Container(
+        padding: const EdgeInsets.all(3),
+        decoration: BoxDecoration(border: Border.all(color: col(th.onSurfaceDim), width: 1)),
+        child: Row(
+          children: [
+            for (var i = 0; i < sessions.length; i++)
+              GestureDetector(
+                // tap shows what was studied (#v31 item 8)
+                onTap: () => onTapSession(i),
+                child: Container(
+                  width: cell,
+                  height: cell,
+                  margin: EdgeInsets.only(right: i == sessions.length - 1 ? 0 : 2),
+                  decoration: BoxDecoration(
+                    color: col(s.labelColorOf(sessions[i].label)),
+                    border: isSelected(i) ? Border.all(color: col(th.onSurface), width: 2) : null,
+                  ),
+                ),
+              ),
+            if (sessions.isEmpty) SizedBox(width: cell, height: cell),
+          ],
+        ),
+      ),
+      if (weekdayLabel != null) ...[
+        const SizedBox(height: 3),
+        // weekday initials anchor the boxes to actual days (#v30.9 rec 6)
+        Text(weekdayLabel, style: pixelStyle(lang, 7, col(th.onSurfaceDim), text: weekdayLabel)),
+      ],
+    ],
+  );
 }
 
 /// Small TREND-callout-styled info box (panel fill + 1px border, pixel rows) —
@@ -1742,7 +1768,7 @@ class SessionsInPixelsScreen extends StatefulWidget {
 
 class _SessionsInPixelsScreenState extends State<SessionsInPixelsScreen> {
   _HeatUnit _unit = _HeatUnit.day;
-  int? _selIdx;
+  (int, int)? _sel; // (epochDay, index within that day's sorted sessions)
 
   @override
   Widget build(BuildContext context) {
@@ -1758,91 +1784,71 @@ class _SessionsInPixelsScreenState extends State<SessionsInPixelsScreen> {
       ]);
     }
 
-    int keyOf(int epochDay) {
-      final d = dateOfEpochDay(epochDay);
-      switch (_unit) {
-        case _HeatUnit.day:
-          return epochDay;
-        case _HeatUnit.week:
-          return epochDay - (d.weekday - 1); // Monday epoch-day
-        case _HeatUnit.month:
-          return d.year * 12 + d.month;
-        case _HeatUnit.year:
-          return d.year;
-      }
-    }
-
-    // per-bucket per-label minutes, so each box can be coloured by whichever
-    // label it actually represents — like Session Timeline in a Week — instead
-    // of one flat accent colour for every active box (#v31.6).
-    final mins = <int, int>{}, counts = <int, int>{};
-    final labelMins = <int, Map<String, int>>{};
-    var firstDay = today;
-    for (final r in s.records) {
-      if (r.epochDay < firstDay) firstDay = r.epochDay;
-      final k = keyOf(r.epochDay);
-      final m = r.minutes < 0 ? 0 : r.minutes;
-      mins[k] = (mins[k] ?? 0) + m;
-      counts[k] = (counts[k] ?? 0) + 1;
-      final byLabel = labelMins.putIfAbsent(k, () => {});
-      byLabel[r.label] = (byLabel[r.label] ?? 0) + m;
-    }
-
-    // the label with the most minutes in a bucket — the one colour that best
-    // represents a day/week/month/year that may span several labels.
-    String? dominantLabelOf(int key) {
-      final byLabel = labelMins[key];
-      if (byLabel == null || byLabel.isEmpty) return null;
-      return byLabel.entries.reduce((a, b) => b.value > a.value ? b : a).key;
-    }
-
-    // ordered unit keys, first session → now, INCLUDING empty units so the
-    // strip is truly contiguous and gaps read as faint boxes
-    final keys = <int>[];
+    // Session Heatmap now reads like Session Timeline in a Week — one box per
+    // SESSION, not one box per bucket — with the period picker choosing how
+    // wide a calendar window to show (#v31.8): DAILY = just today, WEEKLY =
+    // this calendar week, MONTHLY = this calendar month, YEARLY = this
+    // calendar year (every session done all year).
+    final monday = today - (dateOfEpochDay(today).weekday - 1);
+    final int lo, hi;
     switch (_unit) {
       case _HeatUnit.day:
-        for (var d = firstDay; d <= today; d++) {
-          keys.add(d);
-        }
+        lo = today;
+        hi = today;
         break;
       case _HeatUnit.week:
-        for (var m = keyOf(firstDay); m <= keyOf(today); m += 7) {
-          keys.add(m);
-        }
+        lo = monday;
+        hi = monday + 6;
         break;
       case _HeatUnit.month:
-        // y*12+m keys are contiguous across year turns (y*12+12 + 1 == (y+1)*12+1)
-        for (var k = keyOf(firstDay); k <= keyOf(today); k++) {
-          keys.add(k);
-        }
+        lo = epochDayOf(DateTime.utc(now.year, now.month, 1));
+        hi = epochDayOf(DateTime.utc(now.year, now.month + 1, 0));
         break;
       case _HeatUnit.year:
-        for (var y = keyOf(firstDay); y <= keyOf(today); y++) {
-          keys.add(y);
-        }
+        lo = epochDayOf(DateTime.utc(now.year, 1, 1));
+        hi = epochDayOf(DateTime.utc(now.year, 12, 31));
         break;
     }
+    final byDay = _sessionsByDay(s.records, lo, hi);
 
-    String labelOf(int key) {
+    // DAILY/WEEKLY keep every day in the window (even empty) for rhythm —
+    // matching Session Timeline in a Week exactly; MONTHLY/YEARLY show only
+    // days that actually have a session, or a month/year of mostly-blank
+    // boxes would drown out the real data.
+    final days = <int>[];
+    if (_unit == _HeatUnit.day || _unit == _HeatUnit.week) {
+      for (var d = lo; d <= hi; d++) {
+        days.add(d);
+      }
+    } else {
+      days.addAll(byDay.keys.toList()..sort());
+    }
+
+    String? dayLabelFor(int day) {
+      final d = dateOfEpochDay(day);
       switch (_unit) {
         case _HeatUnit.day:
-          final d = dateOfEpochDay(key);
-          return '${d.day} ${monthName(lang, d.month)} ${d.year}';
+          return null; // one group, "today" is already implied by the picker
         case _HeatUnit.week:
-          final lo = dateOfEpochDay(key), hi = dateOfEpochDay(key + 6);
-          return '${lo.day} ${monthName(lang, lo.month)} – ${hi.day} ${monthName(lang, hi.month)}';
+          return t(lang, 'weekdayShort').split(',')[(d.weekday - 1) % 7];
         case _HeatUnit.month:
-          return '${monthName(lang, (key - 1) % 12 + 1)} ${(key - 1) ~/ 12}';
+          return '${d.day}';
         case _HeatUnit.year:
-          return '$key';
+          return '${d.day} ${monthName(lang, d.month)}';
       }
+    }
+
+    SessionRecord? selRec;
+    if (_sel != null) {
+      final list = byDay[_sel!.$1];
+      if (list != null && _sel!.$2 < list.length) selRec = list[_sel!.$2];
     }
 
     Widget unitBtn(String text, _HeatUnit u) {
       final sel = _unit == u;
       void pick() => setState(() {
             _unit = u;
-            _selIdx = null;
+            _sel = null;
           });
 
       return Expanded(
@@ -1865,75 +1871,41 @@ class _SessionsInPixelsScreenState extends State<SessionsInPixelsScreen> {
         unitBtn(t(lang, 'pYearly'), _HeatUnit.year),
       ]),
       const SizedBox(height: 12),
-      LayoutBuilder(builder: (context, box) {
-        // wraps into a grid — like Focus Sessions' monthly view — instead of
-        // one long horizontal-scrolling strip, so the FULL history is visible
-        // at once via the screen's normal vertical scroll (#v31.7). Oldest
-        // top-left, most recent bottom-right: the same reading order the
-        // rest of the app's heatmaps already use (oldest band on top).
-        const target = 16.0;
-        final colsPerRow = math.max(1, (box.maxWidth / (target + 1)).floor());
-        final cell = ((box.maxWidth - colsPerRow * 1) / colsPerRow).clamp(4.0, 24.0);
-        final rows = (keys.length / colsPerRow).ceil();
-
-        Widget cellAt(int i) {
-          final active = (mins[keys[i]] ?? 0) > 0;
-          final dominant = active ? dominantLabelOf(keys[i]) : null;
-          final boxColor = dominant != null ? col(s.labelColorOf(dominant)) : col(th.onSurfaceDim);
-          Widget cellBox = Container(
-            width: cell,
-            height: cell,
-            margin: const EdgeInsets.only(right: 1, bottom: 1),
-            decoration: BoxDecoration(
-              color: boxColor.withValues(alpha: active ? 1 : 0.18),
-              borderRadius: BorderRadius.circular(1),
-            ),
+      if (days.isEmpty)
+        // MONTHLY/YEARLY with zero sessions in the window (DAILY/WEEKLY
+        // always have at least their own empty day/week frames to show)
+        Text(t(lang, 'noSessionsPeriod'),
+            style: pixelStyle(lang, 9, col(th.onSurfaceDim), text: t(lang, 'noSessionsPeriod')))
+      else
+        LayoutBuilder(builder: (context, box) {
+          // session squares use the SAME cell formula as the label heatmaps
+          // elsewhere, so everything reads at one scale (#v31 item 7)
+          final cell = ((box.maxWidth - 18 * 2) / 18).clamp(4.0, double.infinity);
+          return Wrap(
+            spacing: 6,
+            runSpacing: 8,
+            children: [
+              for (final d in days)
+                _sessionDayGroup(
+                  th: th, lang: lang, s: s, cell: cell,
+                  sessions: byDay[d] ?? const <SessionRecord>[],
+                  weekdayLabel: dayLabelFor(d),
+                  isSelected: (i) => _sel == (d, i),
+                  onTapSession: (i) => setState(() => _sel = _sel == (d, i) ? null : (d, i)),
+                ),
+            ],
           );
-          if (active) {
-            cellBox = GestureDetector(
-                onTap: () => setState(() => _selIdx = _selIdx == i ? null : i), child: cellBox);
-          }
-          return cellBox;
-        }
-
-        final grid = Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            for (var r = 0; r < rows; r++)
-              Row(children: [
-                for (var c = 0; c < colsPerRow; c++)
-                  Builder(builder: (_) {
-                    final i = r * colsPerRow + c;
-                    return i < keys.length ? cellAt(i) : SizedBox(width: cell, height: cell);
-                  }),
-              ]),
-          ],
-        );
-
-        Widget content = grid;
-        if (_selIdx != null && _selIdx! < keys.length) {
-          final k = keys[_selIdx!];
-          final row = _selIdx! ~/ colsPerRow, colInRow = _selIdx! % colsPerRow;
-          // pop above the cell on the last row instead of below, so the
-          // callout doesn't overflow past the bottom of the grid
-          final top = row == rows - 1
-              ? math.max(0.0, row * (cell + 1) - 44)
-              : row * (cell + 1) + cell + 4;
-          content = Stack(clipBehavior: Clip.none, children: [
-            grid,
-            Positioned(
-              left: (colInRow * (cell + 1)).clamp(0.0, math.max(0.0, box.maxWidth - 160)),
-              top: top,
-              child: _infoCallout(th, lang, [
-                labelOf(k),
-                '${counts[k] ?? 0}x · ${StatsAggregator.formatMinutes(mins[k] ?? 0)}',
-                if (dominantLabelOf(k) != null) dominantLabelOf(k)!,
-              ]),
-            ),
-          ]);
-        }
-        return content;
-      }),
+        }),
+      if (selRec != null) ...[
+        const SizedBox(height: 8),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: _infoCallout(th, lang, [
+            selRec.label,
+            '${StatsAggregator.formatMinutes(selRec.minutes)}${_sessionTimeSuffix(selRec)}',
+          ]),
+        ),
+      ],
       const SizedBox(height: 24),
       FocusSessionsSection(
           th: th, lang: lang, s: s, today: today,
