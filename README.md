@@ -65,11 +65,11 @@ You don't build anything yourself — every release attaches a ready-to-install 
   hour), a per-label breakdown, and **CURRENT / AVERAGE / BEST** in trend view. A **SESSION TIMELINE IN A WEEK**
   shows each completed session as a colored box, grouped per day with weekday initials, spread evenly across the
   width — **tap a box** to see which label it was and how long. A **SESSIONS IN PIXELS** button opens a
-  dedicated screen with two parts: a **SESSION HEATMAP** — same idea as Session Timeline in a Week (one box
-  per session, grouped by day) but with a period picker choosing how much history to pull in: **DAILY** shows
-  just today, **WEEKLY** the current week (all 7 days, even empty ones), **MONTHLY / YEARLY** every session
-  that month/year, grouped per day — so yearly shows every session you've done all year at a glance — and
-  below it, **FOCUS SESSIONS** heatmaps
+  dedicated screen with two parts: a **SESSION HEATMAP** — one box per session, coloured by label, in one
+  flat sequence from start to end (no day boxes or borders — just the sessions, in order) with a period
+  picker choosing how much history to pull in: **DAILY** shows just today, **WEEKLY** the current week,
+  **MONTHLY / YEARLY** every session that month/year — do 30 sessions this week and you get exactly 30
+  boxes, do 1000 this year and you get exactly 1000 — and below it, **FOCUS SESSIONS** heatmaps
   per label with **WEEKLY / MONTHLY / 18 WEEKS / YEARLY** views, all in the same week-column grid: weekly and
   monthly show **2 and 3 labels side by side**, 18 weeks rolls forward as weeks pass (a **LABEL button** with
   pixel switches picks which labels to show), and yearly is **one label at a time** (the button carries its
