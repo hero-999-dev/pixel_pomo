@@ -199,12 +199,20 @@ class AppStore extends ChangeNotifier {
     }
   }
 
+  // Set only by the separately-published "Test Pixel Pomo" APK (a different
+  // applicationId, installable side by side with the real app) via
+  // `flutter build apk --dart-define=TEST_BUILD=true` — a *release* build
+  // that still wants the debug-only demo seed, so it can be checked visually
+  // on a real device instead of only via `flutter run`/`flutter test` (#v31.12).
+  static const _kTestBuild = bool.fromEnvironment('TEST_BUILD');
+
   void _seedOnce() {
     if (_prefs.getBool(_kSeeded) ?? false) return;
     // kDebugMode (incl. `flutter test`, which also runs with asserts on) gets
     // a full pretend history for dev/demo use; a real release build gets a
     // clean slate — see Economy.firstLaunchSeed (#v31.11).
-    final (seedRecords, seedCoins, seedLabels) = Economy.firstLaunchSeed(kDebugMode, DateTime.now());
+    final (seedRecords, seedCoins, seedLabels) =
+        Economy.firstLaunchSeed(kDebugMode || _kTestBuild, DateTime.now());
     records.addAll(seedRecords);
     coins += seedCoins;
     for (final l in seedLabels) {

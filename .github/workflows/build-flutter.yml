@@ -6,6 +6,10 @@ name: Build Flutter (iOS + Android)
 # run (GitHub → Actions → "Build Flutter (iOS + Android)" → Run workflow), because
 # the macOS runner that iOS requires is billed at 10x. A manual run builds BOTH and
 # refreshes the .ipa on the releases.
+#
+# This app always ships a clean slate (#v31.11) — see build-flutter-test.yml (also
+# manual-dispatch only) for the separate "Test Pixel Pomo" APK that keeps the full
+# demo/test dataset for checking heatmap/stats features on a real device.
 
 on:
   workflow_dispatch:        # manual run → Android + iOS on macOS (10x minutes)

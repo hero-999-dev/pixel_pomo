@@ -24,6 +24,11 @@ You don't build anything yourself — every release attaches a ready-to-install 
 2. Download **`pixel_pomo_flutter.apk`** and tap to install.
    - If Android warns about "unknown sources", allow installs for your browser / file app, then re-open the APK.
    - Installs alongside the old native build (different app id), so you can keep both.
+   - Starts with **50 coins and a completely empty history** — nothing pre-filled.
+
+There's also a separate **Test Pixel Pomo** build (**`flutter-test`** release, manual-build-only) — a different
+app id, so it installs *alongside* the real one — pre-filled with years of sample sessions and coins, for
+trying out stats/heatmap features without needing to build up real history first.
 
 **iPhone**
 1. From the same release, download **`pixel_pomo_ios.ipa`**.

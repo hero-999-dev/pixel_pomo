@@ -1,0 +1,101 @@
+name: Build Test Pixel Pomo (debug-data APK)
+
+# A SEPARATE app — different applicationId, installs side by side with the real
+# Pixel Pomo on the same phone — that keeps the full TestData demo seed (years of
+# pretend sessions, 1000 coins, 7 labels) even though it's a --release build, so
+# heatmap/stats-heavy features can be checked visually on a real device instead of
+# only via `flutter run`/`flutter test` on a dev machine (#v31.12). The REAL app
+# (build-flutter.yml) always ships a clean slate — this workflow never touches it.
+#
+# Manual dispatch only: unlike the real app's Android build, this isn't needed on
+# every push, so it doesn't run automatically and cost minutes for rounds where
+# nobody checks it. Run it from GitHub -> Actions -> "Build Test Pixel Pomo
+# (debug-data APK)" -> Run workflow whenever you actually want a fresh one.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      # A different --org than the real app's com.pixelpomo gives this a
+      # different applicationId (com.pixelpomo.test.pixel_pomo vs.
+      # com.pixelpomo.pixel_pomo) — Android treats that as a wholly separate
+      # app, installable alongside the real one without conflict.
+      - name: Scaffold platform project
+        working-directory: flutter
+        run: |
+          flutter create --org com.pixelpomo.test --project-name pixel_pomo --platforms=android .
+          git checkout -- pubspec.yaml lib
+          rm -f test/widget_test.dart analysis_options.yaml
+
+      - name: Pub get
+        working-directory: flutter
+        run: flutter pub get
+
+      - name: Generate launcher icons
+        working-directory: flutter
+        run: dart run flutter_launcher_icons
+
+      - name: Apply Android native overlay (live wallpaper)
+        working-directory: flutter
+        run: python3 android_overlay/apply_overlay.py
+
+      # So it reads as "Test Pixel Pomo" on the launcher/app list, distinct
+      # from the real "pixel_pomo" app, at a glance.
+      - name: Set test-build app name
+        working-directory: flutter
+        run: sed -i 's/android:label="pixel_pomo"/android:label="Test Pixel Pomo"/' android/app/src/main/AndroidManifest.xml
+
+      - name: Analyze (non-blocking)
+        working-directory: flutter
+        run: flutter analyze || true
+
+      - name: Unit tests (gate)
+        working-directory: flutter
+        run: flutter test
+
+      # --dart-define=TEST_BUILD=true is what keeps the debug-only demo seed
+      # (see AppStore._kTestBuild in lib/store.dart) even in this --release build.
+      - name: Build Android APK
+        working-directory: flutter
+        run: flutter build apk --release --dart-define=TEST_BUILD=true
+
+      - name: Collect artifact
+        run: |
+          cp flutter/build/app/outputs/flutter-apk/app-release.apk pixel_pomo_test.apk
+          ls -la pixel_pomo_test.apk
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: pixel_pomo_test
+          path: pixel_pomo_test.apk
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VER=$(grep '^version:' flutter/pubspec.yaml | sed 's/version:[[:space:]]*//' | cut -d'+' -f1)
+          TITLE="Test Pixel Pomo build (v$VER)"
+          NOTES="A SEPARATE app from the real Pixel Pomo (different package id — installs side by side, does not overwrite your real one). Pre-filled with the full demo/test dataset (years of pretend sessions, 1000 coins, sample labels) so heatmap/stats features can be checked on-device. Built from ${GITHUB_SHA::7}. Install pixel_pomo_test.apk."
+          if gh release view flutter-test >/dev/null 2>&1; then
+            gh release upload flutter-test pixel_pomo_test.apk --clobber
+            gh release edit flutter-test --title "$TITLE" --notes "$NOTES"
+          else
+            gh release create flutter-test pixel_pomo_test.apk --title "$TITLE" --notes "$NOTES" --prerelease
+          fi
