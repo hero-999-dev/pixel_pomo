@@ -35,11 +35,14 @@ jobs:
       # A different --org than the real app's com.pixelpomo gives this a
       # different applicationId (com.pixelpomo.test.pixel_pomo vs.
       # com.pixelpomo.pixel_pomo) — Android treats that as a wholly separate
-      # app, installable alongside the real one without conflict.
+      # app, installable alongside the real one without conflict. Scaffolds
+      # BOTH platforms (matching build-flutter.yml) even though only Android
+      # gets built here: flutter_launcher_icons' pubspec config has ios:
+      # true too, and errors if ios/ doesn't exist to write icons into.
       - name: Scaffold platform project
         working-directory: flutter
         run: |
-          flutter create --org com.pixelpomo.test --project-name pixel_pomo --platforms=android .
+          flutter create --org com.pixelpomo.test --project-name pixel_pomo --platforms=ios,android .
           git checkout -- pubspec.yaml lib
           rm -f test/widget_test.dart analysis_options.yaml
 
