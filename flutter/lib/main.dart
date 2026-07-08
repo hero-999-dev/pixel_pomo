@@ -161,10 +161,12 @@ class HomeScreen extends StatelessWidget {
         final th = s.theme;
         final lang = s.lang;
         final e = s.engine;
-        final modeText = e.isFinished
-            ? t(lang, 'allDone')
-            : (e.mode == Mode.work ? t(lang, 'work') : t(lang, 'break'));
-        final modeColor = e.isFinished ? th.accent : th.phaseColor(e.mode);
+        final pomodoro = s.isPomodoroMode; // #v31.16
+        final running = pomodoro ? e.isRunning : s.stopwatch.isRunning;
+        final modeText = !pomodoro
+            ? t(lang, 'stopwatch')
+            : (e.isFinished ? t(lang, 'allDone') : (e.mode == Mode.work ? t(lang, 'work') : t(lang, 'break')));
+        final modeColor = !pomodoro ? th.accent : (e.isFinished ? th.accent : th.phaseColor(e.mode));
         // auto-break off: ask before starting the break (#4)
         if (s.awaitingBreakPrompt) {
           // after focus the next phase is a break; after a break it's the next
@@ -197,6 +199,7 @@ class HomeScreen extends StatelessWidget {
         // over the dark garden the foreground text must be LIGHT — on light themes
         // th.onSurface is dark and was unreadable / looked "darkened" (#v19 #6).
         final overGarden = garden ? const Color(0xFFF4F4F4) : col(th.onSurface);
+        final timeText = pomodoro ? e.formattedTime() : s.stopwatch.formattedTime();
         final timerBlock = Column(
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
@@ -206,17 +209,22 @@ class HomeScreen extends StatelessWidget {
             secondaryBtn(th, lang, s.currentLabel, () => openPanel(context, s, () => LabelScreen(s)),
                 fontSize: 11, padding: const EdgeInsets.all(10)),
             const SizedBox(height: 28),
-            Text(e.formattedTime(), style: pixelStyle(lang, 48, overGarden, text: e.formattedTime()).copyWith(shadows: shadows)),
+            Text(timeText, style: pixelStyle(lang, 48, overGarden, text: timeText).copyWith(shadows: shadows)),
             const SizedBox(height: 32),
-            PixelProgress(
-                percent: e.progressPercent(),
-                track: th.panel,
-                border: th.onSurfaceDim,
-                fill: e.isFinished ? th.accent : th.phaseColor(e.mode)),
-            const SizedBox(height: 36),
+            // no fixed duration in stopwatch mode, so no "% complete" to show
+            // (#v31.16) — a plain gap keeps the buttons from crowding the clock
+            if (pomodoro)
+              PixelProgress(
+                  percent: e.progressPercent(),
+                  track: th.panel,
+                  border: th.onSurfaceDim,
+                  fill: e.isFinished ? th.accent : th.phaseColor(e.mode))
+            else
+              const SizedBox(height: 20),
+            const SizedBox(height: 32),
             Row(children: [
               Expanded(
-                  child: primaryBtn(th, lang, t(lang, e.isRunning ? 'pause' : 'start'),
+                  child: primaryBtn(th, lang, t(lang, running ? 'pause' : 'start'),
                       s.toggleStartPause, fontSize: 14, padding: const EdgeInsets.all(16))),
               const SizedBox(width: 16),
               Expanded(
@@ -225,8 +233,11 @@ class HomeScreen extends StatelessWidget {
             ]),
           ],
         );
-        final sessionText = Text(tf(lang, 'session', [e.session, e.totalSessions]),
-            style: pixelStyle(lang, 12, garden ? overGarden : col(th.onSurfaceDim), text: tf(lang, 'session', [e.session, e.totalSessions])).copyWith(shadows: shadows));
+        // "SESSION X/Y" only means anything in pomodoro mode (#v31.16)
+        final sessionText = pomodoro
+            ? Text(tf(lang, 'session', [e.session, e.totalSessions]),
+                style: pixelStyle(lang, 12, garden ? overGarden : col(th.onSurfaceDim), text: tf(lang, 'session', [e.session, e.totalSessions])).copyWith(shadows: shadows))
+            : const SizedBox.shrink();
 
         return Scaffold(
           backgroundColor: col(th.bg),
@@ -1002,8 +1013,64 @@ String periodWindowLabel(String lang, StatPeriod p, int offset) {
 
 // ---- log history ------------------------------------------------------------
 
+/// Shared date | time | label | duration row layout for Log History and the
+/// Recycle Bin (#v31.16) — [onTap] differs per screen (change label vs.
+/// permanently delete).
+Widget _historyRow(AppStore s, PixelTheme th, String lang, SessionRecord r, VoidCallback onTap) {
+  final d = dateOfEpochDay(r.epochDay);
+  final time = r.minuteOfDay == null
+      ? ''
+      : '${(r.minuteOfDay! ~/ 60).toString().padLeft(2, '0')}:${(r.minuteOfDay! % 60).toString().padLeft(2, '0')}';
+  // 3-letter month keeps the date column narrow enough that the bigger font
+  // still fits four aligned columns on a phone (#v27 feedback). Rows from
+  // another year show a 2-digit year — the seeded 2025 history made
+  // "12 NOV" sort after "14 APR" look wrong without it (#v27.1 feedback).
+  final month = monthName(lang, d.month);
+  final year = d.year == DateTime.now().year ? '' : ' ${d.year % 100}';
+  final date = '${d.day} ${month.length > 3 ? month.substring(0, 3) : month}$year';
+  final dur = StatsAggregator.formatMinutes(r.minutes);
+  // Fixed columns so every row lines up: date | time (toward the centre) |
+  // label (left-justified) | duration. The duration sits in a FLEX column
+  // right-aligned — as a bare Text its per-row width let every other
+  // column edge wander row to row, the "not in order" look (#v27.1). Fonts
+  // and the swatch bumped again (#v27.1 feedback: still too small).
+  return Padding(
+    padding: const EdgeInsets.symmetric(vertical: 6),
+    child: GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Row(children: [
+        Swatch(color: s.labelColorOf(r.label), border: th.onSurfaceDim, size: 18, plain: true),
+        const SizedBox(width: 8),
+        Expanded(
+            flex: 9,
+            child: Text(date,
+                maxLines: 1,
+                overflow: TextOverflow.clip,
+                style: pixelStyle(lang, 10, col(th.onSurfaceDim), text: date))),
+        Expanded(
+            flex: 5,
+            child: Text(time, style: pixelStyle(lang, 10, col(th.onSurfaceDim), text: time))),
+        Expanded(
+            flex: 10,
+            child: Text(r.label,
+                maxLines: 1,
+                overflow: TextOverflow.clip,
+                style: pixelStyle(lang, 11, col(th.onSurface), text: r.label))),
+        Expanded(
+            flex: 6,
+            child: Text(dur,
+                maxLines: 1,
+                textAlign: TextAlign.right,
+                style: pixelStyle(lang, 10, col(th.onSurfaceDim), text: dur))),
+      ]),
+    ),
+  );
+}
+
 /// A paginated list of every past focus session (newest first, 50 a page).
-/// Tap a row to reassign that session's label (#v25 item3).
+/// Tap a row to reassign that session's label or remove it to the Recycle
+/// Bin (#v25 item3, #v31.16).
 class LogHistoryScreen extends StatefulWidget {
   final AppStore s;
   const LogHistoryScreen(this.s, {super.key});
@@ -1031,6 +1098,9 @@ class _LogHistoryScreenState extends State<LogHistoryScreen> {
     final shown = Paging.page(ordered, _page, _perPage);
 
     return overlayScaffold(context, s, t(lang, 'logHistory'), [
+      secondaryBtn(th, lang, t(lang, 'recycleBin'), () => openPanel(context, s, () => RecycleBinScreen(s)),
+          key: const Key('recycleBinButton'), fontSize: 10, padding: const EdgeInsets.all(10)),
+      const SizedBox(height: 16),
       if (ordered.isEmpty)
         Text(t(lang, 'noLogs'), style: pixelStyle(lang, 10, col(th.onSurfaceDim), text: t(lang, 'noLogs')))
       else ...[
@@ -1062,57 +1132,8 @@ class _LogHistoryScreenState extends State<LogHistoryScreen> {
     ]);
   }
 
-  Widget _logRow(BuildContext context, AppStore s, PixelTheme th, String lang, int index, SessionRecord r) {
-    final d = dateOfEpochDay(r.epochDay);
-    final time = r.minuteOfDay == null
-        ? ''
-        : '${(r.minuteOfDay! ~/ 60).toString().padLeft(2, '0')}:${(r.minuteOfDay! % 60).toString().padLeft(2, '0')}';
-    // 3-letter month keeps the date column narrow enough that the bigger font
-    // still fits four aligned columns on a phone (#v27 feedback). Rows from
-    // another year show a 2-digit year — the seeded 2025 history made
-    // "12 NOV" sort after "14 APR" look wrong without it (#v27.1 feedback).
-    final month = monthName(lang, d.month);
-    final year = d.year == DateTime.now().year ? '' : ' ${d.year % 100}';
-    final date = '${d.day} ${month.length > 3 ? month.substring(0, 3) : month}$year';
-    final dur = StatsAggregator.formatMinutes(r.minutes);
-    // Fixed columns so every row lines up: date | time (toward the centre) |
-    // label (left-justified) | duration. The duration sits in a FLEX column
-    // right-aligned — as a bare Text its per-row width let every other
-    // column edge wander row to row, the "not in order" look (#v27.1). Fonts
-    // and the swatch bumped again (#v27.1 feedback: still too small).
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () => _changeLabel(context, s, index, r),
-        child: Row(children: [
-          Swatch(color: s.labelColorOf(r.label), border: th.onSurfaceDim, size: 18),
-          const SizedBox(width: 8),
-          Expanded(
-              flex: 9,
-              child: Text(date,
-                  maxLines: 1,
-                  overflow: TextOverflow.clip,
-                  style: pixelStyle(lang, 10, col(th.onSurfaceDim), text: date))),
-          Expanded(
-              flex: 5,
-              child: Text(time, style: pixelStyle(lang, 10, col(th.onSurfaceDim), text: time))),
-          Expanded(
-              flex: 10,
-              child: Text(r.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.clip,
-                  style: pixelStyle(lang, 11, col(th.onSurface), text: r.label))),
-          Expanded(
-              flex: 6,
-              child: Text(dur,
-                  maxLines: 1,
-                  textAlign: TextAlign.right,
-                  style: pixelStyle(lang, 10, col(th.onSurfaceDim), text: dur))),
-        ]),
-      ),
-    );
-  }
+  Widget _logRow(BuildContext context, AppStore s, PixelTheme th, String lang, int index, SessionRecord r) =>
+      _historyRow(s, th, lang, r, () => _changeLabel(context, s, index, r));
 
   void _changeLabel(BuildContext context, AppStore s, int index, SessionRecord r) {
     final th = s.theme;
@@ -1139,6 +1160,163 @@ class _LogHistoryScreenState extends State<LogHistoryScreen> {
                         text: label)),
               ]),
             ),
+          const Divider(height: 20),
+          // soft-delete: moves to the Recycle Bin, stops counting in stats
+          // immediately, but stays recoverable-by-not-purging (#v31.16)
+          SimpleDialogOption(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _confirmRemoveLog(context, s, index, r);
+            },
+            child: Text(t(lang, 'removeLog'),
+                style: pixelStyle(lang, 10, col(th.accent), text: t(lang, 'removeLog'))),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmRemoveLog(BuildContext context, AppStore s, int index, SessionRecord r) {
+    final th = s.theme;
+    final lang = s.lang;
+    final desc = '${r.label} · ${StatsAggregator.formatMinutes(r.minutes)}';
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: col(th.panel),
+        title: Text(t(lang, 'removeLogTitle'), style: pixelStyle(lang, 12, col(th.onSurface), text: t(lang, 'removeLogTitle'))),
+        content: Text(tf(lang, 'removeLogMsg', [desc]),
+            style: pixelStyle(lang, 10, col(th.onSurfaceDim), text: tf(lang, 'removeLogMsg', [desc]))),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx),
+              child: Text(t(lang, 'no'), style: pixelStyle(lang, 11, col(th.onSurfaceDim), text: t(lang, 'no')))),
+          TextButton(
+              onPressed: () {
+                s.removeRecord(index);
+                Navigator.pop(ctx);
+                setState(() {});
+              },
+              child: Text(t(lang, 'yes'), style: pixelStyle(lang, 11, col(th.accent), text: t(lang, 'yes')))),
+        ],
+      ),
+    );
+  }
+}
+
+// ---- recycle bin --------------------------------------------------------------
+
+/// Soft-deleted logs from Log History (#v31.16) — excluded from stats while
+/// here (they're simply not in [AppStore.records] anymore). Permanent delete
+/// per entry (tap → confirm, same pattern as Log History's remove) or all at
+/// once via CLEAN RECYCLE BIN.
+class RecycleBinScreen extends StatefulWidget {
+  final AppStore s;
+  const RecycleBinScreen(this.s, {super.key});
+  @override
+  State<RecycleBinScreen> createState() => _RecycleBinScreenState();
+}
+
+class _RecycleBinScreenState extends State<RecycleBinScreen> {
+  static const _perPage = 50;
+  int _page = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = widget.s;
+    final th = s.theme;
+    final lang = s.lang;
+    final ordered = [for (var i = 0; i < s.deletedRecords.length; i++) (i, s.deletedRecords[i])]
+      ..sort((a, b) {
+        final byDay = b.$2.epochDay.compareTo(a.$2.epochDay);
+        return byDay != 0 ? byDay : (b.$2.minuteOfDay ?? 0).compareTo(a.$2.minuteOfDay ?? 0);
+      });
+    final pages = Paging.pageCount(ordered.length, _perPage);
+    if (_page >= pages) _page = pages - 1;
+    final shown = Paging.page(ordered, _page, _perPage);
+
+    return overlayScaffold(context, s, t(lang, 'recycleBin'), [
+      if (ordered.isNotEmpty) ...[
+        secondaryBtn(th, lang, t(lang, 'cleanRecycleBin'), () => _confirmClean(context, s),
+            key: const Key('cleanRecycleBinButton'), fontSize: 10, padding: const EdgeInsets.all(10)),
+        const SizedBox(height: 16),
+      ],
+      if (ordered.isEmpty)
+        Text(t(lang, 'noRecycled'), style: pixelStyle(lang, 10, col(th.onSurfaceDim), text: t(lang, 'noRecycled')))
+      else ...[
+        for (final (idx, r) in shown)
+          _historyRow(s, th, lang, r, () => _confirmPurge(context, s, idx, r)),
+        const SizedBox(height: 14),
+        Row(children: [
+          SizedBox(
+            width: 52,
+            child: secondaryBtn(th, lang, '<',
+                () => setState(() => _page = (_page - 1).clamp(0, pages - 1)),
+                fontSize: 13, padding: const EdgeInsets.all(10)),
+          ),
+          Expanded(
+            child: Center(
+              child: Text(tf(lang, 'pageOf', [_page + 1, pages]),
+                  style: pixelStyle(lang, 10, col(th.onSurface), text: tf(lang, 'pageOf', [_page + 1, pages]))),
+            ),
+          ),
+          SizedBox(
+            width: 52,
+            child: PixelButton(
+                text: '>', fill: th.panel, border: th.onSurfaceDim, textColor: th.onSurface, shadow: th.shadow,
+                lang: lang, fontSize: 13, padding: const EdgeInsets.all(10),
+                opacity: _page < pages - 1 ? 1 : 0.35,
+                onTap: () => setState(() => _page = (_page + 1).clamp(0, pages - 1))),
+          ),
+        ]),
+      ],
+    ]);
+  }
+
+  void _confirmPurge(BuildContext context, AppStore s, int index, SessionRecord r) {
+    final th = s.theme;
+    final lang = s.lang;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: col(th.panel),
+        title: Text(t(lang, 'permanentDeleteTitle'), style: pixelStyle(lang, 12, col(th.onSurface), text: t(lang, 'permanentDeleteTitle'))),
+        content: Text(t(lang, 'permanentDeleteMsg'), style: pixelStyle(lang, 10, col(th.onSurfaceDim), text: t(lang, 'permanentDeleteMsg'))),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx),
+              child: Text(t(lang, 'no'), style: pixelStyle(lang, 11, col(th.onSurfaceDim), text: t(lang, 'no')))),
+          TextButton(
+              onPressed: () {
+                s.purgeRecord(index);
+                Navigator.pop(ctx);
+                setState(() {});
+              },
+              child: Text(t(lang, 'yes'), style: pixelStyle(lang, 11, col(th.accent), text: t(lang, 'yes')))),
+        ],
+      ),
+    );
+  }
+
+  void _confirmClean(BuildContext context, AppStore s) {
+    final th = s.theme;
+    final lang = s.lang;
+    final count = s.deletedRecords.length;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: col(th.panel),
+        title: Text(t(lang, 'cleanRecycleBinTitle'), style: pixelStyle(lang, 12, col(th.onSurface), text: t(lang, 'cleanRecycleBinTitle'))),
+        content: Text(tf(lang, 'cleanRecycleBinMsg', [count]),
+            style: pixelStyle(lang, 10, col(th.onSurfaceDim), text: tf(lang, 'cleanRecycleBinMsg', [count]))),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx),
+              child: Text(t(lang, 'no'), style: pixelStyle(lang, 11, col(th.onSurfaceDim), text: t(lang, 'no')))),
+          TextButton(
+              onPressed: () {
+                s.cleanRecycleBin();
+                Navigator.pop(ctx);
+                setState(() {});
+              },
+              child: Text(t(lang, 'yes'), style: pixelStyle(lang, 11, col(th.accent), text: t(lang, 'yes')))),
         ],
       ),
     );

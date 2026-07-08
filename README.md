@@ -6,7 +6,7 @@ a living wallpaper. Built with the
 [Press Start 2P](https://fonts.google.com/specimen/Press+Start+2P) font for that
 classic arcade look.
 
-> **Status:** **v0.24.2** — one Flutter (Dart) codebase ships **both** an Android APK and an
+> **Status:** **v0.31.16** — one Flutter (Dart) codebase ships **both** an Android APK and an
 > iOS app. On top of the core timer it has a full-screen **living 2.5D garden**, an animated
 > **Android live wallpaper**, an **app blocker** to keep you off distracting apps during a focus
 > session, **session stats** with charts and history, a **coin + shop** economy, **6 themes**,
@@ -47,6 +47,9 @@ and coins, for trying out stats/heatmap features without needing to build up rea
   times** ("Start the break?" / "Start the next session?"). A running session shows a phone
   **notification** so the countdown is visible outside the app. **Cancelling a started session still pays out
   the minutes you spent.**
+- **⏱️ Stopwatch mode** — flip **Settings → STOPWATCH** for a plain count-up clock instead: no fixed duration, no
+  session counter, just **START/PAUSE** and a running total (switches to hours once you pass 60 minutes). Time
+  still logs to your stats like any focus session — it just **never earns coins**.
 - **🏷️ Focus labels** — a tappable chip tags what you're working on (**STUDY / MATH / CODING / READING** to start).
   Tap to switch, tap its **● swatch to pick a color**, **long-press to rename**, **ADD** your own, or **🗑** to remove.
   Every recorded session remembers its label, and the color flows into the stats charts.
@@ -86,7 +89,10 @@ and coins, for trying out stats/heatmap features without needing to build up rea
   a neighbouring month; **VERTICAL** draws the same year Daylio-style — 12 month columns × up to 31 day rows,
   one box per calendar day. Grids always show every box — future days sit faint until they color in. **Tap any
   box** for a floating callout with that day's session count and time. **LOG HISTORY**, right below it, is a
-  **paginated list of every past session** (50 a page) where you can **change a session's label**.
+  **paginated list of every past session** (50 a page) — tap a row to **change its label** or **remove it**
+  (confirm first) to the **RECYCLE BIN**, which drops it out of your stats immediately. Reach the Recycle Bin
+  from a button on Log History: delete an entry permanently the same tap-to-confirm way, or **CLEAN RECYCLE
+  BIN** to empty it all at once.
 - **⭐ Habit tracker** — three tabs. **Mood Tracker**: a daily 5-face mood picker plus a history heatmap —
   **tap any past day to set its mood too**. **Your
   Year in Pixels**: every heatmap in one place — mood, habits, and focus-session labels, "all data" at a glance.
@@ -111,7 +117,7 @@ and coins, for trying out stats/heatmap features without needing to build up rea
 ## 🧪 Testing
 
 All app logic lives in **pure, framework-free Dart** (timer engine, labels, stats, economy, garden, flowers, the app-blocker
-rules) so it can be unit-tested without a device. **77 Dart tests** plus a widget smoke test (boots the app and opens every
+rules) so it can be unit-tested without a device. **165 Dart tests** plus a widget smoke test (boots the app and opens every
 screen) **gate every build**. The garden engine has its own geometry tests. Run them from `flutter/`:
 
 ```bash

@@ -217,6 +217,38 @@ void main() {
     });
   });
 
+  group('StopwatchTimer', () {
+    test('starts at 00:00, counts up, formats HH:MM:SS only past an hour (#v31.16)', () {
+      final w = StopwatchTimer();
+      expect(w.isRunning, false);
+      expect(w.elapsedMillis, 0);
+      expect(w.formattedTime(), '00:00');
+
+      w.start();
+      expect(w.isRunning, true);
+      w.setElapsed(65 * 1000); // 1:05
+      expect(w.formattedTime(), '01:05');
+
+      w.setElapsed(3661 * 1000); // 1h 01m 01s
+      expect(w.formattedTime(), '01:01:01');
+
+      w.pause();
+      expect(w.isRunning, false);
+      expect(w.elapsedMillis, 3661 * 1000); // pausing doesn't reset the clock
+
+      w.reset();
+      expect(w.isRunning, false);
+      expect(w.elapsedMillis, 0);
+      expect(w.formattedTime(), '00:00');
+    });
+
+    test('setElapsed clamps negative values to 0', () {
+      final w = StopwatchTimer();
+      w.setElapsed(-500);
+      expect(w.elapsedMillis, 0);
+    });
+  });
+
   group('Economy + Garden', () {
     test('elapsedFocusMinutes counts spent time on cancel', () {
       expect(Economy.elapsedFocusMinutes(25, 14 * 60 * 1000), 11); // 25-min, 14 left → 11

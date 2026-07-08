@@ -90,6 +90,32 @@ class PomodoroEngine {
   }
 }
 
+/// A plain count-up timer for Stopwatch mode (#v31.16) — no work/break
+/// cycling, no fixed duration, no session count; the user decides when to
+/// stop. HH only appears once elapsed passes an hour.
+class StopwatchTimer {
+  bool isRunning = false;
+  int elapsedMillis = 0;
+
+  void start() => isRunning = true;
+  void pause() => isRunning = false;
+
+  void reset() {
+    isRunning = false;
+    elapsedMillis = 0;
+  }
+
+  void setElapsed(int millis) => elapsedMillis = millis < 0 ? 0 : millis;
+
+  String formattedTime() {
+    final totalSeconds = elapsedMillis ~/ 1000;
+    final h = totalSeconds ~/ 3600;
+    final m = ((totalSeconds % 3600) ~/ 60).toString().padLeft(2, '0');
+    final s = (totalSeconds % 60).toString().padLeft(2, '0');
+    return h > 0 ? '${h.toString().padLeft(2, '0')}:$m:$s' : '$m:$s';
+  }
+}
+
 // ---- themes -----------------------------------------------------------------
 
 class PixelTheme {

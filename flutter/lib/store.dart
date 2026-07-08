@@ -23,6 +23,7 @@ class AppStore extends ChangeNotifier {
   static const _kCurrentLabel = 'current_label';
   static const _kLabelColors = 'label_colors';
   static const _kStats = 'stats';
+  static const _kDeleted = 'deleted_stats'; // Recycle Bin (#v31.16)
   static const _kCoins = 'coins';
   static const _kOwned = 'owned_flowers';
   static const _kGarden = 'garden';
@@ -59,6 +60,10 @@ class AppStore extends ChangeNotifier {
   Map<String, int> labelColors = {};
 
   List<SessionRecord> records = [];
+  // soft-deleted log entries — excluded from every stats aggregation just by
+  // virtue of not being in [records] anymore; nothing else needs to know
+  // about this list to "honor" the deletion (#v31.16).
+  List<SessionRecord> deletedRecords = [];
   int coins = 0;
   Map<String, int> owned = {};
   Garden garden = const Garden();
@@ -95,6 +100,7 @@ class AppStore extends ChangeNotifier {
   bool _fxFetching = false;
 
   late PomodoroEngine engine;
+  final StopwatchTimer stopwatch = StopwatchTimer(); // #v31.16
 
   // Stats view state.
   ChartMode chartMode = ChartMode.bar;
@@ -105,7 +111,8 @@ class AppStore extends ChangeNotifier {
   bool customizing = false;
 
   Timer? _timer;
-  DateTime? _deadline;
+  DateTime? _deadline; // pomodoro: counts DOWN toward this
+  DateTime? _stopwatchStartedAt; // stopwatch: counts UP from this (#v31.16)
 
   /// Wired by the UI to surface toasts (passes a localized message key).
   void Function(String messageKey)? messenger;
@@ -144,6 +151,7 @@ class AppStore extends ChangeNotifier {
     labelColors = LabelColors.decode(_prefs.getString(_kLabelColors));
 
     records = StatsCodec.decode(_prefs.getString(_kStats));
+    deletedRecords = StatsCodec.decode(_prefs.getString(_kDeleted));
     coins = _prefs.getInt(_kCoins) ?? 0;
     final rawOwned = _decodeOwned(_prefs.getString(_kOwned));
     final rawGarden = Garden.decode(_prefs.getString(_kGarden))
@@ -259,6 +267,7 @@ class AppStore extends ChangeNotifier {
 
   void _saveLabelColors() => _prefs.setString(_kLabelColors, LabelColors.encode(labelColors));
   void _saveStats() => _prefs.setString(_kStats, StatsCodec.encode(records));
+  void _saveDeleted() => _prefs.setString(_kDeleted, StatsCodec.encode(deletedRecords));
 
   /// Persist the framing the live wallpaper should reproduce (v15).
   void setWallpaperCamera(double yaw, double zoom, double panXFrac, double panYFrac) {
@@ -408,15 +417,22 @@ class AppStore extends ChangeNotifier {
   // ---- timer ----------------------------------------------------------------
 
   void start() {
-    // rebuild (not engine.reset()) so a settings change made mid-cycle
-    // finally takes effect once that cycle is actually done (#v31.15).
-    if (engine.isFinished) engine = _buildEngine();
-    engine.start();
-    if (!engine.isRunning) {
-      notifyListeners();
-      return;
+    if (isPomodoroMode) {
+      // rebuild (not engine.reset()) so a settings change made mid-cycle
+      // finally takes effect once that cycle is actually done (#v31.15).
+      if (engine.isFinished) engine = _buildEngine();
+      engine.start();
+      if (!engine.isRunning) {
+        notifyListeners();
+        return;
+      }
+      _deadline = DateTime.now().add(Duration(milliseconds: engine.timeLeftMillis));
+    } else {
+      // counts UP from "now minus whatever's already elapsed", so pausing
+      // and resuming keeps accumulating instead of restarting from 0 (#v31.16)
+      stopwatch.start();
+      _stopwatchStartedAt = DateTime.now().subtract(Duration(milliseconds: stopwatch.elapsedMillis));
     }
-    _deadline = DateTime.now().add(Duration(milliseconds: engine.timeLeftMillis));
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(milliseconds: 200), (_) => _onTick());
     _publishBlocker();
@@ -424,6 +440,11 @@ class AppStore extends ChangeNotifier {
   }
 
   void _onTick() {
+    if (!isPomodoroMode) {
+      stopwatch.setElapsed(DateTime.now().difference(_stopwatchStartedAt!).inMilliseconds);
+      notifyListeners();
+      return;
+    }
     final remaining = _deadline!.difference(DateTime.now()).inMilliseconds;
     if (remaining > 0) {
       engine.setTimeLeft(remaining);
@@ -462,11 +483,13 @@ class AppStore extends ChangeNotifier {
 
   // ---- app blocker (#v23) ---------------------------------------------------
 
+  // stopwatch (#v31.16) has no work/break split and never "finishes" a fixed
+  // session count — it's blockable the whole time it's actually running.
   bool get blockerActive => AppBlocker.active(
         enabled: appBlockerEnabled,
-        isRunning: engine.isRunning,
-        isWork: engine.mode == Mode.work,
-        isFinished: engine.isFinished,
+        isRunning: isPomodoroMode ? engine.isRunning : stopwatch.isRunning,
+        isWork: isPomodoroMode ? engine.mode == Mode.work : true,
+        isFinished: isPomodoroMode ? engine.isFinished : false,
       );
 
   void setAppBlocker(bool on) {
@@ -488,8 +511,11 @@ class AppStore extends ChangeNotifier {
   /// the prefs IS the IPC — there is no channel push for blocker state.
   void _publishBlocker() {
     final active = blockerActive;
-    // wall-clock end of the running WORK session (safety so a killed app can't block forever)
-    final until = active ? DateTime.now().millisecondsSinceEpoch + engine.timeLeftMillis : 0;
+    // wall-clock end of the running WORK session (safety so a killed app
+    // can't block forever) — stopwatch has no natural end, so cap it at the
+    // same 300-minute ceiling Settings' own STUDY stepper allows (#v31.16).
+    final safetyMillis = isPomodoroMode ? engine.timeLeftMillis : 300 * 60 * 1000;
+    final until = active ? DateTime.now().millisecondsSinceEpoch + safetyMillis : 0;
     _prefs.setBool('blocker_active', active);
     _prefs.setInt('block_until', until);
     _prefs.setString('blocker_title', t(lang, 'stayFocused'));
@@ -516,7 +542,7 @@ class AppStore extends ChangeNotifier {
 
   void pause() {
     _timer?.cancel();
-    engine.pause();
+    isPomodoroMode ? engine.pause() : stopwatch.pause();
     cancelTimerNotification(); // not running → drop the countdown notification
     _publishBlocker();
     notifyListeners();
@@ -524,7 +550,11 @@ class AppStore extends ChangeNotifier {
 
   /// App backgrounded mid-session → raise the ongoing countdown notification
   /// (#v23 fb). Only while actually running; cancelled by the stop paths below.
+  /// Stopwatch mode (#v31.16) skips this: the native notification is a
+  /// deadline-based countdown, and stopwatch has no deadline to count down
+  /// to — it stays a Flutter-only display for now.
   void onBackgrounded() {
+    if (!isPomodoroMode) return;
     if (!engine.isRunning || _deadline == null) return;
     final deadline = _deadline!.millisecondsSinceEpoch;
     if (engine.mode == Mode.work) {
@@ -543,22 +573,35 @@ class AppStore extends ChangeNotifier {
 
   void reset() {
     _timer?.cancel();
-    // cancelling a started focus session still pays out the time spent (#6)
-    if (engine.mode == Mode.work && engine.timeLeftMillis < engine.workMillis) {
-      final spent = Economy.elapsedFocusMinutes(workMin, engine.timeLeftMillis);
+    if (isPomodoroMode) {
+      // cancelling a started focus session still pays out the time spent (#6)
+      if (engine.mode == Mode.work && engine.timeLeftMillis < engine.workMillis) {
+        final spent = Economy.elapsedFocusMinutes(workMin, engine.timeLeftMillis);
+        if (spent > 0) {
+          final now = DateTime.now();
+          records.add(SessionRecord(epochDayOf(now), spent, currentLabel,
+              minuteOfDay: now.hour * 60 + now.minute));
+          _saveStats();
+          _prefs.setString(_kCurrentLabel, currentLabel); // #v25 item2 hardening
+          coins += Economy.coinsFor(spent);
+          _saveWallet();
+        }
+      }
+      // rebuild (not engine.reset()) so a settings change made mid-session
+      // finally takes effect on this explicit cancel/restart (#v31.15).
+      engine = _buildEngine();
+    } else {
+      // stopwatch: log the elapsed time to stats — no coins, ever (#v31.16)
+      final spent = stopwatch.elapsedMillis ~/ 60000;
       if (spent > 0) {
         final now = DateTime.now();
         records.add(SessionRecord(epochDayOf(now), spent, currentLabel,
             minuteOfDay: now.hour * 60 + now.minute));
         _saveStats();
-        _prefs.setString(_kCurrentLabel, currentLabel); // #v25 item2 hardening
-        coins += Economy.coinsFor(spent);
-        _saveWallet();
+        _prefs.setString(_kCurrentLabel, currentLabel);
       }
+      stopwatch.reset();
     }
-    // rebuild (not engine.reset()) so a settings change made mid-session
-    // finally takes effect on this explicit cancel/restart (#v31.15).
-    engine = _buildEngine();
     cancelTimerNotification(); // session cancelled in-app → drop the notification
     _publishBlocker();
     notifyListeners();
@@ -571,7 +614,8 @@ class AppStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  void toggleStartPause() => engine.isRunning ? pause() : start();
+  void toggleStartPause() =>
+      (isPomodoroMode ? engine.isRunning : stopwatch.isRunning) ? pause() : start();
 
   void _recordWork() {
     final now = DateTime.now();
@@ -679,6 +723,34 @@ class AppStore extends ChangeNotifier {
     if (index < 0 || index >= records.length) return;
     records[index] = records[index].copyWith(label: newLabel);
     _saveStats();
+    notifyListeners();
+  }
+
+  // ---- recycle bin ------------------------------------------------------------
+  // Soft-delete: a log moves out of [records] (so every existing stats
+  // aggregation stops seeing it automatically) into [deletedRecords], where
+  // it sits until permanently purged — one at a time or all at once (#v31.16).
+
+  /// [index] indexes into [records].
+  void removeRecord(int index) {
+    if (index < 0 || index >= records.length) return;
+    deletedRecords.add(records.removeAt(index));
+    _saveStats();
+    _saveDeleted();
+    notifyListeners();
+  }
+
+  /// [index] indexes into [deletedRecords] — permanent, no further recovery.
+  void purgeRecord(int index) {
+    if (index < 0 || index >= deletedRecords.length) return;
+    deletedRecords.removeAt(index);
+    _saveDeleted();
+    notifyListeners();
+  }
+
+  void cleanRecycleBin() {
+    deletedRecords.clear();
+    _saveDeleted();
     notifyListeners();
   }
 
