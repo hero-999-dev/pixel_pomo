@@ -100,6 +100,30 @@ void main() {
     });
   });
 
+  group('Critter perch height varies while hovering (v31.17)', () {
+    test('visits settle at varied heights on the plant, not always the same spot', () {
+      // "bugs jump to top" bug: every hovering critter used a hardcoded lift
+      // (sit at the bloom) regardless of its randomized approach target, so
+      // every visit looked identical. Spawn many independent systems (each
+      // stepped just long enough to trigger its first spawn) and prove the
+      // resulting perch heights actually spread out instead of clustering.
+      final flowers = [const Offset(0, 0)];
+      final perches = <double>[];
+      for (var seed = 0; seed < 30; seed++) {
+        final sys = CritterSystem(seed);
+        for (var i = 0; i < 300 && sys.critters.isEmpty; i++) {
+          sys.step(0.05, 6, flowers); // up to 15s — enough to trigger the first spawn
+        }
+        if (sys.critters.isNotEmpty) perches.add(sys.critters.first.perch);
+      }
+      expect(perches.length, greaterThan(10), reason: 'sanity: spawns should actually happen');
+      expect(perches.toSet().length, greaterThan(5),
+          reason: 'perch should vary across visits, not be fixed to one value');
+      expect(perches.reduce(math.max) - perches.reduce(math.min), greaterThan(0.3),
+          reason: 'spread should span a meaningful range of the plant, not cluster near one spot');
+    });
+  });
+
   group('forest variety (v13)', () {
     test('forestPropAt is deterministic, in-range, with gaps', () {
       var trees = 0, bushes = 0, rocks = 0, gaps = 0;

@@ -330,9 +330,10 @@ class GardenRenderer(private val data: GardenData) {
             val (sx, sy) = projGrid(c.x, c.y)
             val cellW = bmp.width / 8 // atlases are 8-wide; always frame 0 (#v20)
             val src = Rect(0, 0, cellW, bmp.height)
-            // while visiting (HOVER) sit at the flower's bloom (colourful top), not
-            // the green stem/base; fly low otherwise (#v25 item4, mirrors in-app)
-            val lift = if (c.state == CState.HOVER) t * 0.78 else t * 0.25
+            // fly low most of the time; while visiting (HOVER) perch at ITS OWN
+            // randomized height on the plant (base->bloom), not the same fixed
+            // spot every visit (#v25 item4, #v31.17, mirrors in-app)
+            val lift = if (c.state == CState.HOVER) t * c.perch else t * 0.25
             val px = sx.toFloat(); val py = (sy + bob - lift).toFloat()
             canvas.drawBitmap(bmp, src, RectF(px - s / 2, py - s / 2, px + s / 2, py + s / 2), paint)
         }
@@ -343,7 +344,7 @@ class GardenRenderer(private val data: GardenData) {
     /** One visiting creature in garden coords (tile units) — mirrors Dart's Critter. */
     private class Critter(
         val kind: String, var x: Double, var y: Double, var tx: Double, var ty: Double,
-        val speed: Double, val phase: Double, val hoverFor: Double,
+        val speed: Double, val phase: Double, val hoverFor: Double, val perch: Double,
     ) {
         var state = CState.APPROACH
         var timer = 0.0
@@ -401,10 +402,16 @@ class GardenRenderer(private val data: GardenData) {
                 2 -> rnd() to half
                 else -> -half to rnd()
             }
-            val target = flowers[Random.nextInt(flowers.size)]
+            // land at a randomized spot NEAR the flower, not its exact tile centre —
+            // mirrors the in-app CritterSystem (garden_engine.dart _spawn) so the
+            // wallpaper doesn't always target the identical pixel either (#v31.17).
+            val flower = flowers[Random.nextInt(flowers.size)]
+            val tx = flower.first + (Random.nextDouble() * 2 - 1) * 0.35
+            val ty = flower.second + (Random.nextDouble() * 2 - 1) * 0.35
             list.add(Critter(
-                kinds[Random.nextInt(kinds.size)], start.first, start.second, target.first, target.second,
-                1.0 + Random.nextDouble() * 0.8, Random.nextDouble() * Math.PI * 2, 2.0 + Random.nextDouble() * 2.5))
+                kinds[Random.nextInt(kinds.size)], start.first, start.second, tx, ty,
+                1.0 + Random.nextDouble() * 0.8, Random.nextDouble() * Math.PI * 2, 2.0 + Random.nextDouble() * 2.5,
+                0.20 + Random.nextDouble() * 0.65))
         }
 
         private fun stepOne(c: Critter, dt: Double, half: Double) {

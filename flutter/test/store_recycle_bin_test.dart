@@ -92,7 +92,44 @@ void main() {
     s.removeRecord(999999);
     s.purgeRecord(-1);
     s.purgeRecord(999999);
+    s.restoreRecord(-1);
+    s.restoreRecord(999999);
     expect(s.records.length, recordsBefore); // untouched
     expect(s.deletedRecords, isEmpty);
+  });
+
+  test('restoreRecord moves a log back out of the Recycle Bin and it counts toward stats again', () async {
+    SharedPreferences.setMockInitialValues({});
+    final s = AppStore();
+    await s.load();
+    final recordsBefore = s.records.length;
+    final mathIdx = s.records.indexWhere((r) => r.label == 'MATH' && r.minutes > 0);
+    final removedMinutes = s.records[mathIdx].minutes;
+    final mathMinutesBefore = LabelHabits.minutesFromRecords(s.records)['MATH']!.values.fold(0, (a, b) => a + b);
+
+    s.removeRecord(mathIdx);
+    expect(s.records.length, recordsBefore - 1);
+    expect(s.deletedRecords.length, 1);
+
+    s.restoreRecord(0);
+    expect(s.deletedRecords, isEmpty);
+    expect(s.records.length, recordsBefore); // back to the original count
+    expect(s.records.any((r) => r.label == 'MATH' && r.minutes == removedMinutes), true);
+    final mathMinutesAfter = LabelHabits.minutesFromRecords(s.records)['MATH']!.values.fold(0, (a, b) => a + b);
+    expect(mathMinutesAfter, mathMinutesBefore, reason: 'restored record must count toward stats again');
+  });
+
+  test('restored records persist across a reload', () async {
+    SharedPreferences.setMockInitialValues({});
+    final s = AppStore();
+    await s.load();
+    final recordsBefore = s.records.length;
+    s.removeRecord(0);
+    s.restoreRecord(0);
+
+    final s2 = AppStore();
+    await s2.load();
+    expect(s2.records.length, recordsBefore);
+    expect(s2.deletedRecords, isEmpty);
   });
 }

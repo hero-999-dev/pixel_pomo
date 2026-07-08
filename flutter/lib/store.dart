@@ -740,6 +740,16 @@ class AppStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// [index] indexes into [deletedRecords] — moves the entry back into
+  /// [records], reversing [removeRecord]; it counts toward stats again (#v31.17).
+  void restoreRecord(int index) {
+    if (index < 0 || index >= deletedRecords.length) return;
+    records.add(deletedRecords.removeAt(index));
+    _saveStats();
+    _saveDeleted();
+    notifyListeners();
+  }
+
   /// [index] indexes into [deletedRecords] — permanent, no further recovery.
   void purgeRecord(int index) {
     if (index < 0 || index >= deletedRecords.length) return;

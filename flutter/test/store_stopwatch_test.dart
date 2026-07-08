@@ -119,4 +119,30 @@ void main() {
 
     s.dispose();
   });
+
+  test('the real periodic timer advances stopwatch.elapsedMillis from the wall clock '
+      '(not just via a directly-set value)', () async {
+    // every other test in this file proves reset() correctly logs whatever
+    // is already in stopwatch.elapsedMillis (set directly via setElapsed) —
+    // this one proves the ACTUAL running Timer.periodic + _onTick path that
+    // feeds that field during real use also works end to end.
+    SharedPreferences.setMockInitialValues({});
+    final s = AppStore();
+    await s.load();
+    s.setPomodoroMode(false);
+
+    s.start();
+    expect(s.stopwatch.elapsedMillis, 0);
+    await Future.delayed(const Duration(milliseconds: 450));
+    expect(s.stopwatch.elapsedMillis, greaterThanOrEqualTo(200),
+        reason: 'at least one 200ms tick should have landed by now');
+    expect(s.stopwatch.elapsedMillis, lessThan(2000), reason: 'sane upper bound, not stuck or runaway');
+
+    s.pause();
+    final atPause = s.stopwatch.elapsedMillis;
+    await Future.delayed(const Duration(milliseconds: 300));
+    expect(s.stopwatch.elapsedMillis, atPause, reason: 'paused stopwatch must not keep advancing');
+
+    s.dispose();
+  });
 }

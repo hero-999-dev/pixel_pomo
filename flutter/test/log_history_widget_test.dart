@@ -82,6 +82,36 @@ void main() {
     expect(find.byKey(const Key('cleanRecycleBinButton')), findsNothing); // nothing to clean
   });
 
+  testWidgets('Recycle Bin: tapping a log offers RESTORE THIS LOG and DELETE FOREVER', (tester) async {
+    final s = await boot();
+    s.removeRecord(s.records.indexWhere((r) => r.label == 'MATH'));
+
+    await tester.pumpWidget(host(s, () => RecycleBinScreen(s)));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('MATH'));
+    await tester.pumpAndSettle();
+    expect(find.text('RESTORE THIS LOG'), findsOneWidget);
+    expect(find.text('DELETE FOREVER'), findsOneWidget);
+  });
+
+  testWidgets('Recycle Bin: RESTORE THIS LOG puts the log back immediately, no confirm needed', (tester) async {
+    final s = await boot();
+    final recordsBefore = s.records.length;
+    s.removeRecord(s.records.indexWhere((r) => r.label == 'MATH'));
+    expect(s.deletedRecords.length, 1);
+
+    await tester.pumpWidget(host(s, () => RecycleBinScreen(s)));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('MATH'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('RESTORE THIS LOG'));
+    await tester.pumpAndSettle();
+
+    expect(s.deletedRecords, isEmpty);
+    expect(s.records.length, recordsBefore);
+    expect(find.text('Recycle Bin is empty'), findsOneWidget);
+  });
+
   testWidgets('Recycle Bin: a soft-deleted log can be permanently purged', (tester) async {
     final s = await boot();
     s.removeRecord(s.records.indexWhere((r) => r.label == 'MATH'));
@@ -92,6 +122,8 @@ void main() {
     expect(find.text('MATH'), findsOneWidget);
 
     await tester.tap(find.text('MATH'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('DELETE FOREVER'));
     await tester.pumpAndSettle();
     expect(find.text('Delete forever?'), findsOneWidget);
     await tester.tap(find.text('YES'));

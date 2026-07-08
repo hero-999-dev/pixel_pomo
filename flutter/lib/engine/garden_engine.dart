@@ -316,8 +316,12 @@ class Critter {
   final double speed; // tiles/sec
   final double phase; // flight-wobble offset
   final double hoverFor;
+  // how high up the plant this visit perches while hovering, as a fraction
+  // of a tile — randomized per critter so visits land anywhere from near
+  // the base to near the bloom, not always the same spot (#v31.17).
+  final double perch;
 
-  Critter(this.kind, this.pos, this.target, this.speed, this.phase, this.hoverFor);
+  Critter(this.kind, this.pos, this.target, this.speed, this.phase, this.hoverFor, this.perch);
 }
 
 /// Owns the (at most 2) active critters and spawns them occasionally. Works
@@ -383,6 +387,7 @@ class CritterSystem {
       1.0 + _r.nextDouble() * 0.8, // tiles/sec
       _r.nextDouble() * math.pi * 2,
       2.0 + _r.nextDouble() * 2.5,
+      0.20 + _r.nextDouble() * 0.65, // perch: near the base up to near the bloom (#v31.17)
     ));
   }
 
@@ -718,9 +723,10 @@ class GardenPainter extends CustomPainter {
       final img = sprites.critter(c.kind);
       final amp = c.kind.startsWith('ladybug') ? 0.6 : 2.2; // ladybugs barely bob
       final bob = math.sin((time + c.phase) * 9) * amp;
-      // while visiting a flower, sit at its BLOOM (the colourful top) instead of
-      // the green stem/base; fly low the rest of the time (#v25 item4)
-      final lift = c.state == _CState.hover ? t * 0.78 : t * 0.25;
+      // fly low most of the time; while visiting a flower, perch at ITS OWN
+      // randomized height on the plant (base→bloom) instead of every visit
+      // snapping to the same fixed spot near the top (#v25 item4, #v31.17)
+      final lift = c.state == _CState.hover ? t * c.perch : t * 0.25;
       final at = p.projectGrid(c.pos).translate(0, bob - lift);
       final rect = Rect.fromCenter(center: at, width: s, height: s);
       if (img != null) {

@@ -1244,7 +1244,7 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
         Text(t(lang, 'noRecycled'), style: pixelStyle(lang, 10, col(th.onSurfaceDim), text: t(lang, 'noRecycled')))
       else ...[
         for (final (idx, r) in shown)
-          _historyRow(s, th, lang, r, () => _confirmPurge(context, s, idx, r)),
+          _historyRow(s, th, lang, r, () => _rowActions(context, s, idx, r)),
         const SizedBox(height: 14),
         Row(children: [
           SizedBox(
@@ -1270,6 +1270,42 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
         ]),
       ],
     ]);
+  }
+
+  /// Tapping a Recycle Bin row offers RESTORE (immediate, reversible — no
+  /// confirm needed) or DELETE FOREVER (routes to the existing confirm
+  /// dialog, unchanged) (#v31.17).
+  void _rowActions(BuildContext context, AppStore s, int index, SessionRecord r) {
+    final th = s.theme;
+    final lang = s.lang;
+    final desc = '${r.label} · ${StatsAggregator.formatMinutes(r.minutes)}';
+    showDialog(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        backgroundColor: col(th.panel),
+        title: Text(desc, style: pixelStyle(lang, 11, col(th.onSurface), text: desc)),
+        children: [
+          SimpleDialogOption(
+            onPressed: () {
+              s.restoreRecord(index);
+              Navigator.pop(ctx);
+              setState(() {});
+            },
+            child: Text(t(lang, 'restoreLog'),
+                style: pixelStyle(lang, 10, col(th.onSurface), text: t(lang, 'restoreLog'))),
+          ),
+          const Divider(height: 20),
+          SimpleDialogOption(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _confirmPurge(context, s, index, r);
+            },
+            child: Text(t(lang, 'deleteForever'),
+                style: pixelStyle(lang, 10, col(th.accent), text: t(lang, 'deleteForever'))),
+          ),
+        ],
+      ),
+    );
   }
 
   void _confirmPurge(BuildContext context, AppStore s, int index, SessionRecord r) {
