@@ -27,6 +27,7 @@ class AppStore extends ChangeNotifier {
   static const _kOwned = 'owned_flowers';
   static const _kGarden = 'garden';
   static const _kHomeMode = 'home_garden_backdrop'; // live garden behind timer (#3)
+  static const _kTimerMode = 'timer_mode_pomodoro'; // stopwatch vs pomodoro settings (#v31.15)
   static const _kAutoBreak = 'auto_break'; // auto-start break after focus (#4)
   static const _kBlocker = 'app_blocker'; // app blocker on/off (#v23)
   static const _kBlocked = 'blocked_apps'; // csv of blocked package names (#v23)
@@ -66,6 +67,11 @@ class AppStore extends ChangeNotifier {
 
   /// Home-screen mode: false = clean pomodoro, true = live garden behind it (#3).
   bool homeGardenBackdrop = false;
+
+  /// Settings screen mode: true = show the pomodoro work/break/session
+  /// steppers, false = hide them (stopwatch mode, no fixed durations to
+  /// configure) (#v31.15).
+  bool isPomodoroMode = true;
 
   /// The camera framing the live wallpaper reproduces (set from camera mode, v15).
   WallpaperCam wallpaperCam = WallpaperCam.none;
@@ -151,6 +157,7 @@ class AppStore extends ChangeNotifier {
       _saveGarden();
     }
     homeGardenBackdrop = _prefs.getBool(_kHomeMode) ?? false;
+    isPomodoroMode = _prefs.getBool(_kTimerMode) ?? true;
     autoBreak = _prefs.getBool(_kAutoBreak) ?? false;
     wallpaperCam = WallpaperCam.decode(_prefs.getString(_kWallpaperCam));
 
@@ -401,7 +408,9 @@ class AppStore extends ChangeNotifier {
   // ---- timer ----------------------------------------------------------------
 
   void start() {
-    if (engine.isFinished) engine.reset();
+    // rebuild (not engine.reset()) so a settings change made mid-cycle
+    // finally takes effect once that cycle is actually done (#v31.15).
+    if (engine.isFinished) engine = _buildEngine();
     engine.start();
     if (!engine.isRunning) {
       notifyListeners();
@@ -547,7 +556,9 @@ class AppStore extends ChangeNotifier {
         _saveWallet();
       }
     }
-    engine.reset();
+    // rebuild (not engine.reset()) so a settings change made mid-session
+    // finally takes effect on this explicit cancel/restart (#v31.15).
+    engine = _buildEngine();
     cancelTimerNotification(); // session cancelled in-app → drop the notification
     _publishBlocker();
     notifyListeners();
@@ -583,8 +594,15 @@ class AppStore extends ChangeNotifier {
     _prefs.setInt(_kWork, work);
     _prefs.setInt(_kBreak, brk);
     _prefs.setInt(_kSessions, sess);
-    _timer?.cancel();
-    engine = _buildEngine();
+    // a pomodoro already in progress keeps running on its OLD durations
+    // uninterrupted — rebuilding here would reset live progress out from
+    // under the user (#v31.15 bug); the new values apply starting the next
+    // fresh run instead, via start()/reset() rebuilding from current
+    // workMin/breakMin/sessions rather than reusing the frozen engine.
+    if (!engine.inProgress) {
+      _timer?.cancel();
+      engine = _buildEngine();
+    }
     notifyListeners();
   }
 
@@ -723,6 +741,15 @@ class AppStore extends ChangeNotifier {
   void setHomeGardenBackdrop(bool v) {
     homeGardenBackdrop = v;
     _prefs.setBool(_kHomeMode, v);
+    notifyListeners();
+  }
+
+  /// Settings screen only, for now (#v31.15) — hides the work/break/session
+  /// steppers in stopwatch mode. Doesn't yet change home-screen timer
+  /// behaviour.
+  void setPomodoroMode(bool v) {
+    isPomodoroMode = v;
+    _prefs.setBool(_kTimerMode, v);
     notifyListeners();
   }
 

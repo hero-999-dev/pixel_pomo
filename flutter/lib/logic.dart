@@ -26,6 +26,13 @@ class PomodoroEngine {
 
   int durationOf(Mode t) => t == Mode.work ? workMillis : breakMillis;
 
+  /// True once a run has been started and hasn't fully finished — a
+  /// settings change made while this holds should wait to apply until it's
+  /// false again, so editing work/break minutes mid-session doesn't yank
+  /// the current pomodoro's progress out from under the user (#v31.15).
+  bool get inProgress =>
+      !isFinished && (isRunning || session > 1 || mode != Mode.work || timeLeftMillis != workMillis);
+
   void start() {
     if (!isFinished && timeLeftMillis > 0) isRunning = true;
   }

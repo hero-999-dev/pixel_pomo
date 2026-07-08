@@ -197,6 +197,24 @@ void main() {
       e.setTimeLeft(30000);
       expect(e.progressPercent(), 50);
     });
+
+    test('inProgress: false when fresh or fully finished, true anywhere in between (#v31.15)', () {
+      final e = PomodoroEngine(totalSessions: 1);
+      expect(e.inProgress, false); // never started
+
+      e.start();
+      expect(e.inProgress, true); // isRunning alone is enough
+
+      e.setTimeLeft(e.workMillis - 1000); // a tick passed
+      e.pause();
+      expect(e.inProgress, true); // paused mid-phase, real progress made
+
+      e.finishPhase(); // work -> break
+      expect(e.inProgress, true);
+      e.finishPhase(); // last break -> finished (totalSessions: 1)
+      expect(e.isFinished, true);
+      expect(e.inProgress, false); // fully done — safe to rebuild again
+    });
   });
 
   group('Economy + Garden', () {

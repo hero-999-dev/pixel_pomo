@@ -100,8 +100,11 @@ and coins, for trying out stats/heatmap features without needing to build up rea
   history navigator**), and **paged entries**. Pick a **main currency**; rates refresh from the internet
   (hourly when online). Set a **daily budget** in settings — stay under it for a day and earn **+1 garden
   coin**.
-- **⚙️ Settings** — steppers for **focus / break / sessions**, **auto-start**, the **app blocker**, a **home-screen
-  garden** toggle, and a **language** picker — **English / Türkçe / Polski / Deutsch / Français / Italiano** — applied instantly.
+- **⚙️ Settings** — a **STOPWATCH / POMODORO** toggle at the top (POMODORO shows the steppers below,
+  STOPWATCH hides them), steppers for **focus / break / sessions**, **auto-start**, the **app blocker**,
+  a **home-screen garden** toggle, and a **language** picker — **English / Türkçe / Polski / Deutsch /
+  Français / Italiano** — applied instantly. A settings change never disturbs a pomodoro already in
+  progress — it takes effect starting the next one.
 - **🎨 Themes** — six live pixel themes: **Dark, Light, Mocha, Frappe, Latte, Matcha**. The system bars match the theme and
   there's no white tap ripple.
 

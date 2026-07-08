@@ -373,10 +373,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final th = s.theme;
     final lang = s.lang;
     return overlayScaffold(context, s, t(lang, 'settings'), [
-      _stepper(th, lang, t(lang, 'study'), work, 5, 300, 5, (v) => _apply(() => work = v)),
-      _stepper(th, lang, t(lang, 'breakMin'), brk, 1, 120, 1, (v) => _apply(() => brk = v)),
-      _stepper(th, lang, t(lang, 'sessions'), sess, 1, 24, 1, (v) => _apply(() => sess = v)),
+      // timer mode, at the top: POMODORO shows the work/break/session
+      // steppers below, STOPWATCH hides them (#v31.15)
+      Text(t(lang, 'timerMode'), style: pixelStyle(lang, 12, col(th.onSurfaceDim), text: t(lang, 'timerMode'))),
+      const SizedBox(height: 12),
+      Row(
+        children: [
+          for (final pomodoro in const [false, true]) ...[
+            if (pomodoro) const SizedBox(width: 12),
+            Expanded(
+              child: PixelButton(
+                text: t(lang, pomodoro ? 'pomodoro' : 'stopwatch'),
+                fill: s.isPomodoroMode == pomodoro ? th.accent : th.panel,
+                border: s.isPomodoroMode == pomodoro ? th.onSurface : th.onSurfaceDim,
+                textColor: s.isPomodoroMode == pomodoro ? th.onAccent : th.onSurface,
+                shadow: th.shadow,
+                lang: lang,
+                fontSize: 11,
+                onTap: () => s.setPomodoroMode(pomodoro),
+              ),
+            ),
+          ],
+        ],
+      ),
       const SizedBox(height: 24),
+      if (s.isPomodoroMode) ...[
+        _stepper(th, lang, t(lang, 'study'), work, 5, 300, 5, (v) => _apply(() => work = v)),
+        _stepper(th, lang, t(lang, 'breakMin'), brk, 1, 120, 1, (v) => _apply(() => brk = v)),
+        _stepper(th, lang, t(lang, 'sessions'), sess, 1, 24, 1, (v) => _apply(() => sess = v)),
+        const SizedBox(height: 24),
+      ],
       Text(t(lang, 'language'), style: pixelStyle(lang, 12, col(th.onSurfaceDim), text: t(lang, 'language'))),
       const SizedBox(height: 12),
       for (final opt in languageOptions)
