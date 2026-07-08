@@ -133,7 +133,13 @@ class Swatch extends StatelessWidget {
   final int border;
   final double size;
   final VoidCallback? onTap;
-  const Swatch({super.key, required this.color, required this.border, this.size = 22, this.onTap});
+  // sharp corners, no border — the pre-#v31.5 "old style", opt-in per call
+  // site (#v31.14): the Labels screen and Stats' BY LABEL list use it, the
+  // gray border read as a "cover" over the label's own colour there.
+  final bool plain;
+  const Swatch(
+      {super.key, required this.color, required this.border, this.size = 22, this.onTap,
+      this.plain = false});
 
   @override
   Widget build(BuildContext context) {
@@ -142,12 +148,13 @@ class Swatch extends StatelessWidget {
       child: Container(
         width: size,
         height: size,
-        // rounded corners specifically here (label colour swatches) at the
-        // user's request — buttons/headings keep their hard pixel edges (#v31.5)
+        // rounded corners + border specifically here (label colour swatches)
+        // at the user's request — buttons/headings keep their hard pixel
+        // edges (#v31.5); [plain] opts a specific usage back out (#v31.14).
         decoration: BoxDecoration(
           color: col(color),
-          border: Border.all(color: col(border), width: 2),
-          borderRadius: BorderRadius.circular(4),
+          border: plain ? null : Border.all(color: col(border), width: 2),
+          borderRadius: plain ? null : BorderRadius.circular(4),
         ),
       ),
     );

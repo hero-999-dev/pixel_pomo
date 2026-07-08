@@ -701,7 +701,7 @@ class _LabelScreenState extends State<LabelScreen> {
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
         children: [
-          Swatch(color: s.labelColorOf(label), border: th.onSurfaceDim, size: 24, onTap: () => _pickColor(context, s, label)),
+          Swatch(color: s.labelColorOf(label), border: th.onSurfaceDim, size: 24, plain: true, onTap: () => _pickColor(context, s, label)),
           const SizedBox(width: 12),
           Expanded(
             child: GestureDetector(
@@ -919,7 +919,7 @@ class StatsScreen extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: 6),
             child: Row(
               children: [
-                Swatch(color: s.labelColorOf(e.key), border: th.onSurfaceDim, size: 16),
+                Swatch(color: s.labelColorOf(e.key), border: th.onSurfaceDim, size: 16, plain: true),
                 const SizedBox(width: 10),
                 Text(e.key, style: pixelStyle(lang, 11, col(th.onSurface), text: e.key)),
                 const Spacer(),

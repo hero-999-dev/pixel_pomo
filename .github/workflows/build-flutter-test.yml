@@ -7,12 +7,17 @@ name: Build Test Pixel Pomo (debug-data APK)
 # only via `flutter run`/`flutter test` on a dev machine (#v31.12). The REAL app
 # (build-flutter.yml) always ships a clean slate — this workflow never touches it.
 #
-# Manual dispatch only: unlike the real app's Android build, this isn't needed on
-# every push, so it doesn't run automatically and cost minutes for rounds where
-# nobody checks it. Run it from GitHub -> Actions -> "Build Test Pixel Pomo
-# (debug-data APK)" -> Run workflow whenever you actually want a fresh one.
+# Runs automatically on every push alongside the real app's own Android build
+# (#v31.14 — was manual-dispatch-only in #v31.12; the user didn't want to have
+# to remember to trigger it by hand). workflow_dispatch is also still there,
+# for an on-demand rebuild without pushing anything.
 
 on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'flutter/**'
+      - '.github/workflows/build-flutter-test.yml'
   workflow_dispatch:
 
 permissions:
