@@ -20,7 +20,7 @@ classic arcade look.
 You don't build anything yourself — every release attaches a ready-to-install file.
 
 **Android**
-1. Open this repo on GitHub → **Releases** → **`flutter-v24`** (or the rolling **`latest-flutter`**).
+1. Open this repo on GitHub → **Releases** → **`flutter-v31`** (the latest numbered build).
 2. Download **`pixel_pomo_flutter.apk`** and tap to install.
    - If Android warns about "unknown sources", allow installs for your browser / file app, then re-open the APK.
    - Installs alongside the old native build (different app id), so you can keep both.
@@ -77,14 +77,15 @@ trying out stats/heatmap features without needing to build up real history first
   **MONTHLY / YEARLY** every session that month/year — do 30 sessions this week and you get exactly 30
   boxes, do 1000 this year and you get exactly 1000 — plus a **◀ ▶ navigator** to browse an earlier
   day/week/month/year instead of only ever seeing the current one — and below it, **FOCUS SESSIONS** heatmaps
-  per label with **WEEKLY / MONTHLY / 18 WEEKS / YEARLY** views, all in the same week-column grid: weekly and
-  monthly show **2 and 3 labels side by side**, 18 weeks rolls forward as weeks pass (a **LABEL button** with
-  pixel switches picks which labels to show), and yearly is **one label at a time** (the button carries its
-  name) drawn as a single **left-to-right scrolling 52-week band with each month framed** like the timeline's
-  day boxes. **Browsing the ◀ ▶ history navigator moves the timeline and the focus heatmaps together** — pick
-  last week and both show last week; same for months and years. Grids always show every box — future days sit
-  faint until they color in, and each label's day-count caption reflects only what's on screen. **Tap any box**
-  for a floating callout with that day's session count and time. **LOG HISTORY**, right below it, is a
+  per label with **WEEKLY / MONTHLY / 18 WEEKS / YEARLY** views and its own **◀ ▶ navigator** to browse an
+  earlier period, independent of any other screen. Weekly and monthly show **2 and 3 labels side by side**; a
+  **LABEL button** with pixel switches picks which labels to show for 18 weeks *and* yearly alike (yearly used
+  to be one-label-only — now it's the same multi-select). Each label's box also shows **days · times · total
+  time studied**, on every period. **Yearly has its own STYLE picker**: **HORIZONTAL** (default) draws all 12
+  months as their own bordered squares, 4 per row, each holding exactly that month's real days — no bleed from
+  a neighbouring month; **VERTICAL** draws the same year Daylio-style — 12 month columns × up to 31 day rows,
+  one box per calendar day. Grids always show every box — future days sit faint until they color in. **Tap any
+  box** for a floating callout with that day's session count and time. **LOG HISTORY**, right below it, is a
   **paginated list of every past session** (50 a page) where you can **change a session's label**.
 - **⭐ Habit tracker** — three tabs. **Mood Tracker**: a daily 5-face mood picker plus a history heatmap —
   **tap any past day to set its mood too**. **Your

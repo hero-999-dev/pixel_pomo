@@ -129,7 +129,10 @@ jobs:
           fi
           NOTES="Pixel Pomo — Flutter $VTAG ($VER) from ${GITHUB_SHA::7}. **Android:** install pixel_pomo_flutter.apk. **iOS:** pixel_pomo_ios.ipa is UNSIGNED — sideload with SideStore/AltStore. iOS is built only on a manual run (Actions -> Build Flutter -> Run workflow); routine pushes build Android only to save the 10x macOS minutes."
 
-          for TAG in latest-flutter "flutter-$VTAG"; do
+          # latest-flutter (a rolling "always newest" tag) was removed #v31.13 —
+          # flutter-vNN is the one place to grab a build; no second, redundant
+          # tag pointing at the same content every push.
+          for TAG in "flutter-$VTAG"; do
             if gh release view "$TAG" >/dev/null 2>&1; then
               gh release upload "$TAG" $ASSETS --clobber
               gh release edit "$TAG" --title "$TITLE" --notes "$NOTES"

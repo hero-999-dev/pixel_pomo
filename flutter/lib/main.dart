@@ -1940,9 +1940,7 @@ class _SessionsInPixelsScreenState extends State<SessionsInPixelsScreen> {
           return content;
         }),
       const SizedBox(height: 24),
-      FocusSessionsSection(
-          th: th, lang: lang, s: s, today: epochDayOf(now),
-          anchor: epochDayOf(StatsAggregator.anchorFor(now, s.statPeriod, s.statOffset))),
+      FocusSessionsSection(th: th, lang: lang, s: s, today: epochDayOf(now)),
     ]);
   }
 }
@@ -1959,25 +1957,25 @@ class FocusSessionsSection extends StatefulWidget {
   final String lang;
   final AppStore s;
   final int today;
-  // which week/month/year to show — follows the Stats ◀▶ navigator (#v31.2
-  // item 3); defaults to today. `today` itself stays the future-day cutoff.
-  final int? anchor;
   const FocusSessionsSection(
-      {super.key, required this.th, required this.lang, required this.s, required this.today,
-      this.anchor});
+      {super.key, required this.th, required this.lang, required this.s, required this.today});
   @override
   State<FocusSessionsSection> createState() => _FocusSessionsSectionState();
 }
 
 class _FocusSessionsSectionState extends State<FocusSessionsSection> {
   _HeatPeriod _period = _HeatPeriod.days126;
+  // periods back from today — an independent ◀▶ navigator (#v31.13), no
+  // longer inherited from the parent Stats screen's own navigator (matches
+  // Session Heatmap's own self-contained browsing, #v31.10).
+  int _offset = 0;
   String? _selLabel; // tapped cell → TREND-style callout (#v31 item 5)
   int? _selDay;
-  // user-chosen subset of labels for 18 WEEKS (#v31.2 item 1); null = all.
+  // user-chosen subset of labels for 18 WEEKS and YEARLY (#v31.2 item 1,
+  // YEARLY unified onto the same multi-select #v31.13 — was single-select).
   Set<String>? _chosenLabels;
-  // yearly shows exactly ONE label; the picker button carries its name
-  // (#v31.3 item 3).
-  String? _yearLabel;
+  // YEARLY's grid shape (#v31.13): horizontal default, or Daylio-style vertical.
+  _YearStyle _yearStyle = _YearStyle.horizontal;
 
   /// The inclusive epochDay span each period's shape displays, around the
   /// navigated [anchor] — labels with no session inside it are hidden (#v31
@@ -1998,10 +1996,48 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
     }
   }
 
+  /// [_offset] periods back from [today], in the same day-1-anchored way
+  /// StatsAggregator.anchorFor uses for months/years (sidesteps "Feb 31
+  /// doesn't exist") — 18 WEEKS steps a full 126-day block at a time so
+  /// browsing shows entirely fresh history instead of a mostly-overlapping
+  /// one-week nudge.
+  int _navAnchorFor(_HeatPeriod p, int today, int offset) {
+    if (offset <= 0) return today;
+    final d = dateOfEpochDay(today);
+    switch (p) {
+      case _HeatPeriod.weekly:
+        return today - offset * 7;
+      case _HeatPeriod.monthly:
+        return epochDayOf(DateTime.utc(d.year, d.month - offset, 1));
+      case _HeatPeriod.days126:
+        return today - offset * 126;
+      case _HeatPeriod.yearly:
+        return epochDayOf(DateTime.utc(d.year - offset, 1, 1));
+    }
+  }
+
+  String _navLabel(String lang, _HeatPeriod p, int anchor) {
+    final d = dateOfEpochDay(anchor);
+    switch (p) {
+      case _HeatPeriod.weekly:
+        final monday = anchor - (d.weekday - 1);
+        final loD = dateOfEpochDay(monday), hiD = dateOfEpochDay(monday + 6);
+        return '${loD.day}–${hiD.day} ${monthName(lang, hiD.month)}';
+      case _HeatPeriod.monthly:
+        return '${monthName(lang, d.month)} ${d.year}';
+      case _HeatPeriod.days126:
+        final (lo, hi) = _windowFor(p, anchor);
+        final loD = dateOfEpochDay(lo), hiD = dateOfEpochDay(hi);
+        return '${loD.day} ${monthName(lang, loD.month)} – ${hiD.day} ${monthName(lang, hiD.month)}';
+      case _HeatPeriod.yearly:
+        return '${d.year}';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final th = widget.th, lang = widget.lang, s = widget.s, today = widget.today;
-    final anchor = widget.anchor ?? today;
+    final anchor = _navAnchorFor(_period, today, _offset);
     final labelCounts = s.labelHabitCounts;
     final title = Text(t(lang, 'focusSessions'),
         style: pixelStyle(lang, 11, col(th.onSurfaceDim), text: t(lang, 'focusSessions')));
@@ -2021,14 +2057,13 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
       for (final e in labelCounts.entries)
         if (e.value.keys.any((d) => d >= lo && d <= hi)) e
     ];
-    // 18 WEEKS: multi-select filter (an all-filtered-out choice falls back to
-    // everything); YEARLY: exactly one label (#v31.3 item 3).
+    // 18 WEEKS and YEARLY: same multi-select filter (an all-filtered-out
+    // choice falls back to everything) — YEARLY used to be exactly one label
+    // (#v31.3 item 3), unified onto the same picker #v31.13.
     final yearly = _period == _HeatPeriod.yearly;
     final filterable = _period == _HeatPeriod.days126 || yearly;
     var visible = inWindow;
-    if (yearly && inWindow.isNotEmpty) {
-      visible = [inWindow.firstWhere((e) => e.key == _yearLabel, orElse: () => inWindow.first)];
-    } else if (_period == _HeatPeriod.days126 && _chosenLabels != null) {
+    if (filterable && _chosenLabels != null) {
       final picked = [for (final e in inWindow) if (_chosenLabels!.contains(e.key)) e];
       if (picked.isNotEmpty) visible = picked;
     }
@@ -2037,6 +2072,7 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
       final sel = _period == p;
       void pick() => setState(() {
             _period = p;
+            _offset = 0;
             _selLabel = null;
             _selDay = null;
           });
@@ -2096,12 +2132,17 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
               spanStart: lo, spanEnd: hi,
               onDayTap: (d) => onTap(e, d), selectedDay: selFor(e), callout: calloutFor(e));
         case _HeatPeriod.yearly:
-          // one horizontal 52-week band, left→right, each month framed like
-          // the timeline's day rectangles (#v31.3 item 4)
-          return _YearBand(
-              days: e.value, color: color, today: today,
-              year: dateOfEpochDay(anchor).year, frameColor: th.onSurfaceDim,
-              onDayTap: (d) => onTap(e, d), selectedDay: selFor(e), callout: calloutFor(e));
+          // horizontal (default): 12 months as their own squares, 4 per row.
+          // vertical: Daylio's Year in Pixels shape (#v31.13).
+          return _yearStyle == _YearStyle.vertical
+              ? _YearGridVertical(
+                  days: e.value, color: color, today: today, lang: lang,
+                  year: dateOfEpochDay(anchor).year, frameColor: th.onSurfaceDim,
+                  onDayTap: (d) => onTap(e, d), callout: calloutFor(e))
+              : _YearGridHorizontal(
+                  days: e.value, color: color, today: today,
+                  year: dateOfEpochDay(anchor).year, frameColor: th.onSurfaceDim,
+                  onDayTap: (d) => onTap(e, d), callout: calloutFor(e));
         case _HeatPeriod.days126:
           return _HabitHeatmap(
               days: e.value, color: color, today: today, maxCellSize: double.infinity,
@@ -2118,28 +2159,35 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
         for (final kv in e.value.entries)
           if (kv.key >= lo && kv.key <= hi) kv.key: kv.value
       };
-      final caption = tf(lang, 'daysTimes', [HabitLog.daysDone(winDays), HabitLog.totalTimes(winDays)]);
+      final winMinutes = (labelMinutes[e.key] ?? const <int, int>{})
+          .entries
+          .where((kv) => kv.key >= lo && kv.key <= hi)
+          .fold(0, (sum, kv) => sum + kv.value);
+      final caption = tf(lang, 'daysTimesTotal', [
+        HabitLog.daysDone(winDays),
+        HabitLog.totalTimes(winDays),
+        StatsAggregator.formatMinutes(winMinutes),
+      ]);
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(e.key, style: pixelStyle(lang, 10, col(s.labelColorOf(e.key)), text: e.key)),
-          // the side-by-side layouts (2 weekly / 3 monthly) are narrow — skip
-          // the days/times line there so the grids actually fit (#v31.2 item
-          // 2, weekly added #v31.5).
-          if (_period != _HeatPeriod.monthly && _period != _HeatPeriod.weekly) ...[
-            const SizedBox(height: 2),
-            Text(caption, style: pixelStyle(lang, 8, col(th.onSurfaceDim), text: caption)),
-          ],
+          // now shown for every period, including the narrow 2-up/3-up
+          // weekly/monthly layouts (#v31.13 — used to skip those so the
+          // grids fit, #v31.2/#v31.5); wraps to a second line there instead.
+          const SizedBox(height: 2),
+          Text(caption, style: pixelStyle(lang, 8, col(th.onSurfaceDim), text: caption)),
           const SizedBox(height: 4),
           heatmapFor(e),
         ],
       );
     }
 
-    // label picker for the long views: 18 WEEKS = multi-select with the app
-    // blocker's pixel on/off switch (the old ✓ read unclear, #v31.3 item 2),
-    // YEARLY = tap a row to pick THE one label. Rows sit right under the
-    // title, bigger text.
+    // label picker for the long views: multi-select with the app blocker's
+    // pixel on/off switch (the old ✓ read unclear, #v31.3 item 2) — YEARLY
+    // used to be single-select-only (tap a row to pick THE one label); now
+    // the same picker as 18 WEEKS (#v31.13). Rows sit right under the title,
+    // bigger text.
     void pickLabels() {
       void toggle(String key) => setState(() {
             final set = _chosenLabels ?? inWindow.map((x) => x.key).toSet();
@@ -2166,41 +2214,17 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
                       padding: const EdgeInsets.symmetric(vertical: 7),
                       child: GestureDetector(
                         behavior: HitTestBehavior.opaque,
-                        onTap: () {
-                          if (yearly) {
-                            setState(() {
-                              _yearLabel = e.key;
-                              _selLabel = null;
-                              _selDay = null;
-                            });
-                            Navigator.pop(ctx);
-                          } else {
-                            setLocal(() => toggle(e.key));
-                          }
-                        },
+                        onTap: () => setLocal(() => toggle(e.key)),
                         child: Row(children: [
                           Swatch(color: s.labelColorOf(e.key), border: th.onSurfaceDim, size: 18),
                           const SizedBox(width: 12),
                           Expanded(child: Text(e.key, style: pixelStyle(lang, 13, col(th.onSurface), text: e.key))),
                           _BlockToggle(
-                            on: yearly
-                                ? visible.isNotEmpty && visible.first.key == e.key
-                                : (_chosenLabels?.contains(e.key) ?? true),
+                            on: _chosenLabels?.contains(e.key) ?? true,
                             accent: th.accent,
                             off: th.onSurfaceDim,
                             knob: th.onSurface,
-                            onTap: () {
-                              if (yearly) {
-                                setState(() {
-                                  _yearLabel = e.key;
-                                  _selLabel = null;
-                                  _selDay = null;
-                                });
-                                Navigator.pop(ctx);
-                              } else {
-                                setLocal(() => toggle(e.key));
-                              }
-                            },
+                            onTap: () => setLocal(() => toggle(e.key)),
                           ),
                         ]),
                       ),
@@ -2213,6 +2237,43 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
                   fontSize: 10, padding: const EdgeInsets.all(10)),
             ],
           ),
+        ),
+      );
+    }
+
+    // YEARLY's grid-shape picker (#v31.13): horizontal (12 month squares,
+    // 4 per row) or vertical (Daylio's Year in Pixels shape).
+    void pickYearStyle() {
+      Widget row(String text, _YearStyle style) => Padding(
+            padding: const EdgeInsets.symmetric(vertical: 7),
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                setState(() => _yearStyle = style);
+                Navigator.pop(context);
+              },
+              child: Row(children: [
+                Expanded(child: Text(text, style: pixelStyle(lang, 13, col(th.onSurface), text: text))),
+                if (_yearStyle == style)
+                  Icon(Icons.check, color: col(th.accent), size: 18),
+              ]),
+            ),
+          );
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: col(th.panel),
+          titlePadding: const EdgeInsets.fromLTRB(20, 16, 20, 6),
+          contentPadding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+          title: Text(t(lang, 'style'), style: pixelStyle(lang, 12, col(th.onSurface), text: t(lang, 'style'))),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            row(t(lang, 'styleHorizontal'), _YearStyle.horizontal),
+            row(t(lang, 'styleVertical'), _YearStyle.vertical),
+          ]),
+          actions: [
+            primaryBtn(th, lang, t(lang, 'close'), () => Navigator.pop(ctx),
+                fontSize: 10, padding: const EdgeInsets.all(10)),
+          ],
         ),
       );
     }
@@ -2250,20 +2311,66 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
           periodBtn(t(lang, 'p18Weeks'), _HeatPeriod.days126),
           periodBtn(t(lang, 'pYearly'), _HeatPeriod.yearly),
         ]),
+        const SizedBox(height: 10),
+        // an independent ◀▶ navigator (#v31.13) — no longer inherited from
+        // the parent Stats screen's own navigator, matching Session
+        // Heatmap's self-contained browsing (#v31.10).
+        Row(children: [
+          SizedBox(
+            width: 52,
+            key: const Key('focusSessionsPrev'),
+            child: secondaryBtn(th, lang, '<', () => setState(() {
+                  _offset++;
+                  _selLabel = null;
+                  _selDay = null;
+                }), fontSize: 13, padding: const EdgeInsets.all(10)),
+          ),
+          Expanded(
+            child: Center(
+              child: Text(_navLabel(lang, _period, anchor),
+                  key: const Key('focusSessionsNavLabel'),
+                  style: pixelStyle(lang, 11, col(th.onSurface), text: _navLabel(lang, _period, anchor))),
+            ),
+          ),
+          SizedBox(
+            width: 52,
+            key: const Key('focusSessionsNext'),
+            child: PixelButton(
+                text: '>', fill: th.panel, border: th.onSurfaceDim, textColor: th.onSurface, shadow: th.shadow,
+                lang: lang, fontSize: 13, padding: const EdgeInsets.all(10),
+                opacity: _offset > 0 ? 1 : 0.35,
+                onTap: () {
+                  if (_offset > 0) setState(() {
+                    _offset--;
+                    _selLabel = null;
+                    _selDay = null;
+                  });
+                }),
+          ),
+        ]),
         const SizedBox(height: 12),
         if (filterable && inWindow.isNotEmpty) ...[
-          // yearly: the button IS the chosen label (#v31.3 item 3);
-          // 18 weeks: LABEL (shown/total)
-          secondaryBtn(
-              th,
-              lang,
-              yearly && visible.isNotEmpty
-                  ? visible.first.key
-                  : '${t(lang, 'label')} (${visible.length}/${inWindow.length})',
-              pickLabels,
-              key: const Key('labelFilterButton'),
-              fontSize: 10,
-              padding: const EdgeInsets.all(10)),
+          Row(children: [
+            Expanded(
+              child: secondaryBtn(
+                  th,
+                  lang,
+                  '${t(lang, 'label')} (${visible.length}/${inWindow.length})',
+                  pickLabels,
+                  key: const Key('labelFilterButton'),
+                  fontSize: 10,
+                  padding: const EdgeInsets.all(10)),
+            ),
+            // the grid-shape picker only makes sense for YEARLY (#v31.13) —
+            // weekly/monthly/18 weeks don't have a vertical/horizontal choice
+            if (yearly) ...[
+              const SizedBox(width: 6),
+              Expanded(
+                child: secondaryBtn(th, lang, t(lang, 'style'), pickYearStyle,
+                    key: const Key('yearStyleButton'), fontSize: 10, padding: const EdgeInsets.all(10)),
+              ),
+            ],
+          ]),
           const SizedBox(height: 12),
         ],
         if (visible.isEmpty)
@@ -3221,111 +3328,170 @@ class _WeekRow extends StatelessWidget {
 /// in a bordered frame like the session timeline's day rectangles — no month
 /// captions (tapping a cell already shows its date, #v31.3 item 4). Boundary
 /// weeks belong to the month containing their Thursday.
-class _YearBand extends StatelessWidget {
+// Which layout YEARLY draws its per-label year grid in (#v31.13) — replaced
+// _YearBand entirely: its week-aligned month "frames" could bleed a few days
+// from the adjacent month into a given month's box count, which read wrong.
+enum _YearStyle { horizontal, vertical }
+
+/// HORIZONTAL: 12 months as their own bordered squares, 4 per row (3 rows) —
+/// each frame holds EXACTLY that month's day count (28-31), wrapped 7-wide
+/// like a small calendar, no bleed from neighbouring months (#v31.13).
+class _YearGridHorizontal extends StatelessWidget {
   final Map<int, int> days;
   final int color, today, year, frameColor;
   final void Function(int day)? onDayTap;
-  final int? selectedDay;
   final Widget? callout;
-  const _YearBand(
+  const _YearGridHorizontal(
       {required this.days, required this.color, required this.today, required this.year,
-      required this.frameColor, this.onDayTap, this.selectedDay, this.callout});
+      required this.frameColor, this.onDayTap, this.callout});
 
   @override
   Widget build(BuildContext context) {
-    final jan1 = epochDayOf(DateTime.utc(year, 1, 1));
-    final dec31 = epochDayOf(DateTime.utc(year, 12, 31));
-    final startMonday = jan1 - (dateOfEpochDay(jan1).weekday - 1);
-    final endMonday = dec31 - (dateOfEpochDay(dec31).weekday - 1);
-    final weeks = (endMonday - startMonday) ~/ 7 + 1;
-
-    int weekMonth(int w) {
-      final thu = dateOfEpochDay(startMonday + w * 7 + 3);
-      if (thu.year < year) return 1;
-      if (thu.year > year) return 12;
-      return thu.month;
-    }
-
-    // consecutive week runs per month: (first week index, count)
-    final groups = <(int, int)>[];
-    var runStart = 0;
-    for (var w = 1; w <= weeks; w++) {
-      if (w == weeks || weekMonth(w) != weekMonth(runStart)) {
-        groups.add((runStart, w - runStart));
-        runStart = w;
-      }
-    }
-
     return LayoutBuilder(builder: (context, box) {
-      final cell = ((box.maxWidth - 18 * 2) / 18).clamp(4.0, double.infinity);
-      final bandH = 7 * (cell + 2) + 8; // cells + frame padding/border
+      const monthsPerRow = 4;
+      const cols = 7; // a calendar-week-wide mini grid per month
+      final cell = ((box.maxWidth - (monthsPerRow - 1) * 6 - monthsPerRow * 6) / (monthsPerRow * cols))
+          .clamp(4.0, 14.0);
 
-      Widget weekCol(int w) => Column(
+      Widget monthBlock(int m) {
+        final first = epochDayOf(DateTime.utc(year, m, 1));
+        final lastDay = DateTime.utc(year, m + 1, 0).day;
+        final rows = (lastDay / cols).ceil();
+        return Container(
+          padding: const EdgeInsets.all(3),
+          decoration: BoxDecoration(border: Border.all(color: col(frameColor), width: 1)),
+          child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              for (var row = 0; row < 7; row++)
-                Builder(builder: (_) {
-                  final day = startMonday + w * 7 + row;
-                  final blank = day < jan1 || day > dec31;
-                  final future = !blank && day > today;
-                  final dayColor = blank || future ? null : ((days[day] ?? 0) > 0 ? color : null);
-                  Widget box = Container(
-                    width: cell,
-                    height: cell,
-                    margin: const EdgeInsets.only(right: 2, bottom: 2),
-                    decoration: BoxDecoration(
-                      color: blank
-                          ? Colors.transparent
-                          : col(dayColor ?? color).withValues(alpha: dayColor != null ? 1 : 0.18),
-                      borderRadius: BorderRadius.circular(1),
-                    ),
-                  );
-                  if (!blank && !future && onDayTap != null) {
-                    box = GestureDetector(onTap: () => onDayTap!(day), child: box);
-                  }
-                  return box;
-                }),
+              for (var r = 0; r < rows; r++)
+                Padding(
+                  padding: EdgeInsets.only(bottom: r == rows - 1 ? 0 : 2),
+                  child: Row(children: [
+                    for (var c = 0; c < cols; c++)
+                      Builder(builder: (_) {
+                        final dNum = r * cols + c + 1;
+                        if (dNum > lastDay) return SizedBox(width: cell, height: cell);
+                        final day = first + dNum - 1;
+                        final future = day > today;
+                        final active = !future && (days[day] ?? 0) > 0;
+                        return _dayCell(
+                          cell: cell,
+                          blank: false,
+                          dayColor: future ? null : (active ? color : null),
+                          color: color,
+                          tooltip: null,
+                          onTap: future || onDayTap == null ? null : () => onDayTap!(day),
+                        );
+                      }),
+                  ]),
+                ),
             ],
-          );
+          ),
+        );
+      }
 
-      final band = Row(
+      final grid = Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          for (var g = 0; g < groups.length; g++)
-            Container(
-              margin: EdgeInsets.only(right: g == groups.length - 1 ? 0 : 6),
-              padding: const EdgeInsets.fromLTRB(3, 3, 1, 1),
-              decoration: BoxDecoration(border: Border.all(color: col(frameColor), width: 1)),
-              child: Row(children: [for (var i = 0; i < groups[g].$2; i++) weekCol(groups[g].$1 + i)]),
+          for (var row = 0; row < 3; row++)
+            Padding(
+              padding: EdgeInsets.only(bottom: row == 2 ? 0 : 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (var c = 0; c < monthsPerRow; c++)
+                    Padding(
+                      padding: EdgeInsets.only(right: c == monthsPerRow - 1 ? 0 : 6),
+                      child: monthBlock(row * monthsPerRow + c + 1),
+                    ),
+                ],
+              ),
             ),
         ],
       );
 
-      Widget content = band;
-      if (selectedDay != null && callout != null && selectedDay! >= jan1 && selectedDay! <= dec31) {
-        final selMonday = selectedDay! - (dateOfEpochDay(selectedDay!).weekday - 1);
-        final w = (selMonday - startMonday) ~/ 7;
-        final row = dateOfEpochDay(selectedDay!).weekday - 1;
-        var x = 0.0;
-        for (final (start, count) in groups) {
-          if (w < start + count) {
-            x += 4 + (w - start) * (cell + 2); // frame pad+border, then columns
-            break;
-          }
-          x += count * (cell + 2) + 6 + 6; // full group (incl. frame) + gap
-        }
-        final y = 4.0 + row * (cell + 2);
-        final top = row >= 4 ? math.max(0.0, y - 44) : y + cell + 4;
-        content = Stack(clipBehavior: Clip.none, children: [
-          band,
-          Positioned(left: x, top: top, child: callout!),
-        ]);
+      if (callout == null) return grid;
+      return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        grid,
+        const SizedBox(height: 8),
+        callout!,
+      ]);
+    });
+  }
+}
+
+/// VERTICAL: Daylio's "Year in Pixels" shape — 12 month columns × up to 31
+/// day rows, one cell per calendar day, squares instead of Daylio's dots
+/// (#v31.13, reference: feedback signal-2026-07-08-00-59-41-671.png).
+class _YearGridVertical extends StatelessWidget {
+  final Map<int, int> days;
+  final int color, today, year, frameColor;
+  final String lang;
+  final void Function(int day)? onDayTap;
+  final Widget? callout;
+  const _YearGridVertical(
+      {required this.days, required this.color, required this.today, required this.year,
+      required this.frameColor, required this.lang, this.onDayTap, this.callout});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(builder: (context, box) {
+      const dayColW = 16.0; // fits "31"
+      final cell = ((box.maxWidth - dayColW - 12 * 2) / 12).clamp(4.0, 14.0);
+
+      Widget monthInitial(int m) {
+        final text = monthName(lang, m)[0].toUpperCase();
+        return SizedBox(
+          width: cell + 2,
+          child: Center(child: Text(text, style: pixelStyle(lang, 7, col(frameColor), text: text))),
+        );
       }
 
-      return SizedBox(
-        height: bandH,
-        child: SingleChildScrollView(scrollDirection: Axis.horizontal, child: content),
+      Widget dayRow(int dNum) => Padding(
+            padding: EdgeInsets.only(bottom: dNum == 31 ? 0 : 2),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                SizedBox(
+                  width: dayColW,
+                  child: Text('$dNum', style: pixelStyle(lang, 7, col(frameColor), text: '$dNum')),
+                ),
+                for (var m = 1; m <= 12; m++)
+                  Builder(builder: (_) {
+                    final lastDay = DateTime.utc(year, m + 1, 0).day;
+                    if (dNum > lastDay) return SizedBox(width: cell + 2, height: cell);
+                    final day = epochDayOf(DateTime.utc(year, m, dNum));
+                    final future = day > today;
+                    final active = !future && (days[day] ?? 0) > 0;
+                    return _dayCell(
+                      cell: cell,
+                      blank: false,
+                      dayColor: future ? null : (active ? color : null),
+                      color: color,
+                      tooltip: null,
+                      onTap: future || onDayTap == null ? null : () => onDayTap!(day),
+                    );
+                  }),
+              ],
+            ),
+          );
+
+      final grid = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [SizedBox(width: dayColW), for (var m = 1; m <= 12; m++) monthInitial(m)]),
+          const SizedBox(height: 4),
+          for (var d = 1; d <= 31; d++) dayRow(d),
+        ],
       );
+
+      if (callout == null) return grid;
+      return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        grid,
+        const SizedBox(height: 8),
+        callout!,
+      ]);
     });
   }
 }
