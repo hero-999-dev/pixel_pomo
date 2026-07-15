@@ -80,6 +80,23 @@ void main() {
     });
   });
 
+  group('Stable depth order (#v31.21)', () {
+    test('ties break on original index, not reordered between calls', () {
+      const depths = [5.0, 3.0, 3.0, 3.0, 1.0];
+      final order = stableDepthOrder(depths);
+      expect(order, [4, 1, 2, 3, 0]); // ascending; the three tied 3.0s keep index order
+      // Same input must give the identical result every time -- this is exactly
+      // what an unstable List.sort could fail to guarantee, reading as a
+      // mid-rotation flicker between a fence rail and a near-tied neighbour.
+      expect(stableDepthOrder(depths), order);
+    });
+
+    test('clear (non-tied) ordering still sorts correctly ascending', () {
+      const depths = [10.0, -2.0, 4.0, 0.0];
+      expect(stableDepthOrder(depths), [1, 3, 2, 0]);
+    });
+  });
+
   group('Projector rectangular tile mapping', () {
     test('tileAt inverts gridOf for a non-square plot at several yaws', () {
       const cols = 4, rows = 6, t = 40.0;

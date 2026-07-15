@@ -45,6 +45,20 @@ bool isGardenTile(int c, int r, int cols, int rows) => c >= 0 && c < cols && r >
 double fenceRailDepth(Projector p, int c1, int r1, int c2, int r2) =>
     (p.ground(c1, r1).dy + p.ground(c2, r2).dy) / 2;
 
+/// Stable back-to-front paint order for a list of depth keys: sorts ascending,
+/// breaking exact ties on original index. `List.sort` is NOT guaranteed
+/// stable, so two (near-)tied depths — e.g. a fence rail's midpoint vs. a
+/// neighbouring post/flower — could otherwise flip paint order between frames
+/// with unchanged input, reading as a sudden pop mid-rotation (#v31.21).
+List<int> stableDepthOrder(List<double> depths) {
+  final order = List<int>.generate(depths.length, (i) => i);
+  order.sort((a, b) {
+    final cmp = depths[a].compareTo(depths[b]);
+    return cmp != 0 ? cmp : a.compareTo(b);
+  });
+  return order;
+}
+
 int _hash2(int c, int r) {
   var h = (c * 73856093) ^ (r * 19349663);
   h ^= h >> 13;
@@ -572,9 +586,8 @@ class GardenPainter extends CustomPainter {
       }
     }
     _collectFenceRails(canvas, p, standing);
-    standing.sort((a, b2) => a.$1.compareTo(b2.$1));
-    for (final (_, paint) in standing) {
-      paint();
+    for (final i in stableDepthOrder(standing.map((s) => s.$1).toList(growable: false))) {
+      standing[i].$2();
     }
 
     // 5) critters on top of everything (projected from claimed garden coords)
@@ -740,10 +753,21 @@ class GardenPainter extends CustomPainter {
       final img = sprites.critter(c.kind);
       final amp = c.kind.startsWith('ladybug') ? 0.6 : 2.2; // ladybugs barely bob
       final bob = math.sin((time + c.phase) * 9) * amp;
-      // fly low most of the time; while visiting a flower, perch at ITS OWN
+      // fly low most of the time; while visiting a flower, ease up to ITS OWN
       // randomized height on the plant (base→bloom) instead of every visit
-      // snapping to the same fixed spot near the top (#v25 item4, #v31.17)
-      final lift = c.state == _CState.hover ? t * c.perch : t * 0.25;
+      // snapping to the same fixed spot near the top (#v25 item4, #v31.17).
+      // Glide smoothly over the transition instead of snapping instantly the
+      // moment it arrives/leaves — the instant jump was still visible even
+      // once the landing height itself was randomized (#v31.21).
+      const travelLift = 0.25;
+      const ease = 0.4; // seconds to glide between travel height and perch
+      final k = (c.timer / ease).clamp(0.0, 1.0);
+      final liftFrac = switch (c.state) {
+        _CState.approach => travelLift,
+        _CState.hover => travelLift + (c.perch - travelLift) * k,
+        _CState.leave => c.perch + (travelLift - c.perch) * k,
+      };
+      final lift = t * liftFrac;
       final at = p.projectGrid(c.pos).translate(0, bob - lift);
       final rect = Rect.fromCenter(center: at, width: s, height: s);
       if (img != null) {
