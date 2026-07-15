@@ -65,6 +65,15 @@ def patch_build_gradle():
 
 
 def patch_manifest():
+    """All three services below are declared by their FULL `com.pixelpomo.pixel_pomo.*`
+    class name, never a relative `.ServiceName` — the Kotlin files under `kotlin/`
+    hardcode `package com.pixelpomo.pixel_pomo` regardless of which app they get
+    copied into. A relative name resolves against the CALLING app's own manifest
+    `package`, which only equals `com.pixelpomo.pixel_pomo` for the real app; for
+    "Test Pixel Pomo" (applicationId `com.pixelpomo.test.pixel_pomo`) it resolved to
+    a class that doesn't exist, so the service could never be found — the live
+    wallpaper (and app blocker, and the timer notification) silently failed to set
+    on the Test build while working fine on the real one (#v31.19)."""
     path = os.path.join(ANDROID, "AndroidManifest.xml")
     with open(path, "r", encoding="utf-8") as fh:
         xml = fh.read()
@@ -76,7 +85,7 @@ def patch_manifest():
     if "GardenWallpaperService" not in xml:
         service = (
             '        <service\n'
-            '            android:name=".GardenWallpaperService"\n'
+            '            android:name="com.pixelpomo.pixel_pomo.GardenWallpaperService"\n'
             '            android:exported="true"\n'
             '            android:label="Pixel Pomo Garden"\n'
             '            android:permission="android.permission.BIND_WALLPAPER">\n'
@@ -98,7 +107,7 @@ def patch_manifest():
     if "AppBlockerService" not in xml:
         svc = (
             '        <service\n'
-            '            android:name=".AppBlockerService"\n'
+            '            android:name="com.pixelpomo.pixel_pomo.AppBlockerService"\n'
             '            android:exported="false"\n'
             '            android:label="Pixel Pomo App Blocker"\n'
             '            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">\n'
@@ -116,7 +125,7 @@ def patch_manifest():
     if "TimerService" not in xml:
         svc = (
             '        <service\n'
-            '            android:name=".TimerService"\n'
+            '            android:name="com.pixelpomo.pixel_pomo.TimerService"\n'
             '            android:exported="false"\n'
             '            android:foregroundServiceType="specialUse">\n'
             '            <property\n'

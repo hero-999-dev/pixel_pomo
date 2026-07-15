@@ -56,6 +56,30 @@ void main() {
     });
   });
 
+  group('Fence rail depth key (#v31.18)', () {
+    test('rail depth is the midpoint of the two posts it links', () {
+      final p = Projector(6, 6, 40.0, const Offset(200, 300), 0.4);
+      final depth = fenceRailDepth(p, 1, 1, 1, 2);
+      final expected = (p.ground(1, 1).dy + p.ground(1, 2).dy) / 2;
+      expect(depth, closeTo(expected, 1e-9));
+    });
+
+    test('a rail sorts behind a farther flower and in front of a nearer one', () {
+      // The bug: fence rails used to paint in a fixed pass before ANY standing
+      // object, so a flower always drew on top of a rail regardless of actual
+      // position. The fix sorts rails into the same back-to-front (by screen-y)
+      // pass as flowers/trees/posts — prove a rail's depth key genuinely falls
+      // between a flower well behind it and one well in front of it, so the
+      // shared sort now paints them in the correct order either way.
+      final p = Projector(6, 6, 40.0, const Offset(200, 300), 0.0);
+      final railDepth = fenceRailDepth(p, 2, 3, 3, 3);
+      final fartherFlowerDepth = p.ground(2, 0).dy;
+      final nearerFlowerDepth = p.ground(2, 5).dy;
+      expect(fartherFlowerDepth, lessThan(railDepth));
+      expect(nearerFlowerDepth, greaterThan(railDepth));
+    });
+  });
+
   group('Projector rectangular tile mapping', () {
     test('tileAt inverts gridOf for a non-square plot at several yaws', () {
       const cols = 4, rows = 6, t = 40.0;

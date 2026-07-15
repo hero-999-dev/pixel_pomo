@@ -47,7 +47,7 @@ class GardenRenderer(private val data: GardenData) {
     private val critters = CritterSim()
     private var lastT = 0.0
 
-    private data class Item(val depth: Double, val x: Double, val y: Double, val id: String, val flower: Boolean, val c: Int, val r: Int)
+    private data class Item(val depth: Double, val paint: () -> Unit)
 
     fun draw(canvas: Canvas, w: Int, h: Int, timeSec: Double) {
         cols = data.cols; rows = data.rows
@@ -66,8 +66,11 @@ class GardenRenderer(private val data: GardenData) {
         canvas.drawColor(Color.rgb(0x12, 0x30, 0x1A)) // forest floor
         fillClearing(canvas)
         drawGrassFlowers(canvas) // a few wild blooms on empty grass (#v18)
-        drawFenceRails(canvas)   // raised rails between adjacent posts, under the standing items (#v20)
 
+        // Standing things, depth-sorted back-to-front by screen-y, INCLUDING fence
+        // rails (keyed by the midpoint of the two posts they link) — they used to
+        // paint in a fixed pass before this sort, so a flower always drew over a
+        // rail/post regardless of actual depth (#v31.18).
         val items = ArrayList<Item>()
         val flowers = ArrayList<Pair<Double, Double>>() // planted-flower garden coords, for the critters
         val vb = visibleBounds(w, h) // forest on every visible tile → fills the screen (#v18)
@@ -79,33 +82,26 @@ class GardenRenderer(private val data: GardenData) {
                     data.groundAt(idx)?.let { drawRoad(canvas, c, r, it) }
                     val prop = data.propAt(idx) ?: continue
                     val (x, y) = ground(c, r)
-                    val flower = isFlower(prop)
-                    if (flower) flowers.add(gridXY(c, r))
-                    items.add(Item(y, x, y, prop, flower, c, r))
+                    if (isFence(prop)) {
+                        items.add(Item(y) { drawFencePost(canvas, c, r, prop) })
+                    } else {
+                        flowers.add(gridXY(c, r))
+                        // match the in-app _paintBillboard dimensions (#v22): flowers 1.05h×0.9w.
+                        val bmp = flowerBitmap(prop)
+                        items.add(Item(y) { billboard(canvas, bmp, x, y, 1.05, 0.9) })
+                    }
                 } else {
                     val fp = forestPropAt(c, r) ?: continue
                     val (x, y) = ground(c, r)
-                    items.add(Item(y, x, y, fp, false, c, r))
+                    val (ht, wd) = if (fp.startsWith("rock_")) 0.6 to 0.8 else 1.2 to 1.05
+                    val bmp = data.bitmap(spriteFor(fp))
+                    items.add(Item(y) { billboard(canvas, bmp, x, y, ht, wd) })
                 }
             }
         }
+        addFenceRailItems(canvas, items)
         items.sortBy { it.depth }
-        for (it in items) {
-            // fences are 3D posts; everything else is a still billboard — no wind (#v20)
-            if (isFence(it.id)) {
-                drawFencePost(canvas, it.c, it.r, it.id)
-            } else {
-                // match the in-app _paintBillboard dimensions so flowers aren't thick (#v22):
-                // flowers 1.05h×0.9w, trees/bushes 1.2×1.05, rocks 0.6×0.8.
-                val (ht, wd) = when {
-                    it.id.startsWith("rock_") -> 0.6 to 0.8
-                    it.flower -> 1.05 to 0.9
-                    else -> 1.2 to 1.05
-                }
-                val bmp = if (it.flower) flowerBitmap(it.id) else data.bitmap(spriteFor(it.id))
-                billboard(canvas, bmp, it.x, it.y, ht, wd)
-            }
-        }
+        for (it in items) it.paint()
         drawCritters(canvas, timeSec, flowers)
     }
 
@@ -276,21 +272,28 @@ class GardenRenderer(private val data: GardenData) {
             base[2].first to base[2].second - height * t, base[3].first to base[3].second - height * t)
     }
 
-    /// Raised rails between adjacent fence posts — mirrors `_paintFenceRails`. Each
+    /// Raised rails between adjacent fence posts — mirrors `_collectFenceRails`. Each
     /// tile only links toward its E and S neighbour so every shared edge draws once.
-    private fun drawFenceRails(canvas: Canvas) {
+    /// Appends to the shared `items` depth-sort (keyed by the midpoint of the two
+    /// posts it links) instead of drawing directly, so it sorts against flowers/
+    /// trees/posts rather than always drawing underneath them (#v31.18).
+    private fun addFenceRailItems(canvas: Canvas, items: ArrayList<Item>) {
         for (r in 0 until rows) {
             for (c in 0 until cols) {
                 val id = data.propAt(r * cols + c) ?: continue
                 if (!isFence(id)) continue
                 val rail = fence3d[id]?.third ?: continue
                 val (ax, ay) = gridXY(c, r)
+                val depthA = ground(c, r).second
                 fun link(nc: Int, nr: Int) {
                     val (bx, by) = gridXY(nc, nr)
-                    for (e in doubleArrayOf(0.50, 0.28)) {
-                        fillQuad(canvas, projElev(ax, ay, e + 0.05), projElev(bx, by, e + 0.05),
-                            projElev(bx, by, e - 0.05), projElev(ax, ay, e - 0.05), rail)
-                    }
+                    val depth = (depthA + ground(nc, nr).second) / 2
+                    items.add(Item(depth) {
+                        for (e in doubleArrayOf(0.50, 0.28)) {
+                            fillQuad(canvas, projElev(ax, ay, e + 0.05), projElev(bx, by, e + 0.05),
+                                projElev(bx, by, e - 0.05), projElev(ax, ay, e - 0.05), rail)
+                        }
+                    })
                 }
                 if (c < cols - 1 && fenceAt(r * cols + c + 1)) link(c + 1, r)
                 if (r < rows - 1 && fenceAt((r + 1) * cols + c)) link(c, r + 1)

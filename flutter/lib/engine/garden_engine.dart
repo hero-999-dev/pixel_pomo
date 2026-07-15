@@ -39,6 +39,12 @@ const int kForestTrees = 20, kForestBushes = 10, kForestRocks = 5;
 /// screen-filling forest (false)? (#v18)
 bool isGardenTile(int c, int r, int cols, int rows) => c >= 0 && c < cols && r >= 0 && r < rows;
 
+/// Depth key for a fence rail linking two tiles: the midpoint of their ground
+/// screen-Y, so the rail sorts into the SAME back-to-front pass as flowers,
+/// trees, and fence posts instead of always painting underneath them (#v31.18).
+double fenceRailDepth(Projector p, int c1, int r1, int c2, int r2) =>
+    (p.ground(c1, r1).dy + p.ground(c2, r2).dy) / 2;
+
 int _hash2(int c, int r) {
   var h = (c * 73856093) ^ (r * 19349663);
   h ^= h >> 13;
@@ -530,41 +536,45 @@ class GardenPainter extends CustomPainter {
     // 3) customize gridlines over the claimed plot.
     if (customizing) _paintGrid(canvas, p);
 
-    // 4a) fence rails between adjacent claimed posts.
-    _paintFenceRails(canvas, p);
-
-    // 4b) standing things, depth-sorted back-to-front by screen-y: forest trees
-    //     on every VISIBLE tile outside the claimed plot (so the woods fill the
-    //     screen — no void) + claimed props. Fences are low-poly 3D posts; trees
-    //     and flowers are flat billboards grounded with a contact shadow.
+    // 4) standing things, depth-sorted back-to-front by screen-y: forest trees
+    //    on every VISIBLE tile outside the claimed plot (so the woods fill the
+    //    screen — no void) + claimed props + the fence rails between them.
+    //    Fences are low-poly 3D posts/rails; trees and flowers are flat
+    //    billboards grounded with a contact shadow. Rails share this same sort
+    //    (keyed by the midpoint of the two posts they link) instead of always
+    //    painting in an earlier fixed pass, so a flower correctly passes behind
+    //    a nearer rail/post instead of always drawing over it (#v31.18).
     final vb = p.visibleTileBounds(size); // forest on every visible tile → fills the screen (#v18)
-    final standing = <(double, int, int, String)>[]; // (depthY, col, row, id)
+    final standing = <(double, void Function())>[]; // (depthY, paint)
     for (var r = vb.minR; r <= vb.maxR; r++) {
       for (var c = vb.minC; c <= vb.maxC; c++) {
         if (isGardenTile(c, r, _cols, _rows)) {
           final prop = garden.propAt(r * _cols + c);
-          if (prop != null) standing.add((p.ground(c, r).dy, c, r, prop));
+          if (prop == null) continue;
+          final anchor = p.ground(c, r);
+          if (Placeables.isFence(prop)) {
+            standing.add((anchor.dy, () => _paintFencePost(canvas, p, c, r, prop)));
+          } else {
+            // flowers stand still — no wind sway (#v20 item 2)
+            standing.add(
+                (anchor.dy, () => _paintBillboard(canvas, sprites.flower(prop), anchor, p.t)));
+          }
         } else {
           // a varied forest prop (tree/bush/rock) or a grass gap (#5)
           final fp = forestPropAt(c, r);
-          if (fp != null) standing.add((p.ground(c, r).dy, c, r, fp));
+          if (fp == null) continue;
+          final anchor = p.ground(c, r);
+          final isRock = fp.startsWith('rock_');
+          standing.add((anchor.dy,
+              () => _paintBillboard(canvas, sprites.forestProp(fp), anchor, p.t,
+                  height: isRock ? 0.6 : 1.2, width: isRock ? 0.8 : 1.05)));
         }
       }
     }
+    _collectFenceRails(canvas, p, standing);
     standing.sort((a, b2) => a.$1.compareTo(b2.$1));
-    for (final (_, c, r, id) in standing) {
-      final anchor = p.ground(c, r);
-      final claimed = c >= 0 && c < _cols && r >= 0 && r < _rows;
-      if (!claimed) {
-        final isRock = id.startsWith('rock_');
-        _paintBillboard(canvas, sprites.forestProp(id), anchor, p.t,
-            height: isRock ? 0.6 : 1.2, width: isRock ? 0.8 : 1.05);
-      } else if (Placeables.isFence(id)) {
-        _paintFencePost(canvas, p, c, r, id);
-      } else {
-        // flowers stand still — no wind sway (#v20 item 2)
-        _paintBillboard(canvas, sprites.flower(id), anchor, p.t);
-      }
+    for (final (_, paint) in standing) {
+      paint();
     }
 
     // 5) critters on top of everything (projected from claimed garden coords)
@@ -632,8 +642,12 @@ class GardenPainter extends CustomPainter {
   /// Each tile only draws toward its E and S neighbour (so every shared edge is
   /// drawn once). Each rail is a flat ribbon at a fixed height in garden space,
   /// so it rotates with the map and keeps a steady thickness from every angle —
-  /// no more vanishing into a thin antenna under rotation.
-  void _paintFenceRails(Canvas canvas, Projector p) {
+  /// no more vanishing into a thin antenna under rotation. Appends to the shared
+  /// `standing` depth-sort instead of painting directly, keyed by the midpoint
+  /// of the two posts it links, so it sorts against flowers/trees/posts rather
+  /// than always drawing underneath them (#v31.18).
+  void _collectFenceRails(
+      Canvas canvas, Projector p, List<(double, void Function())> standing) {
     bool fence(int idx) =>
         idx >= 0 && idx < _cols * _rows && Placeables.isFence(garden.propAt(idx) ?? '');
     for (var r = 0; r < _rows; r++) {
@@ -645,10 +659,13 @@ class GardenPainter extends CustomPainter {
         final a = p.gridOf(c, r);
         void link(int nc, int nr) {
           final b = p.gridOf(nc, nr);
-          for (final e in const [0.50, 0.28]) {
-            _fillQuad(canvas, p.projectElevated(a, e + 0.05), p.projectElevated(b, e + 0.05),
-                p.projectElevated(b, e - 0.05), p.projectElevated(a, e - 0.05), rail);
-          }
+          final depth = fenceRailDepth(p, c, r, nc, nr);
+          standing.add((depth, () {
+            for (final e in const [0.50, 0.28]) {
+              _fillQuad(canvas, p.projectElevated(a, e + 0.05), p.projectElevated(b, e + 0.05),
+                  p.projectElevated(b, e - 0.05), p.projectElevated(a, e - 0.05), rail);
+            }
+          }));
         }
         if (c < _cols - 1 && fence(r * _cols + c + 1)) link(c + 1, r);
         if (r < _rows - 1 && fence((r + 1) * _cols + c)) link(c, r + 1);
