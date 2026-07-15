@@ -88,8 +88,11 @@ jobs:
           cp flutter/build/app/outputs/flutter-apk/app-release.apk pixel_pomo_test.apk
           ls -la pixel_pomo_test.apk
 
+      # Best-effort only — see build-flutter.yml's identical step for why
+      # continue-on-error matters here (#v31.20).
       - name: Upload build artifact
         uses: actions/upload-artifact@v5
+        continue-on-error: true
         with:
           name: pixel_pomo_test
           path: pixel_pomo_test.apk
