@@ -136,7 +136,11 @@ class PixelTheme {
     required this.shadow,
   });
 
-  int phaseColor(Mode m) => m == Mode.work ? work : breakColor;
+  // FOCUS wears the theme's own accent so the home screen carries each
+  // theme's identity (the per-theme `work` greens all read the same, #v32.1);
+  // BREAK keeps the per-theme break colour. `work` itself stays for the
+  // money tracker's income/expense colouring.
+  int phaseColor(Mode m) => m == Mode.work ? accent : breakColor;
 }
 
 class Themes {
@@ -145,15 +149,15 @@ class Themes {
       bg: 0xFF161616, panel: 0xFF262626, accent: 0xFFFF5A5F, work: 0xFF46E08A,
       breakColor: 0xFF58A6FF, onSurface: 0xFFF4F4F4, onSurfaceDim: 0xFF8E8E8E,
       onAccent: 0xFF1A1A1A, shadow: 0xFF000000);
-  // Every theme gets its OWN accent hue (#v32 — dark coral / light blue /
-  // mocha pink / frappe teal / latte peach / matcha green). Four of the six
-  // used to sit in the same red family, so light/latte/frappe read as
-  // re-tinted copies of dark instead of themes with their own character.
+  // Every theme gets its OWN accent hue (#v32; light/latte reworked #v32.1 —
+  // the pure-white bg + blue accent light theme "tired the eyes": LIGHT now
+  // wears the old latte cream palette with a slightly darker peach accent,
+  // and LATTE went darker — deep cream + coffee-brown tones).
   static const light = PixelTheme(
       id: 'light', displayName: 'LIGHT',
-      bg: 0xFFF2F2F4, panel: 0xFFFFFFFF, accent: 0xFF1E66F5, work: 0xFF1F9D55,
-      breakColor: 0xFFFE640B, onSurface: 0xFF18181B, onSurfaceDim: 0xFF6E6E73,
-      onAccent: 0xFFFFFFFF, shadow: 0xFFC7C7CC);
+      bg: 0xFFF7EFDD, panel: 0xFFFFFBF0, accent: 0xFFE85C0A, work: 0xFF40A02B,
+      breakColor: 0xFF1E66F5, onSurface: 0xFF4C4F69, onSurfaceDim: 0xFF8A7F6A,
+      onAccent: 0xFFFFFFFF, shadow: 0xFFD9CBB0);
   static const mocha = PixelTheme(
       id: 'mocha', displayName: 'MOCHA',
       bg: 0xFF1E1E2E, panel: 0xFF313244, accent: 0xFFF38BA8, work: 0xFFA6E3A1,
@@ -166,9 +170,9 @@ class Themes {
       onAccent: 0xFF303446, shadow: 0xFF232634);
   static const latte = PixelTheme(
       id: 'latte', displayName: 'LATTE',
-      bg: 0xFFF7EFDD, panel: 0xFFFFFBF0, accent: 0xFFFE640B, work: 0xFF40A02B,
-      breakColor: 0xFF1E66F5, onSurface: 0xFF4C4F69, onSurfaceDim: 0xFF8A7F6A,
-      onAccent: 0xFFFFFFFF, shadow: 0xFFD9CBB0);
+      bg: 0xFFEFE2C2, panel: 0xFFF6ECD4, accent: 0xFF6F4E37, work: 0xFF40A02B,
+      breakColor: 0xFFB5793B, onSurface: 0xFF3E2F23, onSurfaceDim: 0xFF8A7355,
+      onAccent: 0xFFF7EFDD, shadow: 0xFFCDB98F);
   // a green "matcha" theme matching the garden, in the Catppuccin family (#v19)
   static const matcha = PixelTheme(
       id: 'matcha', displayName: 'MATCHA',

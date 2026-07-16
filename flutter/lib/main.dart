@@ -199,6 +199,11 @@ class HomeScreen extends StatelessWidget {
         // over the dark garden the foreground text must be LIGHT — on light themes
         // th.onSurface is dark and was unreadable / looked "darkened" (#v19 #6).
         final overGarden = garden ? const Color(0xFFF4F4F4) : col(th.onSurface);
+        // the countdown + SESSION follow the phase colour (theme accent while
+        // focusing, break colour on a break) so the main screen carries each
+        // theme's identity (#v32.1); in garden mode they keep the light
+        // legibility colour — the v19 rule stands.
+        final phaseText = garden ? overGarden : col(modeColor);
         final timeText = pomodoro ? e.formattedTime() : s.stopwatch.formattedTime();
         final timerBlock = Column(
           mainAxisSize: MainAxisSize.min,
@@ -209,7 +214,7 @@ class HomeScreen extends StatelessWidget {
             secondaryBtn(th, lang, s.currentLabel, () => openPanel(context, s, () => LabelScreen(s)),
                 fontSize: 11, padding: const EdgeInsets.all(10)),
             const SizedBox(height: 28),
-            Text(timeText, style: pixelStyle(lang, 48, overGarden, text: timeText).copyWith(shadows: shadows)),
+            Text(timeText, style: pixelStyle(lang, 48, phaseText, text: timeText).copyWith(shadows: shadows)),
             const SizedBox(height: 32),
             // no fixed duration in stopwatch mode, so no "% complete" to show
             // (#v31.16) — a plain gap keeps the buttons from crowding the clock
@@ -236,7 +241,7 @@ class HomeScreen extends StatelessWidget {
         // "SESSION X/Y" only means anything in pomodoro mode (#v31.16)
         final sessionText = pomodoro
             ? Text(tf(lang, 'session', [e.session, e.totalSessions]),
-                style: pixelStyle(lang, 12, garden ? overGarden : col(th.onSurfaceDim), text: tf(lang, 'session', [e.session, e.totalSessions])).copyWith(shadows: shadows))
+                style: pixelStyle(lang, 12, phaseText, text: tf(lang, 'session', [e.session, e.totalSessions])).copyWith(shadows: shadows))
             : const SizedBox.shrink();
 
         return Scaffold(
@@ -592,54 +597,111 @@ class _SettingsScreenState extends State<SettingsScreen> {
       return;
     }
     if (!context.mounted) return;
-    final th = s.theme;
-    final lang = s.lang;
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: col(th.panel),
-        title: Text(t(lang, 'blockerPermTitle'),
-            style: pixelStyle(lang, 12, col(th.onSurface), text: t(lang, 'blockerPermTitle'))),
-        content: Text(t(lang, 'blockerPermBody'),
-            style: pixelStyle(lang, 10, col(th.onSurfaceDim), text: t(lang, 'blockerPermBody'))),
-        actions: [
-          TextButton(
-              onPressed: openAccessibilitySettings,
-              child: Text(t(lang, 'grantAccess'),
-                  style: pixelStyle(lang, 10, col(th.accent), text: t(lang, 'grantAccess')))),
-          TextButton(
-              onPressed: openOverlaySettings,
-              child: Text(t(lang, 'grantOverlay'),
-                  style: pixelStyle(lang, 10, col(th.accent), text: t(lang, 'grantOverlay')))),
-          TextButton(
-              onPressed: () async {
-                Navigator.pop(ctx);
-                if (await hasAccessibility() && await hasOverlay()) s.setAppBlocker(true);
-              },
-              child: Text(t(lang, 'done'),
-                  style: pixelStyle(lang, 10, col(th.onSurface), text: t(lang, 'done')))),
-        ],
-      ),
+      builder: (ctx) => _BlockerPermDialog(s),
     );
   }
 
   Widget _stepper(PixelTheme th, String lang, String label, int value, int min, int max, int step, ValueChanged<int> onChange) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Row(
-        children: [
-          Expanded(child: Text(label, style: pixelStyle(lang, 11, col(th.onSurfaceDim), text: label))),
-          SizedBox(width: 52, child: secondaryBtn(th, lang, '-', () => onChange((value - step).clamp(min, max).toInt()), padding: const EdgeInsets.all(12))),
-          Container(
-            width: 56,
-            alignment: Alignment.center,
-            child: Text('$value', style: pixelStyle(lang, 14, col(th.onSurface), text: '$value')),
-          ),
-          SizedBox(width: 52, child: secondaryBtn(th, lang, '+', () => onChange((value + step).clamp(min, max).toInt()), padding: const EdgeInsets.all(12))),
-        ],
-      ),
+    return _stepperRow(th, lang, label, value, min, max, step, onChange);
+  }
+}
+
+/// The app-blocker permission dialog (#v23), now with live feedback (#v32.1):
+/// when the user hops to system settings, grants a permission, and comes back,
+/// the granted row re-checks on app resume and renders STRUCK THROUGH — so
+/// it's visible which requests are already done instead of two identical
+/// buttons giving no feedback.
+class _BlockerPermDialog extends StatefulWidget {
+  final AppStore s;
+  const _BlockerPermDialog(this.s);
+  @override
+  State<_BlockerPermDialog> createState() => _BlockerPermDialogState();
+}
+
+class _BlockerPermDialogState extends State<_BlockerPermDialog> with WidgetsBindingObserver {
+  bool _access = false;
+  bool _overlay = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _recheck();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // returning from the system settings pages lands here
+    if (state == AppLifecycleState.resumed) _recheck();
+  }
+
+  Future<void> _recheck() async {
+    final a = await hasAccessibility();
+    final o = await hasOverlay();
+    if (!mounted) return;
+    setState(() {
+      _access = a;
+      _overlay = o;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = widget.s;
+    final th = s.theme;
+    final lang = s.lang;
+    Widget grantRow(String key, bool granted, VoidCallback open) => TextButton(
+          onPressed: granted ? null : open,
+          child: Text(t(lang, key),
+              style: pixelStyle(lang, 10, col(granted ? th.onSurfaceDim : th.accent), text: t(lang, key))
+                  .copyWith(decoration: granted ? TextDecoration.lineThrough : null,
+                      decorationColor: col(th.onSurfaceDim))),
+        );
+    return AlertDialog(
+      backgroundColor: col(th.panel),
+      title: Text(t(lang, 'blockerPermTitle'),
+          style: pixelStyle(lang, 12, col(th.onSurface), text: t(lang, 'blockerPermTitle'))),
+      content: Text(t(lang, 'blockerPermBody'),
+          style: pixelStyle(lang, 10, col(th.onSurfaceDim), text: t(lang, 'blockerPermBody'))),
+      actions: [
+        grantRow('grantAccess', _access, openAccessibilitySettings),
+        grantRow('grantOverlay', _overlay, openOverlaySettings),
+        TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              if (await hasAccessibility() && await hasOverlay()) s.setAppBlocker(true);
+            },
+            child: Text(t(lang, 'done'),
+                style: pixelStyle(lang, 10, col(th.onSurface), text: t(lang, 'done')))),
+      ],
     );
   }
+}
+
+Widget _stepperRow(PixelTheme th, String lang, String label, int value, int min, int max, int step, ValueChanged<int> onChange) {
+  return Padding(
+    padding: const EdgeInsets.only(bottom: 16),
+    child: Row(
+      children: [
+        Expanded(child: Text(label, style: pixelStyle(lang, 11, col(th.onSurfaceDim), text: label))),
+        SizedBox(width: 52, child: secondaryBtn(th, lang, '-', () => onChange((value - step).clamp(min, max).toInt()), padding: const EdgeInsets.all(12))),
+        Container(
+          width: 56,
+          alignment: Alignment.center,
+          child: Text('$value', style: pixelStyle(lang, 14, col(th.onSurface), text: '$value')),
+        ),
+        SizedBox(width: 52, child: secondaryBtn(th, lang, '+', () => onChange((value + step).clamp(min, max).toInt()), padding: const EdgeInsets.all(12))),
+      ],
+    ),
+  );
 }
 
 // ---- app blocker: app picker (#v23) -----------------------------------------
@@ -920,7 +982,12 @@ class StatsScreen extends StatelessWidget {
     final th = s.theme;
     final lang = s.lang;
     final now = DateTime.now();
-    final totals = StatsAggregator.aggregate(s.records, now);
+    // totals follow the ◀▶ navigator like everything else on this screen —
+    // they used to stay pinned to the real now, so after paging back the
+    // TODAY/WEEK/MONTH/YEAR rows read one period AHEAD of the chart and
+    // BY LABEL below them (#v32.1).
+    final statAnchor = StatsAggregator.anchorFor(now, s.statPeriod, s.statOffset);
+    final totals = StatsAggregator.aggregate(s.records, statAnchor);
     final byLabel = StatsAggregator.byLabelInWindow(s.records, now, s.statPeriod, s.statOffset);
     final trend = s.chartMode == ChartMode.line;
     // TREND + DAILY shows the day filling up hour by hour; everything else is per-bucket totals.
@@ -1014,7 +1081,17 @@ class StatsScreen extends StatelessWidget {
       const SizedBox(height: 16),
       if (trend) ...[
         statRow(t(lang, 'statCurrent'), stats.$1),
-        statRow(t(lang, 'statAverage'), stats.$2),
+        // name WHICH average this is — periodStats buckets by the selected
+        // period's unit (ALL TIME buckets by year), and a bare "AVERAGE"
+        // left that unit invisible (#v32.1)
+        statRow(
+            t(lang, switch (s.statPeriod) {
+              StatPeriod.daily => 'avgDaily',
+              StatPeriod.weekly => 'avgWeekly',
+              StatPeriod.monthly => 'avgMonthly',
+              StatPeriod.yearly || StatPeriod.allTime => 'avgYearly',
+            }),
+            stats.$2),
         statRow(t(lang, 'statBest'), stats.$3),
       ] else ...[
         statRow(t(lang, 'today'), totals.today),

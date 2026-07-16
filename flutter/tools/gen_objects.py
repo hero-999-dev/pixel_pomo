@@ -346,23 +346,30 @@ _ROSE_REDS = set("dml")
 # roses read apart (user feedback #v22): variant 0 = left leaf higher / right lower
 # ("left first"); variant 1 = right higher / left lower ("right first"); variant 2 =
 # symmetric (both leaves level).
+# Leaves redrawn as real pointed leaves (#v32.1, user: "make the rose's two
+# bottom leaves more real, like the model"): each is a 3-row tapered shape —
+# a short upper edge hugging the stem, a long body reaching a 1px tip, and a
+# mid-length drooping lower edge — instead of the old symmetric 2/3/2 diamond
+# blob. The k column stays the leaf-to-stem attachment seam. NOTE: these stems
+# are SHARED by every _u()-based flower, so the whole family's leaves improve
+# together (deliberate — family consistency).
 _ROSE_STEM_OFFSET = [  # left-first
     ".......SS.......",
+    ".....GkSS.......",
+    "..GGGGkSS.......",
     "....GGkSS.......",
-    "...GGGkSS.......",
-    "....GGkSS.......",
-    ".......SSkGG....",
-    ".......SSkGGG...",
+    ".......SSkG.....",
+    ".......SSkGGGG..",
     ".......SSkGG....",
     ".......SS.......",
 ]
 _ROSE_STEM_OFFSET_R = [  # right-first (mirror of left-first)
     ".......SS.......",
+    ".......SSkG.....",
+    ".......SSkGGGG..",
     ".......SSkGG....",
-    ".......SSkGGG...",
-    ".......SSkGG....",
-    "....GGkSS.......",
-    "...GGGkSS.......",
+    ".....GkSS.......",
+    "..GGGGkSS.......",
     "....GGkSS.......",
     ".......SS.......",
 ]
