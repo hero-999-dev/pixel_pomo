@@ -39,11 +39,13 @@ const int kForestTrees = 20, kForestBushes = 10, kForestRocks = 5;
 /// screen-filling forest (false)? (#v18)
 bool isGardenTile(int c, int r, int cols, int rows) => c >= 0 && c < cols && r >= 0 && r < rows;
 
-/// Depth key for a fence rail linking two tiles: the midpoint of their ground
-/// screen-Y, so the rail sorts into the SAME back-to-front pass as flowers,
-/// trees, and fence posts instead of always painting underneath them (#v31.18).
-double fenceRailDepth(Projector p, int c1, int r1, int c2, int r2) =>
-    (p.ground(c1, r1).dy + p.ground(c2, r2).dy) / 2;
+/// Depth key for one HALF of a fence rail — the half owned by the post whose
+/// ground screen-Y is [postGroundDy]. Pinned a hair BEHIND its own post so the
+/// post always paints over the rail's end joint from every camera yaw. The
+/// v31.18 whole-rail midpoint key crossed its own posts' depths as the camera
+/// turned, flipping the rail in front of / behind them in a single frame —
+/// which read as the fence suddenly "changing direction" mid-rotation (#v32).
+double railHalfDepth(double postGroundDy) => postGroundDy - 0.01;
 
 /// Stable back-to-front paint order for a list of depth keys: sorts ascending,
 /// breaking exact ties on original index. `List.sort` is NOT guaranteed
@@ -417,11 +419,16 @@ class CritterSystem {
     final dist = to.distance;
     switch (c.state) {
       case _CState.approach:
-        if (dist < 0.18) {
+        if (dist < 0.06) {
           c.state = _CState.hover;
           c.timer = 0;
         } else {
-          c.pos += to / dist * c.speed * dt;
+          // decelerate over the final stretch — full speed until ~0.6 tiles
+          // out, then ease down instead of flying at full speed and stopping
+          // dead 0.18 tiles short of the flower, which read as a "jump onto
+          // the plant" together with the lift kicking in (#v32).
+          final ease = 0.2 + 0.8 * math.min(1.0, dist / 0.6);
+          c.pos += to / dist * c.speed * ease * dt;
         }
         break;
       case _CState.hover:
@@ -655,10 +662,15 @@ class GardenPainter extends CustomPainter {
   /// Each tile only draws toward its E and S neighbour (so every shared edge is
   /// drawn once). Each rail is a flat ribbon at a fixed height in garden space,
   /// so it rotates with the map and keeps a steady thickness from every angle —
-  /// no more vanishing into a thin antenna under rotation. Appends to the shared
-  /// `standing` depth-sort instead of painting directly, keyed by the midpoint
-  /// of the two posts it links, so it sorts against flowers/trees/posts rather
-  /// than always drawing underneath them (#v31.18).
+  /// no more vanishing into a thin antenna under rotation.
+  ///
+  /// Every rail is split into TWO HALVES, each appended to the shared
+  /// `standing` depth-sort keyed just behind its own post ([railHalfDepth]).
+  /// The v31.18 single midpoint key crossed its own posts' depths during
+  /// rotation, flipping the whole rail in front of / behind a post in one
+  /// frame ("the fence suddenly changes direction"). A half pinned behind its
+  /// own post can never flip against it, and both halves share one colour and
+  /// elevation so the midpoint seam is invisible whichever paints first (#v32).
   void _collectFenceRails(
       Canvas canvas, Projector p, List<(double, void Function())> standing) {
     bool fence(int idx) =>
@@ -672,13 +684,17 @@ class GardenPainter extends CustomPainter {
         final a = p.gridOf(c, r);
         void link(int nc, int nr) {
           final b = p.gridOf(nc, nr);
-          final depth = fenceRailDepth(p, c, r, nc, nr);
-          standing.add((depth, () {
-            for (final e in const [0.50, 0.28]) {
-              _fillQuad(canvas, p.projectElevated(a, e + 0.05), p.projectElevated(b, e + 0.05),
-                  p.projectElevated(b, e - 0.05), p.projectElevated(a, e - 0.05), rail);
-            }
-          }));
+          final m = Offset((a.dx + b.dx) / 2, (a.dy + b.dy) / 2);
+          void half(Offset from, Offset to, double postDy) {
+            standing.add((railHalfDepth(postDy), () {
+              for (final e in const [0.50, 0.28]) {
+                _fillQuad(canvas, p.projectElevated(from, e + 0.05), p.projectElevated(to, e + 0.05),
+                    p.projectElevated(to, e - 0.05), p.projectElevated(from, e - 0.05), rail);
+              }
+            }));
+          }
+          half(a, m, p.ground(c, r).dy);
+          half(m, b, p.ground(nc, nr).dy);
         }
         if (c < _cols - 1 && fence(r * _cols + c + 1)) link(c + 1, r);
         if (r < _rows - 1 && fence((r + 1) * _cols + c)) link(c, r + 1);

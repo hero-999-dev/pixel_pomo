@@ -332,9 +332,13 @@ class HomeScreen extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       // spread all 8 evenly across the bar, not two clusters split by a
       // Spacer (that stacked them all on the left, #v30 follow-up).
+      // spaceBetween redistributes evenly on its own when the money/habit
+      // icons are hidden via Settings (#v32) — no manual spacing math.
       child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-        icon('money', () => openPanel(context, s, () => MoneyScreen(s)), const Key('moneyButton')),
-        icon('habit', () => openPanel(context, s, () => HabitScreen(s)), const Key('habitButton')),
+        if (s.showMoneyTracker)
+          icon('money', () => openPanel(context, s, () => MoneyScreen(s)), const Key('moneyButton')),
+        if (s.showHabitTracker)
+          icon('habit', () => openPanel(context, s, () => HabitScreen(s)), const Key('habitButton')),
         icon('stats', () => openPanel(context, s, () => StatsScreen(s)), const Key('statsButton')),
         icon('garden', () => openPanel(context, s, () => GardenScreen(s)), const Key('gardenButton')),
         icon('theme', () => openPanel(context, s, () => ThemeScreen(s)), const Key('themeButton')),
@@ -346,7 +350,11 @@ class HomeScreen extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 6),
             child: Row(children: [
-              const GoldCoin(size: 30), // same size as the other top-bar icons (#v31 item 1)
+              // 26, not the icons' 30: the coin is a SOLID filled disc while the
+              // menu icons are line-art glyphs — at equal pixel height the disc
+              // optically reads taller, which is what "the gold icon is bigger"
+              // meant; the sprites' content bounds are identical (#v32).
+              const GoldCoin(size: 26),
               const SizedBox(width: 6),
               Text('${s.coins}', style: pixelStyle(lang, 14, coinColor, text: '${s.coins}').copyWith(shadows: shadows)),
             ]),
@@ -499,6 +507,76 @@ class _SettingsScreenState extends State<SettingsScreen> {
         secondaryBtn(th, lang, t(lang, 'blockedApps'),
             () => openPanel(context, s, () => AppPickerScreen(s)), fontSize: 11),
       ],
+      // stats detail level (#v32): SIMPLE hides Session Timeline in a Week +
+      // the SESSIONS IN PIXELS screen from Stats; DETAILED shows everything.
+      const SizedBox(height: 24),
+      Text(t(lang, 'statsMode'), style: pixelStyle(lang, 12, col(th.onSurfaceDim), text: t(lang, 'statsMode'))),
+      const SizedBox(height: 12),
+      Row(
+        children: [
+          for (final detailed in const [false, true]) ...[
+            if (detailed) const SizedBox(width: 12),
+            Expanded(
+              child: PixelButton(
+                text: t(lang, detailed ? 'statsDetailed' : 'statsSimple'),
+                fill: s.statsDetailed == detailed ? th.accent : th.panel,
+                border: s.statsDetailed == detailed ? th.onSurface : th.onSurfaceDim,
+                textColor: s.statsDetailed == detailed ? th.onAccent : th.onSurface,
+                shadow: th.shadow,
+                lang: lang,
+                fontSize: 11,
+                onTap: () => s.setStatsDetailed(detailed),
+              ),
+            ),
+          ],
+        ],
+      ),
+      // hide whole trackers (#v32): the top-bar icon disappears (the bar
+      // re-spreads evenly) and the feature goes inert while hidden.
+      const SizedBox(height: 24),
+      Text(t(lang, 'habits'), style: pixelStyle(lang, 12, col(th.onSurfaceDim), text: t(lang, 'habits'))),
+      const SizedBox(height: 12),
+      Row(
+        children: [
+          for (final on in const [true, false]) ...[
+            if (!on) const SizedBox(width: 12),
+            Expanded(
+              child: PixelButton(
+                text: on ? 'ON' : 'OFF',
+                fill: s.showHabitTracker == on ? th.accent : th.panel,
+                border: s.showHabitTracker == on ? th.onSurface : th.onSurfaceDim,
+                textColor: s.showHabitTracker == on ? th.onAccent : th.onSurface,
+                shadow: th.shadow,
+                lang: lang,
+                fontSize: 11,
+                onTap: () => s.setShowHabitTracker(on),
+              ),
+            ),
+          ],
+        ],
+      ),
+      const SizedBox(height: 24),
+      Text(t(lang, 'money'), style: pixelStyle(lang, 12, col(th.onSurfaceDim), text: t(lang, 'money'))),
+      const SizedBox(height: 12),
+      Row(
+        children: [
+          for (final on in const [true, false]) ...[
+            if (!on) const SizedBox(width: 12),
+            Expanded(
+              child: PixelButton(
+                text: on ? 'ON' : 'OFF',
+                fill: s.showMoneyTracker == on ? th.accent : th.panel,
+                border: s.showMoneyTracker == on ? th.onSurface : th.onSurfaceDim,
+                textColor: s.showMoneyTracker == on ? th.onAccent : th.onSurface,
+                shadow: th.shadow,
+                lang: lang,
+                fontSize: 11,
+                onTap: () => s.setShowMoneyTracker(on),
+              ),
+            ),
+          ],
+        ],
+      ),
     ]);
   }
 
@@ -968,16 +1046,19 @@ class StatsScreen extends StatelessWidget {
       // follows the ◀▶ history navigator above (#v31.2 item 3) and stays
       // right here on Stats (#v31.5) — Focus Sessions moved into its own
       // screen below, merged with Session Heatmap as SESSIONS IN PIXELS.
-      const SizedBox(height: 20),
-      SessionsTimelineWeek(
-          th: th, lang: lang, s: s, today: epochDayOf(now),
-          anchor: epochDayOf(StatsAggregator.anchorFor(now, s.statPeriod, s.statOffset))),
-      // opens its own screen, like LOG HISTORY: the all-history contiguous
-      // strip PLUS the per-label Focus Sessions heatmaps, one screen (#v31.5)
-      const SizedBox(height: 20),
-      secondaryBtn(th, lang, t(lang, 'sessionsInPixels'),
-          () => openPanel(context, s, () => SessionsInPixelsScreen(s)),
-          padding: const EdgeInsets.all(14)),
+      // SIMPLE stats mode (#v32) hides both; only DETAILED shows them.
+      if (s.statsDetailed) ...[
+        const SizedBox(height: 20),
+        SessionsTimelineWeek(
+            th: th, lang: lang, s: s, today: epochDayOf(now),
+            anchor: epochDayOf(StatsAggregator.anchorFor(now, s.statPeriod, s.statOffset))),
+        // opens its own screen, like LOG HISTORY: the all-history contiguous
+        // strip PLUS the per-label Focus Sessions heatmaps, one screen (#v31.5)
+        const SizedBox(height: 20),
+        secondaryBtn(th, lang, t(lang, 'sessionsInPixels'),
+            () => openPanel(context, s, () => SessionsInPixelsScreen(s)),
+            padding: const EdgeInsets.all(14)),
+      ],
       // a paginated list of every past session (tap a row to relabel) — sits
       // right above the auto-appended CLOSE button (#v25 item3)
       const SizedBox(height: 12),
@@ -2482,8 +2563,19 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
     }
 
     // YEARLY's grid-shape picker (#v31.13): horizontal (12 month squares,
-    // 4 per row) or vertical (Daylio's Year in Pixels shape).
+    // 4 per row) or vertical (Daylio's Year in Pixels shape). Each row ends
+    // in a bordered CHECKBOX square the tick sits inside — a bare floating ✓
+    // gave no visible tap target on the unselected row (#v32).
     void pickYearStyle() {
+      Widget checkSquare(bool on) => Container(
+            width: 20,
+            height: 20,
+            decoration: BoxDecoration(
+              color: on ? col(th.accent) : col(th.panel),
+              border: Border.all(color: col(on ? th.onSurface : th.onSurfaceDim), width: 2),
+            ),
+            child: on ? Icon(Icons.check, color: col(th.onAccent), size: 14) : null,
+          );
       Widget row(String text, _YearStyle style) => Padding(
             padding: const EdgeInsets.symmetric(vertical: 7),
             child: GestureDetector(
@@ -2494,8 +2586,7 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
               },
               child: Row(children: [
                 Expanded(child: Text(text, style: pixelStyle(lang, 13, col(th.onSurface), text: text))),
-                if (_yearStyle == style)
-                  Icon(Icons.check, color: col(th.accent), size: 18),
+                checkSquare(_yearStyle == style),
               ]),
             ),
           );
@@ -2620,6 +2711,10 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
           perRowGrid(2)
         else if (_period == _HeatPeriod.monthly)
           perRowGrid(3)
+        else if (_period == _HeatPeriod.yearly && _yearStyle == _YearStyle.vertical)
+          // the narrow Daylio-style year column leaves half the width empty —
+          // two labels' year grids fit side by side (#v32)
+          perRowGrid(2)
         else
           for (final e in visible) ...[
             labelBlock(e),
@@ -3501,7 +3596,12 @@ Widget _dayCell({
     height: cell,
     margin: const EdgeInsets.only(right: 2),
     decoration: BoxDecoration(
-      color: blank ? Colors.transparent : col(dayColor ?? color).withValues(alpha: dayColor != null ? 1 : 0.18),
+      // blank (out-of-span / non-day) slots render a super-faint tint instead
+      // of nothing — fully invisible slots read as holes in the grid against
+      // the theme background (e.g. July starting Wednesday "skips 2") (#v32).
+      color: blank
+          ? col(color).withValues(alpha: 0.07)
+          : col(dayColor ?? color).withValues(alpha: dayColor != null ? 1 : 0.18),
       borderRadius: BorderRadius.circular(1),
     ),
   );
@@ -3590,7 +3690,14 @@ class _YearGridHorizontal extends StatelessWidget {
     return LayoutBuilder(builder: (context, box) {
       const monthsPerRow = 4;
       const cols = 7; // a calendar-week-wide mini grid per month
-      final cell = ((box.maxWidth - (monthsPerRow - 1) * 6 - monthsPerRow * 6) / (monthsPerRow * cols))
+      // Real widths, all accounted for: every _dayCell carries a built-in 2px
+      // right margin, and each month block adds 3+3 padding + 1+1 border = 8.
+      // The old formula ignored both, so 4 months per row overflowed the
+      // screen by ~64px ("the year doesn't fit, it goes off the screen") and
+      // the clamp's 4px floor never engaged to save it (#v32).
+      const monthChrome = 8.0 + cols * 2.0; // padding+border + per-cell margins
+      final cell = ((box.maxWidth - monthsPerRow * monthChrome - (monthsPerRow - 1) * 6) /
+              (monthsPerRow * cols))
           .clamp(4.0, 14.0);
 
       Widget monthBlock(int m) {
@@ -3611,7 +3718,12 @@ class _YearGridHorizontal extends StatelessWidget {
                     for (var c = 0; c < cols; c++)
                       Builder(builder: (_) {
                         final dNum = r * cols + c + 1;
-                        if (dNum > lastDay) return SizedBox(width: cell, height: cell);
+                        if (dNum > lastDay) {
+                          // faint filler, not an invisible hole (#v32) — also
+                          // fixes the old SizedBox missing the cell's 2px margin
+                          return _dayCell(
+                              cell: cell, blank: true, dayColor: null, color: color, tooltip: null);
+                        }
                         final day = first + dNum - 1;
                         final future = day > today;
                         final active = !future && (days[day] ?? 0) > 0;
@@ -3700,7 +3812,11 @@ class _YearGridVertical extends StatelessWidget {
                 for (var m = 1; m <= 12; m++)
                   Builder(builder: (_) {
                     final lastDay = DateTime.utc(year, m + 1, 0).day;
-                    if (dNum > lastDay) return SizedBox(width: cell + 2, height: cell);
+                    if (dNum > lastDay) {
+                      // faint filler for the short months' tails (#v32)
+                      return _dayCell(
+                          cell: cell, blank: true, dayColor: null, color: color, tooltip: null);
+                    }
                     final day = epochDayOf(DateTime.utc(year, m, dNum));
                     final future = day > today;
                     final active = !future && (days[day] ?? 0) > 0;

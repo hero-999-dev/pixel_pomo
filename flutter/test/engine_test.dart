@@ -56,27 +56,30 @@ void main() {
     });
   });
 
-  group('Fence rail depth key (#v31.18)', () {
-    test('rail depth is the midpoint of the two posts it links', () {
-      final p = Projector(6, 6, 40.0, const Offset(200, 300), 0.4);
-      final depth = fenceRailDepth(p, 1, 1, 1, 2);
-      final expected = (p.ground(1, 1).dy + p.ground(1, 2).dy) / 2;
-      expect(depth, closeTo(expected, 1e-9));
+  group('Fence rail half depth (#v32, supersedes the v31.18 midpoint key)', () {
+    test('a rail half always sorts strictly BEHIND its own post, from any yaw', () {
+      // The v31.18 whole-rail midpoint key crossed its own posts' depths as
+      // the camera rotated, flipping the rail in front of / behind a post in
+      // a single frame — the "fence suddenly changes direction" report. Each
+      // half is now keyed a hair behind its own post, so that order can never
+      // invert no matter the yaw.
+      for (final yaw in [0.0, 0.7, 1.9, math.pi, -1.2]) {
+        final p = Projector(6, 6, 40.0, const Offset(200, 300), yaw);
+        for (final (c, r) in [(1, 1), (4, 2), (0, 5)]) {
+          final postDy = p.ground(c, r).dy;
+          expect(railHalfDepth(postDy), lessThan(postDy), reason: 'yaw=$yaw ($c,$r)');
+        }
+      }
     });
 
-    test('a rail sorts behind a farther flower and in front of a nearer one', () {
-      // The bug: fence rails used to paint in a fixed pass before ANY standing
-      // object, so a flower always drew on top of a rail regardless of actual
-      // position. The fix sorts rails into the same back-to-front (by screen-y)
-      // pass as flowers/trees/posts — prove a rail's depth key genuinely falls
-      // between a flower well behind it and one well in front of it, so the
-      // shared sort now paints them in the correct order either way.
+    test('rail halves still sort between a farther and a nearer flower', () {
+      // The v31.18 property this keeps: rails share the SAME back-to-front
+      // pass as flowers/trees/posts, so a flower well behind a fence line
+      // paints first and one well in front paints after.
       final p = Projector(6, 6, 40.0, const Offset(200, 300), 0.0);
-      final railDepth = fenceRailDepth(p, 2, 3, 3, 3);
-      final fartherFlowerDepth = p.ground(2, 0).dy;
-      final nearerFlowerDepth = p.ground(2, 5).dy;
-      expect(fartherFlowerDepth, lessThan(railDepth));
-      expect(nearerFlowerDepth, greaterThan(railDepth));
+      final half = railHalfDepth(p.ground(2, 3).dy);
+      expect(p.ground(2, 0).dy, lessThan(half)); // farther flower behind
+      expect(p.ground(2, 5).dy, greaterThan(half)); // nearer flower in front
     });
   });
 

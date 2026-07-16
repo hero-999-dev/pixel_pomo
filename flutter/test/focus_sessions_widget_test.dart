@@ -220,13 +220,18 @@ void main() {
 
   // #v31.13 — YEARLY's grid-shape picker. Day cells (both styles use the
   // shared _dayCell helper) have this exact signature: right-only margin,
-  // rounded corners — distinct from bordered month/frame containers.
+  // rounded corners — distinct from bordered month/frame containers. Blank
+  // FILLER cells (short months' tails, #v32) share the widget shape but
+  // render at a deliberately fainter alpha (0.07) than any real day cell
+  // (0.18 faint / 1.0 active) — exclude them so the count stays "one cell
+  // per REAL day of the year".
   int dayCellCount(WidgetTester t) => t
       .widgetList<Container>(find.byType(Container))
       .where((c) =>
           c.margin == const EdgeInsets.only(right: 2) &&
           c.decoration is BoxDecoration &&
-          (c.decoration as BoxDecoration).borderRadius != null)
+          (c.decoration as BoxDecoration).borderRadius != null &&
+          ((c.decoration as BoxDecoration).color?.a ?? 0) > 0.1)
       .length;
 
   testWidgets('STYLE button only appears for YEARLY', (tester) async {

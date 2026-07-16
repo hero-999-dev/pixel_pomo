@@ -145,10 +145,14 @@ class Themes {
       bg: 0xFF161616, panel: 0xFF262626, accent: 0xFFFF5A5F, work: 0xFF46E08A,
       breakColor: 0xFF58A6FF, onSurface: 0xFFF4F4F4, onSurfaceDim: 0xFF8E8E8E,
       onAccent: 0xFF1A1A1A, shadow: 0xFF000000);
+  // Every theme gets its OWN accent hue (#v32 — dark coral / light blue /
+  // mocha pink / frappe teal / latte peach / matcha green). Four of the six
+  // used to sit in the same red family, so light/latte/frappe read as
+  // re-tinted copies of dark instead of themes with their own character.
   static const light = PixelTheme(
       id: 'light', displayName: 'LIGHT',
-      bg: 0xFFF2F2F4, panel: 0xFFFFFFFF, accent: 0xFFE5484D, work: 0xFF1F9D55,
-      breakColor: 0xFF2A7DE1, onSurface: 0xFF18181B, onSurfaceDim: 0xFF6E6E73,
+      bg: 0xFFF2F2F4, panel: 0xFFFFFFFF, accent: 0xFF1E66F5, work: 0xFF1F9D55,
+      breakColor: 0xFFFE640B, onSurface: 0xFF18181B, onSurfaceDim: 0xFF6E6E73,
       onAccent: 0xFFFFFFFF, shadow: 0xFFC7C7CC);
   static const mocha = PixelTheme(
       id: 'mocha', displayName: 'MOCHA',
@@ -157,12 +161,12 @@ class Themes {
       onAccent: 0xFF1E1E2E, shadow: 0xFF11111B);
   static const frappe = PixelTheme(
       id: 'frappe', displayName: 'FRAPPE',
-      bg: 0xFF303446, panel: 0xFF414559, accent: 0xFFE78284, work: 0xFFA6D189,
+      bg: 0xFF303446, panel: 0xFF414559, accent: 0xFF81C8BE, work: 0xFFA6D189,
       breakColor: 0xFF8CAAEE, onSurface: 0xFFC6D0F5, onSurfaceDim: 0xFFA5ADCE,
       onAccent: 0xFF303446, shadow: 0xFF232634);
   static const latte = PixelTheme(
       id: 'latte', displayName: 'LATTE',
-      bg: 0xFFF7EFDD, panel: 0xFFFFFBF0, accent: 0xFFD20F39, work: 0xFF40A02B,
+      bg: 0xFFF7EFDD, panel: 0xFFFFFBF0, accent: 0xFFFE640B, work: 0xFF40A02B,
       breakColor: 0xFF1E66F5, onSurface: 0xFF4C4F69, onSurfaceDim: 0xFF8A7F6A,
       onAccent: 0xFFFFFFFF, shadow: 0xFFD9CBB0);
   // a green "matcha" theme matching the garden, in the Catppuccin family (#v19)

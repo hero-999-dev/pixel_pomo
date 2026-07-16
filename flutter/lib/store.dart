@@ -43,6 +43,9 @@ class AppStore extends ChangeNotifier {
   static const _kDailyRate = 'daily_rate_minor';
   static const _kMoneyRewardDay = 'money_last_reward_day';
   static const _kCustomCats = 'custom_categories'; // user-added money categories (#v30)
+  static const _kShowMoney = 'show_money_tracker'; // hide = icon gone + feature inert (#v32)
+  static const _kShowHabits = 'show_habit_tracker'; // hide = icon gone (#v32)
+  static const _kStatsDetailed = 'stats_detailed'; // simple stats hides timeline + Sessions in Pixels (#v32)
   static const _kSeeded = 'test_seeded_v5';
 
   late SharedPreferences _prefs;
@@ -98,6 +101,15 @@ class AppStore extends ChangeNotifier {
   int _moneyRewardDay = 0; // last day evaluated for the budget coin
   List<String> customCategories = []; // user-added money categories (#v30)
   bool _fxFetching = false;
+
+  /// Hide the Money / Habit trackers (#v32): the top-bar icon disappears and
+  /// the feature goes inert (no fx fetch, no daily-budget coin while hidden).
+  bool showMoneyTracker = true;
+  bool showHabitTracker = true;
+
+  /// Stats view mode (#v32): false = SIMPLE (Session Timeline in a Week and
+  /// the SESSIONS IN PIXELS screen are hidden), true = DETAILED (everything).
+  bool statsDetailed = true;
 
   late PomodoroEngine engine;
   final StopwatchTimer stopwatch = StopwatchTimer(); // #v31.16
@@ -184,12 +196,39 @@ class AppStore extends ChangeNotifier {
         .split('\n')
         .where((s) => s.trim().isNotEmpty)
         .toList();
+    showMoneyTracker = _prefs.getBool(_kShowMoney) ?? true;
+    showHabitTracker = _prefs.getBool(_kShowHabits) ?? true;
+    statsDetailed = _prefs.getBool(_kStatsDetailed) ?? true;
 
     _seedOnce();
-    _accrueMoneyReward();
+    // a hidden money tracker is fully inert — no budget-coin accrual, no
+    // network fetch for rates it can't display (#v32)
+    if (showMoneyTracker) _accrueMoneyReward();
     engine = _buildEngine();
     notifyListeners();
-    unawaited(refreshFx()); // best-effort; updates silently when it lands
+    if (showMoneyTracker) unawaited(refreshFx()); // best-effort; updates silently when it lands
+  }
+
+  void setShowMoneyTracker(bool v) {
+    showMoneyTracker = v;
+    _prefs.setBool(_kShowMoney, v);
+    if (v) {
+      _accrueMoneyReward(); // catch up the budget coin for the hidden stretch
+      unawaited(refreshFx());
+    }
+    notifyListeners();
+  }
+
+  void setShowHabitTracker(bool v) {
+    showHabitTracker = v;
+    _prefs.setBool(_kShowHabits, v);
+    notifyListeners();
+  }
+
+  void setStatsDetailed(bool v) {
+    statsDetailed = v;
+    _prefs.setBool(_kStatsDetailed, v);
+    notifyListeners();
   }
 
   /// Award +1 coin per completed day (yesterday-and-earlier) that stayed under

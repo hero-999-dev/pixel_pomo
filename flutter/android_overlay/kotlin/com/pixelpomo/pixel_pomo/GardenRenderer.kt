@@ -274,9 +274,12 @@ class GardenRenderer(private val data: GardenData) {
 
     /// Raised rails between adjacent fence posts — mirrors `_collectFenceRails`. Each
     /// tile only links toward its E and S neighbour so every shared edge draws once.
-    /// Appends to the shared `items` depth-sort (keyed by the midpoint of the two
-    /// posts it links) instead of drawing directly, so it sorts against flowers/
-    /// trees/posts rather than always drawing underneath them (#v31.18).
+    /// Each rail is split into TWO HALVES appended to the shared `items` depth-sort,
+    /// each keyed just BEHIND its own post — the v31.18 whole-rail midpoint key
+    /// crossed its posts' depths as the framing yaw varied, flipping the rail in
+    /// front of / behind a post ("the fence changes direction"). A half pinned
+    /// behind its own post can never flip against it; the two halves share one
+    /// colour + elevation so the midpoint seam is invisible either way (#v32).
     private fun addFenceRailItems(canvas: Canvas, items: ArrayList<Item>) {
         for (r in 0 until rows) {
             for (c in 0 until cols) {
@@ -287,13 +290,18 @@ class GardenRenderer(private val data: GardenData) {
                 val depthA = ground(c, r).second
                 fun link(nc: Int, nr: Int) {
                     val (bx, by) = gridXY(nc, nr)
-                    val depth = (depthA + ground(nc, nr).second) / 2
-                    items.add(Item(depth) {
-                        for (e in doubleArrayOf(0.50, 0.28)) {
-                            fillQuad(canvas, projElev(ax, ay, e + 0.05), projElev(bx, by, e + 0.05),
-                                projElev(bx, by, e - 0.05), projElev(ax, ay, e - 0.05), rail)
-                        }
-                    })
+                    val depthB = ground(nc, nr).second
+                    val mx = (ax + bx) / 2; val my = (ay + by) / 2
+                    fun half(fx: Double, fy: Double, tx: Double, ty: Double, postDy: Double) {
+                        items.add(Item(postDy - 0.01) {
+                            for (e in doubleArrayOf(0.50, 0.28)) {
+                                fillQuad(canvas, projElev(fx, fy, e + 0.05), projElev(tx, ty, e + 0.05),
+                                    projElev(tx, ty, e - 0.05), projElev(fx, fy, e - 0.05), rail)
+                            }
+                        })
+                    }
+                    half(ax, ay, mx, my, depthA)
+                    half(mx, my, bx, by, depthB)
                 }
                 if (c < cols - 1 && fenceAt(r * cols + c + 1)) link(c + 1, r)
                 if (r < rows - 1 && fenceAt((r + 1) * cols + c)) link(c, r + 1)
@@ -333,10 +341,19 @@ class GardenRenderer(private val data: GardenData) {
             val (sx, sy) = projGrid(c.x, c.y)
             val cellW = bmp.width / 8 // atlases are 8-wide; always frame 0 (#v20)
             val src = Rect(0, 0, cellW, bmp.height)
-            // fly low most of the time; while visiting (HOVER) perch at ITS OWN
-            // randomized height on the plant (base->bloom), not the same fixed
-            // spot every visit (#v25 item4, #v31.17, mirrors in-app)
-            val lift = if (c.state == CState.HOVER) t * c.perch else t * 0.25
+            // fly low most of the time; while visiting (HOVER) ease up to ITS OWN
+            // randomized height on the plant (base->bloom) over 0.4s instead of
+            // snapping the frame the state flips — mirrors the in-app easing;
+            // the wallpaper had been left with the instant jump (#v25 item4,
+            // #v31.17, ease #v32)
+            val travelLift = 0.25
+            val k = (c.timer / 0.4).coerceIn(0.0, 1.0)
+            val liftFrac = when (c.state) {
+                CState.APPROACH -> travelLift
+                CState.HOVER -> travelLift + (c.perch - travelLift) * k
+                CState.LEAVE -> c.perch + (travelLift - c.perch) * k
+            }
+            val lift = t * liftFrac
             val px = sx.toFloat(); val py = (sy + bob - lift).toFloat()
             canvas.drawBitmap(bmp, src, RectF(px - s / 2, py - s / 2, px + s / 2, py + s / 2), paint)
         }
@@ -423,8 +440,13 @@ class GardenRenderer(private val data: GardenData) {
             val dist = sqrt(tox * tox + toy * toy)
             when (c.state) {
                 CState.APPROACH ->
-                    if (dist < 0.18) { c.state = CState.HOVER; c.timer = 0.0 }
-                    else { c.x += tox / dist * c.speed * dt; c.y += toy / dist * c.speed * dt }
+                    if (dist < 0.06) { c.state = CState.HOVER; c.timer = 0.0 }
+                    else {
+                        // decelerate over the final ~0.6 tiles instead of stopping
+                        // dead 0.18 short of the flower — mirrors the in-app fix (#v32)
+                        val ease = 0.2 + 0.8 * minOf(1.0, dist / 0.6)
+                        c.x += tox / dist * c.speed * ease * dt; c.y += toy / dist * c.speed * ease * dt
+                    }
                 CState.HOVER ->
                     if (c.timer >= c.hoverFor) {
                         c.state = CState.LEAVE; c.timer = 0.0
