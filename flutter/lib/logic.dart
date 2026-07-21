@@ -411,6 +411,10 @@ class Economy {
 
   /// Buy price for any catalogue id (flower or object).
   static int costOf(String id) => Placeables.isObject(id) ? objectCost : flowerCost;
+
+  /// Coins refunded for selling one un-placed unit: half the buy price, floored
+  /// (flowers 10->5, decor 5->2). A mild sink so buy/sell isn't coin-neutral.
+  static int sellPrice(String id) => costOf(id) ~/ 2;
 }
 
 // ---- garden -----------------------------------------------------------------

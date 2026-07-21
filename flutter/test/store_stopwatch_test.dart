@@ -120,6 +120,27 @@ void main() {
     s.dispose();
   });
 
+  test('sellItem refunds half, drops inventory, and NEVER sells a garden-placed unit', () async {
+    SharedPreferences.setMockInitialValues({});
+    final s = AppStore();
+    await s.load();
+    s.owned['gul'] = 2;
+    s.plantTile(0, 'gul'); // one of the two goes into the garden
+    expect(s.availableOf('gul'), 1);
+    final coins0 = s.coins;
+
+    expect(s.sellItem('gul'), true); // sell the un-placed one
+    expect(s.owned['gul'], 1);
+    expect(s.coins, coins0 + Economy.sellPrice('gul'));
+    expect(s.availableOf('gul'), 0);
+
+    expect(s.sellItem('gul'), false); // the last one is planted → refused
+    expect(s.owned['gul'], 1, reason: 'a placed unit must never be sold');
+    expect(s.coins, coins0 + Economy.sellPrice('gul'), reason: 'no coins for a refused sell');
+
+    s.dispose();
+  });
+
   test('the real periodic timer advances stopwatch.elapsedMillis from the wall clock '
       '(not just via a directly-set value)', () async {
     // every other test in this file proves reset() correctly logs whatever

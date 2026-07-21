@@ -868,6 +868,9 @@ _FLOWER_BLOOMS = {
            # mirrored about the grid's 7|8 midline, leaving the right bloom 1px
            # farther from the stem — visibly unequal on the phone). Stem, top
            # bloom, mound and both side blooms now all center on c7.
+           # #v32.2: leading blank row so outline() can draw the TOP bloom's top
+           # rim — sitting at row 0 it was clipped by the canvas edge (no top line).
+            "................",
             "......mmm.......",
             ".....mmCmm......",
             ".....mmCmm......",

@@ -830,6 +830,27 @@ class AppStore extends ChangeNotifier {
 
   bool buyFlower(Flower flower) => buyItem(flower.id);
 
+  /// Sell one un-placed unit of [id]: refunds half the buy price and removes it
+  /// from inventory. Units placed in the garden can't be sold - [availableOf]
+  /// gates it, so selling only ever reduces stock down to the planted count.
+  bool sellItem(String id) {
+    if (availableOf(id) <= 0) {
+      messenger?.call('cantSell');
+      return false;
+    }
+    final left = (owned[id] ?? 0) - 1;
+    if (left <= 0) {
+      owned.remove(id);
+    } else {
+      owned[id] = left;
+    }
+    coins += Economy.sellPrice(id);
+    _saveWallet();
+    messenger?.call('sold');
+    notifyListeners();
+    return true;
+  }
+
   // ---- garden ---------------------------------------------------------------
 
   int availableOf(String flowerId) => (owned[flowerId] ?? 0) - garden.countPlanted(flowerId);

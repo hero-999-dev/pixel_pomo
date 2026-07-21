@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -153,6 +154,9 @@ class HomeScreen extends StatelessWidget {
   final AppStore s;
   const HomeScreen(this.s, {super.key});
 
+  // web test guide auto-pops once per page-load; static so hot-reload won't respam
+  static bool _testGuideShown = false;
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -188,6 +192,13 @@ class HomeScreen extends StatelessWidget {
                 ],
               ),
             );
+          });
+        }
+        // web-only: pop the test guide once per page-load (never on the phone APK)
+        if (kIsWeb && !_testGuideShown) {
+          _testGuideShown = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (context.mounted) _showTestGuide(context, th, lang);
           });
         }
         final garden = s.homeGardenBackdrop;
@@ -284,6 +295,29 @@ class HomeScreen extends StatelessWidget {
                         ),
                       ]),
               ),
+              // web/desktop test hint — shows ONLY on web (kIsWeb), never on the
+              // real phone APK. IgnorePointer so it can't block the timer buttons.
+              // tappable web-only hint → opens the full guide popup
+              if (kIsWeb)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 2,
+                  child: Center(
+                    child: GestureDetector(
+                      onTap: () => _showTestGuide(context, th, lang),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        color: const Color(0x99000000),
+                        child: Text(
+                          '[?] TEST GUIDE - tap  |  localhost:8787',
+                          style: pixelStyle(lang, 9, const Color(0xFFF4F4F4),
+                              text: 'TEST GUIDE tap localhost 8787'),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
         );
@@ -311,6 +345,47 @@ class HomeScreen extends StatelessWidget {
           interactive: false,
         );
       },
+    );
+  }
+
+  // web-only test guide popup (never on the phone APK)
+  void _showTestGuide(BuildContext context, PixelTheme th, String lang) {
+    Widget line(String txt) => Padding(
+          padding: const EdgeInsets.only(bottom: 5),
+          child: Text(txt, style: pixelStyle(lang, 10, col(th.onSurface), text: txt)),
+        );
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: col(th.panel),
+        title: Text('WEB TEST GUIDE', style: pixelStyle(lang, 13, col(th.accent), text: 'WEB TEST GUIDE')),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              line('Open (in a terminal):'),
+              line('  cd pixel_pomo\\flutter'),
+              line('  flutter run -d chrome --web-port 8787'),
+              const SizedBox(height: 6),
+              line('URL:  localhost:8787'),
+              line('Phone size:  F12, then Ctrl+Shift+M'),
+              line('Keys:  r reload  R restart  q quit'),
+              const SizedBox(height: 6),
+              line('No Chrome? server mode:'),
+              line('  flutter run -d web-server'),
+              line('  --web-hostname 0.0.0.0 --web-port 8787'),
+              line('  then open localhost:8787'),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('CLOSE', style: pixelStyle(lang, 11, col(th.accent), text: 'CLOSE')),
+          ),
+        ],
+      ),
     );
   }
 
@@ -487,7 +562,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ],
       ),
       // App blocker (Android only — no blocking API on iOS) (#v23)
-      if (Platform.isAndroid) ...[
+      // ponytail: !kIsWeb short-circuits so dart:io Platform is never touched on web (would throw UnsupportedError)
+      if (!kIsWeb && Platform.isAndroid) ...[
         const SizedBox(height: 24),
         Text(t(lang, 'appBlocker'), style: pixelStyle(lang, 12, col(th.onSurfaceDim), text: t(lang, 'appBlocker'))),
         const SizedBox(height: 12),
@@ -1563,6 +1639,7 @@ class _ShopScreenState extends State<ShopScreen> {
   }
 
   Widget _flowerRow(AppStore s, PixelTheme th, String lang, Flower f) {
+    final info = _ownedInfo(s, lang, f.id);
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: Row(
@@ -1575,23 +1652,47 @@ class _ShopScreenState extends State<ShopScreen> {
               children: [
                 Text(f.nameIn(lang), style: pixelStyle(lang, 12, col(th.onSurface), text: f.nameIn(lang))),
                 const SizedBox(height: 6),
-                Text(tf(lang, 'owned', [s.owned[f.id] ?? 0]), style: pixelStyle(lang, 8, col(th.onSurfaceDim), text: tf(lang, 'owned', [s.owned[f.id] ?? 0]))),
+                Text(info, style: pixelStyle(lang, 8, col(th.onSurfaceDim), text: info)),
               ],
             ),
           ),
-          PixelButton(
-            text: '${t(lang, 'buy')} ${Economy.flowerCost}',
-            fill: th.accent, border: th.onSurface, textColor: th.onAccent, shadow: th.shadow,
-            lang: lang, fontSize: 11, padding: const EdgeInsets.all(12),
-            opacity: s.coins >= Economy.flowerCost ? 1 : 0.45,
-            onTap: () => s.buyFlower(f),
-          ),
+          _buySell(s, th, lang, f.id, Economy.flowerCost, () => s.buyFlower(f)),
         ],
       ),
     );
   }
 
+  // "OWNED n   PLACED m" — m = units currently in the garden (can't be sold).
+  String _ownedInfo(AppStore s, String lang, String id) =>
+      '${tf(lang, 'owned', [s.owned[id] ?? 0])}   ${tf(lang, 'placed', [s.garden.countPlanted(id)])}';
+
+  // BUY (accent) stacked over SELL (panel). SELL dims + no-ops unless at least
+  // one un-placed unit exists (availableOf > 0) — placed units are never sold.
+  Widget _buySell(AppStore s, PixelTheme th, String lang, String id, int cost, VoidCallback onBuy) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        PixelButton(
+          text: '${t(lang, 'buy')} $cost',
+          fill: th.accent, border: th.onSurface, textColor: th.onAccent, shadow: th.shadow,
+          lang: lang, fontSize: 11, padding: const EdgeInsets.all(12),
+          opacity: s.coins >= cost ? 1 : 0.45,
+          onTap: onBuy,
+        ),
+        const SizedBox(height: 6),
+        PixelButton(
+          text: '${t(lang, 'sell')} ${Economy.sellPrice(id)}',
+          fill: th.panel, border: th.onSurface, textColor: th.onSurface, shadow: th.shadow,
+          lang: lang, fontSize: 11, padding: const EdgeInsets.all(12),
+          opacity: s.availableOf(id) > 0 ? 1 : 0.45,
+          onTap: () => s.sellItem(id),
+        ),
+      ],
+    );
+  }
+
   Widget _objectRow(AppStore s, PixelTheme th, String lang, String id) {
+    final info = _ownedInfo(s, lang, id);
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: Row(
@@ -1604,17 +1705,11 @@ class _ShopScreenState extends State<ShopScreen> {
               children: [
                 Text(t(lang, id), style: pixelStyle(lang, 12, col(th.onSurface), text: t(lang, id))),
                 const SizedBox(height: 6),
-                Text(tf(lang, 'owned', [s.owned[id] ?? 0]), style: pixelStyle(lang, 8, col(th.onSurfaceDim), text: tf(lang, 'owned', [s.owned[id] ?? 0]))),
+                Text(info, style: pixelStyle(lang, 8, col(th.onSurfaceDim), text: info)),
               ],
             ),
           ),
-          PixelButton(
-            text: '${t(lang, 'buy')} ${Economy.objectCost}',
-            fill: th.accent, border: th.onSurface, textColor: th.onAccent, shadow: th.shadow,
-            lang: lang, fontSize: 11, padding: const EdgeInsets.all(12),
-            opacity: s.coins >= Economy.objectCost ? 1 : 0.45,
-            onTap: () => s.buyItem(id),
-          ),
+          _buySell(s, th, lang, id, Economy.objectCost, () => s.buyItem(id)),
         ],
       ),
     );
@@ -1673,7 +1768,7 @@ class _GardenScreenState extends State<GardenScreen> {
             child: Text(t(lang, 'share'), style: pixelStyle(lang, 11, col(th.onSurface), text: t(lang, 'share'))),
           ),
           // set the live wallpaper at the framed angle, below save/share (#v16, Android only)
-          if (Platform.isAndroid)
+          if (!kIsWeb && Platform.isAndroid)
             SimpleDialogOption(
               onPressed: () async {
                 if (ctx.mounted) Navigator.pop(ctx);

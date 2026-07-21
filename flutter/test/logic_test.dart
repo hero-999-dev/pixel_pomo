@@ -366,6 +366,13 @@ void main() {
       expect(Economy.costOf('gul'), 10);
     });
 
+    test('sellPrice: half the buy price floored (flowers 5, decor 2)', () {
+      expect(Economy.sellPrice('gul'), 5);
+      for (final id in Placeables.objectIds) {
+        expect(Economy.sellPrice(id), 2, reason: id);
+      }
+    });
+
     test('roads/fences round-trip through the codec', () {
       final g = const Garden()
           .plant(0, 'road_concrete')
