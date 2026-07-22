@@ -975,7 +975,11 @@ class _CustomThemeScreenState extends State<CustomThemeScreen> {
   // picker order == PixelTheme.fromPicks' order == the saved spec order.
   // BREAK and INCOME reuse the strings the timer and the money screen already
   // label those colours with.
-  static const _slotKeys = ['cBg', 'cText1', 'cText2', 'cSelected', 'cSquares', 'break', 'income'];
+  // Each label names what the colour actually paints, not what it is called
+  // internally — "TEXT 2" told nobody it was section headings and borders
+  // (#v32.5). BREAK and INCOME get their own keys rather than reusing the
+  // timer's and the money screen's, which have to stay short there.
+  static const _slotKeys = ['cBg', 'cText1', 'cText2', 'cSelected', 'cSquares', 'cBreak', 'cIncome'];
 
   late List<int> picks;
 

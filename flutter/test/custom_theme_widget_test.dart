@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pixel_pomo/logic.dart';
 import 'package:pixel_pomo/main.dart';
 import 'package:pixel_pomo/store.dart';
+import 'package:pixel_pomo/strings.dart';
 
 /// #v32.3 — the theme picker gains a user-built palette: every colour the user
 /// can point at (background, the two text colours, the selected square, the
@@ -46,10 +47,15 @@ void main() {
 
     await tester.tap(find.text('CUSTOM'));
     await tester.pumpAndSettle();
-    expect(find.text('BACKGROUND'), findsOneWidget);
-    expect(find.text('SELECTED SQUARE'), findsOneWidget);
-    expect(find.text('INCOME'), findsOneWidget); // every colour is pickable, no base row
+    // labels name what each colour paints, not what the field is called (#v32.5)
+    expect(find.textContaining('BACKGROUND'), findsOneWidget);
+    expect(find.textContaining('HIGHLIGHT'), findsOneWidget);
+    expect(find.textContaining('INCOME'), findsOneWidget); // every colour is pickable, no base row
     expect(find.textContaining('BASE'), findsNothing);
+    // the slot labels must say where the colour shows up, not just name it
+    for (final key in const ['cText1', 'cText2', 'cSelected', 'cSquares']) {
+      expect(t('en', key), contains(' - '), reason: '$key should explain where it applies');
+    }
   });
 
   testWidgets('picking colours and saving switches the app to the custom theme', (tester) async {

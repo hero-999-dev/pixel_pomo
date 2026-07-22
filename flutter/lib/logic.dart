@@ -186,6 +186,10 @@ class PixelTheme {
       // bar — holding them to the body-text bar would wash the pick out.
       work: nudgeContrast(work, bg, kMinDimTextContrast),
       breakColor: nudgeContrast(breakColor, bg, kMinDimTextContrast),
+      // Corrected against the background, the surface they are mostly read on.
+      // Where they land on a button instead, `PixelButton` corrects them against
+      // that button's own fill (#v32.5) — demanding one colour clear both is
+      // often unsatisfiable, and it is headings that would pay for it.
       onSurface: nudgeContrast(onSurface, bg, kMinTextContrast),
       onSurfaceDim: nudgeContrast(onSurfaceDim, bg, kMinDimTextContrast),
       onAccent: nudgeContrast(onSurface, fixedAccent, kMinTextContrast),
@@ -255,27 +259,94 @@ int mixColors(int a, int b, double t) {
   return 0xFF000000 | (channel(16) << 16) | (channel(8) << 8) | channel(0);
 }
 
-/// [fg] pushed toward black or white until it clears [min] contrast against
-/// [bg]. Both directions are tried at each step and the first to clear the bar
-/// wins, so the result stays as close to what the user picked as possible —
-/// a mid-grey [bg] can only be beaten from one side. Some pairs cannot reach
-/// [min] at all (grey on grey caps out around 5:1); the best attempt is
-/// returned rather than refusing the save, so the picker never dead-ends.
+/// An opaque colour as `[hue 0..360, saturation 0..1, lightness 0..1]`.
+/// Hand-rolled rather than `HSLColor` so this file stays framework-free.
+List<double> _toHsl(int argb) {
+  final r = ((argb >> 16) & 0xFF) / 255, g = ((argb >> 8) & 0xFF) / 255, b = (argb & 0xFF) / 255;
+  final mx = math.max(r, math.max(g, b)), mn = math.min(r, math.min(g, b));
+  final l = (mx + mn) / 2;
+  final d = mx - mn;
+  if (d == 0) return [0, 0, l]; // grey: no hue or saturation to keep
+  final s = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+  final h = mx == r
+      ? (g - b) / d % 6
+      : mx == g
+          ? (b - r) / d + 2
+          : (r - g) / d + 4;
+  return [(h * 60 + 360) % 360, s, l];
+}
+
+int _fromHsl(double h, double s, double l) {
+  if (s == 0) {
+    final v = (l * 255).round().clamp(0, 255);
+    return 0xFF000000 | (v << 16) | (v << 8) | v;
+  }
+  final q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+  final p = 2 * l - q;
+  int channel(double t) {
+    var x = (t + 360) % 360 / 360;
+    final v = x < 1 / 6
+        ? p + (q - p) * 6 * x
+        : x < 1 / 2
+            ? q
+            : x < 2 / 3
+                ? p + (q - p) * (2 / 3 - x) * 6
+                : p;
+    return (v * 255).round().clamp(0, 255);
+  }
+
+  return 0xFF000000 | (channel(h + 120) << 16) | (channel(h) << 8) | channel(h - 120);
+}
+
+/// [fg] made lighter or darker until it clears [min] contrast against [bg].
+///
+/// Only *lightness* moves; hue and saturation are held (#v32.5). Blending
+/// toward black in RGB — what this used to do — scales every channel, and
+/// therefore scales chroma with it: a bright yellow pushed dark enough to read
+/// came back a near-grey olive, which is why picked colours "didn't feel like
+/// they landed". Moving lightness in HSL keeps roughly five times the chroma
+/// at the same brightness, so the result still reads as the colour that was
+/// tapped.
+///
+/// Some combinations cannot reach [min] anywhere (grey on grey caps out around
+/// 5:1); the best attempt is returned rather than refusing the save, so the
+/// picker never dead-ends.
 int nudgeContrast(int fg, int bg, double min) {
   var best = fg, bestRatio = contrastRatio(fg, bg);
   if (bestRatio >= min) return fg;
+  final hsl = _toHsl(fg);
+  // Of every lightness that clears the bar, keep the one that holds the most
+  // colour rather than the one closest to the pick's own lightness. Those are
+  // not the same choice: a pale lavender on mid-grey clears three steps up, at
+  // pure white — the nearest, and the one answer with no colour left in it.
+  // Darkening has to cross a contrast trough first, but comes out the other
+  // side still lavender. Greys have no chroma to compare, so they fall through
+  // to the first (nearest) candidate that clears, as before.
+  int? kept;
+  var keptChroma = -1.0;
   for (var step = 1; step <= 20; step++) {
-    for (final target in const [0xFF000000, 0xFFFFFFFF]) {
-      final candidate = mixColors(fg, target, step / 20);
+    for (final dir in const [-1, 1]) {
+      final candidate = _fromHsl(hsl[0], hsl[1], (hsl[2] + dir * step / 20).clamp(0.0, 1.0));
       final ratio = contrastRatio(candidate, bg);
-      if (ratio >= min) return candidate;
-      if (ratio > bestRatio) {
+      if (ratio >= min) {
+        final chroma = _chroma(candidate);
+        if (chroma > keptChroma) {
+          keptChroma = chroma;
+          kept = candidate;
+        }
+      } else if (ratio > bestRatio) {
         bestRatio = ratio;
         best = candidate;
       }
     }
   }
-  return best;
+  return kept ?? best;
+}
+
+/// How much colour an opaque ARGB value carries, 0 (grey) … 1.
+double _chroma(int argb) {
+  final r = (argb >> 16) & 0xFF, g = (argb >> 8) & 0xFF, b = argb & 0xFF;
+  return (math.max(r, math.max(g, b)) - math.min(r, math.min(g, b))) / 255;
 }
 
 /// How many colours a custom theme is built from — see [customThemePicks].

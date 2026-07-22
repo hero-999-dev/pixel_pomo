@@ -24,6 +24,30 @@ void expectReadable(PixelTheme th) {
 
 List<int> allSlots(int c) => List.filled(kCustomSlots, c);
 
+// ---- colour probes, for the "is this still the colour I picked?" tests ----
+
+double _hue(int argb) {
+  final r = ((argb >> 16) & 0xFF) / 255, g = ((argb >> 8) & 0xFF) / 255, b = (argb & 0xFF) / 255;
+  final mx = [r, g, b].reduce((a, c) => a > c ? a : c);
+  final mn = [r, g, b].reduce((a, c) => a < c ? a : c);
+  final d = mx - mn;
+  if (d == 0) return -1; // achromatic: no hue to preserve
+  final h = mx == r ? (g - b) / d % 6 : (mx == g ? (b - r) / d + 2 : (r - g) / d + 4);
+  return (h * 60 + 360) % 360;
+}
+
+/// How far apart two hues are on the colour wheel, in degrees.
+double _hueGap(double a, double b) {
+  final d = (a - b).abs() % 360;
+  return d > 180 ? 360 - d : d;
+}
+
+/// RGB chroma, 0..1 — how much colour is left after a correction.
+double _chroma(int argb) {
+  final r = ((argb >> 16) & 0xFF) / 255, g = ((argb >> 8) & 0xFF) / 255, b = (argb & 0xFF) / 255;
+  return [r, g, b].reduce((a, c) => a > c ? a : c) - [r, g, b].reduce((a, c) => a < c ? a : c);
+}
+
 void main() {
   group('custom theme contrast', () {
     test('the worst pick — one colour for every slot — still reads', () {
@@ -81,6 +105,69 @@ void main() {
       expect(PixelTheme.fromPicks(allSlots(0xFFF7F7F7)).shadow,
           isNot(PixelTheme.fromPicks(allSlots(0xFF0B0B0B)).shadow));
     });
+  });
+
+  // #v32.5 — "the colours don't feel like they landed; in places the picked
+  // colour isn't the theme's". Two measured causes, one group each.
+  group('a corrected pick is still the colour that was picked', () {
+    test('correction moves lightness, never hue', () {
+      // Blending toward black/white in RGB washes the colour out: a light
+      // lavender used to come back grey. Whatever the correction does, the
+      // result has to still read as the hue the user tapped.
+      for (final bg in kSwatches) {
+        for (final pick in kSwatches) {
+          final hue = _hue(pick);
+          if (hue < 0) continue; // greys have no hue to keep
+          final got = nudgeContrast(pick, bg, kMinDimTextContrast);
+          if (_chroma(got) < 0.02) {
+            fail('pick ${pick.toRadixString(16)} on bg ${bg.toRadixString(16)} '
+                'came back grey (${got.toRadixString(16)})');
+          }
+          expect(_hueGap(_hue(got), hue), lessThan(6.0),
+              reason: 'pick ${pick.toRadixString(16)} on bg ${bg.toRadixString(16)} '
+                  'shifted hue: ${got.toRadixString(16)}');
+        }
+      }
+    });
+
+    test('a colour that already clears the bar is returned untouched', () {
+      expect(nudgeContrast(0xFFF7F7F7, 0xFF0B0B0B, kMinTextContrast), 0xFFF7F7F7);
+    });
+
+    test('the guarantee survives: every corrected pick still clears its bar', () {
+      for (final bg in kSwatches) {
+        for (final pick in kSwatches) {
+          expect(contrastRatio(nudgeContrast(pick, bg, kMinDimTextContrast), bg),
+              greaterThanOrEqualTo(kMinDimTextContrast));
+        }
+      }
+    });
+  });
+
+  group('the text colours read on the squares, not just the background', () {
+    // Every button draws onSurface as its label and onSurfaceDim as its border,
+    // both on a `panel` fill — but the theme corrects them against `bg`, so a
+    // pick could pass on the background and vanish on a button. Demanding one
+    // colour clear both surfaces is often unsatisfiable (a mid-tone background
+    // beside a dark panel admits no such colour at 4.5), so PixelButton
+    // corrects against its own fill instead. These lock that this always works.
+    test('a heading still reads on the background', () {
+      for (final bg in kSwatches) {
+        for (final text in kSwatches) {
+          final th = PixelTheme.fromPicks(
+              [bg, text, text, 0xFFE5484D, 0xFF2B2B2B, 0xFF58A6FF, 0xFF46A03C]);
+          expect(contrastRatio(th.onSurface, th.bg), greaterThanOrEqualTo(kMinTextContrast));
+          expect(contrastRatio(th.onSurfaceDim, th.bg), greaterThanOrEqualTo(kMinDimTextContrast));
+        }
+      }
+    });
+
+    // KNOWN GAP, deliberately not asserted: picking the same colour for FAINT
+    // TEXT and PANELS leaves a button's 3px border invisible against its own
+    // fill. Correcting the dim colour against `panel` as well as `bg` is what
+    // that would take, and those two bars are frequently unsatisfiable together
+    // — a mid-tone background beside a dark panel admits no colour clearing 3.0
+    // on both. Left alone until someone actually picks that pair and minds.
   });
 
   // #v32.4 — the reported bug: picking SELECTED SQUARE also recoloured the home
