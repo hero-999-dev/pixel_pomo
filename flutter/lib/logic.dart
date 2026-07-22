@@ -2,6 +2,8 @@
 // (PomodoroEngine, PixelTheme, Flowers, Economy, Garden, Labels, LabelColors, Stats). No
 // Flutter imports here on purpose, so the same rules can be unit-tested and reused unchanged.
 
+import 'dart:math' as math;
+
 // ---- timer engine -----------------------------------------------------------
 
 enum Mode { work, breakMode }
@@ -122,6 +124,11 @@ class PixelTheme {
   final String id;
   final String displayName;
   final int bg, panel, accent, work, breakColor, onSurface, onSurfaceDim, onAccent, shadow;
+
+  /// Overrides the focus-phase colour for themes that must not tie it to the
+  /// accent (#v32.4). Null on every preset, so they keep the #v32.1 behaviour.
+  final int? focusColor;
+
   const PixelTheme({
     required this.id,
     required this.displayName,
@@ -134,13 +141,170 @@ class PixelTheme {
     required this.onSurfaceDim,
     required this.onAccent,
     required this.shadow,
+    this.focusColor,
   });
 
   // FOCUS wears the theme's own accent so the home screen carries each
   // theme's identity (the per-theme `work` greens all read the same, #v32.1);
   // BREAK keeps the per-theme break colour. `work` itself stays for the
   // money tracker's income/expense colouring.
-  int phaseColor(Mode m) => m == Mode.work ? accent : breakColor;
+  int get focusTint => focusColor ?? accent;
+
+  int phaseColor(Mode m) => m == Mode.work ? focusTint : breakColor;
+
+  /// A user-built theme (#v32.3). Every colour the user can point at on screen
+  /// is picked outright — background, the two text colours, the selected
+  /// square, the other squares, BREAK and the money tracker's income colour.
+  /// `onAccent` and `shadow` are the only derived ones, and only because they
+  /// are mechanical rather than chosen: the label inside the selected square
+  /// has to stay readable *on* that square whatever it is, and the pixel shadow
+  /// is the background's own dark edge.
+  ///
+  /// Every pick is contrast-corrected against what it is drawn on, so no
+  /// combination can produce an unreadable screen — see [nudgeContrast].
+  factory PixelTheme.custom({
+    required int bg,
+    required int onSurface,
+    required int onSurfaceDim,
+    required int accent,
+    required int panel,
+    required int breakColor,
+    required int work,
+  }) {
+    // The squares have to separate from the background (the stats grid and the
+    // pixel logs are `panel` cells), and the selected one from the others.
+    final fixedPanel = nudgeContrast(panel, bg, kMinFillContrast);
+    final fixedAccent = nudgeContrast(accent, fixedPanel, kMinFillContrast);
+    return PixelTheme(
+      id: customThemeId,
+      displayName: 'CUSTOM',
+      bg: bg,
+      panel: fixedPanel,
+      accent: fixedAccent,
+      // BREAK is a big countdown and income is a money row: both are measured
+      // against the background, the surface they mostly sit on, at the large-text
+      // bar — holding them to the body-text bar would wash the pick out.
+      work: nudgeContrast(work, bg, kMinDimTextContrast),
+      breakColor: nudgeContrast(breakColor, bg, kMinDimTextContrast),
+      onSurface: nudgeContrast(onSurface, bg, kMinTextContrast),
+      onSurfaceDim: nudgeContrast(onSurfaceDim, bg, kMinDimTextContrast),
+      onAccent: nudgeContrast(onSurface, fixedAccent, kMinTextContrast),
+      shadow: mixColors(bg, 0xFF000000, 0.6),
+      // The countdown must not follow the selected square (#v32.4): picking a
+      // dark square used to sink the clock into the background. TEXT 1 is
+      // already contrast-corrected against the background, so it always reads.
+      focusColor: nudgeContrast(onSurface, bg, kMinTextContrast),
+    );
+  }
+
+  /// [PixelTheme.custom] fed from the picker's slot order — the one place that
+  /// order is spelled out, shared by the editor and the saved spec.
+  factory PixelTheme.fromPicks(List<int> p) => PixelTheme.custom(
+        bg: p[0],
+        onSurface: p[1],
+        onSurfaceDim: p[2],
+        accent: p[3],
+        panel: p[4],
+        breakColor: p[5],
+        work: p[6],
+      );
+
+  /// This theme's colours as editor picks, so the editor can start from any theme.
+  List<int> get picks => [bg, onSurface, onSurfaceDim, accent, panel, breakColor, work];
+}
+
+// ---- custom theme colour maths (#v32.3) ---------------------------------------
+
+const String customThemeId = 'custom';
+
+/// Body text against its background — WCAG AA.
+const double kMinTextContrast = 4.5;
+
+/// Dim/secondary text against its background — WCAG AA for large text.
+const double kMinDimTextContrast = 3.0;
+
+/// A filled square against what sits behind it. Far below the text bar on
+/// purpose: two squares only need to be *told apart*, not read.
+const double kMinFillContrast = 1.25;
+
+/// WCAG relative luminance of an opaque ARGB colour.
+double _relLuminance(int argb) {
+  double channel(int shift) {
+    final s = ((argb >> shift) & 0xFF) / 255.0;
+    return s <= 0.03928 ? s / 12.92 : math.pow((s + 0.055) / 1.055, 2.4).toDouble();
+  }
+
+  return 0.2126 * channel(16) + 0.7152 * channel(8) + 0.0722 * channel(0);
+}
+
+/// WCAG contrast ratio between two opaque colours: 1.0 (identical) … 21.0
+/// (black on white).
+double contrastRatio(int a, int b) {
+  final la = _relLuminance(a), lb = _relLuminance(b);
+  final hi = la > lb ? la : lb, lo = la > lb ? lb : la;
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+/// [a] blended [t] of the way toward [b] (0 = a, 1 = b), always opaque.
+int mixColors(int a, int b, double t) {
+  int channel(int shift) {
+    final av = (a >> shift) & 0xFF, bv = (b >> shift) & 0xFF;
+    return (av + (bv - av) * t).round().clamp(0, 255);
+  }
+
+  return 0xFF000000 | (channel(16) << 16) | (channel(8) << 8) | channel(0);
+}
+
+/// [fg] pushed toward black or white until it clears [min] contrast against
+/// [bg]. Both directions are tried at each step and the first to clear the bar
+/// wins, so the result stays as close to what the user picked as possible —
+/// a mid-grey [bg] can only be beaten from one side. Some pairs cannot reach
+/// [min] at all (grey on grey caps out around 5:1); the best attempt is
+/// returned rather than refusing the save, so the picker never dead-ends.
+int nudgeContrast(int fg, int bg, double min) {
+  var best = fg, bestRatio = contrastRatio(fg, bg);
+  if (bestRatio >= min) return fg;
+  for (var step = 1; step <= 20; step++) {
+    for (final target in const [0xFF000000, 0xFFFFFFFF]) {
+      final candidate = mixColors(fg, target, step / 20);
+      final ratio = contrastRatio(candidate, bg);
+      if (ratio >= min) return candidate;
+      if (ratio > bestRatio) {
+        bestRatio = ratio;
+        best = candidate;
+      }
+    }
+  }
+  return best;
+}
+
+/// How many colours a custom theme is built from — see [customThemePicks].
+const int kCustomSlots = 7;
+
+/// `aarrggbb×7` holding the RAW picks — reopening the editor then shows what
+/// the user chose, not the contrast-corrected result it was saved as.
+String encodeCustomTheme(List<int> picks) => picks.map((c) => c.toRadixString(16)).join(',');
+
+/// The seven raw picks in picker order — background, text 1, text 2, selected
+/// square, squares, BREAK, income — or null if [spec] is missing or corrupt (an
+/// older or hand-edited prefs value must not crash boot).
+List<int>? customThemePicks(String? spec) {
+  if (spec == null) return null;
+  final parts = spec.split(',');
+  if (parts.length != kCustomSlots) return null;
+  final picks = <int>[];
+  for (final p in parts) {
+    final v = int.tryParse(p, radix: 16);
+    if (v == null) return null;
+    picks.add(v | 0xFF000000);
+  }
+  return picks;
+}
+
+PixelTheme? decodeCustomTheme(String? spec) {
+  final picks = customThemePicks(spec);
+  if (picks == null) return null;
+  return PixelTheme.fromPicks(picks);
 }
 
 class Themes {

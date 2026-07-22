@@ -113,12 +113,16 @@ and coins, for trying out stats/heatmap features without needing to build up rea
   Français / Italiano** — applied instantly. A settings change never disturbs a pomodoro already in
   progress — it takes effect starting the next one.
 - **🎨 Themes** — six live pixel themes: **Dark, Light, Mocha, Frappe, Latte, Matcha**. The system bars match the theme and
-  there's no white tap ripple.
+  there's no white tap ripple. Turn on **Settings → DETAILED CUSTOMISATION** for a **CUSTOM** palette: pick all seven
+  colours yourself (background, both text colours, the selected square, the squares, BREAK, income) — every pick is
+  contrast-corrected, so nothing you choose can make the screen unreadable.
+- **🖼️ Home wallpaper** — choose any photo from the custom theme editor, then frame it: drag to move, pinch to zoom, in a
+  panel shaped like your phone's screen. Settings' home mode picks between **CLEAN · GARDEN · WALLPAPER**.
 
 ## 🧪 Testing
 
 All app logic lives in **pure, framework-free Dart** (timer engine, labels, stats, economy, garden, flowers, the app-blocker
-rules) so it can be unit-tested without a device. **177 Dart tests** plus a widget smoke test (boots the app and opens every
+rules) so it can be unit-tested without a device. **201 Dart tests** plus a widget smoke test (boots the app and opens every
 screen) **gate every build**. The garden engine has its own geometry tests. Run them from `flutter/`:
 
 ```bash

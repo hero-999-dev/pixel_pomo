@@ -32,8 +32,16 @@ if ((git config --global --get-all safe.directory 2>$null) -notcontains $sdk) {
   Write-Host "Trusted $sdk for git (one-time fix)." -ForegroundColor DarkGray
 }
 
+# ponytail: -d chrome is not used. It makes flutter launch its own throwaway Chrome
+# profile seeded from .dart_tool\chrome-device; that cache gets written half-way
+# (leveldb LOCK files, no Preferences) and then every launch dies with
+# "Failed to launch browser" / CDP "connection refused". Serve instead, open Chrome
+# by hand - same hot reload, real profile, real DevTools. Delete the poisoned cache
+# so a future -d chrome starts clean.
+Remove-Item "$PSScriptRoot\.dart_tool\chrome-device" -Recurse -Force -ErrorAction SilentlyContinue
+
 Write-Host ""
-Write-Host "Launching Pixel Pomo on Chrome -> http://localhost:$port" -ForegroundColor Cyan
+Write-Host "Serving Pixel Pomo -> http://localhost:$port   (open it in Chrome)" -ForegroundColor Cyan
 Write-Host "Keys: r=reload  R=restart  q=quit   |   Phone view in Chrome: F12 then Ctrl+Shift+M" -ForegroundColor DarkGray
 Write-Host ""
-& $flutter run -d chrome --web-port $port
+& $flutter run -d web-server --web-port $port

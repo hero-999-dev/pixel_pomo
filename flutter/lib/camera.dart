@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -40,6 +41,30 @@ Future<void> sharePng(Uint8List bytes, String filename) async {
   final file = File('${dir.path}/$filename');
   await file.writeAsBytes(bytes, flush: true);
   await Share.shareXFiles([XFile(file.path)]);
+}
+
+/// Let the user pick a photo and keep a durable copy of it as the home
+/// wallpaper (#v32.4); returns its path, or null if they backed out.
+///
+/// The copy matters: `image_picker` hands back a file in a cache directory the
+/// OS is free to clear, so pointing the home screen straight at it would make
+/// the wallpaper vanish at some later, unrelated moment. Caller gates this on
+/// `!kIsWeb` — on web the picker returns a blob URL that `Image.file` can't read.
+Future<String?> pickWallpaper() async {
+  final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
+  if (picked == null) return null;
+  final dir = await getApplicationDocumentsDirectory();
+  // one slot, overwritten each time — old wallpapers are not history worth keeping
+  final file = File('${dir.path}/home_wallpaper${_extOf(picked.path)}');
+  await file.writeAsBytes(await picked.readAsBytes(), flush: true);
+  return file.path;
+}
+
+/// The picked file's extension (`.jpg`), or empty if it has none. Kept so the
+/// copy stays decodable by the same image codec the original needed.
+String _extOf(String path) {
+  final dot = path.lastIndexOf('.');
+  return dot > path.lastIndexOf('/') && dot != -1 ? path.substring(dot) : '';
 }
 
 const _wallpaperChannel = MethodChannel('pixel_pomo/wallpaper');

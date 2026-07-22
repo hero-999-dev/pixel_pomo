@@ -27,7 +27,12 @@ class AppStore extends ChangeNotifier {
   static const _kCoins = 'coins';
   static const _kOwned = 'owned_flowers';
   static const _kGarden = 'garden';
-  static const _kHomeMode = 'home_garden_backdrop'; // live garden behind timer (#3)
+  static const _kHomeMode = 'home_garden_backdrop'; // legacy bool, migrated to _kBackdrop (#v32.4)
+  static const _kBackdrop = 'home_backdrop'; // clean | garden | wallpaper (#v32.4)
+  static const _kWallPath = 'wallpaper_path'; // copy of the picked image (#v32.4)
+  static const _kWallZoom = 'wallpaper_zoom';
+  static const _kWallDx = 'wallpaper_dx';
+  static const _kWallDy = 'wallpaper_dy';
   static const _kTimerMode = 'timer_mode_pomodoro'; // stopwatch vs pomodoro settings (#v31.15)
   static const _kAutoBreak = 'auto_break'; // auto-start break after focus (#4)
   static const _kBlocker = 'app_blocker'; // app blocker on/off (#v23)
@@ -46,6 +51,8 @@ class AppStore extends ChangeNotifier {
   static const _kShowMoney = 'show_money_tracker'; // hide = icon gone + feature inert (#v32)
   static const _kShowHabits = 'show_habit_tracker'; // hide = icon gone (#v32)
   static const _kStatsDetailed = 'stats_detailed'; // simple stats hides timeline + Sessions in Pixels (#v32)
+  static const _kDetailedCustom = 'detailed_custom'; // reveals the custom theme section (#v32.4)
+  static const _kCustomTheme = 'custom_theme'; // user-built palette, see encodeCustomTheme (#v32.3)
   static const _kSeeded = 'test_seeded_v5';
 
   late SharedPreferences _prefs;
@@ -54,6 +61,11 @@ class AppStore extends ChangeNotifier {
   int breakMin = 5;
   int sessions = 4;
   PixelTheme theme = Themes.dark;
+  // The user-built theme (#v32.3): [customSpec] keeps the raw picks so the editor
+  // reopens on them, [customTheme] is the contrast-corrected result that gets
+  // rendered. Both null until the user saves one.
+  String? customSpec;
+  PixelTheme? customTheme;
   String lang = 'en';
   bool appBlockerEnabled = false; // #v23
   Set<String> blockedApps = {}; // #v23 package names blocked during focus
@@ -74,7 +86,24 @@ class AppStore extends ChangeNotifier {
   final Random _variantRng = Random();
 
   /// Home-screen mode: false = clean pomodoro, true = live garden behind it (#3).
-  bool homeGardenBackdrop = false;
+  // clean | garden | wallpaper (#v32.4). The old bool is kept as a getter so the
+  // garden's call sites never had to learn about a third mode.
+  String homeBackdrop = 'clean';
+  bool get homeGardenBackdrop => homeBackdrop == 'garden';
+
+  /// True when the home screen sits on imagery rather than the flat theme
+  /// background — the garden or a wallpaper. Both need the light text + hard
+  /// pixel shadow the #v19 legibility rule introduced, since neither surface's
+  /// brightness is knowable in advance.
+  bool get homeOverImage => homeBackdrop != 'clean';
+
+  // The home wallpaper (#v32.4): a copy of the picked image plus the crop the
+  // user framed — zoom 1..3 and an Alignment in -1..1 on each axis. Normalised,
+  // so the crop panel's preview and the home screen agree at any surface size.
+  String? wallpaperPath;
+  double wallZoom = 1.0;
+  double wallDx = 0.0;
+  double wallDy = 0.0;
 
   /// Settings screen mode: true = show the pomodoro work/break/session
   /// steppers, false = hide them (stopwatch mode, no fixed durations to
@@ -111,6 +140,10 @@ class AppStore extends ChangeNotifier {
   /// the SESSIONS IN PIXELS screen are hidden), true = DETAILED (everything).
   bool statsDetailed = true;
 
+  /// Reveals the custom theme section on the Theme screen (#v32.4). Off by
+  /// default — the six presets are the intended path; this is the escape hatch.
+  bool detailedCustom = false;
+
   late PomodoroEngine engine;
   final StopwatchTimer stopwatch = StopwatchTimer(); // #v31.16
 
@@ -144,7 +177,11 @@ class AppStore extends ChangeNotifier {
     workMin = _prefs.getInt(_kWork) ?? 25;
     breakMin = _prefs.getInt(_kBreak) ?? 5;
     sessions = _prefs.getInt(_kSessions) ?? 4;
-    theme = Themes.byId(_prefs.getString(_kTheme));
+    customSpec = _prefs.getString(_kCustomTheme);
+    customTheme = decodeCustomTheme(customSpec);
+    final themeId = _prefs.getString(_kTheme);
+    // a saved 'custom' selection whose spec went missing falls back to a preset
+    theme = themeId == customThemeId && customTheme != null ? customTheme! : Themes.byId(themeId);
     lang = _prefs.getString(_kLang) ?? 'en';
     // a previously-selected language that no longer exists (e.g. 'ko', removed in
     // #v22) falls back to English so the UI isn't left half-translated.
@@ -176,7 +213,16 @@ class AppStore extends ChangeNotifier {
       _saveWallet();
       _saveGarden();
     }
-    homeGardenBackdrop = _prefs.getBool(_kHomeMode) ?? false;
+    // #v32.4: three modes now. Saves from before it only knew the garden bool.
+    homeBackdrop = _prefs.getString(_kBackdrop) ??
+        ((_prefs.getBool(_kHomeMode) ?? false) ? 'garden' : 'clean');
+    wallpaperPath = _prefs.getString(_kWallPath);
+    wallZoom = _prefs.getDouble(_kWallZoom) ?? 1.0;
+    wallDx = _prefs.getDouble(_kWallDx) ?? 0.0;
+    wallDy = _prefs.getDouble(_kWallDy) ?? 0.0;
+    // a wallpaper file deleted from under us must not leave a blank home screen
+    if (homeBackdrop == 'wallpaper' && wallpaperPath == null) homeBackdrop = 'clean';
+    detailedCustom = _prefs.getBool(_kDetailedCustom) ?? false;
     isPomodoroMode = _prefs.getBool(_kTimerMode) ?? true;
     autoBreak = _prefs.getBool(_kAutoBreak) ?? false;
     wallpaperCam = WallpaperCam.decode(_prefs.getString(_kWallpaperCam));
@@ -228,6 +274,18 @@ class AppStore extends ChangeNotifier {
   void setStatsDetailed(bool v) {
     statsDetailed = v;
     _prefs.setBool(_kStatsDetailed, v);
+    notifyListeners();
+  }
+
+  /// Show or hide the custom theme section (#v32.4). Hiding it while the custom
+  /// theme is worn falls back to a preset — the editor is the only way to change
+  /// those colours, so leaving it on screen would strand the user in a palette
+  /// they can no longer reach. The saved picks survive, so switching back on
+  /// restores the theme exactly as it was.
+  void setDetailedCustom(bool v) {
+    detailedCustom = v;
+    _prefs.setBool(_kDetailedCustom, v);
+    if (!v && theme.id == customThemeId) selectTheme(Themes.dark);
     notifyListeners();
   }
 
@@ -696,6 +754,14 @@ class AppStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Saves the raw [picks] and switches to the theme built from them (#v32.3).
+  void saveCustomTheme(List<int> picks) {
+    customSpec = encodeCustomTheme(picks);
+    customTheme = decodeCustomTheme(customSpec);
+    _prefs.setString(_kCustomTheme, customSpec!);
+    selectTheme(customTheme!);
+  }
+
   void selectLanguage(String tag) {
     if (tag == lang) return;
     lang = tag;
@@ -879,11 +945,41 @@ class AppStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Toggle the home screen between clean pomodoro and a live garden backdrop.
-  void setHomeGardenBackdrop(bool v) {
-    homeGardenBackdrop = v;
-    _prefs.setBool(_kHomeMode, v);
+  /// Set the home screen backdrop: `clean`, `garden` or `wallpaper` (#v32.4).
+  /// Asking for `wallpaper` without one saved falls back to `clean`.
+  void setHomeBackdrop(String mode) {
+    homeBackdrop = mode == 'wallpaper' && wallpaperPath == null ? 'clean' : mode;
+    _prefs.setString(_kBackdrop, homeBackdrop);
     notifyListeners();
+  }
+
+  /// Adopt [path] as the home wallpaper and start showing it (#v32.4). [path]
+  /// must already be a durable copy — see `copyWallpaper` in camera.dart, the
+  /// picker's own file lives in a cache the OS may clear.
+  void setWallpaper(String path) {
+    wallpaperPath = path;
+    _prefs.setString(_kWallPath, path);
+    setHomeBackdrop('wallpaper');
+  }
+
+  /// The framing the user dragged out in the crop panel. Clamped here rather
+  /// than at the gesture so a corrupt or hand-edited pref can't render an
+  /// off-screen wallpaper either.
+  void setWallpaperCrop(double zoom, double dx, double dy) {
+    wallZoom = zoom.clamp(1.0, 3.0);
+    wallDx = dx.clamp(-1.0, 1.0);
+    wallDy = dy.clamp(-1.0, 1.0);
+    _prefs.setDouble(_kWallZoom, wallZoom);
+    _prefs.setDouble(_kWallDx, wallDx);
+    _prefs.setDouble(_kWallDy, wallDy);
+    notifyListeners();
+  }
+
+  void removeWallpaper() {
+    wallpaperPath = null;
+    _prefs.remove(_kWallPath);
+    setWallpaperCrop(1.0, 0, 0);
+    setHomeBackdrop('clean');
   }
 
   /// Settings screen only, for now (#v31.15) — hides the work/break/session

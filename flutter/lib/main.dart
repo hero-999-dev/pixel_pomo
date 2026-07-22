@@ -121,8 +121,11 @@ PixelButton secondaryBtn(PixelTheme th, String lang, String text, VoidCallback? 
         lang: lang, onTap: onTap, fontSize: fontSize, padding: padding, opacity: opacity);
 
 /// A full-screen overlay scaffold with a title and a trailing CLOSE button.
-Widget overlayScaffold(BuildContext context, AppStore s, String title, List<Widget> children) {
-  final th = s.theme;
+/// [themeOverride] lets a screen paint itself in a theme the app has not
+/// adopted yet — the custom theme editor previews with it (#v32.3).
+Widget overlayScaffold(BuildContext context, AppStore s, String title, List<Widget> children,
+    {PixelTheme? themeOverride}) {
+  final th = themeOverride ?? s.theme;
   return Scaffold(
     backgroundColor: col(th.bg),
     body: SafeArea(
@@ -144,8 +147,9 @@ Widget overlayScaffold(BuildContext context, AppStore s, String title, List<Widg
   );
 }
 
-void openPanel(BuildContext context, AppStore s, Widget Function() builder) {
-  Navigator.of(context).push(MaterialPageRoute(builder: (_) => AnimatedBuilder(animation: s, builder: (_, __) => builder())));
+/// Returns when the panel is popped, so a caller can refresh behind it (#v32.4).
+Future<void> openPanel(BuildContext context, AppStore s, Widget Function() builder) {
+  return Navigator.of(context).push(MaterialPageRoute(builder: (_) => AnimatedBuilder(animation: s, builder: (_, __) => builder())));
 }
 
 // ---- home / timer -----------------------------------------------------------
@@ -170,7 +174,9 @@ class HomeScreen extends StatelessWidget {
         final modeText = !pomodoro
             ? t(lang, 'stopwatch')
             : (e.isFinished ? t(lang, 'allDone') : (e.mode == Mode.work ? t(lang, 'work') : t(lang, 'break')));
-        final modeColor = !pomodoro ? th.accent : (e.isFinished ? th.accent : th.phaseColor(e.mode));
+        // focusTint, not accent: a custom theme pins the clock to its TEXT 1 so
+        // picking a dark SELECTED SQUARE can't sink the countdown (#v32.4).
+        final modeColor = !pomodoro ? th.focusTint : (e.isFinished ? th.accent : th.phaseColor(e.mode));
         // auto-break off: ask before starting the break (#4)
         if (s.awaitingBreakPrompt) {
           // after focus the next phase is a break; after a break it's the next
@@ -202,19 +208,22 @@ class HomeScreen extends StatelessWidget {
           });
         }
         final garden = s.homeGardenBackdrop;
+        // #v32.4: a wallpaper needs the same treatment as the garden — both are
+        // imagery of unknown brightness under the timer.
+        final overImage = s.homeOverImage;
         // in garden mode the timer is drawn over the live scene, so give its text
         // a hard pixel shadow for legibility instead of a scrim box (#5/#7)
-        final shadows = garden
+        final shadows = overImage
             ? const [Shadow(offset: Offset(2, 2), color: Color(0xCC000000))]
             : const <Shadow>[];
         // over the dark garden the foreground text must be LIGHT — on light themes
         // th.onSurface is dark and was unreadable / looked "darkened" (#v19 #6).
-        final overGarden = garden ? const Color(0xFFF4F4F4) : col(th.onSurface);
+        final overGarden = overImage ? const Color(0xFFF4F4F4) : col(th.onSurface);
         // the countdown + SESSION follow the phase colour (theme accent while
         // focusing, break colour on a break) so the main screen carries each
         // theme's identity (#v32.1); in garden mode they keep the light
         // legibility colour — the v19 rule stands.
-        final phaseText = garden ? overGarden : col(modeColor);
+        final phaseText = overImage ? overGarden : col(modeColor);
         final timeText = pomodoro ? e.formattedTime() : s.stopwatch.formattedTime();
         final timerBlock = Column(
           mainAxisSize: MainAxisSize.min,
@@ -261,6 +270,10 @@ class HomeScreen extends StatelessWidget {
             children: [
               // live garden behind the timer when HOME mode = GARDEN (#3)
               if (garden) Positioned.fill(child: _liveBackdrop(th, lang)),
+              // ...or the user's own photo when HOME mode = WALLPAPER (#v32.4)
+              if (s.homeBackdrop == 'wallpaper' && s.wallpaperPath != null)
+                Positioned.fill(
+                    child: wallpaperFill(s.wallpaperPath!, s.wallZoom, s.wallDx, s.wallDy)),
               SafeArea(
                 child: garden
                     // garden mode: SESSION on its own centered line just below the
@@ -394,10 +407,10 @@ class HomeScreen extends StatelessWidget {
   Widget _topBar(BuildContext context, PixelTheme th, String lang) {
     // over the live garden wallpaper, give the coin count a hard pixel shadow +
     // a LIGHT colour (th.onSurface is dark on light themes) for legibility (#v19 #6).
-    final shadows = s.homeGardenBackdrop
+    final shadows = s.homeOverImage
         ? const [Shadow(offset: Offset(2, 2), color: Color(0xCC000000))]
         : const <Shadow>[];
-    final coinColor = s.homeGardenBackdrop ? const Color(0xFFF4F4F4) : col(th.onSurface);
+    final coinColor = s.homeOverImage ? const Color(0xFFF4F4F4) : col(th.onSurface);
     // 5 icons on the left; slightly bigger glyphs + looser padding so they
     // don't read as crammed into the screen corners (#v30 item 1).
     Widget icon(String name, VoidCallback onTap, Key key) => IconButton(
@@ -520,20 +533,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
       const SizedBox(height: 24),
       Text(t(lang, 'homeMode'), style: pixelStyle(lang, 12, col(th.onSurfaceDim), text: t(lang, 'homeMode'))),
       const SizedBox(height: 12),
+      // three modes since #v32.4 — WALLPAPER only appears once one is saved,
+      // so the row never offers a button that would bounce back to CLEAN.
       Row(
         children: [
-          for (final on in const [false, true]) ...[
-            if (on) const SizedBox(width: 12),
+          for (final mode in [
+            'clean',
+            'garden',
+            if (s.wallpaperPath != null) 'wallpaper',
+          ]) ...[
+            if (mode != 'clean') const SizedBox(width: 12),
             Expanded(
               child: PixelButton(
-                text: t(lang, on ? 'gardenMode' : 'clean'),
-                fill: s.homeGardenBackdrop == on ? th.accent : th.panel,
-                border: s.homeGardenBackdrop == on ? th.onSurface : th.onSurfaceDim,
-                textColor: s.homeGardenBackdrop == on ? th.onAccent : th.onSurface,
+                text: t(lang, mode == 'clean' ? 'clean' : (mode == 'garden' ? 'gardenMode' : 'wallMode')),
+                fill: s.homeBackdrop == mode ? th.accent : th.panel,
+                border: s.homeBackdrop == mode ? th.onSurface : th.onSurfaceDim,
+                textColor: s.homeBackdrop == mode ? th.onAccent : th.onSurface,
                 shadow: th.shadow,
                 lang: lang,
                 fontSize: 11,
-                onTap: () => s.setHomeGardenBackdrop(on),
+                onTap: () => s.setHomeBackdrop(mode),
               ),
             ),
           ],
@@ -607,6 +626,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 lang: lang,
                 fontSize: 11,
                 onTap: () => s.setStatsDetailed(detailed),
+              ),
+            ),
+          ],
+        ],
+      ),
+      // reveals the custom theme section on the Theme screen (#v32.4)
+      const SizedBox(height: 24),
+      Text(t(lang, 'detailedCustom'),
+          style: pixelStyle(lang, 12, col(th.onSurfaceDim), text: t(lang, 'detailedCustom'))),
+      const SizedBox(height: 12),
+      Row(
+        children: [
+          for (final on in const [true, false]) ...[
+            if (!on) const SizedBox(width: 12),
+            Expanded(
+              child: PixelButton(
+                text: on ? 'ON' : 'OFF',
+                fill: s.detailedCustom == on ? th.accent : th.panel,
+                border: s.detailedCustom == on ? th.onSurface : th.onSurfaceDim,
+                textColor: s.detailedCustom == on ? th.onAccent : th.onSurface,
+                shadow: th.shadow,
+                lang: lang,
+                fontSize: 11,
+                onTap: () => s.setDetailedCustom(on),
               ),
             ),
           ],
@@ -881,6 +924,7 @@ class ThemeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final th = s.theme;
     final lang = s.lang;
+    final custom = s.customTheme;
     return overlayScaffold(context, s, t(lang, 'theme'), [
       for (final pt in Themes.all)
         Padding(
@@ -889,6 +933,234 @@ class ThemeScreen extends StatelessWidget {
               ? primaryBtn(th, lang, '> ${pt.displayName}', () => s.selectTheme(pt))
               : secondaryBtn(th, lang, pt.displayName, () => s.selectTheme(pt)),
         ),
+      // The whole custom section is behind Settings → DETAILED CUSTOMISATION
+      // (#v32.4): the six presets are the intended path, this is the opt-in.
+      if (s.detailedCustom) ...[
+        // The user's own palette gets two controls once it exists: wear it, or go
+        // change it. Before that, one button that opens the editor (#v32.3).
+        if (custom != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: th.id == customThemeId
+                ? primaryBtn(th, lang, '> ${t(lang, 'custom')}', () => s.selectTheme(custom))
+                : secondaryBtn(th, lang, t(lang, 'custom'), () => s.selectTheme(custom)),
+          ),
+        secondaryBtn(th, lang, t(lang, custom == null ? 'custom' : 'customEdit'),
+            () => openPanel(context, s, () => CustomThemeScreen(s))),
+      ],
+    ]);
+  }
+}
+
+// ---- custom theme editor (#v32.3) ---------------------------------------------
+
+/// A grey ramp plus six hues in dark/mid/light. A small fixed palette keeps the
+/// app looking hand-made and rules out the mud a free RGB picker invites; every
+/// slot shares it, and [PixelTheme.custom] fixes whatever combination is picked.
+const List<int> kSwatches = [
+  0xFF0B0B0B, 0xFF2B2B2B, 0xFF565656, 0xFF8E8E8E, 0xFFCFCFCF, 0xFFF7F7F7,
+  0xFF7A1F2B, 0xFFE5484D, 0xFFF7A8AC, 0xFF7A4212, 0xFFE8801E, 0xFFF5C48A,
+  0xFF6E5A10, 0xFFE8C547, 0xFFF6E9A8, 0xFF1E4D33, 0xFF46A03C, 0xFFA6E3A1,
+  0xFF1B3A63, 0xFF58A6FF, 0xFFBBD9FF, 0xFF422A63, 0xFF9D7CD8, 0xFFD9C7F5,
+];
+
+class CustomThemeScreen extends StatefulWidget {
+  final AppStore s;
+  const CustomThemeScreen(this.s, {super.key});
+  @override
+  State<CustomThemeScreen> createState() => _CustomThemeScreenState();
+}
+
+class _CustomThemeScreenState extends State<CustomThemeScreen> {
+  // picker order == PixelTheme.fromPicks' order == the saved spec order.
+  // BREAK and INCOME reuse the strings the timer and the money screen already
+  // label those colours with.
+  static const _slotKeys = ['cBg', 'cText1', 'cText2', 'cSelected', 'cSquares', 'break', 'income'];
+
+  late List<int> picks;
+
+  @override
+  void initState() {
+    super.initState();
+    final s = widget.s;
+    // reopen on the saved picks; first time, seed from the theme on screen so
+    // the editor starts somewhere the user already likes
+    picks = customThemePicks(s.customSpec) ?? s.theme.picks;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = widget.s;
+    final lang = s.lang;
+    // The screen wears the pending theme, so the picker IS the preview — SAVE
+    // and CLOSE below double as the selected/unselected square samples.
+    final preview = PixelTheme.fromPicks(picks);
+    return overlayScaffold(
+      context,
+      s,
+      t(lang, 'custom'),
+      [
+        for (var slot = 0; slot < _slotKeys.length; slot++) ...[
+          _slotRow(preview, lang, slot),
+          // the wallpaper belongs to the background, so it sits right under it
+          if (slot == 0) ..._wallpaperRow(preview, lang),
+        ],
+        primaryBtn(preview, lang, t(lang, 'save'), () {
+          s.saveCustomTheme(picks);
+          Navigator.pop(context);
+        }),
+      ],
+      themeOverride: preview,
+    );
+  }
+
+  /// Wallpaper controls (#v32.4). Hidden on web: `image_picker` returns a blob
+  /// URL there and `Image.file` can't read it, same reason the live-wallpaper
+  /// and app-blocker buttons are phone-only.
+  List<Widget> _wallpaperRow(PixelTheme preview, String lang) {
+    if (kIsWeb) return const [];
+    final s = widget.s;
+    final has = s.wallpaperPath != null;
+    return [
+      secondaryBtn(preview, lang, t(lang, has ? 'wallEdit' : 'wallChoose'), () async {
+        // already have one → straight to the crop panel; the photo is the same
+        final path = has ? s.wallpaperPath : await pickWallpaper();
+        if (path == null || !context.mounted) return;
+        if (!has) s.setWallpaper(path);
+        await openPanel(context, s, () => WallpaperCropScreen(s, path));
+        if (mounted) setState(() {});
+      }, fontSize: 11),
+      if (has) ...[
+        const SizedBox(height: 8),
+        secondaryBtn(preview, lang, t(lang, 'wallRemove'), () {
+          s.removeWallpaper();
+          setState(() {});
+        }, fontSize: 11),
+      ],
+      const SizedBox(height: 18),
+    ];
+  }
+
+  Widget _slotRow(PixelTheme preview, String lang, int slot) {
+    final label = t(lang, _slotKeys[slot]);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: pixelStyle(lang, 9, col(preview.onSurfaceDim), text: label)),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final c in kSwatches)
+                GestureDetector(
+                  key: ValueKey('swatch_${slot}_$c'),
+                  onTap: () => setState(() => picks[slot] = c),
+                  child: Container(
+                    // 28 keeps 8 swatches per row on a phone, so a slot is 3
+                    // rows and all five slots stay within a short scroll
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: col(c),
+                      border: Border.all(
+                        color: col(picks[slot] == c ? preview.onSurface : preview.onSurfaceDim),
+                        width: picks[slot] == c ? 3 : 1,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---- home wallpaper (#v32.4) --------------------------------------------------
+
+/// The wallpaper as it fills whatever box it is given.
+///
+/// `BoxFit.cover` plus a normalised [Alignment] is exactly "which part of an
+/// overflowing photo shows", and neither it nor [zoom] depends on the box's
+/// pixel size — so the crop panel's preview and the real home screen agree
+/// without ever writing a cropped file.
+Widget wallpaperFill(String path, double zoom, double dx, double dy) {
+  // One alignment drives both: `cover` uses it to pick which part of an
+  // overflowing photo shows, and the scale anchors on the same point so zooming
+  // in keeps it framed instead of always pulling back to the centre — that is
+  // what makes the edges reachable at zoom > 1.
+  final at = Alignment(dx, dy);
+  return ClipRect(
+    child: Transform.scale(
+      scale: zoom,
+      alignment: at,
+      child: Image.file(File(path), fit: BoxFit.cover, alignment: at),
+    ),
+  );
+}
+
+/// Frame the photo the way the phone's own wallpaper cropper does: drag to
+/// choose which part shows, pinch to zoom in (#v32.4).
+class WallpaperCropScreen extends StatefulWidget {
+  final AppStore s;
+  final String path;
+  const WallpaperCropScreen(this.s, this.path, {super.key});
+  @override
+  State<WallpaperCropScreen> createState() => _WallpaperCropScreenState();
+}
+
+class _WallpaperCropScreenState extends State<WallpaperCropScreen> {
+  late double zoom = widget.s.wallZoom;
+  late double dx = widget.s.wallDx;
+  late double dy = widget.s.wallDy;
+  // `ScaleUpdateDetails.scale` is cumulative since the fingers went down, so
+  // zoom is measured against where it started; `focalPointDelta` is per-frame,
+  // so panning accumulates instead.
+  late double _zoom0 = zoom;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = widget.s;
+    final lang = s.lang;
+    final th = s.theme;
+    // the preview frame mirrors the phone's own shape, so what the user frames
+    // here is what the home screen shows
+    final screen = MediaQuery.of(context).size;
+    return overlayScaffold(context, s, t(lang, 'wallCrop'), [
+      Text(t(lang, 'wallHint'),
+          style: pixelStyle(lang, 9, col(th.onSurfaceDim), text: t(lang, 'wallHint'))),
+      const SizedBox(height: 12),
+      LayoutBuilder(builder: (_, box) {
+        final w = box.maxWidth;
+        final h = w * screen.height / screen.width;
+        return GestureDetector(
+          key: const Key('wallpaperCrop'),
+          onScaleStart: (_) => _zoom0 = zoom,
+          onScaleUpdate: (d) => setState(() {
+            zoom = (_zoom0 * d.scale).clamp(1.0, 3.0);
+            // Alignment spans -1..1 across the frame, so dividing the drag by
+            // half the frame moves the photo at roughly finger speed. Dragging
+            // right reveals what is off to the left, hence the minus.
+            dx = (dx - d.focalPointDelta.dx / (w / 2)).clamp(-1.0, 1.0);
+            dy = (dy - d.focalPointDelta.dy / (h / 2)).clamp(-1.0, 1.0);
+          }),
+          child: Container(
+            width: w,
+            height: h,
+            decoration: BoxDecoration(border: Border.all(color: col(th.onSurfaceDim), width: 2)),
+            child: wallpaperFill(widget.path, zoom, dx, dy),
+          ),
+        );
+      }),
+      const SizedBox(height: 16),
+      primaryBtn(th, lang, t(lang, 'save'), () {
+        s.setWallpaperCrop(zoom, dx, dy);
+        Navigator.pop(context);
+      }),
     ]);
   }
 }
