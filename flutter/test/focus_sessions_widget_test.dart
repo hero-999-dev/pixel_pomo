@@ -329,15 +329,17 @@ void main() {
     expect(avg, lessThanOrEqualTo(perLabelAvgSum));
   });
 
-  testWidgets('nothing is named until the picker actually narrows the set', (tester) async {
+  testWidgets('all selected says so; narrowing names the picks; the total tracks both', (tester) async {
     final s = await boot();
     await tester.pumpWidget(host(s));
     await tester.pumpAndSettle();
     await tester.tap(find.text('18 WEEKS'));
     await tester.pumpAndSettle();
-    // every in-window label shows by default → no "SELECTED: ..." line
-    expect(find.byKey(const Key('focusSessionsSelected')), findsNothing);
-    expect(find.byKey(const Key('focusSessionsSummary')), findsOneWidget);
+    // #v32.8 — with everything on, say so in a word or two rather than
+    // listing every label back (which was just the picker's own contents)
+    final all = tester.widget<Text>(find.byKey(const Key('focusSessionsSelected'))).data!;
+    expect(all, contains('LABELS'));
+    expect(all, isNot(contains('MATH')));
     final everything = sectionSummary(tester);
 
     // switch one label off in the picker
@@ -348,9 +350,77 @@ void main() {
     await tester.tap(find.text('CLOSE'));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('focusSessionsSelected')), findsOneWidget);
-    final narrowed = sectionSummary(tester);
-    expect(narrowed, isNot(everything), reason: 'the average ignored the filter');
+    final narrowedNames = tester.widget<Text>(find.byKey(const Key('focusSessionsSelected'))).data!;
+    expect(narrowedNames, isNot(all));
+    expect(narrowedNames, isNot(contains('MATH')));
+    expect(sectionSummary(tester), isNot(everything), reason: 'the average ignored the filter');
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('one label left → the whole top block goes away, it only repeated the caption', (tester) async {
+    final s = await boot();
+    await tester.pumpWidget(host(s));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('18 WEEKS'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('focusSessionsSummary')), findsOneWidget);
+
+    // turn every label off except MATH
+    await tester.tap(find.byKey(const Key('labelFilterButton')));
+    await tester.pumpAndSettle();
+    for (final l in TestData.labels.where((l) => l != 'MATH')) {
+      final row = find.text(l);
+      if (row.evaluate().isEmpty) continue; // label not used in this window
+      await tester.tap(row.last);
+      await tester.pumpAndSettle();
+    }
+    await tester.tap(find.text('CLOSE'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('MATH'), findsOneWidget, reason: 'only MATH should be left on screen');
+    expect(find.byKey(const Key('focusSessionsSummary')), findsNothing);
+    expect(find.byKey(const Key('focusSessionsSelected')), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  // #v32.8 grid widths. The test surface is 800 wide, so a full-width block is
+  // far wider than any 2-up or 3-up column — measuring the block a label's
+  // heatmap sits in separates the three layouts unambiguously.
+  double blockWidth(WidgetTester t, String label) =>
+      t.getSize(find.ancestor(of: find.text(label), matching: find.byType(Column)).first).width;
+
+  testWidgets('MONTHLY is full width (1 per row) so the caption fits one line', (tester) async {
+    final s = await boot();
+    await tester.pumpWidget(host(s));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('MONTHLY'));
+    await tester.pumpAndSettle();
+    expect(blockWidth(tester, 'MATH'), greaterThan(600));
+  });
+
+  testWidgets('WEEKLY packs 3 per row', (tester) async {
+    final s = await boot();
+    await tester.pumpWidget(host(s));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('WEEKLY'));
+    await tester.pumpAndSettle();
+    final w = blockWidth(tester, 'MATH');
+    expect(w, lessThan(800 / 3 + 20));
+    expect(w, greaterThan(800 / 4)); // not 4-up either
+  });
+
+  testWidgets('YEARLY VERTICAL stays 2 per row', (tester) async {
+    final s = await boot();
+    await tester.pumpWidget(host(s));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('YEARLY'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('yearStyleButton')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('VERTICAL'));
+    await tester.pumpAndSettle();
+    final w = blockWidth(tester, 'MATH');
+    expect(w, lessThan(800 / 2 + 20));
+    expect(w, greaterThan(800 / 3));
   });
 }

@@ -84,12 +84,15 @@ and coins, for trying out stats/heatmap features without needing to build up rea
   whatever window you're on: **how many sessions, the total, and your average per day** — averaged over the
   days you actually studied, so rest days don't quietly drag the number down. Below it, **FOCUS SESSIONS** heatmaps
   per label with **WEEKLY / MONTHLY / 18 WEEKS / YEARLY** views and its own **◀ ▶ navigator** to browse an
-  earlier period, independent of any other screen. Weekly and monthly show **2 and 3 labels side by side**; a
+  earlier period, independent of any other screen. **Weekly packs 3 labels side by side**, yearly's vertical
+  style 2, and **monthly gets the full width**, one label per row, so its caption stays on a single line; a
   **LABEL button** with pixel switches picks which labels to show for 18 weeks *and* yearly alike (yearly used
   to be one-label-only — now it's the same multi-select). Each label's box also shows **days · times · total
   time studied · average**, on every period, and the labels you currently have switched on get a **combined
   total and average** of their own right under the period buttons — pick MATH and CODING and it tells you what
-  those two together came to over the window you're looking at. **Yearly has its own STYLE picker**: **HORIZONTAL** (default) draws all 12
+  those two together came to over the window you're looking at. It names your picks, or just says **ALL 7
+  LABELS** when nothing is filtered out, and it **disappears entirely once you're down to one label**, where
+  it would only have repeated that label's own line. **Yearly has its own STYLE picker**: **HORIZONTAL** (default) draws all 12
   months as their own bordered squares, 4 per row, each holding exactly that month's real days — no bleed from
   a neighbouring month; **VERTICAL** draws the same year Daylio-style — 12 month columns × up to 31 day rows,
   one box per calendar day. Grids always show every box — future days sit faint until they color in. **Tap any

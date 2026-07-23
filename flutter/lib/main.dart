@@ -3178,7 +3178,12 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
         // picked labels were both used counts as ONE active day; summing the
         // per-label averages instead would drift upward the more labels are
         // picked.
-        if (visible.isNotEmpty) ...[
+        // With exactly ONE label on screen the block is dead weight — its two
+        // lines say what that label's own caption says a few pixels below
+        // (#v32.8: "tek bir label seçtiğimizde üstteki kısım gizlensin …
+        // çünkü tekrar ediyor"). It earns its place only while it is
+        // combining something.
+        if (visible.length > 1) ...[
           Builder(builder: (_) {
             final merged = <int, int>{};
             for (final e in visible) {
@@ -3192,17 +3197,16 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
               StatsAggregator.formatMinutes(total),
               StatsAggregator.formatMinutes(avg),
             ]);
-            // only name the selection when it is actually narrowing something
+            // Nothing filtered out → say "all of them" in a couple of words
+            // rather than listing the picker's entire contents back (#v32.8).
             final picked = visible.length < inWindow.length
                 ? tf(lang, 'selectedLabels', [visible.map((e) => e.key).join(', ')])
-                : null;
+                : tf(lang, 'allLabels', [visible.length]);
             return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              if (picked != null) ...[
-                Text(picked,
-                    key: const Key('focusSessionsSelected'),
-                    style: pixelStyle(lang, 8, col(th.onSurfaceDim), text: picked)),
-                const SizedBox(height: 3),
-              ],
+              Text(picked,
+                  key: const Key('focusSessionsSelected'),
+                  style: pixelStyle(lang, 8, col(th.onSurfaceDim), text: picked)),
+              const SizedBox(height: 3),
               Text(line,
                   key: const Key('focusSessionsSummary'),
                   style: pixelStyle(lang, 9, col(th.onSurface), text: line)),
@@ -3213,9 +3217,12 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
         if (visible.isEmpty)
           // labels exist but none were used inside this period's window
           noSessions
+        // #v32.8 — MONTHLY dropped out of the multi-column grid entirely and
+        // falls through to the full-width stack below: at 3-up its column was
+        // too narrow for the caption, which wrapped to three ragged lines.
+        // WEEKLY went the other way, 2-up → 3-up: a week is seven cells, so
+        // the grid stays legible and three fit across.
         else if (_period == _HeatPeriod.weekly)
-          perRowGrid(2)
-        else if (_period == _HeatPeriod.monthly)
           perRowGrid(3)
         else if (_period == _HeatPeriod.yearly && _yearStyle == _YearStyle.vertical)
           // the narrow Daylio-style year column leaves half the width empty —
