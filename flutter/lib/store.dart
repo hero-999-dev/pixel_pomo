@@ -247,6 +247,7 @@ class AppStore extends ChangeNotifier {
     statsDetailed = _prefs.getBool(_kStatsDetailed) ?? true;
 
     _seedOnce();
+    _topUpDemoData();
     // a hidden money tracker is fully inert — no budget-coin accrual, no
     // network fetch for rates it can't display (#v32)
     if (showMoneyTracker) _accrueMoneyReward();
@@ -334,6 +335,32 @@ class AppStore extends ChangeNotifier {
     _prefs.setInt(_kCoins, coins);
     _prefs.setString(_kLabels, labels.join('\n'));
     _prefs.setBool(_kSeeded, true);
+  }
+
+  /// Demo builds only: keep the pretend history running right up to
+  /// YESTERDAY, on every launch (#v32.6).
+  ///
+  /// [_seedOnce] fires exactly once, and installing a new APK over the old
+  /// one keeps the shared prefs — so without this the demo data would stay
+  /// frozen on the day of the very first install, and every later build
+  /// would open on a stats screen with a widening hole in front of it. Only
+  /// days strictly after the newest stored record are generated, so this
+  /// never rewrites or duplicates anything already there (including real
+  /// sessions run inside the test build), and `TestData.fill` being
+  /// per-day deterministic means the topped-up history matches what a fresh
+  /// install would have produced in one pass.
+  void _topUpDemoData() {
+    if (!(kDebugMode || _kTestBuild)) return;
+    final yesterday = epochDayOf(DateTime.now()) - 1;
+    var last = TestData.firstFillDay - 1;
+    for (final r in records) {
+      if (r.epochDay > last) last = r.epochDay;
+    }
+    if (last >= yesterday) return; // already current
+    final extra = TestData.fill(last + 1, yesterday);
+    if (extra.isEmpty) return;
+    records.addAll(extra);
+    _prefs.setString(_kStats, StatsCodec.encode(records));
   }
 
   // ---- persistence helpers --------------------------------------------------

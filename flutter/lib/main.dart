@@ -2639,6 +2639,24 @@ class _SessionsInPixelsScreenState extends State<SessionsInPixelsScreen> {
               }),
         ),
       ]),
+      // how much this window actually holds, and the mean over the days that
+      // had any focus at all (#v32.6) — rest days stay out of the divisor,
+      // so DAILY reads the day itself and MONTHLY reads "on a day I study".
+      if (sessions.isNotEmpty) ...[
+        const SizedBox(height: 8),
+        Builder(builder: (_) {
+          final (total, _, avg) = StatsAggregator.windowAverage(sessions, lo, hi);
+          final line = tf(lang, 'windowSummary', [
+            sessions.length,
+            StatsAggregator.formatMinutes(total),
+            StatsAggregator.formatMinutes(avg),
+          ]);
+          return Text(line,
+              key: const Key('sessionsWindowSummary'),
+              textAlign: TextAlign.center,
+              style: pixelStyle(lang, 8, col(th.onSurfaceDim), text: line));
+        }),
+      ],
       const SizedBox(height: 12),
       if (sessions.isEmpty)
         Text(t(lang, 'noSessionsPeriod'),
@@ -2928,14 +2946,16 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
         for (final kv in e.value.entries)
           if (kv.key >= lo && kv.key <= hi) kv.key: kv.value
       };
-      final winMinutes = (labelMinutes[e.key] ?? const <int, int>{})
-          .entries
-          .where((kv) => kv.key >= lo && kv.key <= hi)
-          .fold(0, (sum, kv) => sum + kv.value);
+      // total AND the mean over the days this label was actually used inside
+      // the window (#v32.6) — same divisor rule as the Session Heatmap's
+      // summary, so the two screens never disagree.
+      final (winMinutes, _, winAvg) = StatsAggregator.dayMapAverage(
+          labelMinutes[e.key] ?? const <int, int>{}, lo, hi);
       final caption = tf(lang, 'daysTimesTotal', [
         HabitLog.daysDone(winDays),
         HabitLog.totalTimes(winDays),
         StatsAggregator.formatMinutes(winMinutes),
+        StatsAggregator.formatMinutes(winAvg),
       ]);
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -3150,6 +3170,44 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
               ),
             ],
           ]),
+          const SizedBox(height: 12),
+        ],
+        // Combined figure for the labels currently on screen — "when I pick
+        // the labels, tell me the average for that time range" (#v32.6).
+        // Minutes are merged per DAY before averaging, so a day on which two
+        // picked labels were both used counts as ONE active day; summing the
+        // per-label averages instead would drift upward the more labels are
+        // picked.
+        if (visible.isNotEmpty) ...[
+          Builder(builder: (_) {
+            final merged = <int, int>{};
+            for (final e in visible) {
+              for (final kv in (labelMinutes[e.key] ?? const <int, int>{}).entries) {
+                if (kv.key < lo || kv.key > hi) continue;
+                merged[kv.key] = (merged[kv.key] ?? 0) + kv.value;
+              }
+            }
+            final (total, _, avg) = StatsAggregator.dayMapAverage(merged, lo, hi);
+            final line = tf(lang, 'labelWindowSummary', [
+              StatsAggregator.formatMinutes(total),
+              StatsAggregator.formatMinutes(avg),
+            ]);
+            // only name the selection when it is actually narrowing something
+            final picked = visible.length < inWindow.length
+                ? tf(lang, 'selectedLabels', [visible.map((e) => e.key).join(', ')])
+                : null;
+            return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              if (picked != null) ...[
+                Text(picked,
+                    key: const Key('focusSessionsSelected'),
+                    style: pixelStyle(lang, 8, col(th.onSurfaceDim), text: picked)),
+                const SizedBox(height: 3),
+              ],
+              Text(line,
+                  key: const Key('focusSessionsSummary'),
+                  style: pixelStyle(lang, 9, col(th.onSurface), text: line)),
+            ]);
+          }),
           const SizedBox(height: 12),
         ],
         if (visible.isEmpty)

@@ -479,20 +479,112 @@ void main() {
   group('TestData fixture (mid-week today)', () {
     final today = DateTime(2026, 6, 17);
     final recs = TestData.records(today);
-    test('buckets to 360 / 700 / 1000', () {
+    test('today is still the exact hand-written 360; the wider windows nest', () {
       final totals = StatsAggregator.aggregate(recs, today);
+      // TODAY stays exact — the generated fill stops at YESTERDAY (#v32.6),
+      // so nothing lands on today but the four hand-written sessions. The
+      // week/month totals used to be exact 700/1000 too, back when the fill
+      // stopped 20 days short of today; now that it runs right up to
+      // yesterday they are "at least that much", and the real invariant
+      // worth pinning is that the windows nest.
       expect(totals.today, 360);
-      expect(totals.week, 700);
-      expect(totals.month, 1000);
+      expect(totals.week, greaterThanOrEqualTo(700));
+      expect(totals.month, greaterThanOrEqualTo(1000));
+      expect(totals.week, greaterThanOrEqualTo(totals.today));
+      expect(totals.month, greaterThanOrEqualTo(totals.week));
+      expect(totals.year, greaterThanOrEqualTo(totals.month));
+      expect(totals.all, greaterThanOrEqualTo(totals.year));
     });
-    test('2025 seeded; 1000 coins', () {
-      expect(recs.any((r) => dateOfEpochDay(r.epochDay).year == 2025), true);
+    test('2024 AND 2025 seeded; 1000 coins (#v32.6)', () {
+      final years = {for (final r in recs) dateOfEpochDay(r.epochDay).year};
+      expect(years.contains(2024), true, reason: '2024 must be filled too');
+      expect(years.contains(2025), true);
+      expect(years.contains(2026), true);
       expect(TestData.seedCoins, 1000);
+    });
+    test('history runs right up to YESTERDAY, never past it (#v32.6)', () {
+      final todayE = epochDayOf(today);
+      final generated = [for (final r in recs) r.epochDay]..sort();
+      expect(generated.last, todayE, reason: 'the hand-written sessions are today');
+      // every day from yesterday back a fortnight has at least one session
+      // somewhere in the fixture is too strong (the fill keeps ~1-in-4 rest
+      // days on purpose) — what must hold is that SOMETHING lands in the
+      // last few days, i.e. the fill no longer stops 20 days short.
+      final recent = recs.where((r) => r.epochDay >= todayE - 5 && r.epochDay < todayE);
+      expect(recent, isNotEmpty);
     });
     test('daily trend curve is non-empty — timestamps seeded (v18)', () {
       final s = StatsAggregator.dailyCumulative(recs, today);
       expect(s.totals.any((v) => v > 0), true); // was all-zero before timestamps
       expect(s.totals.last, 360); // cumulative end-of-day == today's total
+    });
+  });
+
+  group('TestData.fill is per-day deterministic (#v32.6)', () {
+    // The store tops the demo history up to yesterday on EVERY launch, so a
+    // sub-range must generate exactly what it would have generated as part
+    // of one long run — otherwise a top-up would produce a different history
+    // than a fresh install, and re-running it could double up a day.
+    final lo = epochDayOf(DateTime(2025, 3, 1));
+    final mid = epochDayOf(DateTime(2025, 3, 20));
+    final hi = epochDayOf(DateTime(2025, 4, 10));
+
+    String sig(List<SessionRecord> rs) =>
+        rs.map((r) => '${r.epochDay}/${r.minutes}/${r.label}/${r.minuteOfDay}').join('|');
+
+    test('splitting a range changes nothing', () {
+      final whole = TestData.fill(lo, hi);
+      final parts = [...TestData.fill(lo, mid), ...TestData.fill(mid + 1, hi)];
+      expect(sig(parts), sig(whole));
+    });
+
+    test('same range twice is identical, and an empty range is empty', () {
+      expect(sig(TestData.fill(lo, hi)), sig(TestData.fill(lo, hi)));
+      expect(TestData.fill(hi, lo), isEmpty); // reversed → nothing
+    });
+
+    test('every generated record is sane', () {
+      for (final r in TestData.fill(lo, hi)) {
+        expect(r.epochDay, inInclusiveRange(lo, hi));
+        expect(r.minutes, greaterThan(0));
+        expect(TestData.labels.contains(r.label), true);
+        expect(r.minuteOfDay, inInclusiveRange(0, 1439));
+      }
+    });
+  });
+
+  group('window average per ACTIVE day (#v32.6)', () {
+    // 3 sessions over 2 active days inside the window, plus noise outside it
+    // and a zero-minute record that must not count as an active day.
+    final recs = [
+      const SessionRecord(10, 60, 'MATH'),
+      const SessionRecord(10, 30, 'CODING'),
+      const SessionRecord(12, 30, 'MATH'),
+      const SessionRecord(13, 0, 'MATH'), // zero → not an active day
+      const SessionRecord(99, 500, 'MATH'), // outside the window
+    ];
+
+    test('windowAverage divides by days that actually had minutes', () {
+      final (total, days, avg) = StatsAggregator.windowAverage(recs, 10, 14);
+      expect(total, 120);
+      expect(days, 2); // day 10 and day 12; day 13 logged 0 minutes
+      expect(avg, 60);
+    });
+
+    test('an empty window averages to 0 instead of dividing by zero', () {
+      final (total, days, avg) = StatsAggregator.windowAverage(recs, 200, 300);
+      expect(total, 0);
+      expect(days, 0);
+      expect(avg, 0);
+    });
+
+    test('dayMapAverage does the same over an already-bucketed day map', () {
+      final (total, days, avg) =
+          StatsAggregator.dayMapAverage({10: 60, 12: 30, 13: 0, 99: 500}, 10, 14);
+      expect(total, 90);
+      expect(days, 2);
+      expect(avg, 45);
+      expect(StatsAggregator.dayMapAverage(const {}, 0, 5), (0, 0, 0));
     });
   });
 

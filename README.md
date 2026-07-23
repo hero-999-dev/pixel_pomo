@@ -80,12 +80,16 @@ and coins, for trying out stats/heatmap features without needing to build up rea
   picker choosing how much history to pull in: **DAILY** shows just today, **WEEKLY** the current week,
   **MONTHLY / YEARLY** every session that month/year — do 30 sessions this week and you get exactly 30
   boxes, do 1000 this year and you get exactly 1000 — plus a **◀ ▶ navigator** to browse an earlier
-  day/week/month/year instead of only ever seeing the current one — and below it, **FOCUS SESSIONS** heatmaps
+  day/week/month/year instead of only ever seeing the current one. Above the boxes sits a one-line summary of
+  whatever window you're on: **how many sessions, the total, and your average per day** — averaged over the
+  days you actually studied, so rest days don't quietly drag the number down. Below it, **FOCUS SESSIONS** heatmaps
   per label with **WEEKLY / MONTHLY / 18 WEEKS / YEARLY** views and its own **◀ ▶ navigator** to browse an
   earlier period, independent of any other screen. Weekly and monthly show **2 and 3 labels side by side**; a
   **LABEL button** with pixel switches picks which labels to show for 18 weeks *and* yearly alike (yearly used
   to be one-label-only — now it's the same multi-select). Each label's box also shows **days · times · total
-  time studied**, on every period. **Yearly has its own STYLE picker**: **HORIZONTAL** (default) draws all 12
+  time studied · average**, on every period, and the labels you currently have switched on get a **combined
+  total and average** of their own right under the period buttons — pick MATH and CODING and it tells you what
+  those two together came to over the window you're looking at. **Yearly has its own STYLE picker**: **HORIZONTAL** (default) draws all 12
   months as their own bordered squares, 4 per row, each holding exactly that month's real days — no bleed from
   a neighbouring month; **VERTICAL** draws the same year Daylio-style — 12 month columns × up to 31 day rows,
   one box per calendar day. Grids always show every box — future days sit faint until they color in. **Tap any

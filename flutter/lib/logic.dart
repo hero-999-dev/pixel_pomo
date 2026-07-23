@@ -1034,6 +1034,44 @@ class StatsAggregator {
     return out;
   }
 
+  /// Total minutes, how many days actually had focus time, and the mean
+  /// minutes per ACTIVE day, over the inclusive epoch-day window [lo, hi]
+  /// (#v32.6). Rest days are deliberately left out of the divisor: the
+  /// question this answers is "on a day I study, how long do I study" — a
+  /// calendar-diluted mean would say 36m for someone who does 2h four times
+  /// a week. Returns a 0 average for an empty window rather than dividing
+  /// by zero.
+  static (int total, int activeDays, int avgPerActiveDay) windowAverage(
+      List<SessionRecord> records, int lo, int hi) {
+    var total = 0;
+    final days = <int>{};
+    for (final r in records) {
+      if (r.epochDay < lo || r.epochDay > hi) continue;
+      final m = r.minutes < 0 ? 0 : r.minutes;
+      if (m <= 0) continue; // a 0-minute record is not an active day
+      total += m;
+      days.add(r.epochDay);
+    }
+    return (total, days.length, days.isEmpty ? 0 : total ~/ days.length);
+  }
+
+  /// [windowAverage] over an already-bucketed epochDay -> minutes map, which
+  /// is the shape the Focus Sessions heatmaps already hold their data in
+  /// (`LabelHabits.minutesFromRecords`) — saves re-walking every record per
+  /// label.
+  static (int total, int activeDays, int avgPerActiveDay) dayMapAverage(
+      Map<int, int> minutesByDay, int lo, int hi) {
+    var total = 0, days = 0;
+    for (final e in minutesByDay.entries) {
+      if (e.key < lo || e.key > hi) continue;
+      final m = e.value < 0 ? 0 : e.value;
+      if (m <= 0) continue;
+      total += m;
+      days++;
+    }
+    return (total, days, days == 0 ? 0 : total ~/ days);
+  }
+
   /// Inclusive [startEpochDay, endEpochDay] window for a period relative to [now].
   static (int, int) windowDays(DateTime now, StatPeriod p) {
     final todayE = epochDayOf(now);
@@ -1304,25 +1342,39 @@ class TestData {
     add(DateTime(today.year, today.month - 2, 22), 130, 'HISTORY', 12 * 60);
     add(DateTime(today.year, today.month - 3, 14), 60, 'ENGLISH', 17 * 60);
 
-    // a FULL, natural-looking history from Jan 1 2025 through 20 days before
-    // today (#v31.3, extended #v31.10): most days active, ~1-in-4 rest days,
-    // 1-8h per active day split over 1-3 sessions across varied labels —
-    // covers all of 2025 AND the earlier months of the current year (was
-    // just a dozen scattered points there before, #v31.10), so every month
-    // Sessions in Pixels can browse to has real data, not sparse gaps.
-    // Deterministic LCG so every fresh install seeds the same history (no
-    // dart:math in this pure file). Stops 20 days short of [today] so it
-    // never overlaps the exact 360/700/1000 bucket assertions in
-    // TestDataTest, which live in the current day/week/month window.
-    var h = 0x9E37;
-    int rnd(int n) {
-      h = (h * 48271) % 0x7FFFFFFF;
-      return h % n;
-    }
+    // ...and a FULL, natural-looking history behind them, running from
+    // [firstFillDay] right up to YESTERDAY.
+    out.addAll(fill(firstFillDay, epochDayOf(today) - 1));
 
-    final fillStart = epochDayOf(DateTime(2025, 1, 1));
-    final fillEnd = epochDayOf(today.subtract(const Duration(days: 20)));
-    for (var d = fillStart; d <= fillEnd; d++) {
+    return out;
+  }
+
+  /// Where the generated pretend history starts: 1 Jan 2024 (#v32.6 — was
+  /// 2025-01-01, so YEARLY had only one full past year to browse).
+  static final int firstFillDay = epochDayOf(DateTime(2024, 1, 1));
+
+  /// Deterministic pretend history for the inclusive epoch-day range
+  /// [fromDay, toDay]: most days active, ~1-in-4 rest days, 1-8h per active
+  /// day split over 1-3 sessions across varied labels, so every month
+  /// Sessions in Pixels can browse to has real data instead of sparse gaps.
+  ///
+  /// Each day is generated from its OWN seed rather than from one running
+  /// LCG (#v32.6). That makes the function range-independent — `fill(a, c)`
+  /// is exactly `fill(a, b) + fill(b+1, c)` — which is what lets the store
+  /// top the history up on every launch (`_topUpDemoData`) and still produce
+  /// the same history a fresh install would have generated in one pass.
+  /// Sticks to plain integer maths: this file stays free of dart:math, and
+  /// every product below stays under 2^53 so the web build agrees with
+  /// native.
+  static List<SessionRecord> fill(int fromDay, int toDay) {
+    final out = <SessionRecord>[];
+    for (var d = fromDay; d <= toDay; d++) {
+      var h = ((d + 1000000) * 2654435 + 0x9E37) % 0x7FFFFFFF;
+      int rnd(int n) {
+        h = (h * 48271) % 0x7FFFFFFF;
+        return h % n;
+      }
+
       if (rnd(4) == 0) continue; // natural gaps
       final total = 60 + rnd(421); // 1h .. 8h
       final parts = 1 + rnd(3); // 1-3 sessions
@@ -1337,7 +1389,6 @@ class TestData {
         minute += m + 10 + rnd(60);
       }
     }
-
     return out;
   }
 }

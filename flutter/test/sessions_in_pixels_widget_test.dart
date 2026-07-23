@@ -193,4 +193,62 @@ void main() {
     expect(activeColors.length, greaterThan(1),
         reason: 'every active box rendered the same colour — the flat-accent bug is back');
   });
+
+  // #v32.6 — "session in pixels'de average olsun". Session count, total, and
+  // the mean over the days that actually had focus, above the strip.
+  String summary(WidgetTester t) =>
+      t.widget<Text>(find.byKey(const Key('sessionsWindowSummary'))).data!;
+
+  testWidgets('the window summary states sessions, total and the per-active-day average', (tester) async {
+    final s = await boot();
+    await tester.pumpWidget(MaterialApp(home: SessionsInPixelsScreen(s)));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('MONTHLY').first);
+    await tester.pumpAndSettle();
+
+    final (lo, hi) = StatsAggregator.windowDays(DateTime.now(), StatPeriod.monthly);
+    final inWindow = s.records.where((r) => r.epochDay >= lo && r.epochDay <= hi).toList();
+    final (total, days, avg) = StatsAggregator.windowAverage(inWindow, lo, hi);
+    expect(days, greaterThan(1)); // sanity: the seeded month spans several days
+
+    final line = summary(tester);
+    expect(line, contains('${inWindow.length} SESSIONS'));
+    expect(line, contains(StatsAggregator.formatMinutes(total)));
+    expect(line, contains('AVG ${StatsAggregator.formatMinutes(avg)}/DAY'));
+    // the mean must be a per-DAY figure, not the whole window restated
+    expect(avg, lessThan(total));
+  });
+
+  testWidgets('DAILY averages over the single day, so the average equals the total', (tester) async {
+    final s = await boot();
+    await tester.pumpWidget(MaterialApp(home: SessionsInPixelsScreen(s)));
+    await tester.pumpAndSettle(); // DAILY is the default unit
+
+    final today = epochDayOf(DateTime.now());
+    final todayMinutes =
+        s.records.where((r) => r.epochDay == today).fold(0, (a, r) => a + r.minutes);
+    final line = summary(tester);
+    expect(line, contains(StatsAggregator.formatMinutes(todayMinutes)));
+    expect(line, contains('AVG ${StatsAggregator.formatMinutes(todayMinutes)}/DAY'));
+  });
+
+  testWidgets('an empty window shows no summary at all, just the empty notice', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final s = AppStore();
+    await s.load();
+    // browse far enough back that the seeded history cannot reach: TestData
+    // starts at 1 Jan 2024, so ~30 years of DAILY steps lands well before it
+    await tester.pumpWidget(MaterialApp(home: SessionsInPixelsScreen(s)));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('YEARLY').first);
+    await tester.pumpAndSettle();
+    for (var i = 0; i < 30; i++) {
+      await tester.tap(find.byKey(const Key('heatmapPrev')));
+      await tester.pump();
+    }
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('sessionsWindowSummary')), findsNothing);
+    expect(sessionBoxCount(tester), 0);
+    expect(tester.takeException(), isNull);
+  });
 }

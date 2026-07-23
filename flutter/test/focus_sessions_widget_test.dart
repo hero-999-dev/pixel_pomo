@@ -132,10 +132,14 @@ void main() {
 
     String captionFor(int lo, int hi) {
       final winDays = {for (final kv in mathDays.entries) if (kv.key >= lo && kv.key <= hi) kv.key: kv.value};
-      final winMinutes =
-          mathMinutes.entries.where((kv) => kv.key >= lo && kv.key <= hi).fold(0, (a, kv) => a + kv.value);
-      return tf('en', 'daysTimesTotal',
-          [HabitLog.daysDone(winDays), HabitLog.totalTimes(winDays), StatsAggregator.formatMinutes(winMinutes)]);
+      // 4th slot since #v32.6: the mean over the days the label was used
+      final (winMinutes, _, winAvg) = StatsAggregator.dayMapAverage(mathMinutes, lo, hi);
+      return tf('en', 'daysTimesTotal', [
+        HabitLog.daysDone(winDays),
+        HabitLog.totalTimes(winDays),
+        StatsAggregator.formatMinutes(winMinutes),
+        StatsAggregator.formatMinutes(winAvg),
+      ]);
     }
 
     await tester.pumpWidget(host(s));
@@ -284,5 +288,69 @@ void main() {
     // day-of-month row numbers are present (up to 31) — findsWidgets, not
     // findsOneWidget: every currently-visible label gets its own grid
     expect(find.text('31'), findsWidgets);
+  });
+
+  // #v32.6 — "labelları seçtiğimizde o zaman aralığının averajını söylesin":
+  // one combined figure for whatever labels are on screen, plus the per-label
+  // average already pinned by the caption test above.
+  String sectionSummary(WidgetTester t) =>
+      t.widget<Text>(find.byKey(const Key('focusSessionsSummary'))).data!;
+
+  testWidgets('the combined summary merges the visible labels PER DAY before averaging', (tester) async {
+    final s = await boot();
+    await tester.pumpWidget(host(s));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('MONTHLY'));
+    await tester.pumpAndSettle();
+
+    final now = DateTime.now();
+    final lo = epochDayOf(DateTime.utc(now.year, now.month, 1));
+    final hi = epochDayOf(DateTime.utc(now.year, now.month + 1, 0));
+    final byLabel = LabelHabits.minutesFromRecords(s.records);
+    final merged = <int, int>{};
+    for (final byDay in byLabel.values) {
+      for (final kv in byDay.entries) {
+        if (kv.key < lo || kv.key > hi) continue;
+        merged[kv.key] = (merged[kv.key] ?? 0) + kv.value;
+      }
+    }
+    final (total, days, avg) = StatsAggregator.dayMapAverage(merged, lo, hi);
+    expect(days, greaterThan(1));
+
+    final line = sectionSummary(tester);
+    expect(line, contains(StatsAggregator.formatMinutes(total)));
+    expect(line, contains('AVG ${StatsAggregator.formatMinutes(avg)}/DAY'));
+
+    // a day used by two labels must count ONCE — summing the per-label
+    // averages would come out higher than the merged one
+    final perLabelAvgSum = byLabel.values
+        .map((byDay) => StatsAggregator.dayMapAverage(byDay, lo, hi).$3)
+        .fold(0, (a, b) => a + b);
+    expect(avg, lessThanOrEqualTo(perLabelAvgSum));
+  });
+
+  testWidgets('nothing is named until the picker actually narrows the set', (tester) async {
+    final s = await boot();
+    await tester.pumpWidget(host(s));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('18 WEEKS'));
+    await tester.pumpAndSettle();
+    // every in-window label shows by default → no "SELECTED: ..." line
+    expect(find.byKey(const Key('focusSessionsSelected')), findsNothing);
+    expect(find.byKey(const Key('focusSessionsSummary')), findsOneWidget);
+    final everything = sectionSummary(tester);
+
+    // switch one label off in the picker
+    await tester.tap(find.byKey(const Key('labelFilterButton')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('MATH').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('CLOSE'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('focusSessionsSelected')), findsOneWidget);
+    final narrowed = sectionSummary(tester);
+    expect(narrowed, isNot(everything), reason: 'the average ignored the filter');
+    expect(tester.takeException(), isNull);
   });
 }
