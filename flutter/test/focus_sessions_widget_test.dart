@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pixel_pomo/logic.dart';
 import 'package:pixel_pomo/main.dart';
+import 'package:pixel_pomo/pixel.dart';
 import 'package:pixel_pomo/store.dart';
 import 'package:pixel_pomo/strings.dart';
 
@@ -130,27 +131,64 @@ void main() {
     final mathDays = s.labelHabitCounts['MATH']!;
     final mathMinutes = LabelHabits.minutesFromRecords(s.records)['MATH']!;
 
-    String captionFor(int lo, int hi) {
+    // #v32.9 — three fixed lines split by field, not one wrapping string, so
+    // a value can never be broken in half by the column width.
+    List<String> captionFor(int lo, int hi) {
       final winDays = {for (final kv in mathDays.entries) if (kv.key >= lo && kv.key <= hi) kv.key: kv.value};
-      // 4th slot since #v32.6: the mean over the days the label was used
       final (winMinutes, _, winAvg) = StatsAggregator.dayMapAverage(mathMinutes, lo, hi);
-      return tf('en', 'daysTimesTotal', [
-        HabitLog.daysDone(winDays),
-        HabitLog.totalTimes(winDays),
+      return [
+        tf('en', 'capDaysTimes', [HabitLog.daysDone(winDays), HabitLog.totalTimes(winDays)]),
         StatsAggregator.formatMinutes(winMinutes),
-        StatsAggregator.formatMinutes(winAvg),
-      ]);
+        tf('en', 'capAvg', [StatsAggregator.formatMinutes(winAvg)]),
+      ];
     }
 
     await tester.pumpWidget(host(s));
     await tester.pumpAndSettle();
     await tester.tap(find.text('WEEKLY'));
     await tester.pumpAndSettle();
-    expect(find.text(captionFor(monday, monday + 6)), findsOneWidget);
+    for (final line in captionFor(monday, monday + 6)) {
+      expect(find.text(line), findsWidgets, reason: 'WEEKLY lost "$line"');
+    }
 
     await tester.tap(find.text('MONTHLY'));
     await tester.pumpAndSettle();
-    expect(find.text(captionFor(monthLo, monthHi)), findsOneWidget);
+    for (final line in captionFor(monthLo, monthHi)) {
+      expect(find.text(line), findsWidgets, reason: 'MONTHLY lost "$line"');
+    }
+  });
+
+  testWidgets('no caption line is ever wide enough to split a value in a 3-up column', (tester) async {
+    // The real failure this replaced: one 312px-wide caption string in a
+    // 113px column broke wherever it ran out of room, putting "92h" on one
+    // line and "45m" on the next. Each line is now its own Text, and every
+    // line except the DAYS · TIMES one must fit a 3-up column outright — a
+    // value must never need to wrap at all.
+    const columnAt3Up = 113.0;
+    final s = await boot();
+    await tester.pumpWidget(host(s));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('MONTHLY'));
+    await tester.pumpAndSettle();
+
+    final mathMinutes = LabelHabits.minutesFromRecords(s.records)['MATH']!;
+    final now = DateTime.now();
+    final (total, _, avg) = StatsAggregator.dayMapAverage(mathMinutes,
+        epochDayOf(DateTime.utc(now.year, now.month, 1)),
+        epochDayOf(DateTime.utc(now.year, now.month + 1, 0)));
+
+    for (final line in [
+      StatsAggregator.formatMinutes(total),
+      tf('en', 'capAvg', [StatsAggregator.formatMinutes(avg)]),
+      // a deliberately long value, to prove the rule holds beyond the fixture
+      tf('en', 'capAvg', ['999h 59m']),
+    ]) {
+      final tp = TextPainter(
+        text: TextSpan(text: line, style: pixelStyle('en', 8, const Color(0xFF000000), text: line)),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      expect(tp.width, lessThan(columnAt3Up), reason: '"$line" would wrap mid-value at 3-up');
+    }
   });
 
   testWidgets('has its own independent prev/next navigator (#v31.13)', (tester) async {
@@ -389,24 +427,17 @@ void main() {
   double blockWidth(WidgetTester t, String label) =>
       t.getSize(find.ancestor(of: find.text(label), matching: find.byType(Column)).first).width;
 
-  testWidgets('MONTHLY is full width (1 per row) so the caption fits one line', (tester) async {
+  testWidgets('WEEKLY and MONTHLY both pack 3 per row', (tester) async {
     final s = await boot();
     await tester.pumpWidget(host(s));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('MONTHLY'));
-    await tester.pumpAndSettle();
-    expect(blockWidth(tester, 'MATH'), greaterThan(600));
-  });
-
-  testWidgets('WEEKLY packs 3 per row', (tester) async {
-    final s = await boot();
-    await tester.pumpWidget(host(s));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('WEEKLY'));
-    await tester.pumpAndSettle();
-    final w = blockWidth(tester, 'MATH');
-    expect(w, lessThan(800 / 3 + 20));
-    expect(w, greaterThan(800 / 4)); // not 4-up either
+    for (final period in ['WEEKLY', 'MONTHLY']) {
+      await tester.tap(find.text(period));
+      await tester.pumpAndSettle();
+      final w = blockWidth(tester, 'MATH');
+      expect(w, lessThan(800 / 3 + 20), reason: '$period is not 3-up');
+      expect(w, greaterThan(800 / 4), reason: '$period went 4-up'); // not 4-up either
+    }
   });
 
   testWidgets('YEARLY VERTICAL stays 2 per row', (tester) async {

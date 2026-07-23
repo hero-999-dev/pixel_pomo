@@ -2951,21 +2951,28 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
       // summary, so the two screens never disagree.
       final (winMinutes, _, winAvg) = StatsAggregator.dayMapAverage(
           labelMinutes[e.key] ?? const <int, int>{}, lo, hi);
-      final caption = tf(lang, 'daysTimesTotal', [
-        HabitLog.daysDone(winDays),
-        HabitLog.totalTimes(winDays),
+      // THREE fixed lines, split by field, instead of one long wrapping
+      // string. The single line was 312px at fontSize 8 and no column is
+      // that wide (3-up gives 113px, 2-up 173px), so it broke wherever it
+      // ran out of room — which put "92h" on one line and "45m" on the
+      // next, half a value on each. Giving each field its own line means a
+      // value can never be split at any column width; the only break left
+      // possible is at the ` · ` between DAYS and TIMES on the first line.
+      final capLines = [
+        tf(lang, 'capDaysTimes', [HabitLog.daysDone(winDays), HabitLog.totalTimes(winDays)]),
         StatsAggregator.formatMinutes(winMinutes),
-        StatsAggregator.formatMinutes(winAvg),
-      ]);
+        tf(lang, 'capAvg', [StatsAggregator.formatMinutes(winAvg)]),
+      ];
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(e.key, style: pixelStyle(lang, 10, col(s.labelColorOf(e.key)), text: e.key)),
-          // now shown for every period, including the narrow 2-up/3-up
+          // shown for every period, including the narrow 2-up/3-up
           // weekly/monthly layouts (#v31.13 — used to skip those so the
-          // grids fit, #v31.2/#v31.5); wraps to a second line there instead.
+          // grids fit, #v31.2/#v31.5)
           const SizedBox(height: 2),
-          Text(caption, style: pixelStyle(lang, 8, col(th.onSurfaceDim), text: caption)),
+          for (final l in capLines)
+            Text(l, style: pixelStyle(lang, 8, col(th.onSurfaceDim), text: l)),
           const SizedBox(height: 4),
           heatmapFor(e),
         ],
@@ -3217,12 +3224,11 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
         if (visible.isEmpty)
           // labels exist but none were used inside this period's window
           noSessions
-        // #v32.8 — MONTHLY dropped out of the multi-column grid entirely and
-        // falls through to the full-width stack below: at 3-up its column was
-        // too narrow for the caption, which wrapped to three ragged lines.
-        // WEEKLY went the other way, 2-up → 3-up: a week is seven cells, so
-        // the grid stays legible and three fit across.
-        else if (_period == _HeatPeriod.weekly)
+        // WEEKLY and MONTHLY both pack 3 across (#v32.9 — v32.8 briefly gave
+        // monthly the full width to fit the caption on one line; the caption
+        // is three fixed lines now, so the width was no longer needed and
+        // monthly went back to 3-up).
+        else if (_period == _HeatPeriod.weekly || _period == _HeatPeriod.monthly)
           perRowGrid(3)
         else if (_period == _HeatPeriod.yearly && _yearStyle == _YearStyle.vertical)
           // the narrow Daylio-style year column leaves half the width empty —
