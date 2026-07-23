@@ -337,27 +337,40 @@ class AppStore extends ChangeNotifier {
     _prefs.setBool(_kSeeded, true);
   }
 
-  /// Demo builds only: keep the pretend history running right up to
-  /// YESTERDAY, on every launch (#v32.6).
+  /// Demo builds only: keep the pretend history spanning
+  /// [TestData.firstFillDay] → YESTERDAY, on every launch (#v32.6).
   ///
   /// [_seedOnce] fires exactly once, and installing a new APK over the old
   /// one keeps the shared prefs — so without this the demo data would stay
   /// frozen on the day of the very first install, and every later build
-  /// would open on a stats screen with a widening hole in front of it. Only
-  /// days strictly after the newest stored record are generated, so this
-  /// never rewrites or duplicates anything already there (including real
-  /// sessions run inside the test build), and `TestData.fill` being
-  /// per-day deterministic means the topped-up history matches what a fresh
-  /// install would have produced in one pass.
+  /// would open on a stats screen with a widening hole in front of it.
+  ///
+  /// Both ends need filling, which the first cut of this got wrong. FORWARD
+  /// is the obvious half: the days that have passed since the newest stored
+  /// record. BACKWARD matters whenever a release moves the history's start
+  /// date — v32.6 moved it from 2025-01-01 to 2024-01-01, and an
+  /// already-seeded phone would otherwise never see 2024 at all, since
+  /// nothing ever regenerates what sits before the earliest record.
+  ///
+  /// Only days strictly outside the stored span are generated, so this never
+  /// rewrites or duplicates anything already there (including real sessions
+  /// run inside the test build), and `TestData.fill` being per-day
+  /// deterministic means the topped-up history matches what a fresh install
+  /// would have produced in one pass.
   void _topUpDemoData() {
     if (!(kDebugMode || _kTestBuild)) return;
+    if (records.isEmpty) return; // nothing seeded (a real build) — leave it alone
     final yesterday = epochDayOf(DateTime.now()) - 1;
-    var last = TestData.firstFillDay - 1;
+    var first = records.first.epochDay, last = records.first.epochDay;
     for (final r in records) {
+      if (r.epochDay < first) first = r.epochDay;
       if (r.epochDay > last) last = r.epochDay;
     }
-    if (last >= yesterday) return; // already current
-    final extra = TestData.fill(last + 1, yesterday);
+    final extra = <SessionRecord>[
+      if (last < yesterday) ...TestData.fill(last + 1, yesterday),
+      if (first > TestData.firstFillDay)
+        ...TestData.fill(TestData.firstFillDay, first - 1),
+    ];
     if (extra.isEmpty) return;
     records.addAll(extra);
     _prefs.setString(_kStats, StatsCodec.encode(records));
