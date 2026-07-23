@@ -2951,15 +2951,19 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
       // summary, so the two screens never disagree.
       final (winMinutes, _, winAvg) = StatsAggregator.dayMapAverage(
           labelMinutes[e.key] ?? const <int, int>{}, lo, hi);
-      // THREE fixed lines, split by field, instead of one long wrapping
+      // FOUR fixed lines, one per field, instead of one long wrapping
       // string. The single line was 312px at fontSize 8 and no column is
       // that wide (3-up gives 113px, 2-up 173px), so it broke wherever it
       // ran out of room — which put "92h" on one line and "45m" on the
       // next, half a value on each. Giving each field its own line means a
-      // value can never be split at any column width; the only break left
-      // possible is at the ` · ` between DAYS and TIMES on the first line.
+      // value can never be split at any column width; DAYS and TIMES now
+      // split too (#v32.12), which removes the last ` · ` a break could
+      // land on. ponytail: split the joined string instead of adding two
+      // more keys × 6 languages — every table uses ` · `, and a table that
+      // ever doesn't just keeps them on one line, which is today's layout.
       final capLines = [
-        tf(lang, 'capDaysTimes', [HabitLog.daysDone(winDays), HabitLog.totalTimes(winDays)]),
+        ...tf(lang, 'capDaysTimes', [HabitLog.daysDone(winDays), HabitLog.totalTimes(winDays)])
+            .split(' · '),
         StatsAggregator.formatMinutes(winMinutes),
         tf(lang, 'capAvg', [StatsAggregator.formatMinutes(winAvg)]),
       ];

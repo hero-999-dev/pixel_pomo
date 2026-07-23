@@ -36,7 +36,13 @@ void main() {
     expect(yearsIn(s.records), contains(2024),
         reason: 'the moved start date never reached an already-seeded install');
     expect(days.first, TestData.firstFillDay);
-    expect(days.last, epochDayOf(today) - 1, reason: 'history must run up to yesterday');
+    // The top-up runs THROUGH yesterday, but `fill` drops ~1 day in 4 as a
+    // rest day, so yesterday itself may legitimately hold no session — this
+    // test failed on 2026-07-24 for exactly that reason, not for a hole in
+    // the history. Ask the generator what the last active day is instead of
+    // assuming it is yesterday.
+    expect(days.last, TestData.fill(TestData.firstFillDay, epochDayOf(today) - 1).last.epochDay,
+        reason: 'history must run up to yesterday (or the last active day before it)');
   });
 
   test('loading again changes nothing — no duplicated days', () async {

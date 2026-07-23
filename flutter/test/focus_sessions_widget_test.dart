@@ -131,13 +131,14 @@ void main() {
     final mathDays = s.labelHabitCounts['MATH']!;
     final mathMinutes = LabelHabits.minutesFromRecords(s.records)['MATH']!;
 
-    // #v32.9 — three fixed lines split by field, not one wrapping string, so
-    // a value can never be broken in half by the column width.
+    // #v32.12 — four fixed lines split by field (DAYS and TIMES each own a
+    // line), not one wrapping string, so a value can never be broken in half
+    // by the column width.
     List<String> captionFor(int lo, int hi) {
       final winDays = {for (final kv in mathDays.entries) if (kv.key >= lo && kv.key <= hi) kv.key: kv.value};
       final (winMinutes, _, winAvg) = StatsAggregator.dayMapAverage(mathMinutes, lo, hi);
       return [
-        tf('en', 'capDaysTimes', [HabitLog.daysDone(winDays), HabitLog.totalTimes(winDays)]),
+        ...tf('en', 'capDaysTimes', [HabitLog.daysDone(winDays), HabitLog.totalTimes(winDays)]).split(' · '),
         StatsAggregator.formatMinutes(winMinutes),
         tf('en', 'capAvg', [StatsAggregator.formatMinutes(winAvg)]),
       ];
@@ -176,7 +177,7 @@ void main() {
       final winDays = {for (final kv in mathDays.entries) if (kv.key >= lo && kv.key <= hi) kv.key: kv.value};
       final (total, _, avg) = StatsAggregator.dayMapAverage(mathMinutes, lo, hi);
       return [
-        tf('en', 'capDaysTimes', [HabitLog.daysDone(winDays), HabitLog.totalTimes(winDays)]),
+        ...tf('en', 'capDaysTimes', [HabitLog.daysDone(winDays), HabitLog.totalTimes(winDays)]).split(' · '),
         StatsAggregator.formatMinutes(total),
         tf('en', 'capAvg', [StatsAggregator.formatMinutes(avg)]),
       ];
@@ -191,7 +192,7 @@ void main() {
     final monday = today - (dateOfEpochDay(today).weekday - 1);
     final l18 = lines(monday - 17 * 7, monday + 6);
     expect(find.text(l18.join(' · ')), findsOneWidget);
-    expect(find.text(l18[1]), findsNothing, reason: 'still split into per-field lines');
+    expect(find.text(l18[2]), findsNothing, reason: 'still split into per-field lines');
 
     // YEARLY horizontal — same
     await tester.tap(find.text('YEARLY'));
@@ -214,8 +215,9 @@ void main() {
     // The real failure this replaced: one 312px-wide caption string in a
     // 113px column broke wherever it ran out of room, putting "92h" on one
     // line and "45m" on the next. Each line is now its own Text, and every
-    // line except the DAYS · TIMES one must fit a 3-up column outright — a
-    // value must never need to wrap at all.
+    // line must fit a 3-up column outright — a value must never need to wrap
+    // at all. Since #v32.12 that includes DAYS and TIMES, which are their own
+    // lines now, so no line has a ` · ` left to break on.
     const columnAt3Up = 113.0;
     final s = await boot();
     await tester.pumpWidget(host(s));
@@ -234,6 +236,8 @@ void main() {
       tf('en', 'capAvg', [StatsAggregator.formatMinutes(avg)]),
       // a deliberately long value, to prove the rule holds beyond the fixture
       tf('en', 'capAvg', ['999h 59m']),
+      // the #v32.12 lines, at counts a year of daily focus could reach
+      ...tf('en', 'capDaysTimes', [365, 9999]).split(' · '),
     ]) {
       final tp = TextPainter(
         text: TextSpan(text: line, style: pixelStyle('en', 8, const Color(0xFF000000), text: line)),
