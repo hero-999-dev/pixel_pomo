@@ -158,6 +158,58 @@ void main() {
     }
   });
 
+  testWidgets('the full-width periods put the caption back on ONE line (#v32.11)', (tester) async {
+    // 18 WEEKS and YEARLY HORIZONTAL give a label block ~358px against a
+    // ~320px caption, so the three per-field lines were spending height for
+    // nothing there. The narrow columns must still keep them.
+    tester.view.physicalSize = const Size(390 * 3, 844 * 3);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.reset);
+
+    final s = await boot();
+    final mathDays = s.labelHabitCounts['MATH']!;
+    final mathMinutes = LabelHabits.minutesFromRecords(s.records)['MATH']!;
+    final today = epochDayOf(DateTime.now());
+    final now = DateTime.now();
+
+    List<String> lines(int lo, int hi) {
+      final winDays = {for (final kv in mathDays.entries) if (kv.key >= lo && kv.key <= hi) kv.key: kv.value};
+      final (total, _, avg) = StatsAggregator.dayMapAverage(mathMinutes, lo, hi);
+      return [
+        tf('en', 'capDaysTimes', [HabitLog.daysDone(winDays), HabitLog.totalTimes(winDays)]),
+        StatsAggregator.formatMinutes(total),
+        tf('en', 'capAvg', [StatsAggregator.formatMinutes(avg)]),
+      ];
+    }
+
+    await tester.pumpWidget(host(s));
+    await tester.pumpAndSettle();
+
+    // 18 WEEKS — one joined line, and the separate pieces must NOT be there
+    await tester.tap(find.text('18 WEEKS'));
+    await tester.pumpAndSettle();
+    final monday = today - (dateOfEpochDay(today).weekday - 1);
+    final l18 = lines(monday - 17 * 7, monday + 6);
+    expect(find.text(l18.join(' · ')), findsOneWidget);
+    expect(find.text(l18[1]), findsNothing, reason: 'still split into per-field lines');
+
+    // YEARLY horizontal — same
+    await tester.tap(find.text('YEARLY'));
+    await tester.pumpAndSettle();
+    final ly = lines(epochDayOf(DateTime.utc(now.year, 1, 1)), epochDayOf(DateTime.utc(now.year, 12, 31)));
+    expect(find.text(ly.join(' · ')), findsOneWidget);
+
+    // MONTHLY is 3-up and must still be split, or values get cut in half
+    await tester.tap(find.text('MONTHLY'));
+    await tester.pumpAndSettle();
+    final lm = lines(epochDayOf(DateTime.utc(now.year, now.month, 1)),
+        epochDayOf(DateTime.utc(now.year, now.month + 1, 0)));
+    expect(find.text(lm.join(' · ')), findsNothing, reason: 'joined caption cannot fit a 3-up column');
+    for (final line in lm) {
+      expect(find.text(line), findsWidgets);
+    }
+  });
+
   testWidgets('no caption line is ever wide enough to split a value in a 3-up column', (tester) async {
     // The real failure this replaced: one 312px-wide caption string in a
     // 113px column broke wherever it ran out of room, putting "92h" on one

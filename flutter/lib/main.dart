@@ -2963,6 +2963,7 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
         StatsAggregator.formatMinutes(winMinutes),
         tf(lang, 'capAvg', [StatsAggregator.formatMinutes(winAvg)]),
       ];
+      final capJoined = capLines.join(' · ');
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -2971,8 +2972,30 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
           // weekly/monthly layouts (#v31.13 — used to skip those so the
           // grids fit, #v31.2/#v31.5)
           const SizedBox(height: 2),
-          for (final l in capLines)
-            Text(l, style: pixelStyle(lang, 8, col(th.onSurfaceDim), text: l)),
+          LayoutBuilder(builder: (context, box) {
+            // ONE line wherever it actually fits (#v32.11). The full-width
+            // periods — 18 WEEKS and YEARLY HORIZONTAL — give the block 358px
+            // against a ~320px caption, so splitting those into three lines
+            // was spending height for nothing. Measured against the real
+            // style rather than a guessed width threshold, so it stays right
+            // in every language and at any screen size; the narrow 2-up/3-up
+            // columns can't take it and keep the per-field lines, which is
+            // what stops a value being cut in half (#v32.9).
+            final joinedStyle = pixelStyle(lang, 8, col(th.onSurfaceDim), text: capJoined);
+            final tp = TextPainter(
+              text: TextSpan(text: capJoined, style: joinedStyle),
+              textDirection: Directionality.of(context),
+              maxLines: 1,
+            )..layout();
+            if (tp.width <= box.maxWidth) return Text(capJoined, style: joinedStyle);
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (final l in capLines)
+                  Text(l, style: pixelStyle(lang, 8, col(th.onSurfaceDim), text: l)),
+              ],
+            );
+          }),
           const SizedBox(height: 4),
           heatmapFor(e),
         ],

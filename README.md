@@ -85,11 +85,12 @@ and coins, for trying out stats/heatmap features without needing to build up rea
   days you actually studied, so rest days don't quietly drag the number down. Below it, **FOCUS SESSIONS** heatmaps
   per label with **WEEKLY / MONTHLY / 18 WEEKS / YEARLY** views and its own **◀ ▶ navigator** to browse an
   earlier period, independent of any other screen. **Weekly and monthly pack 3 labels side by side**, yearly's
-  vertical style 2; a
+  vertical style 2, and **18 weeks and yearly horizontal give each label the full width**; a
   **LABEL button** with pixel switches picks which labels to show for 18 weeks *and* yearly alike (yearly used
   to be one-label-only — now it's the same multi-select). Each label's box also shows **days · times**, the
-  **total time studied** and the **average** — three lines, one per field, so a number is never cut in half
-  by the edge of a narrow column — and the labels you currently have switched on get a **combined
+  **total time studied** and the **average** — on one line where the column is wide enough, split onto three
+  where it isn't, so a number is never cut in half by the edge of a narrow
+  column — and the labels you currently have switched on get a **combined
   total and average** of their own right under the period buttons — pick MATH and CODING and it tells you what
   those two together came to over the window you're looking at. It names your picks, or just says **ALL 7
   LABELS** when nothing is filtered out, and it **disappears entirely once you're down to one label**, where
