@@ -2667,7 +2667,7 @@ class _SessionsInPixelsScreenState extends State<SessionsInPixelsScreen> {
           // shape v31.7 used for buckets, now holding one box per session
           const target = 16.0;
           final colsPerRow = math.max(1, (box.maxWidth / (target + 1)).floor());
-          final cell = ((box.maxWidth - colsPerRow * 1) / colsPerRow).clamp(4.0, 24.0);
+          final cell = _crispCell((box.maxWidth - colsPerRow * 1) / colsPerRow, 4.0, 24.0);
           final rows = (sessions.length / colsPerRow).ceil();
 
           Widget cellAt(int i) {
@@ -4102,6 +4102,23 @@ class _BudgetFieldState extends State<_BudgetField> {
 /// Shared cell painter used by [_WeekRow] and [_MonthCalendar] so the three
 /// heatmap shapes (column grid, single week row, calendar month) all render
 /// a day cell identically (#v30 follow-up).
+/// Cell size for a pixel-art grid, always a WHOLE logical pixel (#v32.10).
+///
+/// Dividing the available width by the column count almost never lands on an
+/// integer — WEEKLY at 3-up gave 16.1905 — and a fractional cell makes the
+/// whole label block a fractional height (78.19). In a multi-column grid that
+/// puts the SECOND row of labels at y = 284.19, and at a 3x device pixel ratio
+/// 284.19 is 852.57 physical pixels: every box in that row gets resampled
+/// across a pixel boundary and goes soft, while the first row (y = 192, a
+/// clean 576) stays sharp. That is the "the labels after the first three lose
+/// their sharpness" report — nothing to do with the labels themselves, only
+/// with where their row happened to start.
+///
+/// Flooring costs at most one pixel of grid width and keeps every row on the
+/// device pixel grid.
+double _crispCell(double raw, double min, double max) =>
+    raw.clamp(min, max).floorToDouble().clamp(min, max);
+
 Widget _dayCell({
   required double cell,
   required bool blank,
@@ -4153,7 +4170,7 @@ class _WeekRow extends StatelessWidget {
     final monday = a - (dateOfEpochDay(a).weekday - 1);
     return LayoutBuilder(builder: (context, box) {
       const cols = 7;
-      final cell = ((box.maxWidth - cols * 2) / cols).clamp(4.0, 32.0);
+      final cell = _crispCell((box.maxWidth - cols * 2) / cols, 4.0, 32.0);
       final row = Row(children: [
         for (var c = 0; c < cols; c++)
           Builder(builder: (_) {
@@ -4215,9 +4232,11 @@ class _YearGridHorizontal extends StatelessWidget {
       // screen by ~64px ("the year doesn't fit, it goes off the screen") and
       // the clamp's 4px floor never engaged to save it (#v32).
       const monthChrome = 8.0 + cols * 2.0; // padding+border + per-cell margins
-      final cell = ((box.maxWidth - monthsPerRow * monthChrome - (monthsPerRow - 1) * 6) /
-              (monthsPerRow * cols))
-          .clamp(4.0, 14.0);
+      final cell = _crispCell(
+          (box.maxWidth - monthsPerRow * monthChrome - (monthsPerRow - 1) * 6) /
+              (monthsPerRow * cols),
+          4.0,
+          14.0);
 
       Widget monthBlock(int m) {
         final first = epochDayOf(DateTime.utc(year, m, 1));
@@ -4309,7 +4328,7 @@ class _YearGridVertical extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, box) {
       const dayColW = 16.0; // fits "31"
-      final cell = ((box.maxWidth - dayColW - 12 * 2) / 12).clamp(4.0, 14.0);
+      final cell = _crispCell((box.maxWidth - dayColW - 12 * 2) / 12, 4.0, 14.0);
 
       Widget monthInitial(int m) {
         final text = monthName(lang, m)[0].toUpperCase();
@@ -4434,7 +4453,7 @@ class _HabitHeatmap extends StatelessWidget {
       // Masked for years by the 12px cap; exposed once a caller removes the
       // cap to stretch full-width (#v30 item 6).
       final divisor = fitCols ? math.min(cols, _bandCols) : _bandCols;
-      final cell = ((box.maxWidth - divisor * 2) / divisor).clamp(4.0, maxCellSize);
+      final cell = _crispCell((box.maxWidth - divisor * 2) / divisor, 4.0, maxCellSize);
       final grid = Column(
         children: [
           // chronological: oldest full band on top, the partial remainder last
