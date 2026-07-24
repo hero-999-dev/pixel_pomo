@@ -981,6 +981,27 @@ const List<int> kSwatches = [
 /// flush with the buttons above and below it (#v33).
 const int kSwatchesPerRow = 13;
 
+/// The six presets' own colours, so they can be PICKED from the palette, not
+/// only reproduced by hand in the hex field (#v33.3 — "I can't see the main
+/// theme colours below"). Every distinct pick across [Themes.all], in theme
+/// order, minus anything already in [kSwatches] (a duplicate key would crash,
+/// and it would be a wasted cell anyway). Comes out around three extra rows.
+final List<int> kThemeSwatches = () {
+  final base = kSwatches.toSet();
+  final seen = <int>{};
+  final out = <int>[];
+  for (final theme in Themes.all) {
+    for (final c in theme.picks) {
+      if (base.contains(c) || !seen.add(c)) continue;
+      out.add(c);
+    }
+  }
+  return out;
+}();
+
+/// The whole custom palette: the hue ramp first, the preset colours after.
+final List<int> kAllSwatches = [...kSwatches, ...kThemeSwatches];
+
 class CustomThemeScreen extends StatefulWidget {
   final AppStore s;
   const CustomThemeScreen(this.s, {super.key});
@@ -1168,13 +1189,30 @@ class _CustomThemeScreenState extends State<CustomThemeScreen> {
     );
   }
 
-  /// The shared palette that edits whichever slot is active: a hex-code field
-  /// (any colour) over the 13 × 2 quick-pick swatches (#v33.2).
+  /// The shared palette that edits whichever slot is active: a live preview of
+  /// the chosen colour, a hex-code field (any colour), then the quick-pick
+  /// swatches — the hue ramp plus the preset colours (#v33.2 / #v33.3).
   List<Widget> _palette(PixelTheme preview, String lang) {
+    final active = picks[_active];
     final heading = tf(lang, 'editing', [t(lang, _slotKeys[_active])]);
+    // text drawn ON the preview bar: black or white, whichever the colour reads
+    final onPreview = isLightColor(active) ? 0xFF000000 : 0xFFFFFFFF;
     return [
       Text(heading, style: pixelStyle(lang, 9, col(preview.onSurfaceDim), text: heading)),
       const SizedBox(height: 8),
+      // live feedback: a full-width bar in the chosen colour with its hex on it,
+      // so it is unmistakable which colour a tap just set (#v33.3)
+      Container(
+        key: const Key('activePreview'),
+        height: 44,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: col(active),
+          border: Border.all(color: col(preview.onSurface), width: 2),
+        ),
+        child: Text('#${_hex6(active)}', style: pixelStyle(lang, 13, col(onPreview), text: '#${_hex6(active)}')),
+      ),
+      const SizedBox(height: 10),
       Row(
         children: [
           Text('#', style: pixelStyle(lang, 12, col(preview.onSurfaceDim), text: '#')),
@@ -1209,13 +1247,17 @@ class _CustomThemeScreenState extends State<CustomThemeScreen> {
         final cell = ((box.maxWidth - gap * (kSwatchesPerRow - 1)) / kSwatchesPerRow).floorToDouble();
         return Column(
           children: [
-            for (var i = 0; i < kSwatches.length; i += kSwatchesPerRow)
+            for (var i = 0; i < kAllSwatches.length; i += kSwatchesPerRow)
               Padding(
-                padding: EdgeInsets.only(bottom: i + kSwatchesPerRow < kSwatches.length ? gap : 0),
+                padding: EdgeInsets.only(bottom: i + kSwatchesPerRow < kAllSwatches.length ? gap : 0),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  // full rows spread edge-to-edge; a short final row packs left
+                  // so its cells stay swatch-sized instead of stretching apart
+                  mainAxisAlignment: kAllSwatches.length - i >= kSwatchesPerRow
+                      ? MainAxisAlignment.spaceBetween
+                      : MainAxisAlignment.start,
                   children: [
-                    for (final c in kSwatches.skip(i).take(kSwatchesPerRow))
+                    for (final c in kAllSwatches.skip(i).take(kSwatchesPerRow)) ...[
                       GestureDetector(
                         key: ValueKey('swatch_$c'),
                         onTap: () => _setActiveColor(c),
@@ -1231,6 +1273,10 @@ class _CustomThemeScreenState extends State<CustomThemeScreen> {
                           ),
                         ),
                       ),
+                      // the left-packed final row needs its own gaps (spaceBetween
+                      // supplies them for full rows)
+                      if (kAllSwatches.length - i < kSwatchesPerRow) const SizedBox(width: gap),
+                    ],
                   ],
                 ),
               ),

@@ -153,6 +153,48 @@ void main() {
     expect(customThemePicks(s.customSpec)![0], 0xFF123456);
   });
 
+  testWidgets('the preset theme colours are pickable from the palette (#v33.3)',
+      (tester) async {
+    final s = await boot();
+    await tester.pumpWidget(host(s));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('CUSTOM'));
+    await tester.pumpAndSettle();
+
+    // MATCHA's background is not one of the 26 hue swatches, but it must now be
+    // a swatch in its own right, so the user can SEE and pick the main themes.
+    expect(kSwatches.contains(Themes.matcha.bg), isFalse, reason: 'precondition');
+    await tapVisible(tester, find.byKey(const ValueKey('slotBox_0'))); // BACKGROUND
+    await tapVisible(tester, find.byKey(ValueKey('swatch_${Themes.matcha.bg}')));
+    await tapVisible(tester, find.text('SAVE'));
+    expect(s.theme.bg, Themes.matcha.bg);
+  });
+
+  testWidgets('choosing a colour shows a live preview of it (#v33.3)', (tester) async {
+    final s = await boot();
+    await tester.pumpWidget(host(s));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('CUSTOM'));
+    await tester.pumpAndSettle();
+
+    Color previewColor() =>
+        (tester.widget<Container>(find.byKey(const Key('activePreview'))).decoration
+                as BoxDecoration)
+            .color!;
+
+    // pick a swatch → the preview bar becomes that colour AND shows its hex
+    await tapVisible(tester, find.byKey(const ValueKey('slotBox_0')));
+    await tapVisible(tester, find.byKey(ValueKey('swatch_${0xFFE5484D}'))); // a red hue swatch
+    expect(previewColor(), col(0xFFE5484D));
+    expect(find.text('#E5484D'), findsOneWidget, reason: 'the hex of the chosen colour is shown');
+
+    // type a hex → the preview follows that too
+    await tester.enterText(find.byKey(const Key('hexField')), '112233');
+    await tester.pumpAndSettle();
+    expect(previewColor(), col(0xFF112233));
+    expect(find.text('#112233'), findsOneWidget);
+  });
+
   testWidgets('the palette edits whichever slot is active, not a fixed one (#v33.2)',
       (tester) async {
     final s = await boot();
