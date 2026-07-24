@@ -113,6 +113,21 @@ class AppStore extends ChangeNotifier {
   /// The camera framing the live wallpaper reproduces (set from camera mode, v15).
   WallpaperCam wallpaperCam = WallpaperCam.none;
 
+  /// The running clock, kept OUT of [notifyListeners] (#v33.7).
+  ///
+  /// The countdown moves five times a second. It used to go out on the store's
+  /// own notifier, and the app root wraps `MaterialApp` in an `AnimatedBuilder`
+  /// on that — so every tick rebuilt the entire app: the navigator, the screen
+  /// on top of it, and every panel underneath. Scrolling anything mid-session
+  /// was competing with five full rebuilds a second, which is what "it goes
+  /// down in fits, nothing like scrolling a website" was. Only the home screen
+  /// needs the clock, so only the home screen listens to this.
+  final ticks = ValueNotifier<int>(0);
+
+  /// What the home screen listens to: real changes AND the clock. One stable
+  /// object, so its `AnimatedBuilder` doesn't resubscribe on every rebuild.
+  late final Listenable homeUpdates = Listenable.merge([this, ticks]);
+
   /// Auto-start the break when a focus session ends (#4). When off, the home
   /// screen asks first via [awaitingBreakPrompt].
   bool autoBreak = false; // off on a fresh install (#v23 fb)
@@ -577,17 +592,20 @@ class AppStore extends ChangeNotifier {
   }
 
   void _onTick() {
+    // Nothing but the clock moved → [ticks], not the store's own notifier, so
+    // the rebuild stops at the home screen instead of the whole app (#v33.7).
     if (!isPomodoroMode) {
       stopwatch.setElapsed(DateTime.now().difference(_stopwatchStartedAt!).inMilliseconds);
-      notifyListeners();
+      ticks.value++;
       return;
     }
     final remaining = _deadline!.difference(DateTime.now()).inMilliseconds;
     if (remaining > 0) {
       engine.setTimeLeft(remaining);
-      notifyListeners();
+      ticks.value++;
       return;
     }
+    // the phase ENDED — that is a real change, everything hears about it
     _timer?.cancel();
     cancelTimerNotification(); // phase done in-app (the native one self-clears at its deadline too)
     engine.setTimeLeft(0);

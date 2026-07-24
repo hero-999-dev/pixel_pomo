@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -88,6 +89,7 @@ class _PixelPomoAppState extends State<PixelPomoApp> with WidgetsBindingObserver
           child: MaterialApp(
             title: 'Pixel Pomo',
             debugShowCheckedModeBanner: false,
+            scrollBehavior: const _AppScrollBehavior(),
             scaffoldMessengerKey: messengerKey,
             theme: ThemeData(
               useMaterial3: false,
@@ -102,6 +104,36 @@ class _PixelPomoAppState extends State<PixelPomoApp> with WidgetsBindingObserver
       },
     );
   }
+}
+
+/// How every list in the app scrolls (#v33.7).
+///
+/// `BouncingScrollPhysics` for the fling curve a phone browser and a feed have
+/// — Android's default clamping physics stops a fling dead and shows a glow
+/// instead of carrying momentum, which is half of what "it doesn't flow" was
+/// about. The overscroll glow goes with it: the bounce already shows the edge.
+///
+/// `dragDevices` adds the mouse, so the page can be DRAGGED on web and desktop
+/// (Flutter leaves that off by default and gives you the wheel only). The
+/// trackpad is deliberately NOT in the set — it scrolls by panning already, and
+/// listing it here would turn two-finger scrolling into a drag gesture.
+class _AppScrollBehavior extends MaterialScrollBehavior {
+  const _AppScrollBehavior();
+
+  @override
+  Set<PointerDeviceKind> get dragDevices => const {
+        PointerDeviceKind.touch,
+        PointerDeviceKind.mouse,
+        PointerDeviceKind.stylus,
+        PointerDeviceKind.invertedStylus,
+      };
+
+  @override
+  ScrollPhysics getScrollPhysics(BuildContext context) =>
+      const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics());
+
+  @override
+  Widget buildOverscrollIndicator(BuildContext context, Widget child, ScrollableDetails details) => child;
 }
 
 // ---- shared button helpers --------------------------------------------------
@@ -137,7 +169,17 @@ Widget overlayScaffold(BuildContext context, AppStore s, String title, List<Widg
             const SizedBox(height: 8),
             Center(child: Text(title, style: pixelStyle(s.lang, 20, col(th.onSurface), spacing: 2, text: title))),
             const SizedBox(height: 24),
-            ...children,
+            // Each section gets its own layer (#v33.7). A SingleChildScrollView
+            // paints its child into the layer it lives in, so changing the
+            // scroll offset re-recorded the WHOLE page every frame of a drag —
+            // every log row, every heatmap cell, every app icon, sixty times a
+            // second. That is the "it goes down in fits" report: the physics
+            // were only half of it, the rest was the frame budget. Behind a
+            // RepaintBoundary a section is a layer the compositor just moves,
+            // and scrolling stops repainting anything at all. (ListView gives
+            // its items the same treatment for the same reason; these pages
+            // are one long Column, so they have to ask for it.)
+            for (final section in children) RepaintBoundary(child: section),
             const SizedBox(height: 24),
             secondaryBtn(th, s.lang, t(s.lang, 'close'), () => Navigator.pop(context), padding: const EdgeInsets.all(16)),
           ],
@@ -163,8 +205,16 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The clock comes in on its own notifier (#v33.7) — this is the one screen
+    // that wants a rebuild five times a second, and only while you can see it.
+    // Open a panel and this route goes offstage but stays mounted, so it kept
+    // rebuilding underneath: five wasted builds a second, on the same thread as
+    // the scroll you are dragging up there. `TickerMode` is already false for a
+    // covered route (it is what pauses animations), so it answers "am I on
+    // screen" without the store having to know anything about routes.
+    final onScreen = TickerMode.valuesOf(context).enabled;
     return AnimatedBuilder(
-      animation: s,
+      animation: onScreen ? s.homeUpdates : s,
       builder: (context, _) {
         final th = s.theme;
         final lang = s.lang;
@@ -861,26 +911,33 @@ class _AppPickerScreenState extends State<AppPickerScreen> {
           // (#v23 fb). snap.data is already alpha-sorted, so `where` keeps order.
           final picked = snap.data!.where((a) => s.blockedApps.contains(a.package)).toList();
           final rest = snap.data!.where((a) => !s.blockedApps.contains(a.package)).toList();
-          Widget appRow(AppInfo a) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Row(children: [
-                  a.icon != null
-                      ? Image.memory(a.icon!, width: 32, height: 32, filterQuality: FilterQuality.none)
-                      : const SizedBox(width: 32, height: 32),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(a.label,
-                        style: pixelStyle(lang, 10, col(th.onSurface), text: a.label),
-                        maxLines: 1, overflow: TextOverflow.ellipsis),
-                  ),
-                  _BlockToggle(
-                    on: s.blockedApps.contains(a.package),
-                    accent: th.accent,
-                    off: th.onSurfaceDim,
-                    knob: th.onSurface,
-                    onTap: () => s.setBlocked(a.package, !s.blockedApps.contains(a.package)),
-                  ),
-                ]),
+          // one layer per row (#v33.7): the whole list is a single section of
+          // the page, and it is the longest and heaviest one in the app — a few
+          // hundred rows, each with a decoded icon. Small per-row layers stay
+          // raster-cacheable, so a fling composites them instead of re-drawing
+          // the strip, and toggling one app repaints one row.
+          Widget appRow(AppInfo a) => RepaintBoundary(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Row(children: [
+                    a.icon != null
+                        ? Image.memory(a.icon!, width: 32, height: 32, filterQuality: FilterQuality.none)
+                        : const SizedBox(width: 32, height: 32),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(a.label,
+                          style: pixelStyle(lang, 10, col(th.onSurface), text: a.label),
+                          maxLines: 1, overflow: TextOverflow.ellipsis),
+                    ),
+                    _BlockToggle(
+                      on: s.blockedApps.contains(a.package),
+                      accent: th.accent,
+                      off: th.onSurfaceDim,
+                      knob: th.onSurface,
+                      onTap: () => s.setBlocked(a.package, !s.blockedApps.contains(a.package)),
+                    ),
+                  ]),
+                ),
               );
           return Column(children: [
             for (final a in picked) appRow(a),
@@ -954,24 +1011,20 @@ class ThemeScreen extends StatelessWidget {
 
 // ---- custom theme editor (#v32.3) ---------------------------------------------
 
-/// A grey ramp plus six hues in dark/mid/light. A small fixed palette keeps the
-/// app looking hand-made and rules out the mud a free RGB picker invites; every
-/// slot shares it, and [PixelTheme.custom] fixes whatever combination is picked.
-/// 26 colours = 13 per row × 2 rows, which is what [_slotRow] lays out, ordered
-/// by hue so similar colours sit together (#v33.1 — the teal and pink added in
-/// #v33 no longer dangle at the row ends). Row 1 is the warm half (grey ramp →
-/// reds → pink → oranges), row 2 the cool half (yellows → greens → teal →
-/// blues → purples); each dark/mid/light trio stays whole inside its row.
+/// A grey ramp plus the hue families in dark/mid/light. A small fixed palette
+/// keeps the app looking hand-made and rules out the mud a free RGB picker
+/// invites; every slot shares it, and [PixelTheme.custom] fixes whatever
+/// combination is picked. 28 colours (#v33.4 gave the teal its missing dark and
+/// light, so only the pink is still a single). The order written here no longer
+/// matters — [kAllSwatches] sorts the whole palette by [swatchOrder].
 const List<int> kSwatches = [
-  // row 1 — greys, reds, pink, oranges
   0xFF0B0B0B, 0xFF2B2B2B, 0xFF565656, 0xFF8E8E8E, 0xFFCFCFCF, 0xFFF7F7F7,
   0xFF7A1F2B, 0xFFE5484D, 0xFFF7A8AC,
-  0xFFE06AA5, // pink — next to the reds it is closest to (#v33.1)
+  0xFFE06AA5, // pink
   0xFF7A4212, 0xFFE8801E, 0xFFF5C48A,
-  // row 2 — yellows, greens, teal, blues, purples
   0xFF6E5A10, 0xFFE8C547, 0xFFF6E9A8,
   0xFF1E4D33, 0xFF46A03C, 0xFFA6E3A1,
-  0xFF1E9E92, // teal — sits between the greens and blues where it belongs
+  0xFF14504B, 0xFF1E9E92, 0xFF9BE0D8, // teal, a full trio since #v33.4
   0xFF1B3A63, 0xFF58A6FF, 0xFFBBD9FF,
   0xFF422A63, 0xFF9D7CD8, 0xFFD9C7F5,
 ];
@@ -999,8 +1052,12 @@ final List<int> kThemeSwatches = () {
   return out;
 }();
 
-/// The whole custom palette: the hue ramp first, the preset colours after.
-final List<int> kAllSwatches = [...kSwatches, ...kThemeSwatches];
+/// The whole custom palette — the hue ramp and the preset colours in ONE
+/// ordering, similar next to similar (#v33.4). Appending the presets after the
+/// ramp left the bottom rows scattered: a theme's blue landed between two
+/// creams because they arrived in theme order, not colour order.
+final List<int> kAllSwatches = [...kSwatches, ...kThemeSwatches]
+  ..sort((a, b) => swatchOrder(a).compareTo(swatchOrder(b)));
 
 class CustomThemeScreen extends StatefulWidget {
   final AppStore s;
@@ -1020,45 +1077,40 @@ class _CustomThemeScreenState extends State<CustomThemeScreen> {
   static const _slotKeys = ['cBg', 'cText1', 'cText2', 'cSelected', 'cSquares', 'cBreak', 'cIncome'];
 
   late List<int> picks;
-  int _active = 0; // which slot the shared palette + hex field edit (#v33.2)
-  final _hex = TextEditingController();
+
+  /// Which slot the bar and the swatches below the list point at (#v33.6): a
+  /// small box selects, the long bar opens the wheel on whatever is selected.
+  int _active = 0;
 
   @override
   void initState() {
     super.initState();
     final s = widget.s;
-    // reopen on the saved picks; first time, seed from the theme on screen so
-    // the editor starts somewhere the user already likes
-    picks = customThemePicks(s.customSpec) ?? s.theme.picks;
-    _hex.text = _hex6(picks[_active]);
+    // Start from the theme being WORN (#v33.4). Seeding from the saved picks
+    // whatever was on screen is what made the editor look like it kept edits
+    // nobody saved: save a custom theme, switch to MATCHA, reopen the editor
+    // and it came back on the old custom instead of on MATCHA. The saved picks
+    // are the right seed in exactly one case — when the custom theme is the one
+    // being worn, since then they ARE the theme on screen (and they are the raw
+    // picks, not the contrast-corrected result).
+    picks = s.theme.id == customThemeId
+        ? (customThemePicks(s.customSpec) ?? s.theme.picks)
+        : s.theme.picks;
   }
 
-  @override
-  void dispose() {
-    _hex.dispose();
-    super.dispose();
-  }
-
-  static String _hex6(int argb) =>
-      (argb & 0xFFFFFF).toRadixString(16).padLeft(6, '0').toUpperCase();
-
-  /// A 6-digit RRGGBB string (any junk stripped) → opaque ARGB, or null if it
-  /// isn't six hex digits yet.
-  static int? _parseHex(String s) {
-    final h = s.replaceAll(RegExp('[^0-9a-fA-F]'), '');
-    if (h.length != 6) return null;
-    return 0xFF000000 | int.parse(h, radix: 16);
-  }
-
-  void _selectSlot(int slot) => setState(() {
-        _active = slot;
-        _hex.text = _hex6(picks[slot]);
-      });
-
-  void _setActiveColor(int argb) => setState(() {
-        picks[_active] = argb;
-        _hex.text = _hex6(argb);
-      });
+  /// The long bar opens the wheel on the selected slot (#v33.6). The swatches
+  /// below it are the quick path; this is the one that reaches every colour.
+  void _openPicker(BuildContext context) => openPanel(
+        context,
+        widget.s,
+        () => ColorPickerScreen(
+          s: widget.s,
+          slotLabel: t(widget.s.lang, _slotKeys[_active]),
+          initial: picks[_active],
+          themeOf: () => PixelTheme.fromPicks(picks),
+          onPick: (c) => setState(() => picks[_active] = c),
+        ),
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -1079,15 +1131,20 @@ class _CustomThemeScreenState extends State<CustomThemeScreen> {
         // pick a preset as a STARTING POINT: it loads that theme's colours into
         // every slot below, then the user changes the few they want (#v33.1)
         ..._baseThemeRow(preview, lang),
-        // #v33.2 — the seven slots are a compact LIST, each with its colour on
-        // the RIGHT; tap one to make it active, then the ONE shared palette +
-        // hex field below sets it. Sharing one palette (and adding a hex field)
-        // is what lets any colour be chosen, so a custom theme can reproduce a
-        // preset exactly instead of being stuck with a per-slot grid of 26.
+        // #v33.6 — two ways to set the selected slot, in the order asked for:
+        // tap a small box to select a slot, then either the LONG bar (opens the
+        // wheel, reaches every colour) or the ready swatches under it. The
+        // permanent hex field stayed retired — its job is inside the wheel panel.
         for (var slot = 0; slot < _slotKeys.length; slot++) _slotTile(preview, lang, slot),
-        const SizedBox(height: 8),
-        ..._palette(preview, lang),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
+        _activeBar(preview, lang, context),
+        const SizedBox(height: 6),
+        // say so, rather than leaving "any colour at all" hidden behind a tap
+        Text(t(lang, 'pickHint'),
+            style: pixelStyle(lang, 8, col(preview.onSurfaceDim), text: t(lang, 'pickHint'))),
+        const SizedBox(height: 14),
+        ..._swatchGrid(preview),
+        const SizedBox(height: 18),
         primaryBtn(preview, lang, t(lang, 'save'), () {
           s.saveCustomTheme(picks);
           Navigator.pop(context);
@@ -1138,11 +1195,9 @@ class _CustomThemeScreenState extends State<CustomThemeScreen> {
           for (var i = 0; i < Themes.all.length; i++) ...[
             if (i != 0) const SizedBox(width: 4),
             Expanded(
-              child: secondaryBtn(preview, lang, Themes.all[i].displayName, () {
-                picks = List.of(Themes.all[i].picks);
-                _hex.text = _hex6(picks[_active]);
-                setState(() {});
-              }, fontSize: 7, padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 2)),
+              child: secondaryBtn(preview, lang, Themes.all[i].displayName,
+                  () => setState(() => picks = List.of(Themes.all[i].picks)),
+                  fontSize: 7, padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 2)),
             ),
           ],
         ],
@@ -1152,8 +1207,9 @@ class _CustomThemeScreenState extends State<CustomThemeScreen> {
   }
 
   /// One slot row: name on the left, its current colour as a tappable box on
-  /// the RIGHT. Tapping selects the slot; the active one is outlined brightly so
-  /// it is clear which slot the palette below is pointed at (#v33.2).
+  /// the RIGHT. Tapping the row SELECTS that slot; the bar and the swatches
+  /// below the list then point at it, and the selected row is outlined brightly
+  /// so it is never a guess which one they are aimed at.
   Widget _slotTile(PixelTheme preview, String lang, int slot) {
     final label = t(lang, _slotKeys[slot]);
     final on = slot == _active;
@@ -1161,7 +1217,7 @@ class _CustomThemeScreenState extends State<CustomThemeScreen> {
       padding: const EdgeInsets.only(bottom: 8),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: () => _selectSlot(slot),
+        onTap: () => setState(() => _active = slot),
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
           decoration: BoxDecoration(
@@ -1189,102 +1245,371 @@ class _CustomThemeScreenState extends State<CustomThemeScreen> {
     );
   }
 
-  /// The shared palette that edits whichever slot is active: a live preview of
-  /// the chosen colour, a hex-code field (any colour), then the quick-pick
-  /// swatches — the hue ramp plus the preset colours (#v33.2 / #v33.3).
-  List<Widget> _palette(PixelTheme preview, String lang) {
+  /// The long bar under the list: the selected slot's colour with its code on
+  /// it, and the way into the wheel (#v33.6). It is the one control that
+  /// reaches a colour no swatch below has.
+  Widget _activeBar(PixelTheme preview, String lang, BuildContext context) {
     final active = picks[_active];
-    final heading = tf(lang, 'editing', [t(lang, _slotKeys[_active])]);
-    // text drawn ON the preview bar: black or white, whichever the colour reads
-    final onPreview = isLightColor(active) ? 0xFF000000 : 0xFFFFFFFF;
-    return [
-      Text(heading, style: pixelStyle(lang, 9, col(preview.onSurfaceDim), text: heading)),
-      const SizedBox(height: 8),
-      // live feedback: a full-width bar in the chosen colour with its hex on it,
-      // so it is unmistakable which colour a tap just set (#v33.3)
-      Container(
+    // text drawn ON the bar: black or white, whichever reads on that colour
+    final onBar = isLightColor(active) ? 0xFF000000 : 0xFFFFFFFF;
+    return GestureDetector(
+      onTap: () => _openPicker(context),
+      child: Container(
         key: const Key('activePreview'),
-        height: 44,
+        height: 48,
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: col(active),
-          border: Border.all(color: col(preview.onSurface), width: 2),
+          border: Border.all(color: col(preview.onSurface), width: 3),
         ),
-        child: Text('#${_hex6(active)}', style: pixelStyle(lang, 13, col(onPreview), text: '#${_hex6(active)}')),
+        child: Text('#${hex6(active)}',
+            style: pixelStyle(lang, 13, col(onBar), text: '#${hex6(active)}')),
       ),
-      const SizedBox(height: 10),
-      Row(
-        children: [
-          Text('#', style: pixelStyle(lang, 12, col(preview.onSurfaceDim), text: '#')),
-          const SizedBox(width: 6),
-          Expanded(
-            child: TextField(
-              key: const Key('hexField'),
-              controller: _hex,
-              maxLength: 6,
-              autocorrect: false,
-              enableSuggestions: false,
-              inputFormatters: [FilteringTextInputFormatter.allow(RegExp('[0-9a-fA-F]'))],
-              style: pixelStyle(lang, 12, col(preview.onSurface)),
-              cursorColor: col(preview.onSurface),
-              decoration: InputDecoration(
-                counterText: '',
-                isDense: true,
-                enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: col(preview.onSurfaceDim))),
-                focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: col(preview.onSurface), width: 2)),
-              ),
-              onChanged: (v) {
-                final c = _parseHex(v);
-                if (c != null) setState(() => picks[_active] = c); // don't rewrite the field mid-type
-              },
-            ),
-          ),
-        ],
-      ),
-      const SizedBox(height: 12),
-      LayoutBuilder(builder: (context, box) {
-        const gap = 4.0;
-        final cell = ((box.maxWidth - gap * (kSwatchesPerRow - 1)) / kSwatchesPerRow).floorToDouble();
-        return Column(
-          children: [
-            for (var i = 0; i < kAllSwatches.length; i += kSwatchesPerRow)
-              Padding(
-                padding: EdgeInsets.only(bottom: i + kSwatchesPerRow < kAllSwatches.length ? gap : 0),
-                child: Row(
-                  // full rows spread edge-to-edge; a short final row packs left
-                  // so its cells stay swatch-sized instead of stretching apart
-                  mainAxisAlignment: kAllSwatches.length - i >= kSwatchesPerRow
-                      ? MainAxisAlignment.spaceBetween
-                      : MainAxisAlignment.start,
-                  children: [
-                    for (final c in kAllSwatches.skip(i).take(kSwatchesPerRow)) ...[
-                      GestureDetector(
-                        key: ValueKey('swatch_$c'),
-                        onTap: () => _setActiveColor(c),
-                        child: Container(
-                          width: cell,
-                          height: cell,
-                          decoration: BoxDecoration(
-                            color: col(c),
-                            border: Border.all(
-                              color: col(picks[_active] == c ? preview.onSurface : preview.onSurfaceDim),
-                              width: picks[_active] == c ? 3 : 1,
+    );
+  }
+
+  /// The quick picks: the hue ramp and the preset colours in one sorted grid
+  /// (#v33.4). They set the selected slot outright — the wheel behind the bar
+  /// above is for everything they don't carry.
+  List<Widget> _swatchGrid(PixelTheme preview) => [
+        LayoutBuilder(builder: (context, box) {
+          const gap = 4.0;
+          final cell = ((box.maxWidth - gap * (kSwatchesPerRow - 1)) / kSwatchesPerRow).floorToDouble();
+          return Column(
+            children: [
+              for (var i = 0; i < kAllSwatches.length; i += kSwatchesPerRow)
+                Padding(
+                  padding: EdgeInsets.only(bottom: i + kSwatchesPerRow < kAllSwatches.length ? gap : 0),
+                  child: Row(
+                    // full rows spread edge-to-edge; a short final row packs left
+                    // so its cells stay swatch-sized instead of stretching apart
+                    mainAxisAlignment: kAllSwatches.length - i >= kSwatchesPerRow
+                        ? MainAxisAlignment.spaceBetween
+                        : MainAxisAlignment.start,
+                    children: [
+                      for (final c in kAllSwatches.skip(i).take(kSwatchesPerRow)) ...[
+                        GestureDetector(
+                          key: ValueKey('swatch_$c'),
+                          onTap: () => setState(() => picks[_active] = c),
+                          child: Container(
+                            width: cell,
+                            height: cell,
+                            decoration: BoxDecoration(
+                              color: col(c),
+                              border: Border.all(
+                                color: col(picks[_active] == c ? preview.onSurface : preview.onSurfaceDim),
+                                width: picks[_active] == c ? 3 : 1,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      // the left-packed final row needs its own gaps (spaceBetween
-                      // supplies them for full rows)
-                      if (kAllSwatches.length - i < kSwatchesPerRow) const SizedBox(width: gap),
+                        // the left-packed final row needs its own gaps
+                        // (spaceBetween supplies them for full rows)
+                        if (kAllSwatches.length - i < kSwatchesPerRow) const SizedBox(width: gap),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
-              ),
-          ],
-        );
-      }),
-    ];
+            ],
+          );
+        }),
+      ];
+}
+
+// ---- the colour wheel panel (#v33.5) -------------------------------------------
+
+/// `RRGGBB` of an opaque colour, and back — null until six hex digits are typed,
+/// so a half-typed code doesn't flash a wrong colour.
+String hex6(int argb) => (argb & 0xFFFFFF).toRadixString(16).padLeft(6, '0').toUpperCase();
+
+int? parseHex6(String s) {
+  final h = s.replaceAll(RegExp('[^0-9a-fA-F]'), '');
+  return h.length == 6 ? 0xFF000000 | int.parse(h, radix: 16) : null;
+}
+
+/// Any colour at all, for one slot of the custom theme — opened by tapping the
+/// long colour bar in the editor.
+///
+/// A wheel (hue around, saturation toward the centre) over a lightness bar
+/// reaches every colour there is, and the hex field takes a code outright. The
+/// ready swatches stayed on the editor screen (#v33.6): they are the quick path,
+/// this panel is the one for a colour they don't carry.
+class ColorPickerScreen extends StatefulWidget {
+  final AppStore s;
+  final String slotLabel;
+  final int initial;
+
+  /// The editor's pending theme, read on every build — so picking the
+  /// background repaints this panel in it too, live.
+  final PixelTheme Function() themeOf;
+  final ValueChanged<int> onPick;
+
+  const ColorPickerScreen({
+    super.key,
+    required this.s,
+    required this.slotLabel,
+    required this.initial,
+    required this.themeOf,
+    required this.onPick,
+  });
+
+  @override
+  State<ColorPickerScreen> createState() => _ColorPickerScreenState();
+}
+
+class _ColorPickerScreenState extends State<ColorPickerScreen> {
+  late int color;
+
+  /// Held alongside the colour, not derived from it on every frame: grey and
+  /// black have no hue to read back, so dragging the wheel through the middle
+  /// or the bar down to black would otherwise snap the hue home to red.
+  late double _h, _s, _l;
+  final _hex = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    color = widget.initial;
+    final hsl = hslOf(color);
+    _h = hsl[0];
+    _s = hsl[1];
+    _l = hsl[2];
+    _hex.text = hex6(color);
   }
+
+  @override
+  void dispose() {
+    _hex.dispose();
+    super.dispose();
+  }
+
+  /// A colour chosen AS a colour (swatch, hex code): its HSL comes back out of
+  /// it so the wheel and bar jump to where it sits.
+  void _setColor(int c, {bool typing = false}) {
+    final hsl = hslOf(c);
+    setState(() {
+      color = c;
+      _h = hsl[0];
+      _s = hsl[1];
+      _l = hsl[2];
+      if (!typing) _hex.text = hex6(c); // rewriting mid-type fights the caret
+    });
+    widget.onPick(c);
+  }
+
+  /// A colour chosen on the wheel or the bar: there HSL is the source and the
+  /// colour is what falls out.
+  void _setHsl({double? h, double? s, double? l}) {
+    _h = h ?? _h;
+    _s = s ?? _s;
+    _l = l ?? _l;
+    final c = colorFromHsl(_h, _s, _l);
+    setState(() {
+      color = c;
+      _hex.text = hex6(c);
+    });
+    widget.onPick(c);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final lang = widget.s.lang;
+    final th = widget.themeOf();
+    // drawn ON the picked colour: black or white, whichever reads on it
+    final onColor = isLightColor(color) ? 0xFF000000 : 0xFFFFFFFF;
+    return overlayScaffold(
+      context,
+      widget.s,
+      t(lang, 'pickColor'),
+      [
+        Text(widget.slotLabel,
+            style: pixelStyle(lang, 9, col(th.onSurfaceDim), text: widget.slotLabel)),
+        const SizedBox(height: 8),
+        Container(
+          key: const Key('pickerPreview'),
+          height: 44,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: col(color),
+            border: Border.all(color: col(th.onSurface), width: 2),
+          ),
+          child: Text('#${hex6(color)}',
+              style: pixelStyle(lang, 13, col(onColor), text: '#${hex6(color)}')),
+        ),
+        const SizedBox(height: 18),
+        _ColorWheel(
+          h: _h, s: _s, l: _l,
+          border: th.onSurface, marker: onColor,
+          onPick: (h, s) => _setHsl(h: h, s: s),
+        ),
+        const SizedBox(height: 12),
+        _LightnessBar(
+          h: _h, s: _s, l: _l,
+          border: th.onSurface, marker: onColor,
+          onPick: (l) => _setHsl(l: l),
+        ),
+        const SizedBox(height: 18),
+        Row(
+          children: [
+            Text('#', style: pixelStyle(lang, 12, col(th.onSurfaceDim), text: '#')),
+            const SizedBox(width: 6),
+            Expanded(
+              child: TextField(
+                key: const Key('hexField'),
+                controller: _hex,
+                maxLength: 6,
+                autocorrect: false,
+                enableSuggestions: false,
+                inputFormatters: [FilteringTextInputFormatter.allow(RegExp('[0-9a-fA-F]'))],
+                style: pixelStyle(lang, 12, col(th.onSurface)),
+                cursorColor: col(th.onSurface),
+                decoration: InputDecoration(
+                  counterText: '',
+                  isDense: true,
+                  enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: col(th.onSurfaceDim))),
+                  focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: col(th.onSurface), width: 2)),
+                ),
+                onChanged: (v) {
+                  final c = parseHex6(v);
+                  if (c != null) _setColor(c, typing: true);
+                },
+              ),
+            ),
+          ],
+        ),
+      ],
+      themeOverride: th,
+    );
+  }
+}
+
+/// The round picker: hue around the rim, saturation toward the centre, drawn at
+/// whatever lightness the bar below is set to.
+class _ColorWheel extends StatelessWidget {
+  final double h, s, l;
+  final int border, marker;
+  final void Function(double h, double s) onPick;
+
+  const _ColorWheel({
+    required this.h, required this.s, required this.l,
+    required this.border, required this.marker, required this.onPick,
+  });
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(builder: (context, box) {
+        final size = math.min(box.maxWidth, 240.0);
+        void pick(Offset p) {
+          final r = size / 2;
+          final hs = wheelHueSat(p.dx - r, p.dy - r, r);
+          onPick(hs[0], hs[1]);
+        }
+
+        return Center(
+          child: GestureDetector(
+            key: const Key('colorWheel'),
+            onTapDown: (d) => pick(d.localPosition),
+            onPanStart: (d) => pick(d.localPosition),
+            onPanUpdate: (d) => pick(d.localPosition),
+            child: CustomPaint(
+              size: Size.square(size),
+              painter: _WheelPainter(h, s, l, border, marker),
+            ),
+          ),
+        );
+      });
+}
+
+class _WheelPainter extends CustomPainter {
+  final double h, s, l;
+  final int border, marker;
+  const _WheelPainter(this.h, this.s, this.l, this.border, this.marker);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final r = size.width / 2;
+    final centre = Offset(r, r);
+    final rect = Rect.fromCircle(center: centre, radius: r);
+    // hue all the way round, at the lightness the bar is set to
+    canvas.drawCircle(
+        centre,
+        r,
+        Paint()
+          ..shader = SweepGradient(
+            colors: [for (var i = 0; i <= 12; i++) col(colorFromHsl(i * 30.0, 1, l))],
+          ).createShader(rect));
+    // saturation falls off toward the middle — into the grey of that same
+    // lightness, so the centre of the wheel and the middle of the bar agree
+    final grey = col(colorFromHsl(0, 0, l));
+    canvas.drawCircle(
+        centre,
+        r,
+        Paint()
+          ..shader = RadialGradient(colors: [grey, grey.withValues(alpha: 0)]).createShader(rect));
+    canvas.drawCircle(centre, r,
+        Paint()..style = PaintingStyle.stroke..strokeWidth = 3..color = col(border));
+    // the current pick, as a square marker — a round one would read iOS, not 8-bit
+    final a = h * math.pi / 180;
+    final p = centre + Offset(math.cos(a), math.sin(a)) * (s * r);
+    canvas.drawRect(Rect.fromCenter(center: p, width: 12, height: 12),
+        Paint()..style = PaintingStyle.stroke..strokeWidth = 3..color = col(marker));
+  }
+
+  @override
+  bool shouldRepaint(_WheelPainter old) =>
+      old.h != h || old.s != s || old.l != l || old.border != border || old.marker != marker;
+}
+
+/// Black → the colour → white. The wheel can't reach either end on its own.
+class _LightnessBar extends StatelessWidget {
+  final double h, s, l;
+  final int border, marker;
+  final ValueChanged<double> onPick;
+
+  const _LightnessBar({
+    required this.h, required this.s, required this.l,
+    required this.border, required this.marker, required this.onPick,
+  });
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(builder: (context, box) {
+        final w = box.maxWidth;
+        void pick(Offset p) => onPick((p.dx / w).clamp(0.0, 1.0));
+        return GestureDetector(
+          key: const Key('lightnessBar'),
+          onTapDown: (d) => pick(d.localPosition),
+          onPanStart: (d) => pick(d.localPosition),
+          onPanUpdate: (d) => pick(d.localPosition),
+          child: CustomPaint(size: Size(w, 34), painter: _LightnessPainter(h, s, l, border, marker)),
+        );
+      });
+}
+
+class _LightnessPainter extends CustomPainter {
+  final double h, s, l;
+  final int border, marker;
+  const _LightnessPainter(this.h, this.s, this.l, this.border, this.marker);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    canvas.drawRect(
+        rect,
+        Paint()
+          ..shader = LinearGradient(colors: [
+            col(colorFromHsl(h, s, 0)),
+            col(colorFromHsl(h, s, 0.5)),
+            col(colorFromHsl(h, s, 1)),
+          ]).createShader(rect));
+    canvas.drawRect(
+        rect, Paint()..style = PaintingStyle.stroke..strokeWidth = 3..color = col(border));
+    final x = (l * size.width).clamp(3.0, size.width - 3);
+    canvas.drawRect(Rect.fromCenter(center: Offset(x, size.height / 2), width: 8, height: size.height),
+        Paint()..style = PaintingStyle.stroke..strokeWidth = 3..color = col(marker));
+  }
+
+  @override
+  bool shouldRepaint(_LightnessPainter old) =>
+      old.h != h || old.s != s || old.l != l || old.border != border || old.marker != marker;
 }
 
 // ---- home wallpaper (#v32.4) --------------------------------------------------
@@ -2125,21 +2450,39 @@ class _ShopScreenState extends State<ShopScreen> {
         children: [
           objectThumb('flower_${f.id}', 40),
           const SizedBox(width: 12),
+          // 2:3 against the buttons (#v33.4): on a wide enough row the buttons
+          // still come out at their natural size, and on a narrow one they
+          // scale down instead of shoving the name column to nothing — which
+          // is how "SPRZEDAJ 5" pushed a Polish shop row past a 320px screen.
           Expanded(
+            flex: 2,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(f.nameIn(lang), style: pixelStyle(lang, 12, col(th.onSurface), text: f.nameIn(lang))),
                 const SizedBox(height: 6),
-                Text(info, style: pixelStyle(lang, 8, col(th.onSurfaceDim), text: info)),
+                _infoLine(th, lang, info),
               ],
             ),
           ),
-          _buySell(s, th, lang, f.id, Economy.flowerCost, () => s.buyFlower(f)),
+          Flexible(flex: 3, child: _buySell(s, th, lang, f.id, Economy.flowerCost, () => s.buyFlower(f))),
         ],
       ),
     );
   }
+
+  /// "OWNED n   PLACED m" on ONE line, always (#v33.4). The counters sit in the
+  /// narrow column left of BUY/SELL, and in the longer languages (SAHİP/BAHÇEDE,
+  /// W OGRODZIE) PLACED used to wrap under OWNED on a small screen. Scaling the
+  /// line down keeps both readable at any width; wrapping is what was rejected.
+  Widget _infoLine(PixelTheme th, String lang, String info) => FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerLeft,
+        child: Text(info,
+            maxLines: 1,
+            softWrap: false,
+            style: pixelStyle(lang, 8, col(th.onSurfaceDim), text: info)),
+      );
 
   // "OWNED n   PLACED m" — m = units currently in the garden (can't be sold).
   String _ownedInfo(AppStore s, String lang, String id) =>
@@ -2152,20 +2495,27 @@ class _ShopScreenState extends State<ShopScreen> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        PixelButton(
-          text: '${t(lang, 'buy')} $cost',
-          fill: th.accent, border: th.onSurface, textColor: th.onAccent, shadow: th.shadow,
-          lang: lang, fontSize: 10, padding: const EdgeInsets.all(10),
-          opacity: s.coins >= cost ? 1 : 0.45,
-          onTap: onBuy,
+        // Flexible so a squeezed row shrinks the two boxes evenly and their
+        // labels scale inside (PixelButton scales down, never wraps) — before
+        // this the pair kept its natural width and overflowed (#v33.4).
+        Flexible(
+          child: PixelButton(
+            text: '${t(lang, 'buy')} $cost',
+            fill: th.accent, border: th.onSurface, textColor: th.onAccent, shadow: th.shadow,
+            lang: lang, fontSize: 10, padding: const EdgeInsets.all(10),
+            opacity: s.coins >= cost ? 1 : 0.45,
+            onTap: onBuy,
+          ),
         ),
         const SizedBox(width: 8),
-        PixelButton(
-          text: '${t(lang, 'sell')} ${Economy.sellPrice(id)}',
-          fill: th.panel, border: th.onSurface, textColor: th.onSurface, shadow: th.shadow,
-          lang: lang, fontSize: 10, padding: const EdgeInsets.all(10),
-          opacity: s.availableOf(id) > 0 ? 1 : 0.45,
-          onTap: () => s.sellItem(id),
+        Flexible(
+          child: PixelButton(
+            text: '${t(lang, 'sell')} ${Economy.sellPrice(id)}',
+            fill: th.panel, border: th.onSurface, textColor: th.onSurface, shadow: th.shadow,
+            lang: lang, fontSize: 10, padding: const EdgeInsets.all(10),
+            opacity: s.availableOf(id) > 0 ? 1 : 0.45,
+            onTap: () => s.sellItem(id),
+          ),
         ),
       ],
     );
@@ -2179,17 +2529,22 @@ class _ShopScreenState extends State<ShopScreen> {
         children: [
           objectThumb(id, 40),
           const SizedBox(width: 12),
+          // 2:3 against the buttons (#v33.4): on a wide enough row the buttons
+          // still come out at their natural size, and on a narrow one they
+          // scale down instead of shoving the name column to nothing — which
+          // is how "SPRZEDAJ 5" pushed a Polish shop row past a 320px screen.
           Expanded(
+            flex: 2,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(t(lang, id), style: pixelStyle(lang, 12, col(th.onSurface), text: t(lang, id))),
                 const SizedBox(height: 6),
-                Text(info, style: pixelStyle(lang, 8, col(th.onSurfaceDim), text: info)),
+                _infoLine(th, lang, info),
               ],
             ),
           ),
-          _buySell(s, th, lang, id, Economy.objectCost, () => s.buyItem(id)),
+          Flexible(flex: 3, child: _buySell(s, th, lang, id, Economy.objectCost, () => s.buyItem(id))),
         ],
       ),
     );

@@ -35,10 +35,18 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  // #v33.2 — one shared palette: select the slot, then tap the colour. The
-  // swatch key no longer carries the slot (there is one palette, not seven).
+  // #v33.6 — a small box SELECTS a slot; the long bar under the list opens the
+  // wheel panel on it, and the ready swatches under that set it outright.
+  Future<void> selectSlot(WidgetTester tester, int slot) =>
+      tapVisible(tester, find.byKey(ValueKey('slotBox_$slot')));
+
+  Future<void> openPicker(WidgetTester tester, int slot) async {
+    await selectSlot(tester, slot);
+    await tapVisible(tester, find.byKey(const Key('activePreview')));
+  }
+
   Future<void> pick(WidgetTester tester, int slot, int color) async {
-    await tapVisible(tester, find.byKey(ValueKey('slotBox_$slot')));
+    await selectSlot(tester, slot);
     await tapVisible(tester, find.byKey(ValueKey('swatch_$color')));
   }
 
@@ -54,11 +62,17 @@ void main() {
     await tester.tap(find.text('CUSTOM'));
     await tester.pumpAndSettle();
     // labels name what each colour paints, not what the field is called (#v32.5).
-    // BACKGROUND appears twice — the slot tile and the "EDITING …" heading for
-    // the active slot (slot 0), which is fine (#v33.2).
-    expect(find.textContaining('BACKGROUND'), findsWidgets);
+    // One tile each, and no "EDITING …" heading repeating the selected one.
+    expect(find.textContaining('BACKGROUND'), findsOneWidget);
     expect(find.textContaining('HIGHLIGHT'), findsOneWidget);
     expect(find.textContaining('INCOME'), findsOneWidget);
+    // #v33.6 — the long bar and the ready swatches are on this screen; the hex
+    // field is not (it belongs to the wheel panel behind the bar)
+    expect(find.byKey(const Key('activePreview')), findsOneWidget);
+    expect(find.byKey(ValueKey('swatch_${kAllSwatches.first}')), findsOneWidget);
+    expect(find.byKey(const Key('hexField')), findsNothing);
+    // and it says the bar takes any colour at all
+    expect(find.text(t('en', 'pickHint')), findsOneWidget);
     // the base-theme starting point (#v33.1): the row and a button per preset
     expect(find.textContaining('BASE THEME'), findsOneWidget);
     for (final theme in Themes.all) {
@@ -135,6 +149,70 @@ void main() {
     expect(customThemePicks(s.customSpec)![6], 0xFFE8C547);
   });
 
+  testWidgets('the editor opens on the theme being worn, not on the old saved picks (#v33.4)',
+      (tester) async {
+    final s = await boot();
+    await tester.pumpWidget(host(s));
+    await tester.pumpAndSettle();
+
+    // build and save a custom theme…
+    await tester.tap(find.text('CUSTOM'));
+    await tester.pumpAndSettle();
+    await pick(tester, 0, 0xFF1B3A63); // background → navy
+    await tapVisible(tester, find.text('SAVE'));
+    expect(s.theme.bg, 0xFF1B3A63);
+
+    // …then go wear MATCHA instead
+    await tapVisible(tester, find.text('MATCHA'));
+    expect(s.theme.id, Themes.matcha.id);
+
+    // reopening the editor starts from MATCHA. Coming back on the old navy is
+    // what read as "it saved things I never pressed SAVE on".
+    await tapVisible(tester, find.text('EDIT COLORS'));
+    final box0 = tester.widget<Container>(find.byKey(const ValueKey('slotBox_0')));
+    expect((box0.decoration as BoxDecoration).color, col(Themes.matcha.bg),
+        reason: 'the editor reopened on a theme that is not the one on screen');
+    // and nothing was lost: the saved palette is still one CUSTOM tap away
+    expect(customThemePicks(s.customSpec)![0], 0xFF1B3A63);
+  });
+
+  testWidgets('while the custom theme is worn the editor reopens on its RAW picks (#v33.4)',
+      (tester) async {
+    final s = await boot();
+    await tester.pumpWidget(host(s));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('CUSTOM'));
+    await tester.pumpAndSettle();
+
+    // grey text on the same grey background: the BUILT theme corrects the text,
+    // the editor must still show what was tapped
+    await pick(tester, 0, 0xFF565656);
+    await pick(tester, 1, 0xFF565656);
+    await tapVisible(tester, find.text('SAVE'));
+    expect(s.theme.id, customThemeId);
+    expect(s.theme.onSurface, isNot(0xFF565656), reason: 'precondition: it was corrected');
+
+    await tapVisible(tester, find.text('EDIT COLORS'));
+    final box1 = tester.widget<Container>(find.byKey(const ValueKey('slotBox_1')));
+    expect((box1.decoration as BoxDecoration).color, col(0xFF565656));
+  });
+
+  testWidgets('a base preset saved untouched IS that preset (#v33.4)', (tester) async {
+    final s = await boot();
+    await tester.pumpWidget(host(s));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('CUSTOM'));
+    await tester.pumpAndSettle();
+
+    await tapVisible(tester, find.text('LATTE'));
+    await tapVisible(tester, find.text('SAVE'));
+
+    expect(s.theme.id, customThemeId, reason: 'it is saved in the user slot');
+    expect(s.theme.shadow, Themes.latte.shadow, reason: 'the derived shadow was a black bar');
+    expect(s.theme.onAccent, Themes.latte.onAccent);
+    expect(s.theme.focusTint, Themes.latte.focusTint);
+  });
+
   testWidgets('a hex code sets the active slot to any colour, off-palette (#v33.2)',
       (tester) async {
     final s = await boot();
@@ -143,10 +221,11 @@ void main() {
     await tester.tap(find.text('CUSTOM'));
     await tester.pumpAndSettle();
 
-    // 0x123456 is not one of the 26 swatches — the whole point of the field
-    await tapVisible(tester, find.byKey(const ValueKey('slotBox_0'))); // BACKGROUND active
+    // 0x123456 is not one of the swatches — the whole point of the field
+    await openPicker(tester, 0); // BACKGROUND
     await tester.enterText(find.byKey(const Key('hexField')), '123456');
     await tester.pumpAndSettle();
+    await tapVisible(tester, find.text('CLOSE'));
     await tapVisible(tester, find.text('SAVE'));
 
     expect(s.theme.bg, 0xFF123456, reason: 'background is the anchor; the hex applies verbatim');
@@ -164,8 +243,7 @@ void main() {
     // MATCHA's background is not one of the 26 hue swatches, but it must now be
     // a swatch in its own right, so the user can SEE and pick the main themes.
     expect(kSwatches.contains(Themes.matcha.bg), isFalse, reason: 'precondition');
-    await tapVisible(tester, find.byKey(const ValueKey('slotBox_0'))); // BACKGROUND
-    await tapVisible(tester, find.byKey(ValueKey('swatch_${Themes.matcha.bg}')));
+    await pick(tester, 0, Themes.matcha.bg); // BACKGROUND
     await tapVisible(tester, find.text('SAVE'));
     expect(s.theme.bg, Themes.matcha.bg);
   });
@@ -177,25 +255,26 @@ void main() {
     await tester.tap(find.text('CUSTOM'));
     await tester.pumpAndSettle();
 
-    Color previewColor() =>
-        (tester.widget<Container>(find.byKey(const Key('activePreview'))).decoration
-                as BoxDecoration)
-            .color!;
+    Color barColor(String key) =>
+        (tester.widget<Container>(find.byKey(Key(key))).decoration as BoxDecoration).color!;
 
-    // pick a swatch → the preview bar becomes that colour AND shows its hex
-    await tapVisible(tester, find.byKey(const ValueKey('slotBox_0')));
-    await tapVisible(tester, find.byKey(ValueKey('swatch_${0xFFE5484D}'))); // a red hue swatch
-    expect(previewColor(), col(0xFFE5484D));
+    // a swatch on the editor → the long bar becomes that colour AND shows its hex
+    await pick(tester, 0, 0xFFE5484D); // a red hue swatch
+    expect(barColor('activePreview'), col(0xFFE5484D));
     expect(find.text('#E5484D'), findsOneWidget, reason: 'the hex of the chosen colour is shown');
 
-    // type a hex → the preview follows that too
+    // a hex typed in the wheel panel → its own preview follows, and so does the
+    // editor's bar once the panel is closed
+    await tapVisible(tester, find.byKey(const Key('activePreview')));
     await tester.enterText(find.byKey(const Key('hexField')), '112233');
     await tester.pumpAndSettle();
-    expect(previewColor(), col(0xFF112233));
+    expect(barColor('pickerPreview'), col(0xFF112233));
     expect(find.text('#112233'), findsOneWidget);
+    await tapVisible(tester, find.text('CLOSE'));
+    expect(barColor('activePreview'), col(0xFF112233));
   });
 
-  testWidgets('the palette edits whichever slot is active, not a fixed one (#v33.2)',
+  testWidgets('a swatch lands on the selected slot and leaves the rest alone (#v33.6)',
       (tester) async {
     final s = await boot();
     await tester.pumpWidget(host(s));
@@ -203,13 +282,76 @@ void main() {
     await tester.tap(find.text('CUSTOM'));
     await tester.pumpAndSettle();
 
-    // tap the SAME swatch after selecting two different slots: it must land on
-    // whichever slot is active, proving the palette is shared, not per-slot.
+    // the same colour through two different slots' pickers: it must land on the
+    // slot whose box was tapped, and leave the rest of them alone
+    final before = List.of(Themes.dark.picks);
     await pick(tester, 1, 0xFFE5484D); // MAIN TEXT
     await pick(tester, 5, 0xFFE5484D); // BREAK
     await tapVisible(tester, find.text('SAVE'));
-    expect(customThemePicks(s.customSpec)![1], 0xFFE5484D);
-    expect(customThemePicks(s.customSpec)![5], 0xFFE5484D);
+    final after = customThemePicks(s.customSpec)!;
+    expect(after[1], 0xFFE5484D);
+    expect(after[5], 0xFFE5484D);
+    for (final slot in const [0, 2, 3, 4, 6]) {
+      expect(after[slot], before[slot], reason: 'slot $slot was not the one being edited');
+    }
+  });
+
+  testWidgets('the bar opens the wheel on the selected slot, named (#v33.6)', (tester) async {
+    final s = await boot();
+    await tester.pumpWidget(host(s));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('CUSTOM'));
+    await tester.pumpAndSettle();
+
+    await openPicker(tester, 6); // MONEY IN
+    expect(find.text(t('en', 'pickColor')), findsOneWidget, reason: 'the panel title');
+    expect(find.text(t('en', 'cIncome')), findsOneWidget, reason: 'it says which slot it is on');
+    // it opens ON that slot's current colour, not on some default
+    final bar = tester.widget<Container>(find.byKey(const Key('pickerPreview')));
+    expect((bar.decoration as BoxDecoration).color, col(Themes.dark.work));
+    // the ready swatches stayed on the editor screen (#v33.6)
+    expect(find.byKey(ValueKey('swatch_${kAllSwatches.first}')), findsNothing);
+  });
+
+  testWidgets('the wheel and the lightness bar reach colours no swatch has (#v33.5)',
+      (tester) async {
+    final s = await boot();
+    await tester.pumpWidget(host(s));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('CUSTOM'));
+    await tester.pumpAndSettle();
+    await openPicker(tester, 0); // BACKGROUND
+
+    // drag on the wheel: right of centre is hue 0 at full saturation
+    final wheel = find.byKey(const Key('colorWheel'));
+    await tester.ensureVisible(wheel);
+    await tester.pumpAndSettle();
+    final box = tester.getRect(wheel);
+    await tester.tapAt(Offset(box.right - 2, box.center.dy));
+    await tester.pumpAndSettle();
+
+    Color previewColor() =>
+        (tester.widget<Container>(find.byKey(const Key('pickerPreview'))).decoration
+                as BoxDecoration)
+            .color!;
+    final onWheel = previewColor();
+    expect(onWheel.g, lessThan(onWheel.r), reason: 'the right edge of the wheel is red');
+
+    // then the lightness bar: far left is black whatever the hue is
+    final bar = find.byKey(const Key('lightnessBar'));
+    await tester.ensureVisible(bar);
+    await tester.pumpAndSettle();
+    final barBox = tester.getRect(bar);
+    await tester.tapAt(Offset(barBox.left + 1, barBox.center.dy));
+    await tester.pumpAndSettle();
+    expect(previewColor().computeLuminance(), lessThan(0.01),
+        reason: 'the left end of the bar is black whatever the hue is');
+
+    // and it is the slot's colour that changed, not just the panel's preview
+    final picked = previewColor();
+    await tapVisible(tester, find.text('CLOSE'));
+    await tapVisible(tester, find.text('SAVE'));
+    expect(col(s.theme.bg), picked, reason: 'the background is the anchor, never corrected');
   });
 
   testWidgets('an unreadable pick is corrected on save, and the app stays legible',

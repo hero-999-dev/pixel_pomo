@@ -193,7 +193,11 @@ class PixelTheme {
       onSurface: nudgeContrast(onSurface, bg, kMinTextContrast),
       onSurfaceDim: nudgeContrast(onSurfaceDim, bg, kMinDimTextContrast),
       onAccent: nudgeContrast(onSurface, fixedAccent, kMinTextContrast),
-      shadow: mixColors(bg, 0xFF000000, 0.6),
+      // A light theme's shadow is its own background gone a little darker; only
+      // a dark one wants near-black. The single 0.6 mix put hard black bars
+      // under every button of a cream custom theme, which is a good part of why
+      // a preset rebuilt here "didn't go together" (#v33.4).
+      shadow: mixColors(bg, 0xFF000000, _relLuminance(bg) > 0.35 ? 0.18 : 0.6),
       // The countdown must not follow the selected square (#v32.4): picking a
       // dark square used to sink the clock into the background. TEXT 1 is
       // already contrast-corrected against the background, so it always reads.
@@ -203,18 +207,46 @@ class PixelTheme {
 
   /// [PixelTheme.custom] fed from the picker's slot order — the one place that
   /// order is spelled out, shared by the editor and the saved spec.
-  factory PixelTheme.fromPicks(List<int> p) => PixelTheme.custom(
-        bg: p[0],
-        onSurface: p[1],
-        onSurfaceDim: p[2],
-        accent: p[3],
-        panel: p[4],
-        breakColor: p[5],
-        work: p[6],
-      );
+  ///
+  /// A preset loaded in the editor and left alone comes back as ITSELF (#v33.4).
+  /// [PixelTheme.custom] derives `shadow`, `onAccent` and `focusColor` by
+  /// formula, so LATTE rebuilt through it was a visibly different theme than
+  /// LATTE — "pressing latte in custom doesn't give the same thing". Only picks
+  /// the user actually changed go through the derivation.
+  factory PixelTheme.fromPicks(List<int> p) {
+    for (final preset in Themes.all) {
+      if (_samePicks(preset.picks, p)) return preset.asCustom;
+    }
+    return PixelTheme.custom(
+      bg: p[0],
+      onSurface: p[1],
+      onSurfaceDim: p[2],
+      accent: p[3],
+      panel: p[4],
+      breakColor: p[5],
+      work: p[6],
+    );
+  }
 
   /// This theme's colours as editor picks, so the editor can start from any theme.
   List<int> get picks => [bg, onSurface, onSurfaceDim, accent, panel, breakColor, work];
+
+  /// This theme wearing the custom id, so a preset loaded whole in the editor
+  /// can be saved and worn as the user's own without losing a single colour.
+  PixelTheme get asCustom => PixelTheme(
+        id: customThemeId,
+        displayName: 'CUSTOM',
+        bg: bg,
+        panel: panel,
+        accent: accent,
+        work: work,
+        breakColor: breakColor,
+        onSurface: onSurface,
+        onSurfaceDim: onSurfaceDim,
+        onAccent: onAccent,
+        shadow: shadow,
+        focusColor: focusColor,
+      );
 }
 
 // ---- custom theme colour maths (#v32.3) ---------------------------------------
@@ -347,6 +379,46 @@ int nudgeContrast(int fg, int bg, double min) {
 double _chroma(int argb) {
   final r = (argb >> 16) & 0xFF, g = (argb >> 8) & 0xFF, b = argb & 0xFF;
   return (math.max(r, math.max(g, b)) - math.min(r, math.min(g, b))) / 255;
+}
+
+/// An opaque colour as `[hue 0…360, saturation 0…1, lightness 0…1]`, and back
+/// (#v33.5) — the colour wheel works in HSL, the rest of the app in ARGB.
+List<double> hslOf(int argb) => _toHsl(argb);
+int colorFromHsl(double h, double s, double l) => _fromHsl(h, s, l);
+
+/// The hue and saturation under a point on a colour wheel: [dx]/[dy] measured
+/// from its CENTRE, [radius] the wheel's own (#v33.5).
+///
+/// Outside the rim it clamps to full saturation instead of refusing, so a drag
+/// that runs off the circle keeps picking rather than sticking at the edge.
+List<double> wheelHueSat(double dx, double dy, double radius) {
+  final hue = (math.atan2(dy, dx) * 180 / math.pi + 360) % 360;
+  if (radius <= 0) return [hue, 0];
+  return [hue, (math.sqrt(dx * dx + dy * dy) / radius).clamp(0.0, 1.0)];
+}
+
+bool _samePicks(List<int> a, List<int> b) {
+  if (a.length != b.length) return false;
+  for (var i = 0; i < a.length; i++) {
+    if (a[i] != b[i]) return false;
+  }
+  return true;
+}
+
+/// Where a colour belongs in a palette laid out similar-next-to-similar
+/// (#v33.4): greys first darkest→lightest, then the hues in colour-wheel order
+/// with each family's dark/mid/light shades together. One comparable number, so
+/// ordering a palette is a plain `sort`.
+///
+/// Hues are grouped into 12 bins CENTRED on the primary hues rather than
+/// starting at 0°: a family's shades drift a few degrees apart (this palette's
+/// dark orange measures 28°, its light one 33°), and bins starting on the
+/// boundary would split that trio across two of them.
+double swatchOrder(int argb) {
+  final hsl = _toHsl(argb);
+  if (_chroma(argb) < 0.08) return hsl[2]; // greys: 0…1, below every hue
+  final bin = (((hsl[0] + 15) % 360) ~/ 30);
+  return 2 + bin * 2 + hsl[2]; // 2 apart so lightness can never cross bins
 }
 
 /// How many colours a custom theme is built from — see [customThemePicks].

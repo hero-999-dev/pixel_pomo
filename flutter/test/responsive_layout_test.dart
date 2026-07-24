@@ -8,6 +8,7 @@ import 'package:pixel_pomo/logic.dart';
 import 'package:pixel_pomo/main.dart';
 import 'package:pixel_pomo/pixel.dart';
 import 'package:pixel_pomo/store.dart';
+import 'package:pixel_pomo/strings.dart';
 
 /// #v33 — "the screen changes size and the layout does not follow it".
 ///
@@ -87,24 +88,27 @@ void main() {
     }
   });
 
-  testWidgets('the custom editor shows 26 swatches, 13 per row, spanning the panel', (tester) async {
+  testWidgets('the editor palette shows every colour, 13 per row, spanning the panel',
+      (tester) async {
     sizeTo(tester, 390, 1400);
     final s = await boot();
     await tester.pumpWidget(MaterialApp(home: CustomThemeScreen(s)));
     await tester.pumpAndSettle();
 
-    // one shared palette now (#v33.2), keyed by colour without the slot
-    final swatches = [for (final c in kSwatches) find.byKey(ValueKey('swatch_$c'))];
-    expect(kSwatches.length, 26, reason: 'the two added colours (#v33)');
+    // one shared palette (#v33.2), keyed by colour without the slot; the hue
+    // ramp and the preset colours are one sorted grid since #v33.4
+    final swatches = [for (final c in kAllSwatches) find.byKey(ValueKey('swatch_$c'))];
+    expect(kSwatches.length, 28, reason: 'the teal gained its dark and light (#v33.4)');
     for (final f in swatches) {
       expect(f, findsOneWidget);
     }
 
-    // exactly two rows: the first 13 share a top, the next 13 share a lower one
+    // full rows: the first 13 share a top, the next 13 share a lower one
     final tops = [for (final f in swatches) tester.getRect(f).top];
     expect(tops.take(kSwatchesPerRow).toSet().length, 1, reason: 'row 1 is not one row');
-    expect(tops.skip(kSwatchesPerRow).toSet().length, 1, reason: 'row 2 is not one row');
-    expect(tops.first, lessThan(tops.last), reason: 'the second row must sit below the first');
+    expect(tops.skip(kSwatchesPerRow).take(kSwatchesPerRow).toSet().length, 1,
+        reason: 'row 2 is not one row');
+    expect(tops.first, lessThan(tops.last), reason: 'later swatches must sit lower');
 
     // and the row spans the full content width — the same edges the buttons
     // above/below it use, which is what "align it with the boxes" asked for
@@ -128,6 +132,13 @@ void main() {
           'stats': () => StatsScreen(s),
           'sessions in pixels': () => SessionsInPixelsScreen(s),
           'custom theme': () => CustomThemeScreen(s),
+          'colour picker': () => ColorPickerScreen(
+                s: s,
+                slotLabel: t(s.lang, 'cBg'),
+                initial: 0xFF1B3A63,
+                themeOf: () => Themes.dark,
+                onPick: (_) {},
+              ),
           'shop': () => ShopScreen(s),
           'habits': () => HabitScreen(s),
           'settings': () => SettingsScreen(s),
@@ -157,6 +168,35 @@ void main() {
     // same row: their vertical centres line up
     expect((buy.center.dy - sell.center.dy).abs(), lessThan(4),
         reason: 'BUY and SELL are on different rows');
+  });
+
+  group('shop OWNED/PLACED stays on one line (#v33.4)', () {
+    // "it slides underneath on a small screen — keep it on one row". TR and PL
+    // are the long ones: "SAHİP 0   BAHÇEDE 0", "MASZ 0   W OGRODZIE 0".
+    for (final lang in ['en', 'tr', 'pl']) {
+      testWidgets('$lang at 320px', (tester) async {
+        sizeTo(tester, 320, 1600);
+        final s = await boot();
+        s.selectLanguage(lang);
+        await tester.pumpWidget(MaterialApp(home: ShopScreen(s)));
+        await tester.pumpAndSettle();
+
+        // the counters line of the first shop row, whatever language it is in
+        final word = t(lang, 'placed').split(' ').first;
+        final text = find.textContaining(word).first;
+        // the paragraph's own laid-out height against the same string forced
+        // onto one line — the FittedBox scales what is on screen, so measuring
+        // the rendered rect would hide a wrap (same trick as the buttons above)
+        final paragraph = tester.renderObject<RenderParagraph>(text);
+        final oneLine = TextPainter(
+          text: paragraph.text,
+          textDirection: TextDirection.ltr,
+          maxLines: 1,
+        )..layout();
+        expect(paragraph.size.height, lessThanOrEqualTo(oneLine.height + 0.5),
+            reason: 'OWNED/PLACED wrapped onto a second line in $lang at 320px');
+      });
+    }
   });
 
   testWidgets('monthly 3-up columns are equal width — the 3rd was bigger (#v33.2)', (tester) async {

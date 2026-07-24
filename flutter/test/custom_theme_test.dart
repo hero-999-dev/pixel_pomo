@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pixel_pomo/logic.dart';
-import 'package:pixel_pomo/main.dart' show kSwatches;
+import 'package:pixel_pomo/main.dart' show kAllSwatches, kSwatches;
 
 /// The promise the custom theme makes: whatever colours the user taps, the
 /// result is still readable and its squares are still tellable apart. Every
@@ -64,11 +64,14 @@ void main() {
       }
     });
 
-    test('every preset theme survives a round trip through the picker', () {
-      // the editor seeds from whatever theme is on screen, so a preset's own
-      // colours have to come back out as a usable custom theme
+    test('a preset with one pick changed is corrected like any other custom theme', () {
+      // The editor seeds from whatever theme is on screen, so most custom
+      // themes start life as a preset with a colour or two swapped. An
+      // UNTOUCHED preset is passed through as itself (#v33.4, its own group
+      // below) — DARK ships squares at 1.20 against its background, under the
+      // 1.25 bar, and correcting the shipped themes was never the intent.
       for (final preset in Themes.all) {
-        final th = PixelTheme.fromPicks(preset.picks);
+        final th = PixelTheme.fromPicks(List.of(preset.picks)..[5] = 0xFF9D7CD8);
         expectReadable(th);
         expect(th.bg, preset.bg, reason: 'the background is never corrected');
       }
@@ -203,6 +206,135 @@ void main() {
         expect(preset.focusColor, isNull, reason: '${preset.id} must not set an override');
         expect(preset.focusTint, preset.accent);
         expect(preset.phaseColor(Mode.work), preset.accent);
+      }
+    });
+  });
+
+  group('a preset loaded in the editor stays that preset (#v33.4)', () {
+    /// Every colour a screen can actually paint with, so nothing hides behind
+    /// a field the comparison forgot.
+    List<int> colours(PixelTheme t) => [
+          t.bg, t.panel, t.accent, t.work, t.breakColor,
+          t.onSurface, t.onSurfaceDim, t.onAccent, t.shadow, t.focusTint,
+        ];
+
+    test('every preset survives the round trip through the picks', () {
+      for (final preset in Themes.all) {
+        final built = PixelTheme.fromPicks(preset.picks);
+        expect(built.id, customThemeId, reason: 'it is still the user theme slot');
+        expect(colours(built), colours(preset),
+            reason: '${preset.id} came back a different theme — the whole '
+                '"pressing LATTE in custom is not LATTE" report');
+      }
+    });
+
+    test('changing one pick goes back to the derivation, and still reads', () {
+      final picks = List.of(Themes.latte.picks)..[5] = 0xFF9D7CD8; // BREAK → purple
+      final th = PixelTheme.fromPicks(picks);
+      expect(th.breakColor, isNot(Themes.latte.breakColor));
+      expect(th.bg, Themes.latte.bg, reason: 'the untouched picks are still latte');
+      expectReadable(th);
+    });
+
+    test("a light theme's shadow stays a tint of its own background", () {
+      // latte with one pick changed, so it takes the derived path on purpose
+      final light = PixelTheme.fromPicks(List.of(Themes.latte.picks)..[6] = 0xFF46A03C);
+      expect(contrastRatio(light.shadow, light.bg), lessThan(1.6),
+          reason: 'a cream theme got hard black bars under its buttons');
+      // a dark theme still wants its near-black edge
+      final dark = PixelTheme.fromPicks(List.of(Themes.dark.picks)..[6] = 0xFF46A03C);
+      expect(contrastRatio(dark.shadow, dark.bg), lessThan(2.0));
+      expect(dark.shadow, lessThan(0xFF202020), reason: 'dark themes keep a near-black shadow');
+    });
+  });
+
+  group('colour wheel maths (#v33.5)', () {
+    test('the rim is the hue, the centre has no colour left', () {
+      expect(wheelHueSat(50, 0, 50)[0], closeTo(0, 0.001), reason: 'right of centre is hue 0');
+      // screen y grows downward, so the wheel reads clockwise from there
+      expect(wheelHueSat(0, 50, 50)[0], closeTo(90, 0.001));
+      expect(wheelHueSat(-50, 0, 50)[0], closeTo(180, 0.001));
+      expect(wheelHueSat(0, -50, 50)[0], closeTo(270, 0.001));
+      expect(wheelHueSat(50, 0, 50)[1], closeTo(1, 0.001), reason: 'the rim is full saturation');
+      expect(wheelHueSat(0, 0, 50)[1], 0, reason: 'the centre is grey');
+      expect(wheelHueSat(25, 0, 50)[1], closeTo(0.5, 0.001));
+    });
+
+    test('a drag off the edge keeps picking instead of sticking', () {
+      expect(wheelHueSat(500, 0, 50)[1], 1);
+      expect(wheelHueSat(0, 0, 0)[1], 0, reason: 'a zero-radius wheel must not divide by zero');
+    });
+
+    test('HSL round trips, so opening the picker lands on the colour it was given', () {
+      for (final c in kAllSwatches) {
+        final hsl = hslOf(c);
+        final back = colorFromHsl(hsl[0], hsl[1], hsl[2]);
+        expect(back, c, reason: '#${c.toRadixString(16)} did not survive the round trip');
+      }
+    });
+
+    test('the bar ends are black and white for every hue', () {
+      for (var h = 0.0; h < 360; h += 45) {
+        expect(colorFromHsl(h, 1, 0), 0xFF000000);
+        expect(colorFromHsl(h, 1, 1), 0xFFFFFFFF);
+      }
+    });
+  });
+
+  group('palette order (#v33.4)', () {
+    test('the teal is a full trio now — 28 base swatches', () {
+      expect(kSwatches.length, 28);
+      for (final teal in [0xFF14504B, 0xFF1E9E92, 0xFF9BE0D8]) {
+        expect(kSwatches, contains(teal));
+      }
+    });
+
+    test('the whole palette is one sorted run, every colour once', () {
+      final keys = [for (final c in kAllSwatches) swatchOrder(c)];
+      expect(keys, orderedEquals(List.of(keys)..sort()),
+          reason: 'the preset colours were appended in theme order, not colour order');
+      expect(kAllSwatches.toSet().length, kAllSwatches.length, reason: 'a duplicate cell is wasted');
+      for (final c in kSwatches) {
+        expect(kAllSwatches, contains(c));
+      }
+    });
+
+    test('greys come first, darkest to lightest, and no hue lands among them', () {
+      const greys = [0xFF0B0B0B, 0xFF2B2B2B, 0xFF565656, 0xFF8E8E8E, 0xFFCFCFCF, 0xFFF7F7F7];
+      for (var i = 1; i < greys.length; i++) {
+        expect(swatchOrder(greys[i]), greaterThan(swatchOrder(greys[i - 1])));
+      }
+      for (final c in kAllSwatches.where((c) => !greys.contains(c))) {
+        // every hue sorts after every grey; other near-greys may join the ramp
+        if (swatchOrder(c) < swatchOrder(greys.last)) {
+          expect(swatchOrder(c), lessThan(1.0), reason: 'a hue sorted into the grey ramp');
+        }
+      }
+    });
+
+    test('a dark/mid/light family shares one place in the order', () {
+      const families = [
+        [0xFF7A1F2B, 0xFFE5484D, 0xFFF7A8AC], // red
+        [0xFF7A4212, 0xFFE8801E, 0xFFF5C48A], // orange
+        [0xFF6E5A10, 0xFFE8C547, 0xFFF6E9A8], // yellow
+        [0xFF14504B, 0xFF1E9E92, 0xFF9BE0D8], // teal
+        [0xFF1B3A63, 0xFF58A6FF, 0xFFBBD9FF], // blue
+        [0xFF422A63, 0xFF9D7CD8, 0xFFD9C7F5], // purple
+      ];
+      for (final family in families) {
+        final bins = {for (final c in family) swatchOrder(c).floor()};
+        expect(bins.length, 1, reason: 'family $family split across the palette');
+        // and inside the family, dark sorts before light
+        expect(swatchOrder(family[0]), lessThan(swatchOrder(family[1])));
+        expect(swatchOrder(family[1]), lessThan(swatchOrder(family[2])));
+      }
+    });
+
+    test('the wheel runs red → orange → yellow → green → teal → blue → purple', () {
+      const wheel = [0xFFE5484D, 0xFFE8801E, 0xFFE8C547, 0xFF46A03C, 0xFF1E9E92, 0xFF58A6FF, 0xFF9D7CD8];
+      for (var i = 1; i < wheel.length; i++) {
+        expect(swatchOrder(wheel[i]), greaterThan(swatchOrder(wheel[i - 1])),
+            reason: 'the palette is not in colour-wheel order at index $i');
       }
     });
   });
