@@ -27,14 +27,19 @@ void main() {
   Widget host(AppStore s) =>
       MaterialApp(home: AnimatedBuilder(animation: s, builder: (_, __) => ThemeScreen(s)));
 
-  Finder swatch(int slot, int color) => find.byKey(ValueKey('swatch_${slot}_$color'));
-
   // the editor is taller than the 800x600 test viewport — scroll before tapping
   Future<void> tapVisible(WidgetTester tester, Finder f) async {
     await tester.ensureVisible(f);
     await tester.pumpAndSettle();
     await tester.tap(f);
     await tester.pumpAndSettle();
+  }
+
+  // #v33.2 — one shared palette: select the slot, then tap the colour. The
+  // swatch key no longer carries the slot (there is one palette, not seven).
+  Future<void> pick(WidgetTester tester, int slot, int color) async {
+    await tapVisible(tester, find.byKey(ValueKey('slotBox_$slot')));
+    await tapVisible(tester, find.byKey(ValueKey('swatch_$color')));
   }
 
   testWidgets('with nothing saved the picker offers one CUSTOM button that opens the editor',
@@ -48,8 +53,10 @@ void main() {
 
     await tester.tap(find.text('CUSTOM'));
     await tester.pumpAndSettle();
-    // labels name what each colour paints, not what the field is called (#v32.5)
-    expect(find.textContaining('BACKGROUND'), findsOneWidget);
+    // labels name what each colour paints, not what the field is called (#v32.5).
+    // BACKGROUND appears twice — the slot tile and the "EDITING …" heading for
+    // the active slot (slot 0), which is fine (#v33.2).
+    expect(find.textContaining('BACKGROUND'), findsWidgets);
     expect(find.textContaining('HIGHLIGHT'), findsOneWidget);
     expect(find.textContaining('INCOME'), findsOneWidget);
     // the base-theme starting point (#v33.1): the row and a button per preset
@@ -72,15 +79,15 @@ void main() {
     await tester.pumpAndSettle();
 
     // start from MATCHA: its palette becomes the picks, so its background is
-    // what the current-colour chip shows and what saving keeps.
+    // what the BACKGROUND slot's colour box shows and what saving keeps.
     await tapVisible(tester, find.text('MATCHA'));
-    final chip = tester.widget<Container>(find.byKey(const ValueKey('current_0')));
-    expect((chip.decoration as BoxDecoration).color, col(Themes.matcha.bg),
-        reason: 'the BACKGROUND chip did not follow the base theme');
+    final box0 = tester.widget<Container>(find.byKey(const ValueKey('slotBox_0')));
+    expect((box0.decoration as BoxDecoration).color, col(Themes.matcha.bg),
+        reason: 'the BACKGROUND colour box did not follow the base theme');
 
     // now change ONE slot (the highlight) and save — every other slot must
     // still be matcha's, proving the base seeded them all.
-    await tapVisible(tester, swatch(3, 0xFFE8C547));
+    await pick(tester, 3, 0xFFE8C547);
     await tapVisible(tester, find.text('SAVE'));
     expect(s.theme.id, customThemeId);
     expect(s.theme.bg, Themes.matcha.bg, reason: 'background should be matcha, untouched');
@@ -94,8 +101,8 @@ void main() {
     await tester.tap(find.text('CUSTOM'));
     await tester.pumpAndSettle();
 
-    await tapVisible(tester, swatch(0, 0xFF1B3A63)); // background
-    await tapVisible(tester, swatch(3, 0xFFE8C547)); // selected square
+    await pick(tester, 0, 0xFF1B3A63); // background
+    await pick(tester, 3, 0xFFE8C547); // selected square
     await tapVisible(tester, find.text('SAVE'));
 
     expect(s.theme.id, customThemeId);
@@ -115,9 +122,9 @@ void main() {
     await tester.tap(find.text('CUSTOM'));
     await tester.pumpAndSettle();
 
-    await tapVisible(tester, swatch(4, 0xFF422A63)); // squares
-    await tapVisible(tester, swatch(5, 0xFF9D7CD8)); // BREAK
-    await tapVisible(tester, swatch(6, 0xFFE8C547)); // income
+    await pick(tester, 4, 0xFF422A63); // squares
+    await pick(tester, 5, 0xFF9D7CD8); // BREAK
+    await pick(tester, 6, 0xFFE8C547); // income
     await tapVisible(tester, find.text('SAVE'));
 
     expect(s.theme.breakColor, 0xFF9D7CD8);
@@ -126,6 +133,41 @@ void main() {
     await tapVisible(tester, find.text('EDIT COLORS'));
     expect(customThemePicks(s.customSpec)![4], 0xFF422A63);
     expect(customThemePicks(s.customSpec)![6], 0xFFE8C547);
+  });
+
+  testWidgets('a hex code sets the active slot to any colour, off-palette (#v33.2)',
+      (tester) async {
+    final s = await boot();
+    await tester.pumpWidget(host(s));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('CUSTOM'));
+    await tester.pumpAndSettle();
+
+    // 0x123456 is not one of the 26 swatches — the whole point of the field
+    await tapVisible(tester, find.byKey(const ValueKey('slotBox_0'))); // BACKGROUND active
+    await tester.enterText(find.byKey(const Key('hexField')), '123456');
+    await tester.pumpAndSettle();
+    await tapVisible(tester, find.text('SAVE'));
+
+    expect(s.theme.bg, 0xFF123456, reason: 'background is the anchor; the hex applies verbatim');
+    expect(customThemePicks(s.customSpec)![0], 0xFF123456);
+  });
+
+  testWidgets('the palette edits whichever slot is active, not a fixed one (#v33.2)',
+      (tester) async {
+    final s = await boot();
+    await tester.pumpWidget(host(s));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('CUSTOM'));
+    await tester.pumpAndSettle();
+
+    // tap the SAME swatch after selecting two different slots: it must land on
+    // whichever slot is active, proving the palette is shared, not per-slot.
+    await pick(tester, 1, 0xFFE5484D); // MAIN TEXT
+    await pick(tester, 5, 0xFFE5484D); // BREAK
+    await tapVisible(tester, find.text('SAVE'));
+    expect(customThemePicks(s.customSpec)![1], 0xFFE5484D);
+    expect(customThemePicks(s.customSpec)![5], 0xFFE5484D);
   });
 
   testWidgets('an unreadable pick is corrected on save, and the app stays legible',
@@ -138,7 +180,7 @@ void main() {
 
     // one mid-grey for every slot: text on top of its own colour
     for (var slot = 0; slot < kCustomSlots; slot++) {
-      await tapVisible(tester, swatch(slot, 0xFF565656));
+      await pick(tester, slot, 0xFF565656);
     }
     await tapVisible(tester, find.text('SAVE'));
 
@@ -169,7 +211,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('CUSTOM'));
     await tester.pumpAndSettle();
-    await tapVisible(tester, swatch(0, 0xFF1B3A63));
+    await pick(tester, 0, 0xFF1B3A63);
     await tapVisible(tester, find.text('SAVE'));
     expect(s.theme.id, customThemeId);
 

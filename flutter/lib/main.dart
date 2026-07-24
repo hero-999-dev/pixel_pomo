@@ -999,6 +999,8 @@ class _CustomThemeScreenState extends State<CustomThemeScreen> {
   static const _slotKeys = ['cBg', 'cText1', 'cText2', 'cSelected', 'cSquares', 'cBreak', 'cIncome'];
 
   late List<int> picks;
+  int _active = 0; // which slot the shared palette + hex field edit (#v33.2)
+  final _hex = TextEditingController();
 
   @override
   void initState() {
@@ -1007,7 +1009,35 @@ class _CustomThemeScreenState extends State<CustomThemeScreen> {
     // reopen on the saved picks; first time, seed from the theme on screen so
     // the editor starts somewhere the user already likes
     picks = customThemePicks(s.customSpec) ?? s.theme.picks;
+    _hex.text = _hex6(picks[_active]);
   }
+
+  @override
+  void dispose() {
+    _hex.dispose();
+    super.dispose();
+  }
+
+  static String _hex6(int argb) =>
+      (argb & 0xFFFFFF).toRadixString(16).padLeft(6, '0').toUpperCase();
+
+  /// A 6-digit RRGGBB string (any junk stripped) → opaque ARGB, or null if it
+  /// isn't six hex digits yet.
+  static int? _parseHex(String s) {
+    final h = s.replaceAll(RegExp('[^0-9a-fA-F]'), '');
+    if (h.length != 6) return null;
+    return 0xFF000000 | int.parse(h, radix: 16);
+  }
+
+  void _selectSlot(int slot) => setState(() {
+        _active = slot;
+        _hex.text = _hex6(picks[slot]);
+      });
+
+  void _setActiveColor(int argb) => setState(() {
+        picks[_active] = argb;
+        _hex.text = _hex6(argb);
+      });
 
   @override
   Widget build(BuildContext context) {
@@ -1028,7 +1058,15 @@ class _CustomThemeScreenState extends State<CustomThemeScreen> {
         // pick a preset as a STARTING POINT: it loads that theme's colours into
         // every slot below, then the user changes the few they want (#v33.1)
         ..._baseThemeRow(preview, lang),
-        for (var slot = 0; slot < _slotKeys.length; slot++) _slotRow(preview, lang, slot),
+        // #v33.2 — the seven slots are a compact LIST, each with its colour on
+        // the RIGHT; tap one to make it active, then the ONE shared palette +
+        // hex field below sets it. Sharing one palette (and adding a hex field)
+        // is what lets any colour be chosen, so a custom theme can reproduce a
+        // preset exactly instead of being stuck with a per-slot grid of 26.
+        for (var slot = 0; slot < _slotKeys.length; slot++) _slotTile(preview, lang, slot),
+        const SizedBox(height: 8),
+        ..._palette(preview, lang),
+        const SizedBox(height: 8),
         primaryBtn(preview, lang, t(lang, 'save'), () {
           s.saveCustomTheme(picks);
           Navigator.pop(context);
@@ -1065,100 +1103,141 @@ class _CustomThemeScreenState extends State<CustomThemeScreen> {
     ];
   }
 
-  /// The preset picker: tap one to load its colours into every slot (#v33.1).
-  /// A base theme's colours are its own palette (Catppuccin, cream, …) and need
-  /// not all be in [kSwatches], so each slot's label carries a live swatch of
-  /// the CURRENT colour — that is where a base theme's off-palette pick shows,
-  /// and it stays visible while the grid below is used to override individual
-  /// slots.
+  /// The preset picker on ONE row (#v33.2): tap a preset to load its colours
+  /// into every slot, then override the few you want. With the hex field below,
+  /// its off-palette colours are all reproducible, so this really is a starting
+  /// point for building — or rebuilding — a full theme.
   List<Widget> _baseThemeRow(PixelTheme preview, String lang) {
     final label = t(lang, 'baseTheme');
     return [
       Text(label, style: pixelStyle(lang, 9, col(preview.onSurfaceDim), text: label)),
       const SizedBox(height: 8),
-      Wrap(
-        spacing: 6,
-        runSpacing: 6,
+      Row(
         children: [
-          for (final theme in Themes.all)
-            secondaryBtn(preview, lang, theme.displayName,
-                () => setState(() => picks = List.of(theme.picks)),
-                fontSize: 9, padding: const EdgeInsets.all(10)),
+          for (var i = 0; i < Themes.all.length; i++) ...[
+            if (i != 0) const SizedBox(width: 4),
+            Expanded(
+              child: secondaryBtn(preview, lang, Themes.all[i].displayName, () {
+                picks = List.of(Themes.all[i].picks);
+                _hex.text = _hex6(picks[_active]);
+                setState(() {});
+              }, fontSize: 7, padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 2)),
+            ),
+          ],
         ],
       ),
       const SizedBox(height: 18),
     ];
   }
 
-  Widget _slotRow(PixelTheme preview, String lang, int slot) {
+  /// One slot row: name on the left, its current colour as a tappable box on
+  /// the RIGHT. Tapping selects the slot; the active one is outlined brightly so
+  /// it is clear which slot the palette below is pointed at (#v33.2).
+  Widget _slotTile(PixelTheme preview, String lang, int slot) {
     final label = t(lang, _slotKeys[slot]);
+    final on = slot == _active;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => _selectSlot(slot),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+          decoration: BoxDecoration(
+            color: on ? col(preview.panel) : null,
+            border: Border.all(
+                color: col(on ? preview.onSurface : preview.onSurfaceDim), width: on ? 2 : 1),
+          ),
+          child: Row(
             children: [
-              // the slot's live colour, always shown — this is where a base
-              // theme's off-palette pick is visible even when no grid swatch
-              // below is highlighted (#v33.1)
+              Expanded(child: Text(label, style: pixelStyle(lang, 9, col(preview.onSurface), text: label))),
+              const SizedBox(width: 10),
               Container(
-                key: ValueKey('current_$slot'),
-                width: 16,
-                height: 16,
+                key: ValueKey('slotBox_$slot'),
+                width: 32,
+                height: 32,
                 decoration: BoxDecoration(
                   color: col(picks[slot]),
                   border: Border.all(color: col(preview.onSurface), width: 2),
                 ),
               ),
-              const SizedBox(width: 8),
-              Expanded(child: Text(label, style: pixelStyle(lang, 9, col(preview.onSurfaceDim), text: label))),
             ],
           ),
-          const SizedBox(height: 8),
-          // A fixed 13 × 2 grid sized off the panel width, not a Wrap of 28px
-          // squares: the Wrap packed left and left a dead strip on the right
-          // that no button above it had, so the rows never lined up with
-          // anything (#v33). Cells are floored to whole pixels to stay crisp
-          // and `spaceBetween` spreads the ≤13px remainder into the gaps, so
-          // both edges land exactly on the panel edge at any screen width.
-          LayoutBuilder(builder: (context, box) {
-            const gap = 4.0;
-            final cell =
-                ((box.maxWidth - gap * (kSwatchesPerRow - 1)) / kSwatchesPerRow).floorToDouble();
-            return Column(
-              children: [
-                for (var i = 0; i < kSwatches.length; i += kSwatchesPerRow)
-                  Padding(
-                    padding: EdgeInsets.only(bottom: i + kSwatchesPerRow < kSwatches.length ? gap : 0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        for (final c in kSwatches.skip(i).take(kSwatchesPerRow))
-                          GestureDetector(
-                            key: ValueKey('swatch_${slot}_$c'),
-                            onTap: () => setState(() => picks[slot] = c),
-                            child: Container(
-                              width: cell,
-                              height: cell,
-                              decoration: BoxDecoration(
-                                color: col(c),
-                                border: Border.all(
-                                  color: col(picks[slot] == c ? preview.onSurface : preview.onSurfaceDim),
-                                  width: picks[slot] == c ? 3 : 1,
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-              ],
-            );
-          }),
-        ],
+        ),
       ),
     );
+  }
+
+  /// The shared palette that edits whichever slot is active: a hex-code field
+  /// (any colour) over the 13 × 2 quick-pick swatches (#v33.2).
+  List<Widget> _palette(PixelTheme preview, String lang) {
+    final heading = tf(lang, 'editing', [t(lang, _slotKeys[_active])]);
+    return [
+      Text(heading, style: pixelStyle(lang, 9, col(preview.onSurfaceDim), text: heading)),
+      const SizedBox(height: 8),
+      Row(
+        children: [
+          Text('#', style: pixelStyle(lang, 12, col(preview.onSurfaceDim), text: '#')),
+          const SizedBox(width: 6),
+          Expanded(
+            child: TextField(
+              key: const Key('hexField'),
+              controller: _hex,
+              maxLength: 6,
+              autocorrect: false,
+              enableSuggestions: false,
+              inputFormatters: [FilteringTextInputFormatter.allow(RegExp('[0-9a-fA-F]'))],
+              style: pixelStyle(lang, 12, col(preview.onSurface)),
+              cursorColor: col(preview.onSurface),
+              decoration: InputDecoration(
+                counterText: '',
+                isDense: true,
+                enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: col(preview.onSurfaceDim))),
+                focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: col(preview.onSurface), width: 2)),
+              ),
+              onChanged: (v) {
+                final c = _parseHex(v);
+                if (c != null) setState(() => picks[_active] = c); // don't rewrite the field mid-type
+              },
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 12),
+      LayoutBuilder(builder: (context, box) {
+        const gap = 4.0;
+        final cell = ((box.maxWidth - gap * (kSwatchesPerRow - 1)) / kSwatchesPerRow).floorToDouble();
+        return Column(
+          children: [
+            for (var i = 0; i < kSwatches.length; i += kSwatchesPerRow)
+              Padding(
+                padding: EdgeInsets.only(bottom: i + kSwatchesPerRow < kSwatches.length ? gap : 0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    for (final c in kSwatches.skip(i).take(kSwatchesPerRow))
+                      GestureDetector(
+                        key: ValueKey('swatch_$c'),
+                        onTap: () => _setActiveColor(c),
+                        child: Container(
+                          width: cell,
+                          height: cell,
+                          decoration: BoxDecoration(
+                            color: col(c),
+                            border: Border.all(
+                              color: col(picks[_active] == c ? preview.onSurface : preview.onSurfaceDim),
+                              width: picks[_active] == c ? 3 : 1,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+          ],
+        );
+      }),
+    ];
   }
 }
 
@@ -3211,16 +3290,15 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
                 return Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // gap BETWEEN columns only — the trailing one used to leave
-                    // a 6px dead strip against the right edge (#v33)
-                    for (var j = 0; j < batch.length; j++)
-                      Expanded(
-                        child: Padding(
-                          padding: EdgeInsets.only(right: j == perRow - 1 ? 0 : 6),
-                          child: labelBlock(batch[j]),
-                        ),
-                      ),
-                    for (var k = batch.length; k < perRow; k++) const Expanded(child: SizedBox()),
+                    // EQUAL columns: the gap is a real SizedBox between the
+                    // Expanded blocks, not right-padding inside them — padding
+                    // shrank the earlier columns' content while the last kept
+                    // its full width, so the 3rd label read bigger than the
+                    // other two (#v33.2). Now every block is one flex unit wide.
+                    for (var j = 0; j < perRow; j++) ...[
+                      if (j != 0) const SizedBox(width: 6),
+                      Expanded(child: j < batch.length ? labelBlock(batch[j]) : const SizedBox()),
+                    ],
                   ],
                 );
               }),
@@ -4433,14 +4511,15 @@ class _YearGridHorizontal extends StatelessWidget {
           for (var row = 0; row < 3; row++)
             Padding(
               padding: EdgeInsets.only(bottom: row == 2 ? 0 : 8),
+              // spaceBetween spreads the 4 month blocks evenly edge-to-edge
+              // instead of packing them left with a dead strip on the right
+              // ("yearly horizontal tam eşit dağılmıyor", #v33.2)
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   for (var c = 0; c < monthsPerRow; c++)
-                    Padding(
-                      padding: EdgeInsets.only(right: c == monthsPerRow - 1 ? 0 : 6),
-                      child: monthBlock(row * monthsPerRow + c + 1),
-                    ),
+                    monthBlock(row * monthsPerRow + c + 1),
                 ],
               ),
             ),
@@ -4475,12 +4554,16 @@ class _YearGridVertical extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, box) {
       const dayColW = 16.0; // fits "31"
-      final cell = _crispCell((box.maxWidth - dayColW - 12 * 2) / 12, 4.0, double.infinity); // uncapped (#v33)
+      // tile the 12 month columns across the width left of the day-number
+      // gutter, so the grid fills edge-to-edge with no dead strip and stays
+      // crisp — "yearly vertical de aynı şekilde" (#v33.2)
+      final (cell, gaps) = _tileRow(box.maxWidth - dayColW, 12);
+      double gapAt(int c) => c < gaps.length ? gaps[c] : 0.0;
 
       Widget monthInitial(int m) {
         final text = monthName(lang, m)[0].toUpperCase();
         return SizedBox(
-          width: cell + 2,
+          width: cell,
           child: Center(child: Text(text, style: pixelStyle(lang, 7, col(frameColor), text: text))),
         );
       }
@@ -4497,10 +4580,11 @@ class _YearGridVertical extends StatelessWidget {
                 for (var m = 1; m <= 12; m++)
                   Builder(builder: (_) {
                     final lastDay = DateTime.utc(year, m + 1, 0).day;
+                    final gap = m < 12 ? gapAt(m - 1) : 0.0;
                     if (dNum > lastDay) {
                       // faint filler for the short months' tails (#v32)
                       return _dayCell(
-                          cell: cell, blank: true, dayColor: null, color: color, tooltip: null);
+                          cell: cell, blank: true, dayColor: null, color: color, tooltip: null, gap: gap);
                     }
                     final day = epochDayOf(DateTime.utc(year, m, dNum));
                     final future = day > today;
@@ -4511,6 +4595,7 @@ class _YearGridVertical extends StatelessWidget {
                       dayColor: future ? null : (active ? color : null),
                       color: color,
                       tooltip: null,
+                      gap: gap,
                       onTap: future || onDayTap == null ? null : () => onDayTap!(day),
                     );
                   }),
@@ -4521,7 +4606,13 @@ class _YearGridVertical extends StatelessWidget {
       final grid = Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(children: [SizedBox(width: dayColW), for (var m = 1; m <= 12; m++) monthInitial(m)]),
+          Row(children: [
+            const SizedBox(width: dayColW),
+            for (var m = 1; m <= 12; m++) ...[
+              monthInitial(m),
+              if (m < 12) SizedBox(width: gapAt(m - 1)),
+            ],
+          ]),
           const SizedBox(height: 4),
           for (var d = 1; d <= 31; d++) dayRow(d),
         ],

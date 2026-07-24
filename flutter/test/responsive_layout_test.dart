@@ -93,8 +93,8 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: CustomThemeScreen(s)));
     await tester.pumpAndSettle();
 
-    // slot 0 = BACKGROUND; every slot draws the same palette
-    final swatches = [for (final c in kSwatches) find.byKey(ValueKey('swatch_0_$c'))];
+    // one shared palette now (#v33.2), keyed by colour without the slot
+    final swatches = [for (final c in kSwatches) find.byKey(ValueKey('swatch_$c'))];
     expect(kSwatches.length, 26, reason: 'the two added colours (#v33)');
     for (final f in swatches) {
       expect(f, findsOneWidget);
@@ -159,9 +159,33 @@ void main() {
         reason: 'BUY and SELL are on different rows');
   });
 
+  testWidgets('monthly 3-up columns are equal width — the 3rd was bigger (#v33.2)', (tester) async {
+    sizeTo(tester, 390, 2400);
+    final s = await boot();
+    await tester.pumpWidget(focusHost(s));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('MONTHLY'));
+    await tester.pumpAndSettle();
+
+    // every seeded label that shows this month has a keyed grid; group them
+    // into rows by their top and check the first full row's widths match.
+    final rects = <Rect>[];
+    for (final lbl in TestData.labels) {
+      final f = find.byKey(ValueKey('labelGrid_$lbl'));
+      if (f.evaluate().isNotEmpty) rects.add(tester.getRect(f.first));
+    }
+    expect(rects.length, greaterThanOrEqualTo(3), reason: 'need a full first row to compare');
+    final top0 = rects.map((r) => r.top).reduce(math.min);
+    final row0 = rects.where((r) => (r.top - top0).abs() < 2).map((r) => r.width).toList();
+    expect(row0.length, 3, reason: 'monthly should pack 3 per row');
+    for (final w in row0) {
+      expect((w - row0.first).abs(), lessThan(2), reason: 'columns unequal: $row0');
+    }
+  });
+
   group('a label heatmap fills the column it is given', () {
-    // MONTHLY packs 3 per row, 18 WEEKS is full width — both must stretch.
-    for (final (period, perRow) in [('MONTHLY', 3), ('18 WEEKS', 1)]) {
+    // MONTHLY packs 3 per row; 18 WEEKS and YEARLY(horizontal) are full width.
+    for (final (period, perRow) in [('MONTHLY', 3), ('18 WEEKS', 1), ('YEARLY', 1)]) {
       for (final width in [360.0, 800.0]) {
         testWidgets('$period at ${width.toInt()}px', (tester) async {
           sizeTo(tester, width, 2400);
