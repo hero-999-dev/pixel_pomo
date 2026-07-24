@@ -957,16 +957,23 @@ class ThemeScreen extends StatelessWidget {
 /// A grey ramp plus six hues in dark/mid/light. A small fixed palette keeps the
 /// app looking hand-made and rules out the mud a free RGB picker invites; every
 /// slot shares it, and [PixelTheme.custom] fixes whatever combination is picked.
-/// 26 colours = 13 per row × 2 rows, which is what [_slotRow] lays out; the two
-/// added in #v33 are a teal and a pink, the gaps the six hues left, and they sit
-/// at the END of each row so no dark/mid/light trio is split across rows.
+/// 26 colours = 13 per row × 2 rows, which is what [_slotRow] lays out, ordered
+/// by hue so similar colours sit together (#v33.1 — the teal and pink added in
+/// #v33 no longer dangle at the row ends). Row 1 is the warm half (grey ramp →
+/// reds → pink → oranges), row 2 the cool half (yellows → greens → teal →
+/// blues → purples); each dark/mid/light trio stays whole inside its row.
 const List<int> kSwatches = [
+  // row 1 — greys, reds, pink, oranges
   0xFF0B0B0B, 0xFF2B2B2B, 0xFF565656, 0xFF8E8E8E, 0xFFCFCFCF, 0xFFF7F7F7,
-  0xFF7A1F2B, 0xFFE5484D, 0xFFF7A8AC, 0xFF7A4212, 0xFFE8801E, 0xFFF5C48A,
-  0xFF1E9E92, // teal (#v33)
-  0xFF6E5A10, 0xFFE8C547, 0xFFF6E9A8, 0xFF1E4D33, 0xFF46A03C, 0xFFA6E3A1,
-  0xFF1B3A63, 0xFF58A6FF, 0xFFBBD9FF, 0xFF422A63, 0xFF9D7CD8, 0xFFD9C7F5,
-  0xFFE06AA5, // pink (#v33)
+  0xFF7A1F2B, 0xFFE5484D, 0xFFF7A8AC,
+  0xFFE06AA5, // pink — next to the reds it is closest to (#v33.1)
+  0xFF7A4212, 0xFFE8801E, 0xFFF5C48A,
+  // row 2 — yellows, greens, teal, blues, purples
+  0xFF6E5A10, 0xFFE8C547, 0xFFF6E9A8,
+  0xFF1E4D33, 0xFF46A03C, 0xFFA6E3A1,
+  0xFF1E9E92, // teal — sits between the greens and blues where it belongs
+  0xFF1B3A63, 0xFF58A6FF, 0xFFBBD9FF,
+  0xFF422A63, 0xFF9D7CD8, 0xFFD9C7F5,
 ];
 
 /// Swatches per row in the custom editor — [kSwatches] is exactly two rows of
@@ -1018,6 +1025,9 @@ class _CustomThemeScreenState extends State<CustomThemeScreen> {
         // colour — its controls come first, above the background swatches, not
         // buried under them (#v33)
         ..._wallpaperRow(preview, lang),
+        // pick a preset as a STARTING POINT: it loads that theme's colours into
+        // every slot below, then the user changes the few they want (#v33.1)
+        ..._baseThemeRow(preview, lang),
         for (var slot = 0; slot < _slotKeys.length; slot++) _slotRow(preview, lang, slot),
         primaryBtn(preview, lang, t(lang, 'save'), () {
           s.saveCustomTheme(picks);
@@ -1055,6 +1065,31 @@ class _CustomThemeScreenState extends State<CustomThemeScreen> {
     ];
   }
 
+  /// The preset picker: tap one to load its colours into every slot (#v33.1).
+  /// A base theme's colours are its own palette (Catppuccin, cream, …) and need
+  /// not all be in [kSwatches], so each slot's label carries a live swatch of
+  /// the CURRENT colour — that is where a base theme's off-palette pick shows,
+  /// and it stays visible while the grid below is used to override individual
+  /// slots.
+  List<Widget> _baseThemeRow(PixelTheme preview, String lang) {
+    final label = t(lang, 'baseTheme');
+    return [
+      Text(label, style: pixelStyle(lang, 9, col(preview.onSurfaceDim), text: label)),
+      const SizedBox(height: 8),
+      Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        children: [
+          for (final theme in Themes.all)
+            secondaryBtn(preview, lang, theme.displayName,
+                () => setState(() => picks = List.of(theme.picks)),
+                fontSize: 9, padding: const EdgeInsets.all(10)),
+        ],
+      ),
+      const SizedBox(height: 18),
+    ];
+  }
+
   Widget _slotRow(PixelTheme preview, String lang, int slot) {
     final label = t(lang, _slotKeys[slot]);
     return Padding(
@@ -1062,7 +1097,24 @@ class _CustomThemeScreenState extends State<CustomThemeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: pixelStyle(lang, 9, col(preview.onSurfaceDim), text: label)),
+          Row(
+            children: [
+              // the slot's live colour, always shown — this is where a base
+              // theme's off-palette pick is visible even when no grid swatch
+              // below is highlighted (#v33.1)
+              Container(
+                key: ValueKey('current_$slot'),
+                width: 16,
+                height: 16,
+                decoration: BoxDecoration(
+                  color: col(picks[slot]),
+                  border: Border.all(color: col(preview.onSurface), width: 2),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(child: Text(label, style: pixelStyle(lang, 9, col(preview.onSurfaceDim), text: label))),
+            ],
+          ),
           const SizedBox(height: 8),
           // A fixed 13 × 2 grid sized off the panel width, not a Wrap of 28px
           // squares: the Wrap packed left and left a dead strip on the right
@@ -1968,24 +2020,25 @@ class _ShopScreenState extends State<ShopScreen> {
   String _ownedInfo(AppStore s, String lang, String id) =>
       '${tf(lang, 'owned', [s.owned[id] ?? 0])}   ${tf(lang, 'placed', [s.garden.countPlanted(id)])}';
 
-  // BUY (accent) stacked over SELL (panel). SELL dims + no-ops unless at least
-  // one un-placed unit exists (availableOf > 0) — placed units are never sold.
+  // BUY (accent) LEFT, SELL (panel) RIGHT — side by side, not stacked (#v33.1).
+  // SELL dims + no-ops unless at least one un-placed unit exists
+  // (availableOf > 0) — placed units are never sold.
   Widget _buySell(AppStore s, PixelTheme th, String lang, String id, int cost, VoidCallback onBuy) {
-    return Column(
+    return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         PixelButton(
           text: '${t(lang, 'buy')} $cost',
           fill: th.accent, border: th.onSurface, textColor: th.onAccent, shadow: th.shadow,
-          lang: lang, fontSize: 11, padding: const EdgeInsets.all(12),
+          lang: lang, fontSize: 10, padding: const EdgeInsets.all(10),
           opacity: s.coins >= cost ? 1 : 0.45,
           onTap: onBuy,
         ),
-        const SizedBox(height: 6),
+        const SizedBox(width: 8),
         PixelButton(
           text: '${t(lang, 'sell')} ${Economy.sellPrice(id)}',
           fill: th.panel, border: th.onSurface, textColor: th.onSurface, shadow: th.shadow,
-          lang: lang, fontSize: 11, padding: const EdgeInsets.all(12),
+          lang: lang, fontSize: 10, padding: const EdgeInsets.all(10),
           opacity: s.availableOf(id) > 0 ? 1 : 0.45,
           onTap: () => s.sellItem(id),
         ),
@@ -4187,6 +4240,24 @@ class _BudgetFieldState extends State<_BudgetField> {
 double _crispCell(double raw, double min, double max) =>
     raw.clamp(min, max).floorToDouble().clamp(min, max);
 
+/// Tile [n] columns edge-to-edge across [width] with NO trailing gap, every
+/// value a whole pixel (#v33.1). Flooring one cell size and adding a fixed 2px
+/// margin left up to ~n px unfilled on the right ("kareler tam kaplamıyor,
+/// sağda boşluk"). Here the cell is still floored — so cells stay crisp, the
+/// v32.10 win — and the leftover pixels are spread one at a time into the
+/// leftmost GAPS instead of piling up at the edge. Returns the cell size and
+/// the n-1 inter-column gaps; a partial row that reuses `gaps[0..k-1]` still
+/// lines up column-for-column under a full row, because the left edges are the
+/// same running sum in both.
+(double, List<double>) _tileRow(double width, int n, {double minGap = 2, double minCell = 4}) {
+  if (n <= 1) return (width.clamp(minCell, double.infinity), const []);
+  final cell = ((width - (n - 1) * minGap) / n).floorToDouble().clamp(minCell, double.infinity);
+  var extra = (width - n * cell - (n - 1) * minGap).floor(); // ≥0 unless cells overflow
+  if (extra < 0) extra = 0;
+  final gaps = [for (var i = 0; i < n - 1; i++) minGap + (i < extra ? 1 : 0)];
+  return (cell, gaps);
+}
+
 Widget _dayCell({
   required double cell,
   required bool blank,
@@ -4194,11 +4265,12 @@ Widget _dayCell({
   required int color,
   required String? tooltip,
   VoidCallback? onTap,
+  double gap = 2, // right margin; a tiled row passes its per-column gap (#v33.1)
 }) {
   Widget box = Container(
     width: cell,
     height: cell,
-    margin: const EdgeInsets.only(right: 2),
+    margin: EdgeInsets.only(right: gap),
     decoration: BoxDecoration(
       // blank (out-of-span / non-day) slots render a super-faint tint instead
       // of nothing — fully invisible slots read as holes in the grid against
@@ -4239,9 +4311,9 @@ class _WeekRow extends StatelessWidget {
     final monday = a - (dateOfEpochDay(a).weekday - 1);
     return LayoutBuilder(builder: (context, box) {
       const cols = 7;
-      // no upper cap: the week must span the width it is given, whatever the
-      // screen size, instead of stopping at 32px with a dead strip (#v33)
-      final cell = _crispCell((box.maxWidth - cols * 2) / cols, 4.0, double.infinity);
+      // tiled so the 7 boxes span the full width with no dead strip on the
+      // right, at any screen size, and stay crisp (#v33 / #v33.1)
+      final (cell, gaps) = _tileRow(box.maxWidth, cols);
       final row = Row(children: [
         for (var c = 0; c < cols; c++)
           Builder(builder: (_) {
@@ -4252,6 +4324,7 @@ class _WeekRow extends StatelessWidget {
             final dayColor = future ? null : ((days[day] ?? 0) > 0 ? color : null);
             return _dayCell(
                 cell: cell, blank: false, dayColor: dayColor, color: color, tooltip: null,
+                gap: c < cols - 1 ? gaps[c] : 0,
                 onTap: future || onDayTap == null ? null : () => onDayTap!(day));
           }),
       ]);
@@ -4528,13 +4601,22 @@ class _HabitHeatmap extends StatelessWidget {
       // Masked for years by the 12px cap; exposed once a caller removes the
       // cap to stretch full-width (#v30 item 6).
       final divisor = fitCols ? math.min(cols, _bandCols) : _bandCols;
-      final cell = _crispCell((box.maxWidth - divisor * 2) / divisor, 4.0, maxCellSize);
+      // tile the full-band width, then cap: a capped cell can't fill the row,
+      // so when maxCellSize bites we fall back to a fixed 2px gap and let the
+      // grid sit left (the caller asked for a small readable grid, not a
+      // stretched one). Uncapped (the Focus Sessions / Session Heatmap case,
+      // maxCellSize == infinity) the tiled gaps fill the width exactly (#v33.1).
+      var (cell, gaps) = _tileRow(box.maxWidth, divisor);
+      if (cell > maxCellSize) {
+        cell = maxCellSize;
+        gaps = [for (var i = 0; i < divisor - 1; i++) 2.0];
+      }
       final grid = Column(
         children: [
           // chronological: oldest full band on top, the partial remainder last
           for (var b = 0; b < numBands; b++) ...[
             if (b != 0) const SizedBox(height: 6),
-            _band(b, math.min(_bandCols, cols - b * _bandCols), startMonday, lo, hi, cell),
+            _band(b, math.min(_bandCols, cols - b * _bandCols), startMonday, lo, hi, cell, gaps),
           ],
         ],
       );
@@ -4548,7 +4630,12 @@ class _HabitHeatmap extends StatelessWidget {
       final b = selCol ~/ _bandCols, c = selCol % _bandCols;
       final row = dateOfEpochDay(selectedDay!).weekday - 1;
       final bandH = 7 * (cell + 2);
-      final cellX = c * (cell + 2), cellY = b * (bandH + 6) + row * (cell + 2);
+      // cell left edge = running sum of the tiled gaps before column c (#v33.1)
+      var cellX = 0.0;
+      for (var i = 0; i < c && i < gaps.length; i++) {
+        cellX += cell + gaps[i];
+      }
+      final cellY = b * (bandH + 6) + row * (cell + 2);
       final totalH = numBands * bandH + (numBands - 1) * 6;
       const estW = 140.0, estH = 44.0;
       final left = cellX.clamp(0.0, math.max(0.0, box.maxWidth - estW)).toDouble();
@@ -4563,7 +4650,7 @@ class _HabitHeatmap extends StatelessWidget {
     });
   }
 
-  Widget _band(int b, int colsInBand, int startMonday, int lo, int hi, double cell) {
+  Widget _band(int b, int colsInBand, int startMonday, int lo, int hi, double cell, List<double> gaps) {
     return Column(
       children: [
         for (var row = 0; row < 7; row++)
@@ -4581,6 +4668,10 @@ class _HabitHeatmap extends StatelessWidget {
                         : (colorForDay != null ? colorForDay!(day) : ((days[day] ?? 0) > 0 ? color : null));
                     return _dayCell(
                         cell: cell, blank: blank, dayColor: dayColor, color: color,
+                        // last real column gets no trailing gap, so a full band
+                        // ends flush on the right; a partial band just stops
+                        // short but still lines up under the full ones (#v33.1)
+                        gap: c < colsInBand - 1 && c < gaps.length ? gaps[c] : 0,
                         tooltip: blank || future ? null : tooltipFor?.call(day),
                         onTap: blank || future || onDayTap == null ? null : () => onDayTap!(day));
                   }),

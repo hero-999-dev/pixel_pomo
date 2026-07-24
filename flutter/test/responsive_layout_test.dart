@@ -144,6 +144,21 @@ void main() {
     }
   });
 
+  testWidgets('shop BUY sits left of SELL, on the same row (#v33.1)', (tester) async {
+    sizeTo(tester, 390, 1400);
+    final s = await boot();
+    await tester.pumpWidget(MaterialApp(home: ShopScreen(s)));
+    await tester.pumpAndSettle();
+
+    final buy = tester.getRect(find.textContaining('BUY').first);
+    final sell = tester.getRect(find.textContaining('SELL').first);
+    expect(buy.right, lessThanOrEqualTo(sell.left + 1),
+        reason: 'BUY must be entirely left of SELL, not stacked above it');
+    // same row: their vertical centres line up
+    expect((buy.center.dy - sell.center.dy).abs(), lessThan(4),
+        reason: 'BUY and SELL are on different rows');
+  });
+
   group('a label heatmap fills the column it is given', () {
     // MONTHLY packs 3 per row, 18 WEEKS is full width — both must stretch.
     for (final (period, perRow) in [('MONTHLY', 3), ('18 WEEKS', 1)]) {

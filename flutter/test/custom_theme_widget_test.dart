@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pixel_pomo/logic.dart';
 import 'package:pixel_pomo/main.dart';
+import 'package:pixel_pomo/pixel.dart';
 import 'package:pixel_pomo/store.dart';
 import 'package:pixel_pomo/strings.dart';
 
@@ -50,12 +51,40 @@ void main() {
     // labels name what each colour paints, not what the field is called (#v32.5)
     expect(find.textContaining('BACKGROUND'), findsOneWidget);
     expect(find.textContaining('HIGHLIGHT'), findsOneWidget);
-    expect(find.textContaining('INCOME'), findsOneWidget); // every colour is pickable, no base row
-    expect(find.textContaining('BASE'), findsNothing);
+    expect(find.textContaining('INCOME'), findsOneWidget);
+    // the base-theme starting point (#v33.1): the row and a button per preset
+    expect(find.textContaining('BASE THEME'), findsOneWidget);
+    for (final theme in Themes.all) {
+      expect(find.text(theme.displayName), findsWidgets, reason: '${theme.displayName} base button');
+    }
     // the slot labels must say where the colour shows up, not just name it
     for (final key in const ['cText1', 'cText2', 'cSelected', 'cSquares']) {
       expect(t('en', key), contains(' - '), reason: '$key should explain where it applies');
     }
+  });
+
+  testWidgets('a base theme loads its colours into every slot, then a swatch overrides one (#v33.1)',
+      (tester) async {
+    final s = await boot();
+    await tester.pumpWidget(host(s));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('CUSTOM'));
+    await tester.pumpAndSettle();
+
+    // start from MATCHA: its palette becomes the picks, so its background is
+    // what the current-colour chip shows and what saving keeps.
+    await tapVisible(tester, find.text('MATCHA'));
+    final chip = tester.widget<Container>(find.byKey(const ValueKey('current_0')));
+    expect((chip.decoration as BoxDecoration).color, col(Themes.matcha.bg),
+        reason: 'the BACKGROUND chip did not follow the base theme');
+
+    // now change ONE slot (the highlight) and save — every other slot must
+    // still be matcha's, proving the base seeded them all.
+    await tapVisible(tester, swatch(3, 0xFFE8C547));
+    await tapVisible(tester, find.text('SAVE'));
+    expect(s.theme.id, customThemeId);
+    expect(s.theme.bg, Themes.matcha.bg, reason: 'background should be matcha, untouched');
+    expect(s.theme.accent, 0xFFE8C547, reason: 'highlight is the one slot the user changed');
   });
 
   testWidgets('picking colours and saving switches the app to the custom theme', (tester) async {
