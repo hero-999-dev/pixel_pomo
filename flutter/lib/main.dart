@@ -957,12 +957,22 @@ class ThemeScreen extends StatelessWidget {
 /// A grey ramp plus six hues in dark/mid/light. A small fixed palette keeps the
 /// app looking hand-made and rules out the mud a free RGB picker invites; every
 /// slot shares it, and [PixelTheme.custom] fixes whatever combination is picked.
+/// 26 colours = 13 per row × 2 rows, which is what [_slotRow] lays out; the two
+/// added in #v33 are a teal and a pink, the gaps the six hues left, and they sit
+/// at the END of each row so no dark/mid/light trio is split across rows.
 const List<int> kSwatches = [
   0xFF0B0B0B, 0xFF2B2B2B, 0xFF565656, 0xFF8E8E8E, 0xFFCFCFCF, 0xFFF7F7F7,
   0xFF7A1F2B, 0xFFE5484D, 0xFFF7A8AC, 0xFF7A4212, 0xFFE8801E, 0xFFF5C48A,
+  0xFF1E9E92, // teal (#v33)
   0xFF6E5A10, 0xFFE8C547, 0xFFF6E9A8, 0xFF1E4D33, 0xFF46A03C, 0xFFA6E3A1,
   0xFF1B3A63, 0xFF58A6FF, 0xFFBBD9FF, 0xFF422A63, 0xFF9D7CD8, 0xFFD9C7F5,
+  0xFFE06AA5, // pink (#v33)
 ];
+
+/// Swatches per row in the custom editor — [kSwatches] is exactly two rows of
+/// this, and the cell size is derived from the panel width so the grid ends
+/// flush with the buttons above and below it (#v33).
+const int kSwatchesPerRow = 13;
 
 class CustomThemeScreen extends StatefulWidget {
   final AppStore s;
@@ -1004,11 +1014,11 @@ class _CustomThemeScreenState extends State<CustomThemeScreen> {
       s,
       t(lang, 'custom'),
       [
-        for (var slot = 0; slot < _slotKeys.length; slot++) ...[
-          _slotRow(preview, lang, slot),
-          // the wallpaper belongs to the background, so it sits right under it
-          if (slot == 0) ..._wallpaperRow(preview, lang),
-        ],
+        // the wallpaper covers the whole screen, so it OVERRIDES the background
+        // colour — its controls come first, above the background swatches, not
+        // buried under them (#v33)
+        ..._wallpaperRow(preview, lang),
+        for (var slot = 0; slot < _slotKeys.length; slot++) _slotRow(preview, lang, slot),
         primaryBtn(preview, lang, t(lang, 'save'), () {
           s.saveCustomTheme(picks);
           Navigator.pop(context);
@@ -1054,30 +1064,46 @@ class _CustomThemeScreenState extends State<CustomThemeScreen> {
         children: [
           Text(label, style: pixelStyle(lang, 9, col(preview.onSurfaceDim), text: label)),
           const SizedBox(height: 8),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              for (final c in kSwatches)
-                GestureDetector(
-                  key: ValueKey('swatch_${slot}_$c'),
-                  onTap: () => setState(() => picks[slot] = c),
-                  child: Container(
-                    // 28 keeps 8 swatches per row on a phone, so a slot is 3
-                    // rows and all five slots stay within a short scroll
-                    width: 28,
-                    height: 28,
-                    decoration: BoxDecoration(
-                      color: col(c),
-                      border: Border.all(
-                        color: col(picks[slot] == c ? preview.onSurface : preview.onSurfaceDim),
-                        width: picks[slot] == c ? 3 : 1,
-                      ),
+          // A fixed 13 × 2 grid sized off the panel width, not a Wrap of 28px
+          // squares: the Wrap packed left and left a dead strip on the right
+          // that no button above it had, so the rows never lined up with
+          // anything (#v33). Cells are floored to whole pixels to stay crisp
+          // and `spaceBetween` spreads the ≤13px remainder into the gaps, so
+          // both edges land exactly on the panel edge at any screen width.
+          LayoutBuilder(builder: (context, box) {
+            const gap = 4.0;
+            final cell =
+                ((box.maxWidth - gap * (kSwatchesPerRow - 1)) / kSwatchesPerRow).floorToDouble();
+            return Column(
+              children: [
+                for (var i = 0; i < kSwatches.length; i += kSwatchesPerRow)
+                  Padding(
+                    padding: EdgeInsets.only(bottom: i + kSwatchesPerRow < kSwatches.length ? gap : 0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        for (final c in kSwatches.skip(i).take(kSwatchesPerRow))
+                          GestureDetector(
+                            key: ValueKey('swatch_${slot}_$c'),
+                            onTap: () => setState(() => picks[slot] = c),
+                            child: Container(
+                              width: cell,
+                              height: cell,
+                              decoration: BoxDecoration(
+                                color: col(c),
+                                border: Border.all(
+                                  color: col(picks[slot] == c ? preview.onSurface : preview.onSurfaceDim),
+                                  width: picks[slot] == c ? 3 : 1,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
-                ),
-            ],
-          ),
+              ],
+            );
+          }),
         ],
       ),
     );
@@ -2908,14 +2934,19 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
     // anchor's calendar year banded 18 + 18 + the rest.
     Widget heatmapFor(MapEntry<String, Map<int, int>> e) {
       final color = s.labelColorOf(e.key);
+      // the grid's own root sizes itself to the cells it lays out, so this key
+      // is how a test measures whether it actually fills its column (#v33)
+      final gridKey = ValueKey('labelGrid_${e.key}');
       switch (_period) {
         case _HeatPeriod.weekly:
           return _WeekRow(
+              key: gridKey,
               days: e.value, color: color, today: today, anchor: anchor,
               onDayTap: (d) => onTap(e, d), selectedDay: selFor(e), callout: calloutFor(e));
         case _HeatPeriod.monthly:
           return _HabitHeatmap(
-              days: e.value, color: color, today: today, maxCellSize: 20, fitCols: true,
+              key: gridKey,
+              days: e.value, color: color, today: today, maxCellSize: double.infinity, fitCols: true,
               spanStart: lo, spanEnd: hi,
               onDayTap: (d) => onTap(e, d), selectedDay: selFor(e), callout: calloutFor(e));
         case _HeatPeriod.yearly:
@@ -2923,15 +2954,18 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
           // vertical: Daylio's Year in Pixels shape (#v31.13).
           return _yearStyle == _YearStyle.vertical
               ? _YearGridVertical(
+                  key: gridKey,
                   days: e.value, color: color, today: today, lang: lang,
                   year: dateOfEpochDay(anchor).year, frameColor: th.onSurfaceDim,
                   onDayTap: (d) => onTap(e, d), callout: calloutFor(e))
               : _YearGridHorizontal(
+                  key: gridKey,
                   days: e.value, color: color, today: today,
                   year: dateOfEpochDay(anchor).year, frameColor: th.onSurfaceDim,
                   onDayTap: (d) => onTap(e, d), callout: calloutFor(e));
         case _HeatPeriod.days126:
           return _HabitHeatmap(
+              key: gridKey,
               days: e.value, color: color, today: today, maxCellSize: double.infinity,
               spanStart: lo, spanEnd: hi,
               onDayTap: (d) => onTap(e, d), selectedDay: selFor(e), callout: calloutFor(e));
@@ -3124,8 +3158,15 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
                 return Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    for (final e in batch)
-                      Expanded(child: Padding(padding: const EdgeInsets.only(right: 6), child: labelBlock(e))),
+                    // gap BETWEEN columns only — the trailing one used to leave
+                    // a 6px dead strip against the right edge (#v33)
+                    for (var j = 0; j < batch.length; j++)
+                      Expanded(
+                        child: Padding(
+                          padding: EdgeInsets.only(right: j == perRow - 1 ? 0 : 6),
+                          child: labelBlock(batch[j]),
+                        ),
+                      ),
                     for (var k = batch.length; k < perRow; k++) const Expanded(child: SizedBox()),
                   ],
                 );
@@ -4188,7 +4229,8 @@ class _WeekRow extends StatelessWidget {
   final int? selectedDay;
   final Widget? callout;
   const _WeekRow(
-      {required this.days, required this.color, required this.today, this.anchor, this.onDayTap,
+      {super.key,
+      required this.days, required this.color, required this.today, this.anchor, this.onDayTap,
       this.selectedDay, this.callout});
 
   @override
@@ -4197,7 +4239,9 @@ class _WeekRow extends StatelessWidget {
     final monday = a - (dateOfEpochDay(a).weekday - 1);
     return LayoutBuilder(builder: (context, box) {
       const cols = 7;
-      final cell = _crispCell((box.maxWidth - cols * 2) / cols, 4.0, 32.0);
+      // no upper cap: the week must span the width it is given, whatever the
+      // screen size, instead of stopping at 32px with a dead strip (#v33)
+      final cell = _crispCell((box.maxWidth - cols * 2) / cols, 4.0, double.infinity);
       final row = Row(children: [
         for (var c = 0; c < cols; c++)
           Builder(builder: (_) {
@@ -4245,7 +4289,8 @@ class _YearGridHorizontal extends StatelessWidget {
   final void Function(int day)? onDayTap;
   final Widget? callout;
   const _YearGridHorizontal(
-      {required this.days, required this.color, required this.today, required this.year,
+      {super.key,
+      required this.days, required this.color, required this.today, required this.year,
       required this.frameColor, this.onDayTap, this.callout});
 
   @override
@@ -4259,11 +4304,12 @@ class _YearGridHorizontal extends StatelessWidget {
       // screen by ~64px ("the year doesn't fit, it goes off the screen") and
       // the clamp's 4px floor never engaged to save it (#v32).
       const monthChrome = 8.0 + cols * 2.0; // padding+border + per-cell margins
+      // uncapped (#v33): the twelve months fill whatever width they are given
       final cell = _crispCell(
           (box.maxWidth - monthsPerRow * monthChrome - (monthsPerRow - 1) * 6) /
               (monthsPerRow * cols),
           4.0,
-          14.0);
+          double.infinity);
 
       Widget monthBlock(int m) {
         final first = epochDayOf(DateTime.utc(year, m, 1));
@@ -4348,14 +4394,15 @@ class _YearGridVertical extends StatelessWidget {
   final void Function(int day)? onDayTap;
   final Widget? callout;
   const _YearGridVertical(
-      {required this.days, required this.color, required this.today, required this.year,
+      {super.key,
+      required this.days, required this.color, required this.today, required this.year,
       required this.frameColor, required this.lang, this.onDayTap, this.callout});
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, box) {
       const dayColW = 16.0; // fits "31"
-      final cell = _crispCell((box.maxWidth - dayColW - 12 * 2) / 12, 4.0, 14.0);
+      final cell = _crispCell((box.maxWidth - dayColW - 12 * 2) / 12, 4.0, double.infinity); // uncapped (#v33)
 
       Widget monthInitial(int m) {
         final text = monthName(lang, m)[0].toUpperCase();
@@ -4456,7 +4503,8 @@ class _HabitHeatmap extends StatelessWidget {
   // (#v31.2 item 2: monthly is 3 labels side by side again).
   final bool fitCols;
   const _HabitHeatmap(
-      {required this.days, required this.color, required this.today,
+      {super.key,
+      required this.days, required this.color, required this.today,
       this.colorForDay, this.maxCellSize = 12.0,
       this.spanStart, this.spanEnd, this.tooltipFor, this.onDayTap,
       this.selectedDay, this.callout, this.fitCols = false});

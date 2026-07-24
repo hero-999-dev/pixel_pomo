@@ -117,9 +117,21 @@ class PixelButton extends StatelessWidget {
             border: Border.all(color: col(border), width: 3),
             boxShadow: [BoxShadow(color: col(shadow), offset: const Offset(5, 5), blurRadius: 0)],
           ),
+          // ONE line, always: a narrow phone (or a narrowed browser window) used
+          // to wrap "MONTHLY" into "MONTHL/Y" inside its own box, which is what
+          // "the text drops to the next line" reported. `scaleDown` shrinks the
+          // label to whatever the button's width allows instead — the boxes stay
+          // the size the Row gives them and only the text gives (#v33).
           child: Center(
             widthFactor: 1,
-            child: Text(text, textAlign: TextAlign.center, style: pixelStyle(lang, fontSize, col(textColor), text: text)),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(text,
+                  maxLines: 1,
+                  softWrap: false,
+                  textAlign: TextAlign.center,
+                  style: pixelStyle(lang, fontSize, col(textColor), text: text)),
+            ),
           ),
         ),
       ),
