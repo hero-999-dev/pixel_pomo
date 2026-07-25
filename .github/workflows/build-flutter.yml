@@ -66,6 +66,14 @@ jobs:
         working-directory: flutter
         run: python3 android_overlay/apply_overlay.py
 
+      # Pins what kept breaking: every component the overlay declares must name
+      # a class the overlay actually ships, for BOTH applicationIds. A relative
+      # name resolves against the app's own id, which is wrong for the test
+      # build - that shipped three times before it was caught (#v34.2).
+      - name: Native overlay manifest tests (gate)
+        working-directory: flutter
+        run: python3 -m unittest discover -s android_overlay -p 'test_*.py'
+
       - name: Analyze (non-blocking)
         working-directory: flutter
         run: flutter analyze || true

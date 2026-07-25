@@ -64,22 +64,42 @@ def patch_build_gradle():
     print("patched build.gradle.kts: stable debug signing key")
 
 
-def patch_manifest():
-    """All three services below are declared by their FULL `com.pixelpomo.pixel_pomo.*`
-    class name, never a relative `.ServiceName` — the Kotlin files under `kotlin/`
-    hardcode `package com.pixelpomo.pixel_pomo` regardless of which app they get
-    copied into. A relative name resolves against the CALLING app's own manifest
-    `package`, which only equals `com.pixelpomo.pixel_pomo` for the real app; for
-    "Test Pixel Pomo" (applicationId `com.pixelpomo.test.pixel_pomo`) it resolved to
-    a class that doesn't exist, so the service could never be found — the live
-    wallpaper (and app blocker, and the timer notification) silently failed to set
-    on the Test build while working fine on the real one (#v31.19)."""
-    path = os.path.join(ANDROID, "AndroidManifest.xml")
+PKG_NAME = "com.pixelpomo.pixel_pomo"
+
+
+def patch_manifest(path=None):
+    """Every component the overlay ships is declared by its FULL
+    `com.pixelpomo.pixel_pomo.*` class name, never a relative `.Name` — the Kotlin
+    files under `kotlin/` hardcode `package com.pixelpomo.pixel_pomo` regardless of
+    which app they get copied into. A relative name resolves against the INSTALLED
+    app's own applicationId, which only equals `com.pixelpomo.pixel_pomo` for the
+    real app; for "Test Pixel Pomo" (applicationId `com.pixelpomo.test.pixel_pomo`)
+    it names a class that doesn't exist there.
+
+    That bit twice. #v31.19 fixed the three SERVICES. It missed the ACTIVITY —
+    which `flutter create` emits as `.MainActivity`, so the test build launched
+    the stock activity it generated at `com.pixelpomo.test.pixel_pomo.MainActivity`
+    instead of ours. That stock activity registers no MethodChannel, so the
+    wallpaper, blocker and timer channels were ALL dead on the test build while
+    working on the real one — our MainActivity was compiled into the APK and
+    simply never started (#v34.2).
+
+    [path] is for the tests; production patches the generated tree.
+    """
+    if path is None:
+        path = os.path.join(ANDROID, "AndroidManifest.xml")
     with open(path, "r", encoding="utf-8") as fh:
         xml = fh.read()
     if "    </application>" not in xml:
         raise SystemExit("apply_overlay: could not find </application> to patch")
     orig = xml
+
+    # --- the launcher activity (#v34.2) ---
+    if f'android:name="{PKG_NAME}.MainActivity"' not in xml:
+        if 'android:name=".MainActivity"' not in xml:
+            raise SystemExit("apply_overlay: could not find the .MainActivity declaration to patch")
+        xml = xml.replace('android:name=".MainActivity"',
+                          f'android:name="{PKG_NAME}.MainActivity"', 1)
 
     # --- live wallpaper service (#v15) ---
     if "GardenWallpaperService" not in xml:
