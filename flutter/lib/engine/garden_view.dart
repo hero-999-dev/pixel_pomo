@@ -1,14 +1,53 @@
 // The interactive surface for the garden engine: owns the [GardenCamera], runs
 // the animation ticker that drives the critters, and turns finger gestures into
 // pinch-zoom / pan. Pan is clamped so the garden stays fixed on screen. There is
-// no viewing-angle control — the 2.5D depth is fixed (see kVy).
+// no viewing-angle control beyond yaw — the 2.5D depth is fixed (see kVy).
+//
+// Desktop/web drives the same camera with mouse + keyboard (#v33.8): the wheel
+// zooms, WASD/arrows walk the pan, and holding the MIDDLE button while dragging
+// turns the yaw — the mouse spelling of the phone's two-finger twist. Touch
+// gestures are untouched; on a phone these handlers simply never fire.
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart'
+    show PointerScrollEvent, PointerSignalEvent, kMiddleMouseButton;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart' show Ticker;
+import 'package:flutter/services.dart' show KeyEvent, KeyUpEvent, LogicalKeyboardKey;
 
 import '../logic.dart';
 import 'garden_engine.dart';
+
+/// Pure input maths for the desktop/web controls, split out so the unit tests
+/// can pin them without pumping widgets.
+///
+/// One 120-unit wheel notch scales zoom by 1.1x (down-scroll zooms out),
+/// clamped to the same 0.5–4.0 range the pinch gesture uses.
+double wheelZoom(double zoom, double scrollDy) =>
+    (zoom * math.pow(1.1, -scrollDy / 120)).clamp(0.5, 4.0);
+
+/// Screen-pixels of pan for one key event; Offset.zero for keys we don't own.
+/// Directions read as walking the CAMERA: D looks further right, so the scene
+/// slides left — the same sign convention the drag gesture produces.
+Offset wasdPan(LogicalKeyboardKey key, {double step = 32}) {
+  if (key == LogicalKeyboardKey.keyW || key == LogicalKeyboardKey.arrowUp) {
+    return Offset(0, step);
+  }
+  if (key == LogicalKeyboardKey.keyS || key == LogicalKeyboardKey.arrowDown) {
+    return Offset(0, -step);
+  }
+  if (key == LogicalKeyboardKey.keyA || key == LogicalKeyboardKey.arrowLeft) {
+    return Offset(step, 0);
+  }
+  if (key == LogicalKeyboardKey.keyD || key == LogicalKeyboardKey.arrowRight) {
+    return Offset(-step, 0);
+  }
+  return Offset.zero;
+}
+
+/// Radians of yaw for a middle-drag of [dx] screen pixels — 100px turns ~1rad,
+/// gentle enough to aim, fast enough to orbit the plot in one swipe.
+double middleDragYaw(double dx) => dx * 0.01;
 
 class GardenView extends StatefulWidget {
   final Garden garden;
@@ -75,6 +114,8 @@ class _GardenViewState extends State<GardenView> with SingleTickerProviderStateM
   double _zoomAtStart = 1;
   double _yawAtStart = 0;
   Size _lastSize = Size.zero;
+  bool _middleDrag = false; // mouse middle-button held: drag turns the yaw
+  double _middleX = 0;
 
   @override
   void initState() {
@@ -136,7 +177,48 @@ class _GardenViewState extends State<GardenView> with SingleTickerProviderStateM
     );
   }
 
+  // ---- mouse + keyboard (desktop/web), see header comment ------------------
+  void _onPointerSignal(PointerSignalEvent e) {
+    if (e is! PointerScrollEvent) return;
+    setState(() {
+      _cam.zoom = wheelZoom(_cam.zoom, e.scrollDelta.dy);
+      _clampWorld();
+    });
+  }
+
+  void _onPointerDown(PointerDownEvent e) {
+    if (e.buttons & kMiddleMouseButton != 0) {
+      _middleDrag = true;
+      _middleX = e.position.dx;
+    }
+  }
+
+  void _onPointerMove(PointerMoveEvent e) {
+    if (!_middleDrag) return;
+    setState(() {
+      _cam.yaw += middleDragYaw(e.position.dx - _middleX);
+      _middleX = e.position.dx;
+    });
+  }
+
+  void _endMiddleDrag(PointerEvent _) => _middleDrag = false;
+
+  KeyEventResult _onKey(FocusNode node, KeyEvent e) {
+    if (e is KeyUpEvent) return KeyEventResult.ignored;
+    final pan = wasdPan(e.logicalKey);
+    if (pan == Offset.zero) return KeyEventResult.ignored;
+    setState(() {
+      _cam.panX += pan.dx;
+      _cam.panY += pan.dy;
+      _clampWorld();
+    });
+    return KeyEventResult.handled;
+  }
+
   void _onScaleUpdate(ScaleUpdateDetails d) {
+    // The scale recognizer also tracks middle-button drags; while one is
+    // turning the yaw, letting it pan too would smear both motions together.
+    if (_middleDrag) return;
     setState(() {
       // min 0.5 (was 1.0) so you can zoom out far enough to frame the WHOLE
       // garden from any yaw — a rotated plot's bounding box is larger, so it used
@@ -195,11 +277,22 @@ class _GardenViewState extends State<GardenView> with SingleTickerProviderStateM
           children: [
             Positioned.fill(
               child: widget.interactive
-                  ? GestureDetector(
-                      onScaleStart: _onScaleStart,
-                      onScaleUpdate: _onScaleUpdate,
-                      onTapUp: _onTapUp,
-                      child: scene,
+                  ? Focus(
+                      autofocus: true,
+                      onKeyEvent: _onKey,
+                      child: Listener(
+                        onPointerSignal: _onPointerSignal,
+                        onPointerDown: _onPointerDown,
+                        onPointerMove: _onPointerMove,
+                        onPointerUp: _endMiddleDrag,
+                        onPointerCancel: _endMiddleDrag,
+                        child: GestureDetector(
+                          onScaleStart: _onScaleStart,
+                          onScaleUpdate: _onScaleUpdate,
+                          onTapUp: _onTapUp,
+                          child: scene,
+                        ),
+                      ),
                     )
                   : scene,
             ),

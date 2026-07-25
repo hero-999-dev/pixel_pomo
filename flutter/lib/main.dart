@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app_blocker.dart';
 import 'camera.dart';
@@ -32,6 +33,15 @@ final GlobalKey<ScaffoldMessengerState> messengerKey = GlobalKey<ScaffoldMesseng
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // The web deployment serves the USER and TEST builds from one origin
+  // (github.io project pages), and shared_preferences on web is origin-wide
+  // localStorage — without a distinct prefix the test build's demo seed would
+  // leak into the user build's clean slate. Web-only on purpose: Android's
+  // test APK is already isolated by its own applicationId, and changing its
+  // prefix would orphan existing on-device data (#v33.8).
+  if (kIsWeb && const bool.fromEnvironment('TEST_BUILD')) {
+    SharedPreferences.setPrefix('flutter.pptest.');
+  }
   // Draw behind the system bars so camera/peek mode can show the garden edge-to-
   // edge under transparent bars — matches the live-wallpaper preview, kills the
   // leftover gray nav-bar strip (#v22).

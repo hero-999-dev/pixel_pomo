@@ -2,7 +2,9 @@ import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:pixel_pomo/engine/garden_engine.dart';
+import 'package:pixel_pomo/engine/garden_view.dart';
 
 // Geometry for the v10 low-poly 3D fence pipeline. The garden has a fixed camera
 // tilt and a hand-controlled compass yaw, so true vertical height must map
@@ -243,6 +245,40 @@ void main() {
       final maxY = (20 / 2 + roam) * p.t * kVy;
       expect(cam.panX, closeTo(maxX, 1e-6));
       expect(cam.panY, closeTo(maxY, 1e-6));
+    });
+  });
+
+  group('Desktop/web garden controls (#v33.8) - pure input maths', () {
+    test('one wheel notch down zooms out 1.1x, up zooms in, both clamped', () {
+      expect(wheelZoom(1.0, 120), closeTo(1 / 1.1, 1e-9)); // scroll down -> out
+      expect(wheelZoom(1.0, -120), closeTo(1.1, 1e-9)); // scroll up -> in
+      expect(wheelZoom(0.5, 120), 0.5); // floor holds
+      expect(wheelZoom(4.0, -120), 4.0); // ceiling holds
+      // the clamp range is the SAME one the pinch gesture uses (0.5 - 4.0)
+    });
+
+    test('WASD and arrows pan the camera, other keys are refused', () {
+      expect(wasdPan(LogicalKeyboardKey.keyW), const Offset(0, 32));
+      expect(wasdPan(LogicalKeyboardKey.keyS), const Offset(0, -32));
+      expect(wasdPan(LogicalKeyboardKey.keyA), const Offset(32, 0));
+      expect(wasdPan(LogicalKeyboardKey.keyD), const Offset(-32, 0));
+      expect(wasdPan(LogicalKeyboardKey.arrowUp), const Offset(0, 32));
+      expect(wasdPan(LogicalKeyboardKey.arrowDown), const Offset(0, -32));
+      expect(wasdPan(LogicalKeyboardKey.arrowLeft), const Offset(32, 0));
+      expect(wasdPan(LogicalKeyboardKey.arrowRight), const Offset(-32, 0));
+      expect(wasdPan(LogicalKeyboardKey.keyQ), Offset.zero);
+      expect(wasdPan(LogicalKeyboardKey.space), Offset.zero);
+    });
+
+    test('A and D are exact mirrors, W and S are exact mirrors', () {
+      expect(wasdPan(LogicalKeyboardKey.keyA), -wasdPan(LogicalKeyboardKey.keyD));
+      expect(wasdPan(LogicalKeyboardKey.keyW), -wasdPan(LogicalKeyboardKey.keyS));
+    });
+
+    test('middle-drag yaw is linear and signed', () {
+      expect(middleDragYaw(100), closeTo(1.0, 1e-9));
+      expect(middleDragYaw(-50), closeTo(-0.5, 1e-9));
+      expect(middleDragYaw(0), 0);
     });
   });
 }
