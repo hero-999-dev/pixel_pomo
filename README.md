@@ -6,7 +6,7 @@ a living wallpaper. Built with the
 [Press Start 2P](https://fonts.google.com/specimen/Press+Start+2P) font for that
 classic arcade look.
 
-> **Status:** **v0.33.7** — one Flutter (Dart) codebase ships **both** an Android APK and an
+> **Status:** **v0.34.0** — one Flutter (Dart) codebase ships **both** an Android APK and an
 > iOS app. On top of the core timer it has a full-screen **living 2.5D garden**, an animated
 > **Android live wallpaper**, an **app blocker** to keep you off distracting apps during a focus
 > session, **session stats** with charts and history, a **coin + shop** economy, **6 themes**,
@@ -127,12 +127,17 @@ and coins, for trying out stats/heatmap features without needing to build up rea
   BUTTONS, CARDS, CHART CELLS; …). Every pick is contrast-corrected so nothing you choose can make the screen
   unreadable, and the correction moves only lightness, so what comes back is still the colour you tapped.
 - **🖼️ Home wallpaper** — choose any photo from the custom theme editor, then frame it: drag to move, pinch to zoom, in a
-  panel shaped like your phone's screen. Settings' home mode picks between **CLEAN · GARDEN · WALLPAPER**.
+  panel shaped like your phone's screen, and delete it from the same panel when you're done with it. Settings' home mode
+  picks between **CLEAN · GARDEN · WALLPAPER**; tapping WALLPAPER before you've picked a photo tells you where to get one.
+- **🧭 First-run tour** — a fresh install opens on a guided pop-up tour: the screen dims, one button at a time is
+  highlighted and explained — the timer, the focus label, every icon in the top bar — and **SKIP** ends it at any point.
+  **Settings → SHOW TUTORIAL** plays it again. New installs start on the **garden** home screen with the trackers and the
+  detailed options switched off; everything is a switch away in Settings.
 
 ## 🧪 Testing
 
 All app logic lives in **pure, framework-free Dart** (timer engine, labels, stats, economy, garden, flowers, the app-blocker
-rules) so it can be unit-tested without a device. **272 Dart tests** plus a widget smoke test (boots the app and opens every
+rules) so it can be unit-tested without a device. **295 Dart tests** plus a widget smoke test (boots the app and opens every
 screen) **gate every build**. The garden engine has its own geometry tests. Run them from `flutter/`:
 
 ```bash

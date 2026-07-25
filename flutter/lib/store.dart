@@ -52,6 +52,7 @@ class AppStore extends ChangeNotifier {
   static const _kShowHabits = 'show_habit_tracker'; // hide = icon gone (#v32)
   static const _kStatsDetailed = 'stats_detailed'; // simple stats hides timeline + Sessions in Pixels (#v32)
   static const _kDetailedCustom = 'detailed_custom'; // reveals the custom theme section (#v32.4)
+  static const _kTutorial = 'tutorial_done'; // first-run tour seen/skipped (#v34)
   static const _kCustomTheme = 'custom_theme'; // user-built palette, see encodeCustomTheme (#v32.3)
   static const _kSeeded = 'test_seeded_v5';
 
@@ -88,7 +89,9 @@ class AppStore extends ChangeNotifier {
   /// Home-screen mode: false = clean pomodoro, true = live garden behind it (#3).
   // clean | garden | wallpaper (#v32.4). The old bool is kept as a getter so the
   // garden's call sites never had to learn about a third mode.
-  String homeBackdrop = 'clean';
+  // GARDEN on a fresh install (#v34) — the garden is the app's face, and a new
+  // user who never opens Settings should see it.
+  String homeBackdrop = 'garden';
   bool get homeGardenBackdrop => homeBackdrop == 'garden';
 
   /// True when the home screen sits on imagery rather than the flat theme
@@ -148,16 +151,23 @@ class AppStore extends ChangeNotifier {
 
   /// Hide the Money / Habit trackers (#v32): the top-bar icon disappears and
   /// the feature goes inert (no fx fetch, no daily-budget coin while hidden).
-  bool showMoneyTracker = true;
-  bool showHabitTracker = true;
+  /// Both OFF on a fresh install (#v34): a pomodoro timer is what the app is
+  /// for, and the trackers are opt-in extras.
+  bool showMoneyTracker = false;
+  bool showHabitTracker = false;
 
   /// Stats view mode (#v32): false = SIMPLE (Session Timeline in a Week and
   /// the SESSIONS IN PIXELS screen are hidden), true = DETAILED (everything).
-  bool statsDetailed = true;
+  /// SIMPLE on a fresh install (#v34).
+  bool statsDetailed = false;
 
   /// Reveals the custom theme section on the Theme screen (#v32.4). Off by
   /// default — the six presets are the intended path; this is the escape hatch.
   bool detailedCustom = false;
+
+  /// The first-run tour has been finished or skipped (#v34). False on a fresh
+  /// install, which is what makes the tour show itself once.
+  bool tutorialDone = false;
 
   late PomodoroEngine engine;
   final StopwatchTimer stopwatch = StopwatchTimer(); // #v31.16
@@ -248,8 +258,11 @@ class AppStore extends ChangeNotifier {
       _saveGarden();
     }
     // #v32.4: three modes now. Saves from before it only knew the garden bool.
+    // The `?? true` is the #v34 fresh-install default (GARDEN); an install that
+    // pre-dates _kBackdrop and explicitly saved `false` still opens on CLEAN,
+    // so the new default can't overwrite a choice someone already made.
     homeBackdrop = _prefs.getString(_kBackdrop) ??
-        ((_prefs.getBool(_kHomeMode) ?? false) ? 'garden' : 'clean');
+        ((_prefs.getBool(_kHomeMode) ?? true) ? 'garden' : 'clean');
     wallpaperPath = _prefs.getString(_kWallPath);
     wallZoom = _prefs.getDouble(_kWallZoom) ?? 1.0;
     wallDx = _prefs.getDouble(_kWallDx) ?? 0.0;
@@ -276,9 +289,12 @@ class AppStore extends ChangeNotifier {
         .split('\n')
         .where((s) => s.trim().isNotEmpty)
         .toList();
-    showMoneyTracker = _prefs.getBool(_kShowMoney) ?? true;
-    showHabitTracker = _prefs.getBool(_kShowHabits) ?? true;
-    statsDetailed = _prefs.getBool(_kStatsDetailed) ?? true;
+    // #v34 fresh-install defaults: trackers off, stats SIMPLE. A saved value
+    // always wins, so nobody's existing setup flips underneath them.
+    showMoneyTracker = _prefs.getBool(_kShowMoney) ?? false;
+    showHabitTracker = _prefs.getBool(_kShowHabits) ?? false;
+    statsDetailed = _prefs.getBool(_kStatsDetailed) ?? false;
+    tutorialDone = _prefs.getBool(_kTutorial) ?? false;
 
     _seedOnce();
     _topUpDemoData();
@@ -309,6 +325,14 @@ class AppStore extends ChangeNotifier {
   void setStatsDetailed(bool v) {
     statsDetailed = v;
     _prefs.setBool(_kStatsDetailed, v);
+    notifyListeners();
+  }
+
+  /// The tour is over — finished or skipped, same thing (#v34). [v] false is
+  /// the Settings "SHOW TUTORIAL" button replaying it.
+  void setTutorialDone(bool v) {
+    tutorialDone = v;
+    _prefs.setBool(_kTutorial, v);
     notifyListeners();
   }
 

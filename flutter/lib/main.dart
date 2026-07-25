@@ -15,6 +15,7 @@ import 'logic.dart';
 import 'pixel.dart';
 import 'store.dart';
 import 'strings.dart';
+import 'tutorial.dart';
 
 /// Small PNG thumbnail for a garden object (road/fence), crisp pixels. Every
 /// object PNG is now a single frame (fences render as 3D meshes in the garden,
@@ -206,9 +207,35 @@ Future<void> openPanel(BuildContext context, AppStore s, Widget Function() build
 
 // ---- home / timer -----------------------------------------------------------
 
+/// Spotlight targets for the first-run tour (#v34). File-level, not built in
+/// `build`, because a GlobalKey has to be the SAME object across rebuilds —
+/// only one home screen is ever alive, so one set is enough.
+final _tourKeys = {
+  for (final n in ['money', 'habit', 'stats', 'garden', 'theme', 'settings', 'store', 'coin', 'timer', 'label'])
+    n: GlobalKey(debugLabel: 'tour_$n'),
+};
+
 class HomeScreen extends StatelessWidget {
   final AppStore s;
   const HomeScreen(this.s, {super.key});
+
+  /// The tour, in the order the eye reads the screen: what the timer does,
+  /// then every icon in the top bar. Hidden trackers drop out of the list, so
+  /// the tour never spotlights an icon that isn't there.
+  static List<TutorialStep> tourSteps(AppStore s) => [
+        TutorialStep(null, 'tutWelcome', 'tutWelcomeBody'),
+        TutorialStep(_tourKeys['timer'], 'tutTimer', 'tutTimerBody'),
+        TutorialStep(_tourKeys['label'], 'label', 'tutLabelBody'),
+        if (s.showMoneyTracker) TutorialStep(_tourKeys['money'], 'money', 'tutMoneyBody'),
+        if (s.showHabitTracker) TutorialStep(_tourKeys['habit'], 'habits', 'tutHabitBody'),
+        TutorialStep(_tourKeys['stats'], 'stats', 'tutStatsBody'),
+        TutorialStep(_tourKeys['garden'], 'garden', 'tutGardenBody'),
+        TutorialStep(_tourKeys['theme'], 'theme', 'tutThemeBody'),
+        TutorialStep(_tourKeys['settings'], 'settings', 'tutSettingsBody'),
+        TutorialStep(_tourKeys['store'], 'shop', 'tutStoreBody'),
+        TutorialStep(_tourKeys['coin'], 'tutCoin', 'tutCoinBody'),
+        TutorialStep(null, 'tutEnd', 'tutEndBody'),
+      ];
 
   // web test guide auto-pops once per page-load; static so hot-reload won't respam
   static bool _testGuideShown = false;
@@ -260,8 +287,9 @@ class HomeScreen extends StatelessWidget {
             );
           });
         }
-        // web-only: pop the test guide once per page-load (never on the phone APK)
-        if (kIsWeb && !_testGuideShown) {
+        // web-only: pop the test guide once per page-load (never on the phone APK).
+        // Waits for the tour, or the two would stack on a fresh profile (#v34).
+        if (kIsWeb && !_testGuideShown && s.tutorialDone) {
           _testGuideShown = true;
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (context.mounted) _showTestGuide(context, th, lang);
@@ -286,13 +314,14 @@ class HomeScreen extends StatelessWidget {
         final phaseText = overImage ? overGarden : col(modeColor);
         final timeText = pomodoro ? e.formattedTime() : s.stopwatch.formattedTime();
         final timerBlock = Column(
+          key: _tourKeys['timer'],
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(modeText, style: pixelStyle(lang, 22, col(modeColor), spacing: 2, text: modeText).copyWith(shadows: shadows)),
             const SizedBox(height: 16),
             secondaryBtn(th, lang, s.currentLabel, () => openPanel(context, s, () => LabelScreen(s)),
-                fontSize: 11, padding: const EdgeInsets.all(10)),
+                fontSize: 11, padding: const EdgeInsets.all(10), key: _tourKeys['label']),
             const SizedBox(height: 28),
             Text(timeText, style: pixelStyle(lang, 48, phaseText, text: timeText).copyWith(shadows: shadows)),
             const SizedBox(height: 32),
@@ -391,6 +420,18 @@ class HomeScreen extends StatelessWidget {
                     ),
                   ),
                 ),
+              // the first-run tour, last in the stack so it covers everything
+              // it explains (#v34). Lives here rather than in a route because
+              // it has to MEASURE the real widgets underneath it.
+              if (!s.tutorialDone)
+                Positioned.fill(
+                  child: TutorialOverlay(
+                    steps: HomeScreen.tourSteps(s),
+                    theme: th,
+                    lang: lang,
+                    onDone: () => s.setTutorialDone(true),
+                  ),
+                ),
             ],
           ),
         );
@@ -473,13 +514,19 @@ class HomeScreen extends StatelessWidget {
     final coinColor = s.homeOverImage ? const Color(0xFFF4F4F4) : col(th.onSurface);
     // 5 icons on the left; slightly bigger glyphs + looser padding so they
     // don't read as crammed into the screen corners (#v30 item 1).
-    Widget icon(String name, VoidCallback onTap, Key key) => IconButton(
-          key: key,
-          padding: const EdgeInsets.all(6),
-          constraints: const BoxConstraints(),
-          visualDensity: VisualDensity.compact,
-          icon: Image.asset('assets/icon/icon_$name.png', width: 30, height: 30, filterQuality: FilterQuality.none),
-          onPressed: onTap,
+    // KeyedSubtree, not a second key on the IconButton: a widget gets one key,
+    // and the test keys below were already spoken for. It adds no layout, and
+    // the tour measures the icon's own render box through it (#v34).
+    Widget icon(String name, VoidCallback onTap, Key key) => KeyedSubtree(
+          key: _tourKeys[name],
+          child: IconButton(
+            key: key,
+            padding: const EdgeInsets.all(6),
+            constraints: const BoxConstraints(),
+            visualDensity: VisualDensity.compact,
+            icon: Image.asset('assets/icon/icon_$name.png', width: 30, height: 30, filterQuality: FilterQuality.none),
+            onPressed: onTap,
+          ),
         );
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -497,20 +544,23 @@ class HomeScreen extends StatelessWidget {
         icon('theme', () => openPanel(context, s, () => ThemeScreen(s)), const Key('themeButton')),
         icon('settings', () => openPanel(context, s, () => SettingsScreen(s)), const Key('settingsButton')),
         icon('store', () => openPanel(context, s, () => ShopScreen(s)), const Key('storeButton')),
-        GestureDetector(
-          key: const Key('shopButton'),
-          onTap: () => openPanel(context, s, () => ShopScreen(s)),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6),
-            child: Row(children: [
-              // 26, not the icons' 30: the coin is a SOLID filled disc while the
-              // menu icons are line-art glyphs — at equal pixel height the disc
-              // optically reads taller, which is what "the gold icon is bigger"
-              // meant; the sprites' content bounds are identical (#v32).
-              const GoldCoin(size: 26),
-              const SizedBox(width: 6),
-              Text('${s.coins}', style: pixelStyle(lang, 14, coinColor, text: '${s.coins}').copyWith(shadows: shadows)),
-            ]),
+        KeyedSubtree(
+          key: _tourKeys['coin'],
+          child: GestureDetector(
+            key: const Key('shopButton'),
+            onTap: () => openPanel(context, s, () => ShopScreen(s)),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              child: Row(children: [
+                // 26, not the icons' 30: the coin is a SOLID filled disc while the
+                // menu icons are line-art glyphs — at equal pixel height the disc
+                // optically reads taller, which is what "the gold icon is bigger"
+                // meant; the sprites' content bounds are identical (#v32).
+                const GoldCoin(size: 26),
+                const SizedBox(width: 6),
+                Text('${s.coins}', style: pixelStyle(lang, 14, coinColor, text: '${s.coins}').copyWith(shadows: shadows)),
+              ]),
+            ),
           ),
         ),
       ]),
@@ -593,18 +643,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
       const SizedBox(height: 24),
       Text(t(lang, 'homeMode'), style: pixelStyle(lang, 12, col(th.onSurfaceDim), text: t(lang, 'homeMode'))),
       const SizedBox(height: 12),
-      // three modes since #v32.4 — WALLPAPER only appears once one is saved,
-      // so the row never offers a button that would bounce back to CLEAN.
+      // three modes since #v32.4. WALLPAPER used to be hidden until one was
+      // saved, which left no hint that the mode existed — it is always on the
+      // row now, and tapping it with no photo opens the how-to (#v34).
       Row(
         children: [
-          for (final mode in [
-            'clean',
-            'garden',
-            if (s.wallpaperPath != null) 'wallpaper',
-          ]) ...[
+          for (final mode in ['clean', 'garden', 'wallpaper']) ...[
             if (mode != 'clean') const SizedBox(width: 12),
             Expanded(
               child: PixelButton(
+                key: Key('homeMode_$mode'),
                 text: t(lang, mode == 'clean' ? 'clean' : (mode == 'garden' ? 'gardenMode' : 'wallMode')),
                 fill: s.homeBackdrop == mode ? th.accent : th.panel,
                 border: s.homeBackdrop == mode ? th.onSurface : th.onSurfaceDim,
@@ -612,7 +660,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 shadow: th.shadow,
                 lang: lang,
                 fontSize: 11,
-                onTap: () => s.setHomeBackdrop(mode),
+                onTap: () {
+                  if (mode == 'wallpaper' && s.wallpaperPath == null) {
+                    openPanel(context, s, () => WallpaperHowToScreen(s));
+                  } else {
+                    s.setHomeBackdrop(mode);
+                  }
+                },
               ),
             ),
           ],
@@ -761,6 +815,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ],
         ],
       ),
+      // replay the first-run tour (#v34) — SKIP is otherwise one-way, and the
+      // tour is the only place several of these buttons are explained.
+      const SizedBox(height: 24),
+      secondaryBtn(th, lang, t(lang, 'tutReplay'), () {
+        s.setTutorialDone(false);
+        Navigator.pop(context); // back to the home screen, where the tour runs
+      }, fontSize: 11, key: const Key('replayTutorial')),
     ]);
   }
 
@@ -1645,6 +1706,33 @@ Widget wallpaperFill(String path, double zoom, double dx, double dy) {
   );
 }
 
+/// Where to go when HOME SCREEN > WALLPAPER is tapped with no photo saved
+/// (#v34). The wallpaper picker lives inside the custom theme editor, which is
+/// itself behind a Settings switch — two hops nobody would guess, so this
+/// screen just says them.
+class WallpaperHowToScreen extends StatelessWidget {
+  final AppStore s;
+  const WallpaperHowToScreen(this.s, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final lang = s.lang;
+    final th = s.theme;
+    Widget step(String key) => Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Text(t(lang, key), style: pixelStyle(lang, 11, col(th.onSurface), text: t(lang, key))),
+        );
+    return overlayScaffold(context, s, t(lang, 'wallHowTitle'), [
+      Text(t(lang, 'wallHowBody'),
+          style: pixelStyle(lang, 10, col(th.onSurfaceDim), text: t(lang, 'wallHowBody'))),
+      const SizedBox(height: 20),
+      step('wallHow1'),
+      step('wallHow2'),
+      step('wallHow3'),
+    ]);
+  }
+}
+
 /// Frame the photo the way the phone's own wallpaper cropper does: drag to
 /// choose which part shows, pinch to zoom in (#v32.4).
 class WallpaperCropScreen extends StatefulWidget {
@@ -1703,6 +1791,14 @@ class _WallpaperCropScreenState extends State<WallpaperCropScreen> {
         s.setWallpaperCrop(zoom, dx, dy);
         Navigator.pop(context);
       }),
+      const SizedBox(height: 10),
+      // drop the photo from here too (#v34) — this is the screen the user is
+      // already on when they decide they don't want to keep it, and the copy
+      // the app made is the only one deleted; their own photo is untouched.
+      secondaryBtn(th, lang, t(lang, 'wallRemove'), () {
+        s.removeWallpaper();
+        Navigator.pop(context);
+      }, fontSize: 11, key: const Key('wallpaperRemove')),
     ]);
   }
 }

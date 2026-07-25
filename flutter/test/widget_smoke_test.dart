@@ -9,7 +9,15 @@ import 'package:pixel_pomo/store.dart';
 /// This is the runtime check the pure-logic tests can't give us.
 void main() {
   testWidgets('app boots and every overlay opens cleanly', (tester) async {
-    SharedPreferences.setMockInitialValues({});
+    // #v34 changed the fresh-install defaults, and this test is about the
+    // overlays, not about them: opt back into the tracker icons it opens, the
+    // CLEAN home it started from, and past the first-run tour's scrim.
+    SharedPreferences.setMockInitialValues({
+      'flutter.tutorial_done': true,
+      'flutter.home_backdrop': 'clean',
+      'flutter.show_money_tracker': true,
+      'flutter.show_habit_tracker': true,
+    });
     GoldCoin.animate = false; // the perpetual coin spin would block pumpAndSettle
     final store = AppStore();
     await store.load();

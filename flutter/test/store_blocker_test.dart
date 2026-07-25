@@ -34,11 +34,11 @@ void main() {
     expect(s2.blockedApps, {'com.insta'});
   });
 
-  test('fresh install defaults: clean home, auto-break off, blocker off (#v23 fb)', () async {
+  test('fresh install defaults: garden home, auto-break off, blocker off (#v34)', () async {
     SharedPreferences.setMockInitialValues({});
     final s = AppStore();
     await s.load();
-    expect(s.homeGardenBackdrop, false); // clean home
+    expect(s.homeGardenBackdrop, true); // garden home since #v34 (was clean)
     expect(s.autoBreak, false); // no auto-start break
     expect(s.appBlockerEnabled, false); // blocker off — no permission prompts on first run
   });

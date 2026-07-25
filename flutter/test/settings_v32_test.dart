@@ -8,23 +8,23 @@ import 'package:pixel_pomo/store.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('tracker visibility + stats mode default ON/DETAILED and persist across restart', () async {
+  test('tracker visibility + stats mode default OFF/SIMPLE (#v34) and persist across restart', () async {
     SharedPreferences.setMockInitialValues({});
     final s = AppStore();
     await s.load();
-    expect(s.showMoneyTracker, true);
-    expect(s.showHabitTracker, true);
-    expect(s.statsDetailed, true);
+    expect(s.showMoneyTracker, false);
+    expect(s.showHabitTracker, false);
+    expect(s.statsDetailed, false);
 
-    s.setShowMoneyTracker(false);
-    s.setShowHabitTracker(false);
-    s.setStatsDetailed(false);
+    s.setShowMoneyTracker(true);
+    s.setShowHabitTracker(true);
+    s.setStatsDetailed(true);
 
     final s2 = AppStore();
     await s2.load();
-    expect(s2.showMoneyTracker, false);
-    expect(s2.showHabitTracker, false);
-    expect(s2.statsDetailed, false);
+    expect(s2.showMoneyTracker, true);
+    expect(s2.showHabitTracker, true);
+    expect(s2.statsDetailed, true);
   });
 
   test('every theme has its own accent — no two share a colour (#v32)', () {

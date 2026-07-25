@@ -13,7 +13,9 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   Future<AppStore> boot() async {
-    SharedPreferences.setMockInitialValues({});
+    // tutorial_done: the #v34 first-run tour covers the home screen with a
+    // tap-blocking scrim, and none of these tests are about the tour.
+    SharedPreferences.setMockInitialValues({'flutter.tutorial_done': true});
     final s = AppStore();
     await s.load();
     return s;
