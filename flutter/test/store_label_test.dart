@@ -63,4 +63,16 @@ void main() {
     await s2.load();
     expect(s2.records[0].label, 'READING'); // survives a restart
   });
+
+
+  // #v33.9 — the web launcher passes the picked language as ?lang=xx; the app
+  // honours it only when we ship that language, else keeps the stored choice.
+  test('web ?lang override takes a shipped language and refuses the rest', () {
+    expect(AppStore.webLangOverride('en', 'tr'), 'tr'); // shipped -> wins
+    expect(AppStore.webLangOverride('en', 'de'), 'de');
+    expect(AppStore.webLangOverride('tr', null), 'tr'); // no query -> stored
+    expect(AppStore.webLangOverride('tr', 'xx'), 'tr'); // unknown -> stored
+    expect(AppStore.webLangOverride('tr', 'ko'), 'tr'); // dropped lang -> stored
+    expect(AppStore.webLangOverride('en', ''), 'en'); // empty -> stored
+  });
 }

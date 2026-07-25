@@ -187,6 +187,15 @@ class AppStore extends ChangeNotifier {
         totalSessions: sessions,
       );
 
+  /// The language to use given the already-validated [stored] choice and a web
+  /// `?lang=` [queryLang]. The query wins only when it names a language we ship;
+  /// anything else (null, a dropped/misspelt tag) leaves [stored] standing.
+  /// Pure so the web launcher contract is unit-tested without a browser.
+  static String webLangOverride(String stored, String? queryLang) =>
+      (queryLang != null && languageOptions.any((o) => o[0] == queryLang))
+          ? queryLang
+          : stored;
+
   Future<void> load() async {
     _prefs = await SharedPreferences.getInstance();
     workMin = _prefs.getInt(_kWork) ?? 25;
@@ -201,6 +210,16 @@ class AppStore extends ChangeNotifier {
     // a previously-selected language that no longer exists (e.g. 'ko', removed in
     // #v22) falls back to English so the UI isn't left half-translated.
     if (!languageOptions.any((o) => o[0] == lang)) lang = 'en';
+    // On web, the launcher page carries the chosen language as `?lang=xx`; honour
+    // it (and persist it, so it behaves like any language choice) whenever it is
+    // a language we actually ship. No-op off web — Uri.base has no query there.
+    if (kIsWeb) {
+      final resolved = webLangOverride(lang, Uri.base.queryParameters['lang']);
+      if (resolved != lang) {
+        lang = resolved;
+        _prefs.setString(_kLang, resolved);
+      }
+    }
     appBlockerEnabled = _prefs.getBool(_kBlocker) ?? false;
     blockedApps = AppBlocker.decode(_prefs.getString(_kBlocked));
 
