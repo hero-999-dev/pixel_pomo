@@ -2296,7 +2296,10 @@ class _LogHistoryScreenState extends State<LogHistoryScreen> {
                 setState(() {});
               },
               child: Row(children: [
-                Swatch(color: s.labelColorOf(label), border: th.onSurfaceDim, size: 14),
+                // plain: square, borderless — matches the Log History rows
+                // this dialog opens from (#v34.1; the rows went plain in #v31.16
+                // and this swatch was left rounded).
+                Swatch(color: s.labelColorOf(label), border: th.onSurfaceDim, size: 14, plain: true),
                 const SizedBox(width: 10),
                 Text(label,
                     style: pixelStyle(lang, 10,
@@ -2599,7 +2602,13 @@ class _ShopScreenState extends State<ShopScreen> {
   // (availableOf > 0) — placed units are never sold.
   Widget _buySell(AppStore s, PixelTheme th, String lang, String id, int cost, VoidCallback onBuy) {
     return Row(
-      mainAxisSize: MainAxisSize.min,
+      // Fill the flex slot and push the pair to its RIGHT edge (#v34.1). With
+      // MainAxisSize.min the row shrink-wrapped and sat at the START of the
+      // slot, so every row's buttons stopped wherever their own price text
+      // happened to end — BUY 10 / BUY 5, SELL 5 / SELL 2 — and the column
+      // looked shifted. Anchored right, every row's right edge lines up with
+      // the screen's.
+      mainAxisAlignment: MainAxisAlignment.end,
       children: [
         // Flexible so a squeezed row shrinks the two boxes evenly and their
         // labels scale inside (PixelButton scales down, never wraps) — before
@@ -3784,14 +3793,18 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
       );
     }
 
-    // narrow grids side by side instead of one full-width stack: 2 for
-    // weekly, 3 for monthly (#v31.2 item 2, weekly added #v31.5 item 4) —
-    // the label heatmaps' own LayoutBuilder sizes their cells to whatever
-    // width the Expanded column gives them, so this alone shrinks the boxes.
+    // narrow grids side by side instead of one full-width stack (#v31.2 item 2,
+    // weekly added #v31.5 item 4) — the label heatmaps' own LayoutBuilder sizes
+    // their cells to whatever width the Expanded column gives them, so this
+    // alone shrinks the boxes. [perRow] is a fixed count, never derived from
+    // the width: the row structure must not reflow when the screen changes
+    // (#v34.1).
     Widget perRowGrid(int perRow) => Column(children: [
           for (var i = 0; i < visible.length; i += perRow)
             Padding(
-              padding: const EdgeInsets.only(bottom: 14),
+              // 24, not 14 (#v34.1): row 2's label name sat almost against
+              // row 1's grid, and the two rows read as one block.
+              padding: const EdgeInsets.only(bottom: 24),
               child: Builder(builder: (_) {
                 final batch = visible.skip(i).take(perRow).toList();
                 return Row(
@@ -3930,12 +3943,11 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
         if (visible.isEmpty)
           // labels exist but none were used inside this period's window
           noSessions
-        // WEEKLY and MONTHLY both pack 3 across (#v32.9 — v32.8 briefly gave
-        // monthly the full width to fit the caption on one line; the caption
-        // is three fixed lines now, so the width was no longer needed and
-        // monthly went back to 3-up).
+        // WEEKLY and MONTHLY pack 2 across (#v34.1, was 3 since #v32.9) — at
+        // three the grids were too cramped to read; two is fixed at any screen
+        // width, so the rows never reflow.
         else if (_period == _HeatPeriod.weekly || _period == _HeatPeriod.monthly)
-          perRowGrid(3)
+          perRowGrid(2)
         else if (_period == _HeatPeriod.yearly && _yearStyle == _YearStyle.vertical)
           // the narrow Daylio-style year column leaves half the width empty —
           // two labels' year grids fit side by side (#v32)

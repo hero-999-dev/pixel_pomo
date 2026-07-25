@@ -199,7 +199,7 @@ void main() {
     }
   });
 
-  testWidgets('monthly 3-up columns are equal width — the 3rd was bigger (#v33.2)', (tester) async {
+  testWidgets('monthly 2-up columns are equal width — the last one was bigger (#v33.2)', (tester) async {
     sizeTo(tester, 390, 2400);
     final s = await boot();
     await tester.pumpWidget(focusHost(s));
@@ -214,18 +214,18 @@ void main() {
       final f = find.byKey(ValueKey('labelGrid_$lbl'));
       if (f.evaluate().isNotEmpty) rects.add(tester.getRect(f.first));
     }
-    expect(rects.length, greaterThanOrEqualTo(3), reason: 'need a full first row to compare');
+    expect(rects.length, greaterThanOrEqualTo(2), reason: 'need a full first row to compare');
     final top0 = rects.map((r) => r.top).reduce(math.min);
     final row0 = rects.where((r) => (r.top - top0).abs() < 2).map((r) => r.width).toList();
-    expect(row0.length, 3, reason: 'monthly should pack 3 per row');
+    expect(row0.length, 2, reason: 'monthly should pack 2 per row (#v34.1)');
     for (final w in row0) {
       expect((w - row0.first).abs(), lessThan(2), reason: 'columns unequal: $row0');
     }
   });
 
   group('a label heatmap fills the column it is given', () {
-    // MONTHLY packs 3 per row; 18 WEEKS and YEARLY(horizontal) are full width.
-    for (final (period, perRow) in [('MONTHLY', 3), ('18 WEEKS', 1), ('YEARLY', 1)]) {
+    // MONTHLY packs 2 per row (#v34.1); 18 WEEKS and YEARLY(horizontal) are full width.
+    for (final (period, perRow) in [('MONTHLY', 2), ('18 WEEKS', 1), ('YEARLY', 1)]) {
       for (final width in [360.0, 800.0]) {
         testWidgets('$period at ${width.toInt()}px', (tester) async {
           sizeTo(tester, width, 2400);

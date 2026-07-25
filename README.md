@@ -6,7 +6,7 @@ a living wallpaper. Built with the
 [Press Start 2P](https://fonts.google.com/specimen/Press+Start+2P) font for that
 classic arcade look.
 
-> **Status:** **v0.34.0** — one Flutter (Dart) codebase ships **both** an Android APK and an
+> **Status:** **v0.34.1** — one Flutter (Dart) codebase ships **both** an Android APK and an
 > iOS app. On top of the core timer it has a full-screen **living 2.5D garden**, an animated
 > **Android live wallpaper**, an **app blocker** to keep you off distracting apps during a focus
 > session, **session stats** with charts and history, a **coin + shop** economy, **6 themes**,
@@ -84,8 +84,8 @@ and coins, for trying out stats/heatmap features without needing to build up rea
   whatever window you're on: **how many sessions, the total, and your average per day** — averaged over the
   days you actually studied, so rest days don't quietly drag the number down. Below it, **FOCUS SESSIONS** heatmaps
   per label with **WEEKLY / MONTHLY / 18 WEEKS / YEARLY** views and its own **◀ ▶ navigator** to browse an
-  earlier period, independent of any other screen. **Weekly and monthly pack 3 labels side by side**, yearly's
-  vertical style 2, and **18 weeks and yearly horizontal give each label the full width**; a
+  earlier period, independent of any other screen. **Weekly and monthly pack 2 labels side by side** (a fixed count — the rows stay
+  two rows whatever the screen does), yearly's vertical style 2, and **18 weeks and yearly horizontal give each label the full width**; a
   **LABEL button** with pixel switches picks which labels to show for 18 weeks *and* yearly alike (yearly used
   to be one-label-only — now it's the same multi-select). Each label's box also shows **days · times**, the
   **total time studied** and the **average** — on one line where the column is wide enough, split onto three
@@ -137,7 +137,7 @@ and coins, for trying out stats/heatmap features without needing to build up rea
 ## 🧪 Testing
 
 All app logic lives in **pure, framework-free Dart** (timer engine, labels, stats, economy, garden, flowers, the app-blocker
-rules) so it can be unit-tested without a device. **295 Dart tests** plus a widget smoke test (boots the app and opens every
+rules) so it can be unit-tested without a device. **297 Dart tests** plus a widget smoke test (boots the app and opens every
 screen) **gate every build**. The garden engine has its own geometry tests. Run them from `flutter/`:
 
 ```bash

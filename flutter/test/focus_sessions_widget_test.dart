@@ -144,19 +144,25 @@ void main() {
       ];
     }
 
+    // A column wide enough for the whole caption puts it back on one joined
+    // line (#v32.11) — which 2-up columns now are (#v34.1). Either shape is
+    // correct; what must never happen is the caption going missing.
+    void expectCaption(List<String> lines, String period) {
+      if (find.text(lines.join(' · ')).evaluate().isNotEmpty) return;
+      for (final line in lines) {
+        expect(find.text(line), findsWidgets, reason: '$period lost "$line"');
+      }
+    }
+
     await tester.pumpWidget(host(s));
     await tester.pumpAndSettle();
     await tester.tap(find.text('WEEKLY'));
     await tester.pumpAndSettle();
-    for (final line in captionFor(monday, monday + 6)) {
-      expect(find.text(line), findsWidgets, reason: 'WEEKLY lost "$line"');
-    }
+    expectCaption(captionFor(monday, monday + 6), 'WEEKLY');
 
     await tester.tap(find.text('MONTHLY'));
     await tester.pumpAndSettle();
-    for (final line in captionFor(monthLo, monthHi)) {
-      expect(find.text(line), findsWidgets, reason: 'MONTHLY lost "$line"');
-    }
+    expectCaption(captionFor(monthLo, monthHi), 'MONTHLY');
   });
 
   testWidgets('the full-width periods put the caption back on ONE line (#v32.11)', (tester) async {
@@ -211,14 +217,16 @@ void main() {
     }
   });
 
-  testWidgets('no caption line is ever wide enough to split a value in a 3-up column', (tester) async {
+  testWidgets('no caption line is ever wide enough to split a value in a narrow column', (tester) async {
     // The real failure this replaced: one 312px-wide caption string in a
     // 113px column broke wherever it ran out of room, putting "92h" on one
     // line and "45m" on the next. Each line is now its own Text, and every
-    // line must fit a 3-up column outright — a value must never need to wrap
+    // line must fit its column outright — a value must never need to wrap
     // at all. Since #v32.12 that includes DAYS and TIMES, which are their own
     // lines now, so no line has a ` · ` left to break on.
-    const columnAt3Up = 113.0;
+    // The narrowest column the app produces is 2-up (#v34.1) on a 360px phone:
+    // (360 - 28*2 page padding - 6 gap) / 2.
+    const columnAt2Up = 149.0;
     final s = await boot();
     await tester.pumpWidget(host(s));
     await tester.pumpAndSettle();
@@ -243,7 +251,7 @@ void main() {
         text: TextSpan(text: line, style: pixelStyle('en', 8, const Color(0xFF000000), text: line)),
         textDirection: TextDirection.ltr,
       )..layout();
-      expect(tp.width, lessThan(columnAt3Up), reason: '"$line" would wrap mid-value at 3-up');
+      expect(tp.width, lessThan(columnAt2Up), reason: '"$line" would wrap mid-value at 2-up');
     }
   });
 
@@ -483,16 +491,25 @@ void main() {
   double blockWidth(WidgetTester t, String label) =>
       t.getSize(find.ancestor(of: find.text(label), matching: find.byType(Column)).first).width;
 
-  testWidgets('WEEKLY and MONTHLY both pack 3 per row', (tester) async {
-    final s = await boot();
-    await tester.pumpWidget(host(s));
-    await tester.pumpAndSettle();
-    for (final period in ['WEEKLY', 'MONTHLY']) {
-      await tester.tap(find.text(period));
+  testWidgets('WEEKLY and MONTHLY both pack 2 per row, at any screen width', (tester) async {
+    // #v34.1 — was 3-up. The count is FIXED: the user asked for two rows that
+    // stay two rows "even if the screen changes", so the same assertion runs
+    // at a narrow phone and a wide tablet.
+    for (final width in [360.0, 1024.0]) {
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = Size(width, 900);
+      addTearDown(tester.view.reset);
+      final s = await boot();
+      await tester.pumpWidget(host(s));
       await tester.pumpAndSettle();
-      final w = blockWidth(tester, 'MATH');
-      expect(w, lessThan(800 / 3 + 20), reason: '$period is not 3-up');
-      expect(w, greaterThan(800 / 4), reason: '$period went 4-up'); // not 4-up either
+      for (final period in ['WEEKLY', 'MONTHLY']) {
+        await tester.tap(find.text(period));
+        await tester.pumpAndSettle();
+        final w = blockWidth(tester, 'MATH');
+        expect(w, lessThan(width / 2 + 20), reason: '$period is not 2-up at ${width}px');
+        expect(w, greaterThan(width / 3), reason: '$period went 3-up at ${width}px');
+      }
+      s.dispose();
     }
   });
 
