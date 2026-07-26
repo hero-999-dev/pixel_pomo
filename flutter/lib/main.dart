@@ -547,6 +547,20 @@ class HomeScreen extends StatelessWidget {
     // KeyedSubtree, not a second key on the IconButton: a widget gets one key,
     // and the test keys below were already spoken for. It adds no layout, and
     // the tour measures the icon's own render box through it (#v34).
+    // The bar carries up to 8 items (both trackers ship ON since #v34.9), and
+    // at 30px each that overflowed a 360px phone by ~58px — a real yellow-bar
+    // overflow on a fresh install. Size the glyph to whatever the width
+    // actually allows instead: full size when there is room, smaller when
+    // every tracker is on and the phone is narrow. Never below 18, or the
+    // icons stop being recognisable.
+    // 5 fixed icons + up to 2 tracker icons + the coin block.
+    final iconCount = 5 + (s.showMoneyTracker ? 1 : 0) + (s.showHabitTracker ? 1 : 0);
+    final avail = MediaQuery.of(context).size.width - 24; // the row's padding
+    // coin disc + gap + the count (PressStart2P is monospace, so a digit is
+    // about one font size wide) + the block's own padding
+    final coinW = 26 + 6 + '${s.coins}'.length * 14.0 + 12;
+    final glyph = (((avail - coinW) / iconCount) - 12).clamp(18.0, 30.0);
+
     Widget icon(String name, VoidCallback onTap, Key key) => KeyedSubtree(
           key: _tourKeys[name],
           child: IconButton(
@@ -554,7 +568,8 @@ class HomeScreen extends StatelessWidget {
             padding: const EdgeInsets.all(6),
             constraints: const BoxConstraints(),
             visualDensity: VisualDensity.compact,
-            icon: Image.asset('assets/icon/icon_$name.png', width: 30, height: 30, filterQuality: FilterQuality.none),
+            icon: Image.asset('assets/icon/icon_$name.png',
+                width: glyph, height: glyph, filterQuality: FilterQuality.none),
             onPressed: onTap,
           ),
         );
@@ -574,12 +589,20 @@ class HomeScreen extends StatelessWidget {
         icon('theme', () => openPanel(context, s, () => ThemeScreen(s)), const Key('themeButton')),
         icon('settings', () => openPanel(context, s, () => SettingsScreen(s)), const Key('settingsButton')),
         icon('store', () => openPanel(context, s, () => ShopScreen(s)), const Key('storeButton')),
-        KeyedSubtree(
+        // Flexible + scaleDown: the icons are fixed-size images, so the coin is
+        // what has to give when the bar runs out of room. Without this the Row
+        // overflowed by ~44px on a 360px phone once both trackers shipped ON
+        // (#v34.9) — a yellow overflow bar on a fresh install.
+        Flexible(
+          child: KeyedSubtree(
           key: _tourKeys['coin'],
           child: GestureDetector(
             key: const Key('shopButton'),
             onTap: () => openPanel(context, s, () => ShopScreen(s)),
-            child: Padding(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerRight,
+              child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 6),
               child: Row(children: [
                 // 26, not the icons' 30: the coin is a SOLID filled disc while the
@@ -590,8 +613,10 @@ class HomeScreen extends StatelessWidget {
                 const SizedBox(width: 6),
                 Text('${s.coins}', style: pixelStyle(lang, 14, coinColor, text: '${s.coins}').copyWith(shadows: shadows)),
               ]),
+              ),
             ),
           ),
+        ),
         ),
       ]),
     );

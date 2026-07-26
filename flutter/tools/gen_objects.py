@@ -218,6 +218,12 @@ def _tree_variant(seed):
         ("6BA83F", "4A8A32", "356A25", "204415"),   # yellow-green
         ("3F8F5C", "2C7048", "1E5537", "133724"),   # blue-green
         ("8A9B3A", "6B7F2B", "4E5F1E", "343F14"),   # olive
+        # DARK trees (#v34.9) — the deep greens the pre-v34.8 forest used, back
+        # in the mix so the tree line has weight in it and isn't all bright
+        # canopy. Deliberately close to the old 1E4D27 / 17401F pair.
+        ("2A6B33", "1E4D27", "17401F", "0E2A13"),   # deep forest
+        ("246B2E", "1B5526", "134018", "09230D"),   # darker still
+        ("35704A", "245234", "173824", "0B2015"),   # dark blue-green
     ]
     lit, mid, shade, under = (hexrgb(h) + (255,) for h in families[rb(len(families))])
     bark = hexrgb(["4A3421", "3A2A18", "56402A"][rb(3)]) + (255,)
@@ -260,7 +266,10 @@ def _tree_variant(seed):
         # OVERLAP: spaced by less than their own height, or the top one floats
         # off on its own with a gap of sky under it.
         tiers = 3 + (tiles - 2)
-        top, bottom = n * 0.13, n * 0.68
+        # top 0.18, not 0.13: the spike's own radius put it at y<0, so the
+        # canopy was flat-cut by the canvas edge — the tree had no head. A test
+        # now asserts no tree touches any edge (#v34.9).
+        top, bottom = n * 0.18, n * 0.70
         for i in range(tiers):
             f = i / (tiers - 1)
             rad = n * (0.15 + 0.19 * f)

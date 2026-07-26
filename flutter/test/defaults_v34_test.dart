@@ -2,9 +2,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pixel_pomo/store.dart';
 
-/// #v34 — the fresh-install defaults the user asked for, in one place:
-/// auto-start OFF, home GARDEN, app blocker OFF, stats SIMPLE, detailed
-/// customisation OFF, habits OFF, money tracker OFF.
+/// The fresh-install defaults, in one place. #v34 set them; **#v34.9 reversed
+/// four of them** on the user's call — stats DETAILED, detailed customisation
+/// ON, habits ON, money tracker ON. Auto-start and the app blocker stay OFF
+/// (the blocker needs two system permissions a fresh install does not have, so
+/// defaulting it ON would show a switch that cannot do anything yet), and the
+/// home screen stays GARDEN.
 ///
 /// The other half of the contract matters just as much: a value someone
 /// already saved must survive, so nobody's existing setup flips underneath
@@ -20,23 +23,23 @@ void main() {
     expect(s.autoBreak, false);
     expect(s.homeBackdrop, 'garden');
     expect(s.appBlockerEnabled, false);
-    expect(s.statsDetailed, false); // SIMPLE
-    expect(s.detailedCustom, false);
-    expect(s.showHabitTracker, false);
-    expect(s.showMoneyTracker, false);
+    expect(s.statsDetailed, true); // DETAILED (#v34.9)
+    expect(s.detailedCustom, true);
+    expect(s.showHabitTracker, true);
+    expect(s.showMoneyTracker, true);
     expect(s.tutorialDone, false); // the tour runs itself once
   });
 
   test('a saved value always beats the default', () async {
-    // every flag set to the OPPOSITE of its #v34 default
+    // every flag set to the OPPOSITE of its current default
     SharedPreferences.setMockInitialValues({
       'flutter.auto_break': true,
       'flutter.home_backdrop': 'clean',
       'flutter.app_blocker': true,
-      'flutter.stats_detailed': true,
-      'flutter.detailed_custom': true,
-      'flutter.show_habit_tracker': true,
-      'flutter.show_money_tracker': true,
+      'flutter.stats_detailed': false,
+      'flutter.detailed_custom': false,
+      'flutter.show_habit_tracker': false,
+      'flutter.show_money_tracker': false,
       'flutter.tutorial_done': true,
     });
     final s = AppStore();
@@ -45,10 +48,10 @@ void main() {
     expect(s.autoBreak, true);
     expect(s.homeBackdrop, 'clean');
     expect(s.appBlockerEnabled, true);
-    expect(s.statsDetailed, true);
-    expect(s.detailedCustom, true);
-    expect(s.showHabitTracker, true);
-    expect(s.showMoneyTracker, true);
+    expect(s.statsDetailed, false);
+    expect(s.detailedCustom, false);
+    expect(s.showHabitTracker, false);
+    expect(s.showMoneyTracker, false);
     expect(s.tutorialDone, true);
   });
 

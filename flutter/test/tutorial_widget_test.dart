@@ -57,9 +57,10 @@ void main() {
     await tester.pumpWidget(host(s));
     await tester.pumpAndSettle();
 
-    // both trackers are hidden by default (#v34), so their steps drop out:
-    // welcome, timer, label, stats, garden, theme, settings, store, coin, end.
-    expect(find.text('1/10'), findsOneWidget);
+    // both trackers are ON by default (#v34.9), so their steps are in:
+    // welcome, timer, label, money, habit, stats, garden, theme, settings,
+    // store, coin, end.
+    expect(find.text('1/12'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('tutorialNext')));
     await tester.pumpAndSettle();
@@ -78,11 +79,13 @@ void main() {
     s.dispose();
   });
 
-  testWidgets('showing a tracker puts its step back in the tour', (tester) async {
-    final s = await boot({'flutter.show_habit_tracker': true, 'flutter.show_money_tracker': true});
+  testWidgets('hiding a tracker takes its step out of the tour', (tester) async {
+    // the conditional-steps rule, now checked from the other side since the
+    // trackers ship ON (#v34.9)
+    final s = await boot({'flutter.show_habit_tracker': false, 'flutter.show_money_tracker': false});
     await tester.pumpWidget(host(s));
     await tester.pumpAndSettle();
-    expect(find.text('1/12'), findsOneWidget);
+    expect(find.text('1/10'), findsOneWidget);
 
     s.dispose();
   });
@@ -112,8 +115,8 @@ void main() {
     await tester.pumpWidget(host(s));
     await tester.pumpAndSettle();
 
-    for (var i = 0; i < 9; i++) {
-      // 10 steps, so 9 taps to stand on the last one
+    for (var i = 0; i < 11; i++) {
+      // 12 steps, so 11 taps to stand on the last one
       await tester.tap(find.byKey(const Key('tutorialNext')));
       await tester.pumpAndSettle();
     }

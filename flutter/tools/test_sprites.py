@@ -94,6 +94,33 @@ class TreesAreWellFormed(unittest.TestCase):
                 self.assertTrue(any(grid[n - 1][c][3] for c in range(n)),
                                 f"tree {seed} does not reach the ground")
 
+    def test_no_tree_is_cut_off_by_its_own_canvas(self):
+        # "bazi agaclarin kafasi tamamn cizilmemis" — the pine's top tier
+        # reached y<0, so the canopy was flat-cut by the canvas edge and the
+        # tree had no head. Nothing may touch any edge; the ground row is where
+        # the trunk stands and is checked separately.
+        for seed in range(1, len(g.TREE_TILES) + 1):
+            with self.subTest(tree=seed):
+                grid = g._tree_variant(seed)
+                n = len(grid)
+                self.assertFalse(any(px[3] for px in grid[0]),
+                                 f"tree {seed}'s canopy is cut off by the top edge")
+                for r in range(n):
+                    self.assertFalse(grid[r][0][3], f"tree {seed} touches the left edge")
+                    self.assertFalse(grid[r][n - 1][3], f"tree {seed} touches the right edge")
+
+    def test_the_forest_keeps_some_dark_trees(self):
+        # #v34.9 — the user asked for the old deep-green trees back in the mix,
+        # so the tree line has weight instead of being all bright canopy.
+        dark = 0
+        for seed in range(1, len(g.TREE_TILES) + 1):
+            canopy = [px for row in g._tree_variant(seed) for px in row
+                      if px[3] and px[1] > px[0] and px[1] > px[2]]
+            if canopy and sum(px[1] for px in canopy) / len(canopy) < 75:
+                dark += 1
+        self.assertGreaterEqual(dark, 3, "no dark trees left in the mix")
+        self.assertLess(dark, len(g.TREE_TILES), "every tree went dark")
+
     def test_the_canvas_is_sized_from_the_table(self):
         # 16px per tile keeps pixel density even with the 16px flowers; a tree
         # generated at a fixed size would blur as it got bigger on screen.

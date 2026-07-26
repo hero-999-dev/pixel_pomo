@@ -78,4 +78,31 @@ void main() {
 
     s.dispose();
   });
+
+  testWidgets('the top bar fits a narrow phone with every icon showing (#v34.9)', (tester) async {
+    // Both trackers ship ON now, which puts 7 icons plus the coin in the bar.
+    // At the old fixed 30px glyph that overflowed a 360px phone by ~44px — a
+    // yellow overflow stripe on a brand-new install. The glyph scales and the
+    // coin block yields, so the row has to fit at any width.
+    for (final width in [320.0, 360.0, 412.0]) {
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = Size(width, 640);
+      addTearDown(tester.view.reset);
+
+      SharedPreferences.setMockInitialValues({
+        'flutter.tutorial_done': true,
+        'flutter.home_backdrop': 'clean',
+        'flutter.coins': 999999, // a wide count, the worst case for the bar
+      });
+      final s = AppStore();
+      await s.load();
+      await tester.pumpWidget(MaterialApp(home: HomeScreen(s)));
+      await tester.pumpAndSettle();
+
+      expect(s.showMoneyTracker, isTrue, reason: 'sanity: both trackers should be on');
+      expect(s.showHabitTracker, isTrue);
+      expect(tester.takeException(), isNull, reason: 'the top bar overflows at ${width}px');
+      s.dispose();
+    }
+  });
 }

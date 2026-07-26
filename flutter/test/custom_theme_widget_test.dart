@@ -381,6 +381,7 @@ void main() {
   testWidgets('with the switch off the picker shows the presets and nothing else',
       (tester) async {
     final s = await boot(detailed: false);
+    s.setDetailedCustom(false); // ON by default since #v34.9
     await tester.pumpWidget(host(s));
     await tester.pumpAndSettle();
 

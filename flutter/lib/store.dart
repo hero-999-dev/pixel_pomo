@@ -151,19 +151,21 @@ class AppStore extends ChangeNotifier {
 
   /// Hide the Money / Habit trackers (#v32): the top-bar icon disappears and
   /// the feature goes inert (no fx fetch, no daily-budget coin while hidden).
-  /// Both OFF on a fresh install (#v34): a pomodoro timer is what the app is
-  /// for, and the trackers are opt-in extras.
-  bool showMoneyTracker = false;
-  bool showHabitTracker = false;
+  /// Both ON on a fresh install (#v34.9 — reversed from #v34): the trackers
+  /// are part of what the app is, and hiding them meant nobody found them.
+  bool showMoneyTracker = true;
+  bool showHabitTracker = true;
 
   /// Stats view mode (#v32): false = SIMPLE (Session Timeline in a Week and
   /// the SESSIONS IN PIXELS screen are hidden), true = DETAILED (everything).
-  /// SIMPLE on a fresh install (#v34).
-  bool statsDetailed = false;
+  /// DETAILED on a fresh install (#v34.9 — reversed from #v34).
+  bool statsDetailed = true;
 
   /// Reveals the custom theme section on the Theme screen (#v32.4). Off by
   /// default — the six presets are the intended path; this is the escape hatch.
-  bool detailedCustom = false;
+  /// ON on a fresh install (#v34.9 — reversed from #v34): the custom theme
+  /// editor is worth finding, and hiding it behind a switch hid it too well.
+  bool detailedCustom = true;
 
   /// The first-run tour has been finished or skipped (#v34). False on a fresh
   /// install, which is what makes the tour show itself once.
@@ -269,7 +271,7 @@ class AppStore extends ChangeNotifier {
     wallDy = _prefs.getDouble(_kWallDy) ?? 0.0;
     // a wallpaper file deleted from under us must not leave a blank home screen
     if (homeBackdrop == 'wallpaper' && wallpaperPath == null) homeBackdrop = 'clean';
-    detailedCustom = _prefs.getBool(_kDetailedCustom) ?? false;
+    detailedCustom = _prefs.getBool(_kDetailedCustom) ?? true;
     isPomodoroMode = _prefs.getBool(_kTimerMode) ?? true;
     autoBreak = _prefs.getBool(_kAutoBreak) ?? false;
     wallpaperCam = WallpaperCam.decode(_prefs.getString(_kWallpaperCam));
@@ -289,11 +291,12 @@ class AppStore extends ChangeNotifier {
         .split('\n')
         .where((s) => s.trim().isNotEmpty)
         .toList();
-    // #v34 fresh-install defaults: trackers off, stats SIMPLE. A saved value
-    // always wins, so nobody's existing setup flips underneath them.
-    showMoneyTracker = _prefs.getBool(_kShowMoney) ?? false;
-    showHabitTracker = _prefs.getBool(_kShowHabits) ?? false;
-    statsDetailed = _prefs.getBool(_kStatsDetailed) ?? false;
+    // #v34.9 fresh-install defaults: trackers ON, stats DETAILED (reversed
+    // from #v34). A saved value always wins, so nobody's existing setup flips
+    // underneath them — only a brand-new install sees the change.
+    showMoneyTracker = _prefs.getBool(_kShowMoney) ?? true;
+    showHabitTracker = _prefs.getBool(_kShowHabits) ?? true;
+    statsDetailed = _prefs.getBool(_kStatsDetailed) ?? true;
     tutorialDone = _prefs.getBool(_kTutorial) ?? false;
 
     _seedOnce();

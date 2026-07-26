@@ -8,23 +8,23 @@ import 'package:pixel_pomo/store.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('tracker visibility + stats mode default OFF/SIMPLE (#v34) and persist across restart', () async {
+  test('tracker visibility + stats mode default ON/DETAILED (#v34.9) and persist across restart', () async {
     SharedPreferences.setMockInitialValues({});
     final s = AppStore();
     await s.load();
-    expect(s.showMoneyTracker, false);
-    expect(s.showHabitTracker, false);
-    expect(s.statsDetailed, false);
+    expect(s.showMoneyTracker, true);
+    expect(s.showHabitTracker, true);
+    expect(s.statsDetailed, true);
 
-    s.setShowMoneyTracker(true);
-    s.setShowHabitTracker(true);
-    s.setStatsDetailed(true);
+    s.setShowMoneyTracker(false);
+    s.setShowHabitTracker(false);
+    s.setStatsDetailed(false);
 
     final s2 = AppStore();
     await s2.load();
-    expect(s2.showMoneyTracker, true);
-    expect(s2.showHabitTracker, true);
-    expect(s2.statsDetailed, true);
+    expect(s2.showMoneyTracker, false);
+    expect(s2.showHabitTracker, false);
+    expect(s2.statsDetailed, false);
   });
 
   test('MATCHA is the default theme and heads the list (#v34.4)', () async {
