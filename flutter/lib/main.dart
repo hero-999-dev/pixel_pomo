@@ -211,16 +211,15 @@ Widget overlayScaffold(BuildContext context, AppStore s, String title, List<Widg
             const SizedBox(height: 8),
             Center(child: Text(title, style: pixelStyle(s.lang, 20, col(th.onSurface), spacing: 2, text: title))),
             const SizedBox(height: 24),
-            // Each section gets its own layer (#v33.7). A SingleChildScrollView
-            // paints its child into the layer it lives in, so changing the
-            // scroll offset re-recorded the WHOLE page every frame of a drag —
-            // every log row, every heatmap cell, every app icon, sixty times a
-            // second. That is the "it goes down in fits" report: the physics
-            // were only half of it, the rest was the frame budget. Behind a
-            // RepaintBoundary a section is a layer the compositor just moves,
-            // and scrolling stops repainting anything at all. (ListView gives
-            // its items the same treatment for the same reason; these pages
-            // are one long Column, so they have to ask for it.)
+            // Each section gets its own layer (#v33.7) — one the compositor
+            // moves rather than redraws.
+            //
+            // A ListView here was tried and REVERTED (#v34.6): these pages are
+            // a handful of very tall sections, not many small ones, so the
+            // viewport almost always intersects every item and nothing gets
+            // culled — measured, no change. The weight is INSIDE a section
+            // (Sessions in Pixels builds ~900 cell widgets), so that is where
+            // it has to be fixed.
             for (final section in children) RepaintBoundary(child: section),
             const SizedBox(height: 24),
             secondaryBtn(th, s.lang, t(s.lang, 'close'), () => Navigator.pop(context), padding: const EdgeInsets.all(16)),
@@ -1088,34 +1087,28 @@ class _BlockerPermDialogState extends State<_BlockerPermDialog> with WidgetsBind
 
 Widget _stepperRow(PixelTheme th, String lang, String label, int value, int min, int max, int step,
     ValueChanged<int> onChange, {VoidCallback? onType}) {
-  final hint = tf(lang, 'rangeHint', [min, max]);
+  // No range caption here (#v34.6). #v34.5 put one under every stepper, but
+  // the typing dialog already states the range at the point you need it, and
+  // the extra line pushed the rows out of alignment with each other. Back to
+  // one clean row; the dialog carries the hint.
   return Padding(
     padding: const EdgeInsets.only(bottom: 16),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    child: Row(
       children: [
-        Row(
-          children: [
-            Expanded(child: Text(label, style: pixelStyle(lang, 11, col(th.onSurfaceDim), text: label))),
-            SizedBox(width: 52, child: secondaryBtn(th, lang, '-', () => onChange((value - step).clamp(min, max).toInt()), padding: const EdgeInsets.all(12))),
-            // the number itself is the shortcut to typing one (#v34.5)
-            GestureDetector(
-              key: Key('stepperValue_$label'),
-              behavior: HitTestBehavior.opaque,
-              onTap: onType,
-              child: Container(
-                width: 56,
-                alignment: Alignment.center,
-                child: Text('$value', style: pixelStyle(lang, 14, col(th.onSurface), text: '$value')),
-              ),
-            ),
-            SizedBox(width: 52, child: secondaryBtn(th, lang, '+', () => onChange((value + step).clamp(min, max).toInt()), padding: const EdgeInsets.all(12))),
-          ],
+        Expanded(child: Text(label, style: pixelStyle(lang, 11, col(th.onSurfaceDim), text: label))),
+        SizedBox(width: 52, child: secondaryBtn(th, lang, '-', () => onChange((value - step).clamp(min, max).toInt()), padding: const EdgeInsets.all(12))),
+        // the number itself is the shortcut to typing one (#v34.5)
+        GestureDetector(
+          key: Key('stepperValue_$label'),
+          behavior: HitTestBehavior.opaque,
+          onTap: onType,
+          child: Container(
+            width: 56,
+            alignment: Alignment.center,
+            child: Text('$value', style: pixelStyle(lang, 14, col(th.onSurface), text: '$value')),
+          ),
         ),
-        // say the range out loud, rather than leaving people to discover it by
-        // holding + until the number stops moving (#v34.5)
-        const SizedBox(height: 4),
-        Text(hint, style: pixelStyle(lang, 8, col(th.onSurfaceDim), text: hint)),
+        SizedBox(width: 52, child: secondaryBtn(th, lang, '+', () => onChange((value + step).clamp(min, max).toInt()), padding: const EdgeInsets.all(12))),
       ],
     ),
   );
@@ -1146,57 +1139,105 @@ class _AppPickerScreenState extends State<AppPickerScreen> {
     final s = widget.s;
     final th = s.theme;
     final lang = s.lang;
-    return overlayScaffold(context, s, t(lang, 'blockedApps'), [
-      Text(t(lang, 'pickBlocked'), style: pixelStyle(lang, 9, col(th.onSurfaceDim), text: t(lang, 'pickBlocked'))),
-      const SizedBox(height: 12),
-      FutureBuilder<List<AppInfo>>(
-        future: _apps,
-        builder: (context, snap) {
-          if (!snap.hasData) {
-            return Center(child: Text('...', style: pixelStyle(lang, 14, col(th.onSurfaceDim), text: '...')));
-          }
-          // Selected apps float to the top (in order), a divider, then the rest
-          // (#v23 fb). snap.data is already alpha-sorted, so `where` keeps order.
-          final picked = snap.data!.where((a) => s.blockedApps.contains(a.package)).toList();
-          final rest = snap.data!.where((a) => !s.blockedApps.contains(a.package)).toList();
-          // one layer per row (#v33.7): the whole list is a single section of
-          // the page, and it is the longest and heaviest one in the app — a few
-          // hundred rows, each with a decoded icon. Small per-row layers stay
-          // raster-cacheable, so a fling composites them instead of re-drawing
-          // the strip, and toggling one app repaints one row.
-          Widget appRow(AppInfo a) => RepaintBoundary(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 6),
-                  child: Row(children: [
-                    a.icon != null
-                        ? Image.memory(a.icon!, width: 32, height: 32, filterQuality: FilterQuality.none)
-                        : const SizedBox(width: 32, height: 32),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(a.label,
-                          style: pixelStyle(lang, 10, col(th.onSurface), text: a.label),
-                          maxLines: 1, overflow: TextOverflow.ellipsis),
-                    ),
-                    _BlockToggle(
-                      on: s.blockedApps.contains(a.package),
-                      accent: th.accent,
-                      off: th.onSurfaceDim,
-                      knob: th.onSurface,
-                      onTap: () => s.setBlocked(a.package, !s.blockedApps.contains(a.package)),
-                    ),
-                  ]),
-                ),
-              );
-          return Column(children: [
-            for (final a in picked) appRow(a),
-            if (picked.isNotEmpty && rest.isNotEmpty)
-              Container(height: 3, margin: const EdgeInsets.symmetric(vertical: 10), color: col(th.onSurfaceDim)),
-            for (final a in rest) appRow(a),
-          ]);
-        },
+    // A LAZY list, not overlayScaffold's Column (#v34.6). This is the longest
+    // page in the app — a few hundred rows, each holding a decoded icon — and
+    // every one of them was built and laid out at once whether or not it was
+    // on screen. RepaintBoundary (#v33.7) only ever fixed the painting half;
+    // the build and layout cost stayed, which is the "it isn't scrolling, it
+    // stops the moment I lift my finger". ListView.builder builds the handful
+    // in the viewport.
+    return Scaffold(
+      backgroundColor: col(th.bg),
+      body: SafeArea(
+        child: FutureBuilder<List<AppInfo>>(
+          future: _apps,
+          builder: (context, snap) {
+            if (!snap.hasData) {
+              return Center(
+                  child: Text('...', style: pixelStyle(lang, 14, col(th.onSurfaceDim), text: '...')));
+            }
+            // Selected apps float to the top (in order), a divider, then the
+            // rest (#v23 fb). snap.data is already alpha-sorted.
+            final picked = snap.data!.where((a) => s.blockedApps.contains(a.package)).toList();
+            final rest = snap.data!.where((a) => !s.blockedApps.contains(a.package)).toList();
+            final divider = picked.isNotEmpty && rest.isNotEmpty;
+            // header rows + picked + optional divider + rest + close
+            final lead = 2;
+            final count = lead + picked.length + (divider ? 1 : 0) + rest.length + 1;
+
+            return ListView.builder(
+              padding: const EdgeInsets.all(28),
+              itemCount: count,
+              itemBuilder: (context, i) {
+                if (i == 0) {
+                  return Column(children: [
+                    const SizedBox(height: 8),
+                    Center(
+                        child: Text(t(lang, 'blockedApps'),
+                            style: pixelStyle(lang, 20, col(th.onSurface),
+                                spacing: 2, text: t(lang, 'blockedApps')))),
+                    const SizedBox(height: 24),
+                  ]);
+                }
+                if (i == 1) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Text(t(lang, 'pickBlocked'),
+                        style: pixelStyle(lang, 9, col(th.onSurfaceDim), text: t(lang, 'pickBlocked'))),
+                  );
+                }
+                if (i == count - 1) {
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 24),
+                    child: secondaryBtn(th, lang, t(lang, 'close'), () => Navigator.pop(context),
+                        padding: const EdgeInsets.all(16)),
+                  );
+                }
+                var k = i - lead;
+                if (k < picked.length) return _appRow(s, th, lang, picked[k]);
+                k -= picked.length;
+                if (divider) {
+                  if (k == 0) {
+                    return Container(
+                        height: 3,
+                        margin: const EdgeInsets.symmetric(vertical: 10),
+                        color: col(th.onSurfaceDim));
+                  }
+                  k -= 1;
+                }
+                return _appRow(s, th, lang, rest[k]);
+              },
+            );
+          },
+        ),
       ),
-    ]);
+    );
   }
+
+  /// One app row. ListView already gives each item its own repaint boundary,
+  /// so the explicit one #v33.7 added here is gone with the Column.
+  Widget _appRow(AppStore s, PixelTheme th, String lang, AppInfo a) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(children: [
+          a.icon != null
+              ? Image.memory(a.icon!, width: 32, height: 32, filterQuality: FilterQuality.none)
+              : const SizedBox(width: 32, height: 32),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(a.label,
+                style: pixelStyle(lang, 10, col(th.onSurface), text: a.label),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis),
+          ),
+          _BlockToggle(
+            on: s.blockedApps.contains(a.package),
+            accent: th.accent,
+            off: th.onSurfaceDim,
+            knob: th.onSurface,
+            onTap: () => s.setBlocked(a.package, !s.blockedApps.contains(a.package)),
+          ),
+        ]),
+      );
 }
 
 /// A hard-edged pixel on/off switch (used by the app picker).
@@ -2099,7 +2140,8 @@ class _LabelScreenState extends State<LabelScreen> {
           runSpacing: 10,
           children: [
             for (final c in LabelColors.palette)
-              Swatch(color: c, border: th.onSurfaceDim, size: 40, onTap: () {
+              // square, like every other swatch in the app (#v34.6)
+              Swatch(color: c, border: th.onSurfaceDim, size: 40, plain: true, onTap: () {
                 s.setLabelColor(label, c);
                 Navigator.pop(ctx);
               }),

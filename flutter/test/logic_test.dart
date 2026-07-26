@@ -440,12 +440,30 @@ void main() {
       expect(LabelColors.decode(LabelColors.encode(colors)), colors);
     });
 
-    test('palette grew to 14 but hash defaults stay in the original 10 (#v27.1)', () {
-      expect(LabelColors.palette.length, 14);
-      for (final l in ['STUDY', 'MATH', 'CODING', 'READING', 'ANYTHING', 'Q']) {
-        final i = LabelColors.palette.indexOf(LabelColors.defaultFor(l));
-        expect(i, isNonNegative);
-        expect(i, lessThan(10)); // growing the palette must never recolor old labels
+    test('the picker palette can grow and re-sort without recolouring a label (#v34.6)', () {
+      // #v27.1 asserted "defaultFor lands in the first 10 OF palette", which
+      // tied the defaults to the picker's DISPLAY ORDER. #v34.6 re-sorted the
+      // palette by hue and grew it to 24, so that coupling had to go — the
+      // defaults now come from their own frozen list. Pin the actual colours
+      // instead: this catches a recolour directly, whatever palette does.
+      const expected = {
+        'STUDY': 0xFF8E8E8E,
+        'MATH': 0xFF9C6B4A,
+        'CODING': 0xFF8E4FE0,
+        'READING': 0xFF2A9D8F,
+        'ANYTHING': 0xFFF2C94C,
+        'Q': 0xFFF2994A,
+        'HISTORY': 0xFFF2C94C,
+      };
+      expected.forEach((label, colour) {
+        expect(LabelColors.defaultFor(label), colour,
+            reason: '$label changed colour — every existing user sees this');
+      });
+      // and the picker itself: 24 unique colours, all still offered
+      expect(LabelColors.palette.length, 24);
+      expect(LabelColors.palette.toSet().length, 24, reason: 'a duplicate crept into the palette');
+      for (final c in expected.values) {
+        expect(LabelColors.palette, contains(c), reason: 'a default is not pickable');
       }
     });
   });

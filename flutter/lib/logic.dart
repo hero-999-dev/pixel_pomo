@@ -935,16 +935,28 @@ class Labels {
 }
 
 class LabelColors {
+  /// What the picker shows, ordered around the hue wheel so neighbours look
+  /// like neighbours, with the greys last (#v34.6). 24 colours — the 14 that
+  /// existed plus ten filling the gaps (a deep red, a coral, a pale yellow, a
+  /// forest and a bright teal, a navy, an indigo, a mauve, a chocolate and a
+  /// dark grey). DISPLAY ORDER ONLY — see [_defaults].
   static const palette = [
-    0xFFE5484D, 0xFFF2994A, 0xFFF2C94C, 0xFF46A03C, 0xFF2A9D8F,
-    0xFF2A7DE1, 0xFF8E4FE0, 0xFFE0457B, 0xFF9C6B4A, 0xFF8E8E8E,
-    0xFF56CCF2, 0xFFA8D93A, 0xFFD138C9, 0xFFEDEDED, // sky/lime/magenta/white (#v27.1)
+    0xFFE5484D, 0xFFB3271E, 0xFFFF7A45, 0xFF5C4033, 0xFF9C6B4A,
+    0xFFF2994A, 0xFFF2C94C, 0xFFFFE066, 0xFFA8D93A, 0xFF46A03C,
+    0xFF1F7A5C, 0xFF2A9D8F, 0xFF17B8A6, 0xFF56CCF2, 0xFF2A7DE1,
+    0xFF1E4FA3, 0xFF6C63FF, 0xFF8E4FE0, 0xFFD138C9, 0xFFB07AA1,
+    0xFFE0457B, 0xFFEDEDED, 0xFF8E8E8E, 0xFF4A4A4A,
   ];
 
-  /// Hash-derived defaults stay in the ORIGINAL 10 — growing the palette must
-  /// not silently recolor every label the user never customized (#v27.1). The
-  /// new colors are reachable through the picker only.
-  static const _defaultCount = 10;
+  /// The ORIGINAL ten, in their original order, and nothing else may touch
+  /// this list (#v27.1). [defaultFor] indexes it by a hash of the label name,
+  /// so re-ordering or inserting here silently recolours every label the user
+  /// never customised. #v34.6 re-sorted and grew [palette] for the picker;
+  /// keeping the hash on its own list is what made that safe.
+  static const _defaults = [
+    0xFFE5484D, 0xFFF2994A, 0xFFF2C94C, 0xFF46A03C, 0xFF2A9D8F,
+    0xFF2A7DE1, 0xFF8E4FE0, 0xFFE0457B, 0xFF9C6B4A, 0xFF8E8E8E,
+  ];
 
   static int _stableHash(String s) {
     var h = 0;
@@ -956,7 +968,7 @@ class LabelColors {
 
   static int defaultFor(String label) {
     final key = label.trim().toUpperCase();
-    return palette[_stableHash(key) % _defaultCount];
+    return _defaults[_stableHash(key) % _defaults.length];
   }
 
   static int colorFor(String label, Map<String, int> chosen) =>

@@ -73,4 +73,53 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.getTopLeft(find.text('Zeta')).dy, lessThan(tester.getTopLeft(find.text('Alpha')).dy));
   });
+
+  testWidgets('only the visible rows are built — a few hundred apps stay scrollable (#v34.6)',
+      (tester) async {
+    // The whole list used to be one Column inside a SingleChildScrollView, so
+    // all ~300 rows (each with a decoded icon) were built and laid out at
+    // once. RepaintBoundary fixed the painting half only; this is the build
+    // and layout half, and it is what made the page feel stuck rather than
+    // scrolled.
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(360, 640);
+    addTearDown(tester.view.reset);
+
+    SharedPreferences.setMockInitialValues({});
+    final store = AppStore();
+    await store.load();
+
+    const ch = MethodChannel('pixel_pomo/blocker');
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(ch, (c) async {
+      if (c.method == 'installedApps') {
+        return [
+          for (var i = 0; i < 300; i++)
+            {'package': 'com.app$i', 'label': 'App ${i.toString().padLeft(3, '0')}'},
+        ];
+      }
+      return null;
+    });
+    addTearDown(() => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(ch, null));
+
+    await tester.pumpWidget(MaterialApp(
+        home: AnimatedBuilder(animation: store, builder: (_, __) => AppPickerScreen(store))));
+    await tester.pumpAndSettle();
+
+    // rows are identified by their label text; the private toggle widget
+    // cannot be named from a test
+    final built = tester
+        .widgetList<Text>(find.byType(Text))
+        .where((w) => (w.data ?? '').startsWith('App '))
+        .length;
+    expect(built, greaterThan(0), reason: 'sanity: some rows should render');
+    expect(built, lessThan(60),
+        reason: 'all 300 rows were built at once ($built) - the list is not lazy');
+
+    // and it still scrolls to reach the far end of the list
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, -4000));
+    await tester.pumpAndSettle();
+    expect(find.text('App 000'), findsNothing, reason: 'the list did not move');
+
+    store.dispose();
+  });
 }

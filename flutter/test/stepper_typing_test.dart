@@ -32,14 +32,31 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('each stepper says its range', (tester) async {
+  testWidgets('the range is stated in the dialog, not under every row (#v34.6)', (tester) async {
+    // #v34.5 put a caption under each stepper; it repeated what the dialog
+    // already says and knocked the rows out of alignment with one another.
     final s = await boot();
     await tester.pumpWidget(host(s));
     await tester.pumpAndSettle();
-    // study 5-300, break 1-120, sessions 1-24
-    expect(find.text('MIN 5 - MAX 300'), findsOneWidget);
-    expect(find.text('MIN 1 - MAX 120'), findsOneWidget);
-    expect(find.text('MIN 1 - MAX 24'), findsOneWidget);
+    expect(find.text('MIN 5 - MAX 300'), findsNothing, reason: 'the caption is back under the row');
+
+    await tester.tap(find.byKey(const Key('stepperValue_STUDY (MIN)')));
+    await tester.pumpAndSettle();
+    expect(find.text('MIN 5 - MAX 300'), findsOneWidget, reason: 'the dialog must state the range');
+    s.dispose();
+  });
+
+  testWidgets('every stepper row lines up with the others', (tester) async {
+    final s = await boot();
+    await tester.pumpWidget(host(s));
+    await tester.pumpAndSettle();
+    final xs = [
+      for (final l in ['STUDY (MIN)', 'BREAK (MIN)', 'SESSIONS'])
+        tester.getRect(find.byKey(Key('stepperValue_$l'))).left
+    ];
+    for (final x in xs) {
+      expect((x - xs.first).abs(), lessThan(0.5), reason: 'stepper numbers are not aligned: $xs');
+    }
     s.dispose();
   });
 

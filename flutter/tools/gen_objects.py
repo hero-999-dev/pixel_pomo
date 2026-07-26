@@ -847,7 +847,12 @@ _FLOWER_BLOOMS = {
            # heart is UNIFORM dark gold, symmetric 2/4/4/2 (the 'l' highlight
            # pixel and the +1-gold offset removed on user request), so all four
            # gray seams line up at the same columns; tapered lobe corners,
-           # rounded mound, scalloped silhouette, black rim only
+           # rounded mound, scalloped silhouette, black rim only.
+           # #v34.6: leading blank row so outline() can draw the TOP rim — the
+           # petals sat on row 0 with no transparent pixel above them, so the
+           # bloom had side rims but no dark line across its top. Same fix
+           # #v32.2 applied to the bushy variant; this one was missed.
+            "................",
             "......dmmd......",
             "....m.mmmm.m....",
             "...mmmdmmdmmm...",
