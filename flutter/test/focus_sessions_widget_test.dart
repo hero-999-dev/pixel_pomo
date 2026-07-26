@@ -137,10 +137,11 @@ void main() {
     List<String> captionFor(int lo, int hi) {
       final winDays = {for (final kv in mathDays.entries) if (kv.key >= lo && kv.key <= hi) kv.key: kv.value};
       final (winMinutes, _, winAvg) = StatsAggregator.dayMapAverage(mathMinutes, lo, hi);
+      // #v34.3 — two lines: days+times, then total+average.
       return [
-        ...tf('en', 'capDaysTimes', [HabitLog.daysDone(winDays), HabitLog.totalTimes(winDays)]).split(' · '),
-        StatsAggregator.formatMinutes(winMinutes),
-        tf('en', 'capAvg', [StatsAggregator.formatMinutes(winAvg)]),
+        tf('en', 'capDaysTimes', [HabitLog.daysDone(winDays), HabitLog.totalTimes(winDays)]),
+        '${StatsAggregator.formatMinutes(winMinutes)} · '
+            '${tf('en', 'capAvg', [StatsAggregator.formatMinutes(winAvg)])}',
       ];
     }
 
@@ -182,10 +183,11 @@ void main() {
     List<String> lines(int lo, int hi) {
       final winDays = {for (final kv in mathDays.entries) if (kv.key >= lo && kv.key <= hi) kv.key: kv.value};
       final (total, _, avg) = StatsAggregator.dayMapAverage(mathMinutes, lo, hi);
+      // #v34.3 — two lines: days+times, then total+average.
       return [
-        ...tf('en', 'capDaysTimes', [HabitLog.daysDone(winDays), HabitLog.totalTimes(winDays)]).split(' · '),
-        StatsAggregator.formatMinutes(total),
-        tf('en', 'capAvg', [StatsAggregator.formatMinutes(avg)]),
+        tf('en', 'capDaysTimes', [HabitLog.daysDone(winDays), HabitLog.totalTimes(winDays)]),
+        '${StatsAggregator.formatMinutes(total)} · '
+            '${tf('en', 'capAvg', [StatsAggregator.formatMinutes(avg)])}',
       ];
     }
 
@@ -198,7 +200,7 @@ void main() {
     final monday = today - (dateOfEpochDay(today).weekday - 1);
     final l18 = lines(monday - 17 * 7, monday + 6);
     expect(find.text(l18.join(' · ')), findsOneWidget);
-    expect(find.text(l18[2]), findsNothing, reason: 'still split into per-field lines');
+    expect(find.text(l18[0]), findsNothing, reason: 'still split into per-field lines');
 
     // YEARLY horizontal — same
     await tester.tap(find.text('YEARLY'));
@@ -206,7 +208,7 @@ void main() {
     final ly = lines(epochDayOf(DateTime.utc(now.year, 1, 1)), epochDayOf(DateTime.utc(now.year, 12, 31)));
     expect(find.text(ly.join(' · ')), findsOneWidget);
 
-    // MONTHLY is 3-up and must still be split, or values get cut in half
+    // MONTHLY is 3-up again (#v34.3) and must still be split, or values get cut in half
     await tester.tap(find.text('MONTHLY'));
     await tester.pumpAndSettle();
     final lm = lines(epochDayOf(DateTime.utc(now.year, now.month, 1)),
@@ -491,10 +493,10 @@ void main() {
   double blockWidth(WidgetTester t, String label) =>
       t.getSize(find.ancestor(of: find.text(label), matching: find.byType(Column)).first).width;
 
-  testWidgets('WEEKLY and MONTHLY both pack 2 per row, at any screen width', (tester) async {
-    // #v34.1 — was 3-up. The count is FIXED: the user asked for two rows that
-    // stay two rows "even if the screen changes", so the same assertion runs
-    // at a narrow phone and a wide tablet.
+  testWidgets('WEEKLY packs 2 per row and MONTHLY 3, at any screen width', (tester) async {
+    // #v34.3 — weekly 2, monthly 3. #v34.1 briefly put monthly on 2 as well,
+    // which was not asked for. Both counts are FIXED, so the same assertion
+    // runs at a narrow phone and a wide tablet.
     for (final width in [360.0, 1024.0]) {
       tester.view.devicePixelRatio = 1.0;
       tester.view.physicalSize = Size(width, 900);
@@ -502,15 +504,53 @@ void main() {
       final s = await boot();
       await tester.pumpWidget(host(s));
       await tester.pumpAndSettle();
-      for (final period in ['WEEKLY', 'MONTHLY']) {
+      for (final (period, perRow) in [('WEEKLY', 2), ('MONTHLY', 3)]) {
         await tester.tap(find.text(period));
         await tester.pumpAndSettle();
         final w = blockWidth(tester, 'MATH');
-        expect(w, lessThan(width / 2 + 20), reason: '$period is not 2-up at ${width}px');
-        expect(w, greaterThan(width / 3), reason: '$period went 3-up at ${width}px');
+        expect(w, lessThan(width / perRow + 20),
+            reason: '$period is not $perRow-up at ${width}px');
+        expect(w, greaterThan(width / (perRow + 1)),
+            reason: '$period packed more than $perRow at ${width}px');
       }
       s.dispose();
     }
+  });
+
+  testWidgets('the caption is TWO lines in the narrow columns, not four (#v34.3)', (tester) async {
+    // 360px so the columns are genuinely narrow and the caption cannot join
+    // onto one line - which is the case that used to spend four lines of
+    // height above every grid.
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(360, 900);
+    addTearDown(tester.view.reset);
+
+    final s = await boot();
+    await tester.pumpWidget(host(s));
+    await tester.pumpAndSettle();
+
+    for (final period in ['WEEKLY', 'MONTHLY']) {
+      await tester.tap(find.text(period));
+      await tester.pumpAndSettle();
+
+      // The old shape put each field on its own line, so a bare "N DAYS" was
+      // its own Text. Paired up, that string only ever appears joined to TIMES.
+      final bareDays = find.byWidgetPredicate((w) =>
+          w is Text && w.data != null && RegExp(r'^\d+ DAYS$').hasMatch(w.data!));
+      expect(bareDays, findsNothing, reason: '$period still splits DAYS onto its own line');
+
+      // ...and every caption line must be unwrappable, or a value gets cut in
+      // half at 3-up, which is what the four-line version was protecting.
+      final caps = tester.widgetList<Text>(find.descendant(
+          of: find.byType(FittedBox), matching: find.byType(Text)));
+      expect(caps, isNotEmpty, reason: '$period caption is not scale-to-fit');
+      for (final c in caps) {
+        expect(c.maxLines, 1, reason: 'a caption line can wrap');
+        expect(c.softWrap, isFalse);
+      }
+    }
+
+    s.dispose();
   });
 
   testWidgets('YEARLY VERTICAL stays 2 per row', (tester) async {

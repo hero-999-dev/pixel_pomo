@@ -163,6 +163,25 @@ PixelButton secondaryBtn(PixelTheme th, String lang, String text, VoidCallback? 
         text: text, fill: th.panel, border: th.onSurfaceDim, textColor: th.onSurface, shadow: th.shadow,
         lang: lang, onTap: onTap, fontSize: fontSize, padding: padding, opacity: opacity);
 
+/// One caption line under a Focus Sessions label — it shrinks rather than wraps
+/// (#v34.3).
+///
+/// The caption is two fields per line now, and a 3-up column on a small phone is
+/// only ~97px wide, so plain [Text] would break a value in half — the exact bug
+/// the old four-line caption existed to prevent. Scaling down keeps both fields
+/// whole at any width, the same trick the shop's OWNED/PLACED row uses.
+Widget _capLine(PixelTheme th, String lang, String text) => Align(
+      alignment: Alignment.centerLeft,
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerLeft,
+        child: Text(text,
+            maxLines: 1,
+            softWrap: false,
+            style: pixelStyle(lang, 8, col(th.onSurfaceDim), text: text)),
+      ),
+    );
+
 /// A full-screen overlay scaffold with a title and a trailing CLOSE button.
 /// [themeOverride] lets a screen paint itself in a theme the app has not
 /// adopted yet — the custom theme editor previews with it (#v32.3).
@@ -627,19 +646,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ],
       Text(t(lang, 'language'), style: pixelStyle(lang, 12, col(th.onSurfaceDim), text: t(lang, 'language'))),
       const SizedBox(height: 12),
-      for (final opt in languageOptions)
-        Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: PixelButton(
-            text: (opt[0] == lang ? '> ' : '') + opt[1],
-            fill: opt[0] == lang ? th.accent : th.panel,
-            border: opt[0] == lang ? th.onSurface : th.onSurfaceDim,
-            textColor: opt[0] == lang ? th.onAccent : th.onSurface,
-            shadow: th.shadow,
-            lang: opt[0], // autonym renders in its own script
-            onTap: () => s.selectLanguage(opt[0]),
-          ),
-        ),
+      ..._languagePicker(th, lang, s),
       const SizedBox(height: 24),
       Text(t(lang, 'homeMode'), style: pixelStyle(lang, 12, col(th.onSurfaceDim), text: t(lang, 'homeMode'))),
       const SizedBox(height: 12),
@@ -823,6 +830,51 @@ class _SettingsScreenState extends State<SettingsScreen> {
         Navigator.pop(context); // back to the home screen, where the tour runs
       }, fontSize: 11, key: const Key('replayTutorial')),
     ]);
+  }
+
+  /// True while the language list is expanded (#v34.3).
+  bool _langOpen = false;
+
+  /// The language control: ONE button showing the language in use, with a
+  /// caret on the right; tapping it drops the other five open, and picking one
+  /// closes it again (#v34.3). Six buttons stacked permanently pushed
+  /// everything below them a screen away, and five of them were always the
+  /// wrong answer.
+  List<Widget> _languagePicker(PixelTheme th, String lang, AppStore s) {
+    final current = languageOptions.firstWhere((o) => o[0] == lang,
+        orElse: () => languageOptions.first);
+    return [
+      PixelButton(
+        key: const Key('languageButton'),
+        // the caret points down when it will open, up when it will close —
+        // ASCII, because the pixel font has no arrow glyph
+        text: '${current[1]}   ${_langOpen ? '^' : 'v'}',
+        fill: th.accent,
+        border: th.onSurface,
+        textColor: th.onAccent,
+        shadow: th.shadow,
+        lang: current[0], // the autonym renders in its own script
+        onTap: () => setState(() => _langOpen = !_langOpen),
+      ),
+      if (_langOpen)
+        // only the languages NOT in use — the button above already IS the
+        // current one, so repeating it in the list would just be a no-op row
+        for (final opt in languageOptions.where((o) => o[0] != lang)) ...[
+          const SizedBox(height: 8),
+          PixelButton(
+            text: opt[1],
+            fill: th.panel,
+            border: th.onSurfaceDim,
+            textColor: th.onSurface,
+            shadow: th.shadow,
+            lang: opt[0],
+            onTap: () {
+              setState(() => _langOpen = false);
+              s.selectLanguage(opt[0]); // rebuilds the app in the new language
+            },
+          ),
+        ],
+    ];
   }
 
   /// Flip the app-blocker; turning it ON first checks the Accessibility + overlay
@@ -3643,11 +3695,15 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
       // land on. ponytail: split the joined string instead of adding two
       // more keys × 6 languages — every table uses ` · `, and a table that
       // ever doesn't just keeps them on one line, which is today's layout.
+      // TWO lines, not four (#v34.3): days+times on one, total+average on the
+      // next. Four separate lines was solving the wrap problem with height —
+      // the pair below solves it with [_capLine]'s scale-down instead, so a
+      // value still cannot be broken in half at any column width and the block
+      // costs half the vertical space above every grid.
       final capLines = [
-        ...tf(lang, 'capDaysTimes', [HabitLog.daysDone(winDays), HabitLog.totalTimes(winDays)])
-            .split(' · '),
-        StatsAggregator.formatMinutes(winMinutes),
-        tf(lang, 'capAvg', [StatsAggregator.formatMinutes(winAvg)]),
+        tf(lang, 'capDaysTimes', [HabitLog.daysDone(winDays), HabitLog.totalTimes(winDays)]),
+        '${StatsAggregator.formatMinutes(winMinutes)} · '
+            '${tf(lang, 'capAvg', [StatsAggregator.formatMinutes(winAvg)])}',
       ];
       final capJoined = capLines.join(' · ');
       return Column(
@@ -3676,10 +3732,7 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
             if (tp.width <= box.maxWidth) return Text(capJoined, style: joinedStyle);
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (final l in capLines)
-                  Text(l, style: pixelStyle(lang, 8, col(th.onSurfaceDim), text: l)),
-              ],
+              children: [for (final l in capLines) _capLine(th, lang, l)],
             );
           }),
           const SizedBox(height: 4),
@@ -3943,11 +3996,14 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
         if (visible.isEmpty)
           // labels exist but none were used inside this period's window
           noSessions
-        // WEEKLY and MONTHLY pack 2 across (#v34.1, was 3 since #v32.9) — at
-        // three the grids were too cramped to read; two is fixed at any screen
-        // width, so the rows never reflow.
-        else if (_period == _HeatPeriod.weekly || _period == _HeatPeriod.monthly)
+        // WEEKLY 2 across, MONTHLY 3 (#v34.3). #v34.1 put both on 2, which was
+        // half a misread — only weekly was meant to change. A month grid is
+        // wider than a week strip and reads fine at three. Both counts are
+        // fixed literals, never derived from the width, so neither reflows.
+        else if (_period == _HeatPeriod.weekly)
           perRowGrid(2)
+        else if (_period == _HeatPeriod.monthly)
+          perRowGrid(3)
         else if (_period == _HeatPeriod.yearly && _yearStyle == _YearStyle.vertical)
           // the narrow Daylio-style year column leaves half the width empty —
           // two labels' year grids fit side by side (#v32)
