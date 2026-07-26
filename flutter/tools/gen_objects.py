@@ -178,28 +178,134 @@ def tree_grid():
 
 # ---- forest variety (#5): many trees + bushes + rocks, scattered -------------
 
+# How many garden tiles wide/tall each tree is drawn at (#v34.8). The forest
+# used to sit at 1.2 tiles — barely taller than a flower, which is what "the
+# trees stay tiny next to the flowers" meant. Trees now come in three sizes and
+# the mix is deliberate: mostly 2s and 3s with a few 4s standing over them, so
+# the tree line has a skyline instead of being one uniform hedge.
+#
+# The Dart and Kotlin renderers read the SAME table (forestTreeTiles), so a
+# change here has to be mirrored in both — see garden_engine.dart.
+TREE_TILES = [2, 3, 2, 4, 3, 2, 3, 3, 2, 4, 2, 3, 4, 2, 3, 2, 3, 4, 2, 3]
+
+# Pixels per tile in a tree sprite. A 4-tile tree drawn from a 16px grid would
+# upscale 4x more than a flower does and read as a blurry blob; sizing the grid
+# with the tree keeps the pixel density even across the whole scene.
+TREE_PX_PER_TILE = 16
+
+
 def _tree_variant(seed):
+    """One forest tree, sized by its class in [TREE_TILES] (#v34.8).
+
+    Four silhouettes rather than one blob: a round broadleaf, a conical pine, a
+    narrow poplar and a wide oak. Each gets a lit side, a shaded side, a darker
+    underside and a tapered trunk with a branch, so a tree reads as a tree at
+    three or four tiles tall instead of as a green circle.
+    """
     rnd = (seed * 1103515245 + 12345) & 0x7fffffff
     def rb(n):
         nonlocal rnd
         rnd = (rnd * 1103515245 + 12345) & 0x7fffffff
         return rnd % n
-    g = blank(16, 16)
-    greens = ["1E4D27", "2A6B33", "246B2E", "17401F", "327A3B", "1B5526"]
-    canopy = hexrgb(greens[rb(len(greens))]) + (255,)
-    canopy2 = hexrgb(greens[rb(len(greens))]) + (255,)
-    trunk = hexrgb("3A2A18") + (255,)
-    rad = 4.0 + rb(3)                # 4..6
-    cx, cy = 7.5, 5.0 + rb(2)
-    squash = 1.05 + rb(3) * 0.12
-    for r in range(16):
-        for c in range(16):
-            if (c - cx) ** 2 + ((r - cy) * squash) ** 2 <= rad * rad:
-                g[r][c] = canopy2 if (r + c + rb(2)) % 2 else canopy
-    for r in range(int(cy + rad - 1), 16):
-        if 0 <= r < 16:
-            g[r][7] = trunk
-            g[r][8] = trunk
+
+    tiles = TREE_TILES[(seed - 1) % len(TREE_TILES)]
+    n = tiles * TREE_PX_PER_TILE          # square canvas, 32 / 48 / 64
+    g = blank(n, n)
+
+    # one hue family per tree, in four tones: lit, mid, shade, underside
+    families = [
+        ("4E9B4A", "327A3B", "23602C", "17401F"),   # fresh green
+        ("6BA83F", "4A8A32", "356A25", "204415"),   # yellow-green
+        ("3F8F5C", "2C7048", "1E5537", "133724"),   # blue-green
+        ("8A9B3A", "6B7F2B", "4E5F1E", "343F14"),   # olive
+    ]
+    lit, mid, shade, under = (hexrgb(h) + (255,) for h in families[rb(len(families))])
+    bark = hexrgb(["4A3421", "3A2A18", "56402A"][rb(3)]) + (255,)
+    bark_d = hexrgb("241a10") + (255,)
+
+    shape = rb(4)                          # 0 round, 1 pine, 2 poplar, 3 oak
+    trunk_w = max(2, n // 10)
+    cx = n / 2.0
+    ground = n - 1
+
+    def put(c, r, col):
+        if 0 <= c < n and 0 <= r < n:
+            g[int(r)][int(c)] = col
+
+    def blob(bcx, bcy, rad, squash=1.0, highlight=True):
+        """A shaded ellipse of canopy: a small highlight up-left, shade on the
+        lower-right edge, a dark underside. The highlight is deliberately a
+        SMALL cap — lighting half the crown made every tree read as two flat
+        colours split down the middle."""
+        for r in range(int(bcy - rad - 1), int(bcy + rad / squash + 2)):
+            for c in range(int(bcx - rad - 1), int(bcx + rad + 2)):
+                dx, dy = c - bcx, (r - bcy) * squash
+                d2 = dx * dx + dy * dy
+                if d2 > rad * rad:
+                    continue
+                edge = d2 > (rad - max(1.0, rad * 0.30)) ** 2
+                hx, hy = dx + rad * 0.42, dy + rad * 0.42   # highlight centre, up-left
+                if dy > rad * 0.55:
+                    col = under
+                elif edge and (dx > rad * 0.1 or dy > 0):
+                    col = shade
+                elif highlight and hx * hx + hy * hy < (rad * 0.30) ** 2:
+                    col = lit
+                else:
+                    col = mid
+                put(c, r, col)
+
+    if shape == 1:
+        # PINE — stacked tiers, widest at the bottom, a spike on top. The tiers
+        # OVERLAP: spaced by less than their own height, or the top one floats
+        # off on its own with a gap of sky under it.
+        tiers = 3 + (tiles - 2)
+        top, bottom = n * 0.13, n * 0.68
+        for i in range(tiers):
+            f = i / (tiers - 1)
+            rad = n * (0.15 + 0.19 * f)
+            # squash 1.12, not 1.35: flatter tiers left a gap of sky between
+            # the top one and the rest, so the spike floated off the tree
+            blob(cx, top + (bottom - top) * f, rad, squash=1.12, highlight=i > 0)
+        trunk_top = bottom + n * 0.10
+    elif shape == 2:
+        # POPLAR — tall and narrow. The crown stops well short of the ground so
+        # the trunk actually shows; a full-height crown just looked like a bush.
+        blob(cx, n * 0.38, n * 0.25, squash=0.60)
+        trunk_top = n * 0.70
+    elif shape == 3:
+        # OAK — a wide crown from three overlapping lobes. Only the middle lobe
+        # carries the highlight, so the shoulders don't read as separate trees.
+        blob(cx, n * 0.36, n * 0.25)
+        blob(cx - n * 0.18, n * 0.46, n * 0.18, highlight=False)
+        blob(cx + n * 0.18, n * 0.46, n * 0.18, highlight=False)
+        trunk_top = n * 0.68
+    else:
+        # ROUND broadleaf — one crown plus a small shoulder lobe (no highlight
+        # of its own, or it reads as a hole punched in the canopy)
+        blob(cx, n * 0.38, n * 0.27)
+        blob(cx + n * 0.15 * (1 if rb(2) else -1), n * 0.50, n * 0.15, highlight=False)
+        trunk_top = n * 0.72
+
+    # Trunk: start it INSIDE the canopy, not at a guessed fraction of the
+    # height. Half the trees came out with the trunk floating below a crown
+    # that stopped short — the canopy's real extent depends on shape, radius
+    # and squash, so measure it instead of predicting it. Connectivity is
+    # checked by a test; a tree in two pieces is the bug this prevents.
+    lo, hi = int(cx - trunk_w), int(cx + trunk_w) + 1
+    canopy_bottom = 0
+    for r in range(n):
+        for c in range(max(0, lo), min(n, hi)):
+            if g[r][c][3]:
+                canopy_bottom = max(canopy_bottom, r)
+    trunk_top = min(trunk_top, canopy_bottom - 1)   # overlap the crown by 1px
+
+    for r in range(int(trunk_top), n):
+        f = (r - trunk_top) / max(1.0, ground - trunk_top)
+        half = trunk_w / 2.0 + f * trunk_w * 0.35
+        for c in range(int(cx - half), int(cx + half) + 1):
+            put(c, r, bark_d if c - cx > half * 0.25 else bark)
+
     return g
 
 

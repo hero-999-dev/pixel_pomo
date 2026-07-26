@@ -74,6 +74,10 @@ jobs:
         working-directory: flutter
         run: python3 -m unittest discover -s android_overlay -p 'test_*.py'
 
+      - name: Sprite generator tests (gate)
+        working-directory: flutter
+        run: python3 -m unittest discover -s tools -p 'test_*.py'
+
       - name: Analyze (non-blocking)
         working-directory: flutter
         run: flutter analyze || true

@@ -93,7 +93,10 @@ class GardenRenderer(private val data: GardenData) {
                 } else {
                     val fp = forestPropAt(c, r) ?: continue
                     val (x, y) = ground(c, r)
-                    val (ht, wd) = if (fp.startsWith("rock_")) 0.6 to 0.8 else 1.2 to 1.05
+                    // trees are drawn at their own tile size (#v34.8) — mirrors
+                    // forestPropTiles / kTreeTiles in garden_engine.dart
+                    val (ht, wd) = if (fp.startsWith("rock_")) 0.6 to 0.8
+                                   else forestPropTiles(fp).let { it * 1.05 to it * 0.95 }
                     val bmp = data.bitmap(spriteFor(fp))
                     items.add(Item(y) { billboard(canvas, bmp, x, y, ht, wd) })
                 }
@@ -517,6 +520,17 @@ class GardenRenderer(private val data: GardenData) {
         var hsh = (c.toLong() * 73856093L) xor (r.toLong() * 19349663L)
         hsh = hsh xor (hsh shr 13)
         return (hsh and 0x7fffffffL).toInt()
+    }
+
+    /** Tiles a forest prop is drawn at. MUST match kTreeTiles in garden_engine.dart
+     *  (and TREE_TILES in tools/gen_objects.py, which sizes the sprite itself). */
+    private val treeTiles = intArrayOf(2, 3, 2, 4, 3, 2, 3, 3, 2, 4, 2, 3, 4, 2, 3, 2, 3, 4, 2, 3)
+
+    private fun forestPropTiles(id: String): Double {
+        if (!id.startsWith("tree_")) return 1.0
+        // mirrors garden_engine.dart: an unparseable index is one tile, not tree 0
+        val n = id.substring(5).toIntOrNull() ?: return 1.0
+        return treeTiles[n % treeTiles.size].toDouble()
     }
 
     private fun forestPropAt(c: Int, r: Int): String? {

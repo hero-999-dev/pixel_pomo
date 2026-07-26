@@ -35,6 +35,28 @@ const int kDirFrames = 8;
 /// Forest sprite pool sizes — must match the counts emitted by tools/gen_objects.py.
 const int kForestTrees = 20, kForestBushes = 10, kForestRocks = 5;
 
+/// How many tiles wide/tall each tree is drawn at (#v34.8).
+///
+/// The forest used to sit at 1.2 tiles, barely taller than a flower — "the
+/// trees stay tiny next to the flowers". Mostly 2s and 3s with a few 4s
+/// standing over them, so the tree line has a skyline instead of being one
+/// uniform hedge. Bushes and rocks stay at one tile.
+///
+/// MUST match `TREE_TILES` in tools/gen_objects.py (the sprite is generated at
+/// 16px per tile, so a mismatch also changes the pixel density) and the same
+/// table in the Kotlin wallpaper's GardenRenderer.
+const List<int> kTreeTiles = [2, 3, 2, 4, 3, 2, 3, 3, 2, 4, 2, 3, 4, 2, 3, 2, 3, 4, 2, 3];
+
+/// Tiles occupied by a forest prop id — trees vary, bushes and rocks are one.
+double forestPropTiles(String id) {
+  if (!id.startsWith('tree_')) return 1;
+  // an id whose index doesn't parse falls back to one tile rather than
+  // silently becoming tree 0 — a malformed id should look wrong, not plausible
+  final n = int.tryParse(id.substring(5));
+  if (n == null) return 1;
+  return kTreeTiles[n % kTreeTiles.length].toDouble();
+}
+
 /// Is garden tile (c,r) inside the plantable plot (true) or the surrounding
 /// screen-filling forest (false)? (#v18)
 bool isGardenTile(int c, int r, int cols, int rows) => c >= 0 && c < cols && r >= 0 && r < rows;
@@ -610,9 +632,13 @@ class GardenPainter extends CustomPainter {
           if (fp == null) continue;
           final anchor = p.ground(c, r);
           final isRock = fp.startsWith('rock_');
+          // trees are drawn at their own tile size (#v34.8); bushes and rocks
+          // stay small, and a rock is wider than it is tall
+          final tiles = forestPropTiles(fp);
           standing.add((anchor.dy,
               () => _paintBillboard(canvas, sprites.forestProp(fp), anchor, p.t,
-                  height: isRock ? 0.6 : 1.2, width: isRock ? 0.8 : 1.05)));
+                  height: isRock ? 0.6 : tiles * 1.05,
+                  width: isRock ? 0.8 : tiles * 0.95)));
         }
       }
     }

@@ -146,6 +146,37 @@ void main() {
     });
   });
 
+  group('Forest trees are drawn at their own size (v34.8)', () {
+    test('a tree reports the tile count from the table; bushes and rocks are one', () {
+      for (var i = 0; i < kTreeTiles.length; i++) {
+        final id = 'tree_${i.toString().padLeft(2, '0')}';
+        expect(forestPropTiles(id), kTreeTiles[i].toDouble(), reason: '$id');
+      }
+      expect(forestPropTiles('bush_04'), 1);
+      expect(forestPropTiles('rock_02'), 1);
+    });
+
+    test('trees are actually bigger than a flower now', () {
+      // the report was "the trees stay tiny next to the flowers" — a flower is
+      // drawn at ~1 tile, so every tree has to clear that by a real margin
+      for (final t in kTreeTiles) {
+        expect(t, greaterThanOrEqualTo(2));
+      }
+    });
+
+    test('the forest keeps a mix of sizes, not one uniform hedge', () {
+      expect(kTreeTiles.toSet().length, greaterThanOrEqualTo(3));
+      expect(kTreeTiles.length, kForestTrees, reason: 'one entry per tree sprite');
+    });
+
+    test('an unknown id falls back to one tile rather than throwing', () {
+      // forestPropAt only ever yields known ids, but a bad id must not crash
+      // the whole scene mid-paint.
+      expect(forestPropTiles('tree_'), 1);
+      expect(forestPropTiles('mystery'), 1);
+    });
+  });
+
   group('Critters abandon a flower that gets removed (v34.4)', () {
     /// Step until the system has a critter, or give up.
     CritterSystem spawned(int seed, List<Offset> flowers) {
