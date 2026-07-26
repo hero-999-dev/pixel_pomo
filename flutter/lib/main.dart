@@ -170,15 +170,27 @@ PixelButton secondaryBtn(PixelTheme th, String lang, String text, VoidCallback? 
 /// only ~97px wide, so plain [Text] would break a value in half — the exact bug
 /// the old four-line caption existed to prevent. Scaling down keeps both fields
 /// whole at any width, the same trick the shop's OWNED/PLACED row uses.
-Widget _capLine(PixelTheme th, String lang, String text) => Align(
+/// Squeeze the padding out of a caption line's separators (#v34.5).
+///
+/// ' · ' costs about two characters of width per separator at this size, and
+/// in a 3-up column that is the difference between a readable line and one the
+/// scale-down has shrunk too far. The wide one-line form keeps its spaces —
+/// only the narrow two-line fallback is tight. Public so the tests apply the
+/// same transform instead of hardcoding the squeezed strings.
+String tightSeparators(String s) => s.replaceAll(' · ', '·');
+
+Widget _capLine(PixelTheme th, String lang, String raw) => Align(
       alignment: Alignment.centerLeft,
       child: FittedBox(
         fit: BoxFit.scaleDown,
         alignment: Alignment.centerLeft,
-        child: Text(text,
-            maxLines: 1,
-            softWrap: false,
-            style: pixelStyle(lang, 8, col(th.onSurfaceDim), text: text)),
+        child: Builder(builder: (_) {
+          final text = tightSeparators(raw);
+          return Text(text,
+              maxLines: 1,
+              softWrap: false,
+              style: pixelStyle(lang, 8, col(th.onSurfaceDim), text: text));
+        }),
       ),
     );
 
@@ -846,9 +858,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return [
       PixelButton(
         key: const Key('languageButton'),
-        // the caret points down when it will open, up when it will close —
-        // ASCII, because the pixel font has no arrow glyph
-        text: '${current[1]}   ${_langOpen ? '^' : 'v'}',
+        // Real matched triangles, not the ASCII 'v'/'^' pair (#v34.5): '^' sits
+        // high and thin against cap-height text and read as a stray mark next
+        // to a full-height 'v'. Both PressStart2P and Galmuri11 carry U+25B2 /
+        // U+25BC — verified against the font cmaps, not assumed.
+        text: '${current[1]}   ${_langOpen ? '▲' : '▼'}',
         fill: th.accent,
         border: th.onSurface,
         textColor: th.onAccent,
@@ -896,7 +910,101 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _stepper(PixelTheme th, String lang, String label, int value, int min, int max, int step, ValueChanged<int> onChange) {
-    return _stepperRow(th, lang, label, value, min, max, step, onChange);
+    return _stepperRow(th, lang, label, value, min, max, step, onChange,
+        onType: () => _typeValue(th, lang, label, value, min, max, onChange));
+  }
+
+  /// Tap the number to type one instead of holding + (#v34.5).
+  ///
+  /// Getting from 25 to 180 minutes was 31 taps. Anything out of range is
+  /// pulled to the nearest end rather than rejected — typing 500 and pressing
+  /// enter gives you the maximum, which is what someone reaching for a big
+  /// number meant.
+  Future<void> _typeValue(PixelTheme th, String lang, String label, int value, int min,
+      int max, ValueChanged<int> onChange) async {
+    final typed = await showDialog<int>(
+      context: context,
+      builder: (_) => _StepperValueDialog(
+          th: th, lang: lang, label: label, value: value, min: min, max: max),
+    );
+    if (typed != null) onChange(typed);
+  }
+}
+
+/// The keyboard entry behind a Settings stepper (#v34.5).
+///
+/// A StatefulWidget purely so it owns its [TextEditingController] — disposing
+/// one from the caller right after `showDialog` returns tears it down while the
+/// dialog is still animating out, and the field rebuilds against a dead
+/// controller ("A TextEditingController was used after being disposed").
+class _StepperValueDialog extends StatefulWidget {
+  final PixelTheme th;
+  final String lang;
+  final String label;
+  final int value, min, max;
+  const _StepperValueDialog(
+      {required this.th,
+      required this.lang,
+      required this.label,
+      required this.value,
+      required this.min,
+      required this.max});
+
+  @override
+  State<_StepperValueDialog> createState() => _StepperValueDialogState();
+}
+
+class _StepperValueDialogState extends State<_StepperValueDialog> {
+  late final _controller = TextEditingController(text: '${widget.value}');
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  /// Out of range is pulled to the nearest end, never refused — someone who
+  /// types 500 and hits enter wants the biggest value there is.
+  void _submit() {
+    final typed = int.tryParse(_controller.text.trim());
+    Navigator.pop(context, typed?.clamp(widget.min, widget.max).toInt());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final th = widget.th, lang = widget.lang;
+    final hint = tf(lang, 'rangeHint', [widget.min, widget.max]);
+    return AlertDialog(
+      backgroundColor: col(th.panel),
+      title: Text(widget.label,
+          style: pixelStyle(lang, 12, col(th.onSurface), text: widget.label)),
+      content: TextField(
+        key: const Key('stepperField'),
+        controller: _controller,
+        autofocus: true,
+        keyboardType: TextInputType.number,
+        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+        textInputAction: TextInputAction.done,
+        onSubmitted: (_) => _submit(),
+        style: pixelStyle(lang, 16, col(th.onSurface), text: _controller.text),
+        decoration: InputDecoration(
+          helperText: hint,
+          helperStyle: pixelStyle(lang, 8, col(th.onSurfaceDim), text: hint),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(t(lang, 'cancel'),
+              style: pixelStyle(lang, 11, col(th.onSurfaceDim), text: t(lang, 'cancel'))),
+        ),
+        TextButton(
+          onPressed: _submit,
+          child: Text(t(lang, 'save'),
+              style: pixelStyle(lang, 11, col(th.accent), text: t(lang, 'save'))),
+        ),
+      ],
+    );
   }
 }
 
@@ -978,19 +1086,36 @@ class _BlockerPermDialogState extends State<_BlockerPermDialog> with WidgetsBind
   }
 }
 
-Widget _stepperRow(PixelTheme th, String lang, String label, int value, int min, int max, int step, ValueChanged<int> onChange) {
+Widget _stepperRow(PixelTheme th, String lang, String label, int value, int min, int max, int step,
+    ValueChanged<int> onChange, {VoidCallback? onType}) {
+  final hint = tf(lang, 'rangeHint', [min, max]);
   return Padding(
     padding: const EdgeInsets.only(bottom: 16),
-    child: Row(
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(child: Text(label, style: pixelStyle(lang, 11, col(th.onSurfaceDim), text: label))),
-        SizedBox(width: 52, child: secondaryBtn(th, lang, '-', () => onChange((value - step).clamp(min, max).toInt()), padding: const EdgeInsets.all(12))),
-        Container(
-          width: 56,
-          alignment: Alignment.center,
-          child: Text('$value', style: pixelStyle(lang, 14, col(th.onSurface), text: '$value')),
+        Row(
+          children: [
+            Expanded(child: Text(label, style: pixelStyle(lang, 11, col(th.onSurfaceDim), text: label))),
+            SizedBox(width: 52, child: secondaryBtn(th, lang, '-', () => onChange((value - step).clamp(min, max).toInt()), padding: const EdgeInsets.all(12))),
+            // the number itself is the shortcut to typing one (#v34.5)
+            GestureDetector(
+              key: Key('stepperValue_$label'),
+              behavior: HitTestBehavior.opaque,
+              onTap: onType,
+              child: Container(
+                width: 56,
+                alignment: Alignment.center,
+                child: Text('$value', style: pixelStyle(lang, 14, col(th.onSurface), text: '$value')),
+              ),
+            ),
+            SizedBox(width: 52, child: secondaryBtn(th, lang, '+', () => onChange((value + step).clamp(min, max).toInt()), padding: const EdgeInsets.all(12))),
+          ],
         ),
-        SizedBox(width: 52, child: secondaryBtn(th, lang, '+', () => onChange((value + step).clamp(min, max).toInt()), padding: const EdgeInsets.all(12))),
+        // say the range out loud, rather than leaving people to discover it by
+        // holding + until the number stops moving (#v34.5)
+        const SizedBox(height: 4),
+        Text(hint, style: pixelStyle(lang, 8, col(th.onSurfaceDim), text: hint)),
       ],
     ),
   );
@@ -3727,9 +3852,16 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
               maxLines: 1,
             )..layout();
             if (tp.width <= box.maxWidth) return Text(capJoined, style: joinedStyle);
+            // 3px between the two lines (#v34.5): they were sitting flush
+            // and read as one wrapped string rather than two fields.
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [for (final l in capLines) _capLine(th, lang, l)],
+              children: [
+                for (var i = 0; i < capLines.length; i++) ...[
+                  if (i != 0) const SizedBox(height: 3),
+                  _capLine(th, lang, capLines[i]),
+                ],
+              ],
             );
           }),
           const SizedBox(height: 4),
@@ -3771,7 +3903,8 @@ class _FocusSessionsSectionState extends State<FocusSessionsSection> {
                         behavior: HitTestBehavior.opaque,
                         onTap: () => setLocal(() => toggle(e.key)),
                         child: Row(children: [
-                          Swatch(color: s.labelColorOf(e.key), border: th.onSurfaceDim, size: 18),
+                          // square, like every other label swatch (#v34.5)
+                          Swatch(color: s.labelColorOf(e.key), border: th.onSurfaceDim, size: 18, plain: true),
                           const SizedBox(width: 12),
                           Expanded(child: Text(e.key, style: pixelStyle(lang, 13, col(th.onSurface), text: e.key))),
                           _BlockToggle(

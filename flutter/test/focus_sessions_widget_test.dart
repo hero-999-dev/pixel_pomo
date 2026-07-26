@@ -150,8 +150,10 @@ void main() {
     // correct; what must never happen is the caption going missing.
     void expectCaption(List<String> lines, String period) {
       if (find.text(lines.join(' · ')).evaluate().isNotEmpty) return;
+      // the narrow two-line form squeezes its separators (#v34.5)
       for (final line in lines) {
-        expect(find.text(line), findsWidgets, reason: '$period lost "$line"');
+        expect(find.text(tightSeparators(line)), findsWidgets,
+            reason: '$period lost "$line"');
       }
     }
 
@@ -200,7 +202,7 @@ void main() {
     final monday = today - (dateOfEpochDay(today).weekday - 1);
     final l18 = lines(monday - 17 * 7, monday + 6);
     expect(find.text(l18.join(' · ')), findsOneWidget);
-    expect(find.text(l18[0]), findsNothing, reason: 'still split into per-field lines');
+    expect(find.text(tightSeparators(l18[0])), findsNothing, reason: 'still split into per-field lines');
 
     // YEARLY horizontal — same
     await tester.tap(find.text('YEARLY'));
@@ -215,7 +217,7 @@ void main() {
         epochDayOf(DateTime.utc(now.year, now.month + 1, 0)));
     expect(find.text(lm.join(' · ')), findsNothing, reason: 'joined caption cannot fit a 3-up column');
     for (final line in lm) {
-      expect(find.text(line), findsWidgets);
+      expect(find.text(tightSeparators(line)), findsWidgets);
     }
   });
 

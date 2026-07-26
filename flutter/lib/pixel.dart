@@ -81,7 +81,13 @@ class GoldCoin extends StatelessWidget {
 }
 
 /// A hard-edged pixel button: solid fill, contrasting border, offset drop-shadow (no blur).
-class PixelButton extends StatelessWidget {
+/// The pixel shadow every button casts, and the distance it sinks when pressed
+/// (#v34.5). The two are the same number on purpose: pressing slides the face
+/// exactly onto its own shadow, so the button reads as pushed flat into the
+/// page rather than merely recoloured.
+const double kPixelShadowOffset = 5;
+
+class PixelButton extends StatefulWidget {
   final String text;
   final int fill, border, textColor, shadow;
   final VoidCallback? onTap;
@@ -104,18 +110,52 @@ class PixelButton extends StatelessWidget {
     this.opacity = 1,
   });
 
+  /// Turn the press animation off so a widget test can settle (#v34.5) — the
+  /// same escape hatch [GoldCoin.animate] uses.
+  static bool animate = true;
+
+  @override
+  State<PixelButton> createState() => _PixelButtonState();
+}
+
+class _PixelButtonState extends State<PixelButton> {
+  bool _down = false;
+
+  void _set(bool v) {
+    if (!PixelButton.animate || widget.onTap == null || _down == v) return;
+    setState(() => _down = v);
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Only a colour change was too easy to miss — people pressed twice because
+    // they could not tell it had registered (#v34.5). 90ms is long enough to
+    // read and short enough that it never sits between you and the next tap.
+    final sunk = _down ? kPixelShadowOffset : 0.0;
     return Opacity(
-      opacity: opacity,
+      opacity: widget.opacity,
       child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: padding,
+        onTap: widget.onTap,
+        onTapDown: (_) => _set(true),
+        onTapUp: (_) => _set(false),
+        onTapCancel: () => _set(false),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 90),
+          curve: Curves.easeOut,
+          transform: Matrix4.translationValues(sunk, sunk, 0),
+          padding: widget.padding,
           decoration: BoxDecoration(
-            color: col(fill),
-            border: Border.all(color: col(border), width: 3),
-            boxShadow: [BoxShadow(color: col(shadow), offset: const Offset(5, 5), blurRadius: 0)],
+            color: col(widget.fill),
+            border: Border.all(color: col(widget.border), width: 3),
+            boxShadow: [
+              BoxShadow(
+                color: col(widget.shadow),
+                // the shadow shrinks by exactly what the face moved, so the
+                // pair lands flush instead of the whole thing sliding sideways
+                offset: Offset(kPixelShadowOffset - sunk, kPixelShadowOffset - sunk),
+                blurRadius: 0,
+              )
+            ],
           ),
           // ONE line, always: a narrow phone (or a narrowed browser window) used
           // to wrap "MONTHLY" into "MONTHL/Y" inside its own box, which is what
@@ -126,11 +166,12 @@ class PixelButton extends StatelessWidget {
             widthFactor: 1,
             child: FittedBox(
               fit: BoxFit.scaleDown,
-              child: Text(text,
+              child: Text(widget.text,
                   maxLines: 1,
                   softWrap: false,
                   textAlign: TextAlign.center,
-                  style: pixelStyle(lang, fontSize, col(textColor), text: text)),
+                  style: pixelStyle(widget.lang, widget.fontSize, col(widget.textColor),
+                      text: widget.text)),
             ),
           ),
         ),
