@@ -3,7 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pixel_pomo/logic.dart';
 import 'package:pixel_pomo/main.dart';
-import 'package:pixel_pomo/pixel.dart';
 import 'package:pixel_pomo/store.dart';
 
 /// #v31.5 — "session heatmap is not working well": originally fixed a
@@ -24,13 +23,14 @@ void main() {
     return s;
   }
 
-  // session boxes carry an explicit 'sessBox_N' key (#v31.9) — unambiguous,
-  // unlike matching on decoration shape (buttons/panels elsewhere on this
-  // busy screen also happen to be flat-coloured with no borderRadius).
-  int sessionBoxCount(WidgetTester tester) => tester
-      .widgetList<Container>(find.byType(Container))
-      .where((c) => c.key is ValueKey<String> && (c.key as ValueKey<String>).value.startsWith('sessBox_'))
-      .length;
+  // The session heatmap is ONE painted grid since #v34.7 (it used to be a
+  // Container per session, ~900 of them, which is what stopped the page
+  // scrolling). Its cell count is the number of session boxes drawn.
+  int sessionBoxCount(WidgetTester tester) {
+    final g = find.byKey(const Key('sessionHeatmap'));
+    if (g.evaluate().isEmpty) return 0;
+    return tester.widget<CellGrid>(g).count;
+  }
 
   testWidgets('no bordered day-group wrappers remain (#v31.9)', (tester) async {
     final s = await boot();
@@ -86,13 +86,17 @@ void main() {
     final s = await boot();
     await tester.pumpWidget(MaterialApp(home: SessionsInPixelsScreen(s)));
     await tester.pumpAndSettle();
-    // MATH is seeded with a session today, so DAILY has a tappable box for it.
-    final mathBox = find.byWidgetPredicate((w) =>
-        w is Container &&
-        w.decoration is BoxDecoration &&
-        (w.decoration as BoxDecoration).color == col(s.labelColorOf('MATH')));
-    expect(mathBox, findsWidgets);
-    await tester.tap(mathBox.first);
+    // MATH is seeded with a session today, so DAILY has a box for it. The grid
+    // is painted since #v34.7, so tap its cell by coordinate — which also
+    // exercises the hit-test arithmetic that replaced the per-cell detectors.
+    final gridFinder = find.byKey(const Key('sessionHeatmap'));
+    final grid = tester.widget<CellGrid>(gridFinder);
+    final mathFill = s.labelColorOf('MATH');
+    final i = [for (var i = 0; i < grid.count; i++) i].firstWhere((i) => grid.fillOf(i) == mathFill,
+        orElse: () => -1);
+    expect(i, isNonNegative, reason: 'no MATH session box on screen');
+
+    await tester.tapAt(tester.getTopLeft(gridFinder) + grid.rectOfIndex(i).center);
     await tester.pumpAndSettle();
     expect(find.text('MATH'), findsWidgets); // the callout now shows the label
   });

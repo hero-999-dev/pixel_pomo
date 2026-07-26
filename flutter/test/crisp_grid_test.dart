@@ -46,12 +46,24 @@ void main() {
         ),
       );
 
-  /// Every rendered pixel-art day cell (they all carry the same 2px right margin).
-  List<RenderBox> dayCells(WidgetTester t) => [
+  /// Every day-cell SIZE currently on screen, from both shapes: the painted
+  /// grids (#v34.7) report their cell size directly, and the widget cells that
+  /// remain (the tooltip-carrying habit heatmaps) carry a 2px right margin.
+  ///
+  /// Crispness is about the cell size and the gaps being whole logical pixels,
+  /// which is exactly what these expose — so the invariant survived the switch
+  /// from widgets to paint unchanged.
+  List<double> cellSizes(WidgetTester t) => [
+        for (final g in t.widgetList<CellGrid>(find.byType(CellGrid))) g.cell,
         for (final el in t.elementList(find.byType(Container)))
           if ((el.widget as Container).margin == const EdgeInsets.only(right: 2))
-            el.renderObject as RenderBox
+            (el.renderObject as RenderBox).size.width,
       ];
+
+  /// Every inter-column gap of every painted grid — a fractional gap shifts
+  /// each following column off the pixel grid even when the cells are whole.
+  List<double> cellGaps(WidgetTester t) =>
+      [for (final g in t.widgetList<CellGrid>(find.byType(CellGrid))) ...g.gaps];
 
   testWidgets('every grid cell is a whole logical pixel, in all four period shapes', (tester) async {
     phone(tester);
@@ -62,11 +74,13 @@ void main() {
     for (final period in ['WEEKLY', 'MONTHLY', '18 WEEKS', 'YEARLY']) {
       await tester.tap(find.text(period));
       await tester.pumpAndSettle();
-      final cells = dayCells(tester);
+      final cells = cellSizes(tester);
       expect(cells, isNotEmpty, reason: '$period rendered no cells');
-      for (final c in cells) {
-        expect(c.size.width, c.size.width.floorToDouble(),
-            reason: '$period cell width ${c.size.width} is fractional');
+      for (final w in cells) {
+        expect(w, w.floorToDouble(), reason: '$period cell width $w is fractional');
+      }
+      for (final gap in cellGaps(tester)) {
+        expect(gap, gap.floorToDouble(), reason: '$period has a fractional gap $gap');
       }
     }
   });
@@ -82,8 +96,10 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('VERTICAL'));
     await tester.pumpAndSettle();
-    for (final c in dayCells(tester)) {
-      expect(c.size.width, c.size.width.floorToDouble());
+    final cells = cellSizes(tester);
+    expect(cells, isNotEmpty, reason: 'YEARLY vertical rendered no cells');
+    for (final w in cells) {
+      expect(w, w.floorToDouble());
     }
   });
 
@@ -115,15 +131,15 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('MONTHLY').first);
     await tester.pumpAndSettle();
-    final boxes = [
-      for (final el in tester.elementList(find.byType(Container)))
-        if ((el.widget as Container).key is ValueKey<String> &&
-            ((el.widget as Container).key as ValueKey<String>).value.startsWith('sessBox_'))
-          el.renderObject as RenderBox
-    ];
-    expect(boxes, isNotEmpty);
-    for (final b in boxes) {
-      expect(b.size.width, b.size.width.floorToDouble());
+    // one painted grid since #v34.7 — its cell size is what has to be whole
+    final grids = tester.widgetList<CellGrid>(find.byType(CellGrid)).toList();
+    expect(grids, isNotEmpty);
+    for (final g in grids) {
+      expect(g.cell, g.cell.floorToDouble(),
+          reason: 'a ${g.cols}-wide grid has a fractional cell (${g.cell}) and will render soft');
+      for (final gap in g.gaps) {
+        expect(gap, gap.floorToDouble(), reason: 'a fractional gap ($gap) shifts every later column');
+      }
     }
   });
 }

@@ -3560,35 +3560,21 @@ class _SessionsInPixelsScreenState extends State<SessionsInPixelsScreen> {
           final cell = _crispCell((box.maxWidth - colsPerRow * 1) / colsPerRow, 4.0, 24.0);
           final rows = (sessions.length / colsPerRow).ceil();
 
-          Widget cellAt(int i) {
-            final r = sessions[i];
-            return GestureDetector(
-              onTap: () => setState(() => _selIdx = _selIdx == i ? null : i),
-              child: Container(
-                key: ValueKey('sessBox_$i'), // unambiguous test hook (#v31.9)
-                width: cell,
-                height: cell,
-                margin: const EdgeInsets.only(right: 1, bottom: 1),
-                decoration: BoxDecoration(
-                  color: col(s.labelColorOf(r.label)),
-                  border: _selIdx == i ? Border.all(color: col(th.onSurface), width: 2) : null,
-                ),
-              ),
-            );
-          }
-
-          final grid = Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              for (var r = 0; r < rows; r++)
-                Row(children: [
-                  for (var c = 0; c < colsPerRow; c++)
-                    Builder(builder: (_) {
-                      final i = r * colsPerRow + c;
-                      return i < sessions.length ? cellAt(i) : SizedBox(width: cell, height: cell);
-                    }),
-                ]),
-            ],
+          // ONE painted grid, not a GestureDetector + Container per session
+          // (#v34.7). At a thousand-plus sessions this section alone was
+          // ~900 of each, and it is the reason the page did not scroll.
+          final grid = CellGrid(
+            key: const Key('sessionHeatmap'),
+            cols: colsPerRow,
+            count: sessions.length,
+            cell: cell,
+            uniformGap: 1,
+            rowGap: 1,
+            radius: 0, // the session boxes are hard-cornered
+            fillOf: (i) => s.labelColorOf(sessions[i].label),
+            selectedIndex: _selIdx,
+            selectionColor: th.onSurface,
+            onTapCell: (i) => setState(() => _selIdx = _selIdx == i ? null : i),
           );
 
           Widget content = grid;
@@ -5083,6 +5069,151 @@ double _crispCell(double raw, double min, double max) =>
   return (cell, gaps);
 }
 
+/// The fill a heatmap cell ends up with, as a resolved ARGB (#v34.7).
+///
+/// Lifted out of [_dayCell] unchanged so the painted grids below and the
+/// widget-built ones cannot drift apart, and so the rule is testable on its
+/// own. A blank slot is a faint tint rather than nothing — fully invisible
+/// slots read as holes in the grid (#v32).
+int cellFill({required bool blank, required int? dayColor, required int color}) {
+  if (blank) return (col(color).withValues(alpha: 0.07)).toARGB32();
+  return (col(dayColor ?? color).withValues(alpha: dayColor != null ? 1 : 0.18)).toARGB32();
+}
+
+/// A whole grid of heatmap cells drawn in ONE pass (#v34.7).
+///
+/// Public so tests can count the cells it draws — they used to count Container
+/// widgets, which no longer exist for these grids.
+///
+/// Sessions in Pixels was building a `Container` **and** a `GestureDetector`
+/// per cell — 899 of each, 9,749 widgets on the page — and a page that big is
+/// what "it doesn't scroll, it stops when I lift my finger" was. The cells are
+/// flat coloured squares; they do not need to be widgets. One `CustomPaint`
+/// draws them all and one `GestureDetector` maps a tap back to an index by
+/// arithmetic.
+///
+/// Geometry matches the Row/Column it replaces exactly: [gaps] holds the
+/// `cols - 1` inter-column gaps from [_tileRow] (or is empty, meaning
+/// [uniformGap] everywhere), and rows are separated by [rowGap].
+class CellGrid extends StatelessWidget {
+  final int cols;
+  final int count; // cells, row-major
+  final double cell;
+  final List<double> gaps;
+  final double uniformGap;
+  final double rowGap;
+  final int Function(int index) fillOf;
+  final void Function(int index)? onTapCell;
+
+  /// Optional ring around one cell — the session heatmap's selection (#v34.7).
+  final int? selectedIndex;
+  final int? selectionColor;
+
+  /// Cells are square with a 1px rounding by default; the session heatmap's
+  /// boxes are hard-cornered.
+  final double radius;
+
+  const CellGrid({
+    super.key,
+    required this.cols,
+    required this.count,
+    required this.cell,
+    required this.fillOf,
+    this.gaps = const [],
+    this.uniformGap = 2,
+    this.rowGap = 2,
+    this.onTapCell,
+    this.selectedIndex,
+    this.selectionColor,
+    this.radius = 1,
+  });
+
+  double _gapAfter(int c) =>
+      c >= cols - 1 ? 0 : (gaps.isEmpty ? uniformGap : (c < gaps.length ? gaps[c] : uniformGap));
+
+  /// Left edge of column [c] — the same running sum the Row produced.
+  double _xOf(int c) {
+    var x = 0.0;
+    for (var i = 0; i < c; i++) {
+      x += cell + _gapAfter(i);
+    }
+    return x;
+  }
+
+  /// Where cell [i] is drawn, in the grid's own coordinates. The painter uses
+  /// it, and a test can use it to tap a specific cell.
+  Rect rectOfIndex(int i) => Rect.fromLTWH(
+      _xOf(i % cols), (i ~/ cols) * (cell + rowGap), cell, cell);
+
+  int get _rows => (count / cols).ceil();
+  double get _width => _xOf(cols - 1) + cell;
+  double get _height => _rows * cell + (_rows - 1) * rowGap;
+
+  /// Which cell is under [p], or -1. Used for taps; also the unit under test.
+  int indexAt(Offset p) {
+    if (p.dx < 0 || p.dy < 0) return -1;
+    final r = (p.dy / (cell + rowGap)).floor();
+    if (r < 0 || r >= _rows) return -1;
+    if (p.dy - r * (cell + rowGap) > cell) return -1; // in the gap between rows
+    for (var c = 0; c < cols; c++) {
+      final x = _xOf(c);
+      if (p.dx >= x && p.dx <= x + cell) {
+        final i = r * cols + c;
+        return i < count ? i : -1;
+      }
+    }
+    return -1;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final painter = CellGridPainter(this);
+    Widget grid = CustomPaint(size: Size(_width, _height), painter: painter);
+    if (onTapCell != null) {
+      grid = GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapUp: (d) {
+          final i = indexAt(d.localPosition);
+          if (i >= 0) onTapCell!(i);
+        },
+        child: grid,
+      );
+    }
+    return SizedBox(width: _width, height: _height, child: grid);
+  }
+}
+
+class CellGridPainter extends CustomPainter {
+  final CellGrid g;
+  const CellGridPainter(this.g);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint();
+    final radius = Radius.circular(g.radius);
+    for (var i = 0; i < g.count; i++) {
+      paint.color = col(g.fillOf(i));
+      canvas.drawRRect(RRect.fromRectAndRadius(g.rectOfIndex(i), radius), paint);
+    }
+    // the selection ring last, so it is never painted over by a neighbour
+    final sel = g.selectedIndex;
+    if (sel != null && sel >= 0 && sel < g.count && g.selectionColor != null) {
+      canvas.drawRect(
+        g.rectOfIndex(sel).deflate(1),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2
+          ..color = col(g.selectionColor!),
+      );
+    }
+  }
+
+  // the grid is rebuilt whenever anything it draws changes, so a repaint is
+  // only ever asked for on a real change
+  @override
+  bool shouldRepaint(CellGridPainter old) => true;
+}
+
 Widget _dayCell({
   required double cell,
   required bool blank,
@@ -5097,12 +5228,8 @@ Widget _dayCell({
     height: cell,
     margin: EdgeInsets.only(right: gap),
     decoration: BoxDecoration(
-      // blank (out-of-span / non-day) slots render a super-faint tint instead
-      // of nothing — fully invisible slots read as holes in the grid against
-      // the theme background (e.g. July starting Wednesday "skips 2") (#v32).
-      color: blank
-          ? col(color).withValues(alpha: 0.07)
-          : col(dayColor ?? color).withValues(alpha: dayColor != null ? 1 : 0.18),
+      // one shared rule with the painted grids (#v34.7) — see [cellFill]
+      color: col(cellFill(blank: blank, dayColor: dayColor, color: color)),
       borderRadius: BorderRadius.circular(1),
     ),
   );
@@ -5139,20 +5266,26 @@ class _WeekRow extends StatelessWidget {
       // tiled so the 7 boxes span the full width with no dead strip on the
       // right, at any screen size, and stay crisp (#v33 / #v33.1)
       final (cell, gaps) = _tileRow(box.maxWidth, cols);
-      final row = Row(children: [
-        for (var c = 0; c < cols; c++)
-          Builder(builder: (_) {
-            final day = monday + c;
-            // future days stay boxed but faint and inert, so the week always
-            // shows all 7 boxes (#v31.1 item 2)
-            final future = day > today;
-            final dayColor = future ? null : ((days[day] ?? 0) > 0 ? color : null);
-            return _dayCell(
-                cell: cell, blank: false, dayColor: dayColor, color: color, tooltip: null,
-                gap: c < cols - 1 ? gaps[c] : 0,
-                onTap: future || onDayTap == null ? null : () => onDayTap!(day));
-          }),
-      ]);
+      // painted, not seven widgets (#v34.7)
+      final row = CellGrid(
+        cols: cols,
+        count: cols,
+        cell: cell,
+        gaps: gaps,
+        fillOf: (i) {
+          final day = monday + i;
+          // future days stay boxed but faint and inert, so the week always
+          // shows all 7 boxes (#v31.1 item 2)
+          final dayColor = day > today ? null : ((days[day] ?? 0) > 0 ? color : null);
+          return cellFill(blank: false, dayColor: dayColor, color: color);
+        },
+        onTapCell: onDayTap == null
+            ? null
+            : (i) {
+                final day = monday + i;
+                if (day <= today) onDayTap!(day);
+              },
+      );
       if (selectedDay == null || callout == null) return row;
       final c = (selectedDay! - monday).clamp(0, 6);
       const estW = 140.0;
@@ -5216,38 +5349,31 @@ class _YearGridHorizontal extends StatelessWidget {
         return Container(
           padding: const EdgeInsets.all(3),
           decoration: BoxDecoration(border: Border.all(color: col(frameColor), width: 1)),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              for (var r = 0; r < rows; r++)
-                Padding(
-                  padding: EdgeInsets.only(bottom: r == rows - 1 ? 0 : 2),
-                  child: Row(children: [
-                    for (var c = 0; c < cols; c++)
-                      Builder(builder: (_) {
-                        final dNum = r * cols + c + 1;
-                        if (dNum > lastDay) {
-                          // faint filler, not an invisible hole (#v32) — also
-                          // fixes the old SizedBox missing the cell's 2px margin
-                          return _dayCell(
-                              cell: cell, blank: true, dayColor: null, color: color, tooltip: null);
-                        }
-                        final day = first + dNum - 1;
-                        final future = day > today;
-                        final active = !future && (days[day] ?? 0) > 0;
-                        return _dayCell(
-                          cell: cell,
-                          blank: false,
-                          dayColor: future ? null : (active ? color : null),
-                          color: color,
-                          tooltip: null,
-                          onTap: future || onDayTap == null ? null : () => onDayTap!(day),
-                        );
-                      }),
-                  ]),
-                ),
-            ],
+          // one painted grid per month instead of rows x 7 widgets (#v34.7)
+          child: CellGrid(
+            cols: cols,
+            count: rows * cols,
+            cell: cell,
+            fillOf: (i) {
+              final dNum = i + 1;
+              // past the month's length: faint filler, not an invisible hole
+              // (#v32) — a hole reads as a missing day
+              if (dNum > lastDay) {
+                return cellFill(blank: true, dayColor: null, color: color);
+              }
+              final day = first + dNum - 1;
+              final active = day <= today && (days[day] ?? 0) > 0;
+              return cellFill(
+                  blank: false, dayColor: day > today ? null : (active ? color : null), color: color);
+            },
+            onTapCell: onDayTap == null
+                ? null
+                : (i) {
+                    final dNum = i + 1;
+                    if (dNum > lastDay) return;
+                    final day = first + dNum - 1;
+                    if (day <= today) onDayTap!(day);
+                  },
           ),
         );
       }
@@ -5489,6 +5615,37 @@ class _HabitHeatmap extends StatelessWidget {
   }
 
   Widget _band(int b, int colsInBand, int startMonday, int lo, int hi, double cell, List<double> gaps) {
+    // The band is 7 rows x up to 18 columns, PER LABEL — on Sessions in Pixels
+    // that came to ~900 Containers and ~900 GestureDetectors, the bulk of the
+    // 9,749 widgets that stopped the page scrolling (#v34.7). Paint it in one
+    // pass instead. The widget path stays for the Year-in-Pixels habit cards,
+    // which attach a per-cell Tooltip (long-press) that a painted grid has no
+    // way to carry.
+    if (tooltipFor == null) {
+      int dayAt(int i) => startMonday + (b * _bandCols + (i % colsInBand)) * 7 + (i ~/ colsInBand);
+      return CellGrid(
+        cols: colsInBand,
+        count: 7 * colsInBand,
+        cell: cell,
+        gaps: gaps,
+        rowGap: 2,
+        fillOf: (i) {
+          final day = dayAt(i);
+          final blank = day < lo || day > hi; // outside the span
+          final future = !blank && day > today; // boxed but faint, inert
+          final dayColor = blank || future
+              ? null
+              : (colorForDay != null ? colorForDay!(day) : ((days[day] ?? 0) > 0 ? color : null));
+          return cellFill(blank: blank, dayColor: dayColor, color: color);
+        },
+        onTapCell: onDayTap == null
+            ? null
+            : (i) {
+                final day = dayAt(i);
+                if (day >= lo && day <= hi && day <= today) onDayTap!(day);
+              },
+      );
+    }
     return Column(
       children: [
         for (var row = 0; row < 7; row++)

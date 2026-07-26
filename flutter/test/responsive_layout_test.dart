@@ -237,19 +237,30 @@ void main() {
 
           final grid = find.byKey(const ValueKey('labelGrid_MATH'));
           expect(grid, findsOneWidget, reason: '$period lost MATH');
-          // Measure the PAINTED cells, not the grid widget: the label block
-          // stretches its children, so the widget's own box is the column
-          // width whatever size the cells inside it came out — which is
-          // exactly how a capped grid hid in a half-empty column.
+          // Measure the CELLS, not the label block: the block stretches its
+          // children, so its own box is the column width whatever size the
+          // cells came out — which is exactly how a capped grid used to hide
+          // in a half-empty column.
+          //
+          // Two shapes since #v34.7: painted grids size themselves to their
+          // cells, so their render box IS the painted extent; the widget cells
+          // that remain are measured one by one as before.
           var left = double.infinity, right = 0.0;
-          for (final el in find
-              .descendant(of: grid, matching: find.byType(Container))
-              .evaluate()) {
-            final box = el.renderObject! as RenderBox;
-            final x = box.localToGlobal(Offset.zero).dx;
+          void span(double x, double w) {
             left = math.min(left, x);
-            right = math.max(right, x + box.size.width);
+            right = math.max(right, x + w);
           }
+
+          final grids = find.descendant(of: grid, matching: find.byType(CellGrid));
+          for (final el in grids.evaluate()) {
+            final box = el.renderObject! as RenderBox;
+            span(box.localToGlobal(Offset.zero).dx, box.size.width);
+          }
+          for (final el in find.descendant(of: grid, matching: find.byType(Container)).evaluate()) {
+            final box = el.renderObject! as RenderBox;
+            span(box.localToGlobal(Offset.zero).dx, box.size.width);
+          }
+          expect(left.isFinite, isTrue, reason: '$period rendered no cells at all');
           final column = (width - 28 * 2 - (perRow - 1) * 6) / perRow;
           final painted = right - left;
           expect(painted, lessThanOrEqualTo(column + 0.5),

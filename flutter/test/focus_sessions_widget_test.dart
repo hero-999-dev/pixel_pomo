@@ -335,14 +335,26 @@ void main() {
   // render at a deliberately fainter alpha (0.07) than any real day cell
   // (0.18 faint / 1.0 active) — exclude them so the count stays "one cell
   // per REAL day of the year".
-  int dayCellCount(WidgetTester t) => t
-      .widgetList<Container>(find.byType(Container))
-      .where((c) =>
-          c.margin == const EdgeInsets.only(right: 2) &&
-          c.decoration is BoxDecoration &&
-          (c.decoration as BoxDecoration).borderRadius != null &&
-          ((c.decoration as BoxDecoration).color?.a ?? 0) > 0.1)
-      .length;
+  /// Real day cells on screen — the faint out-of-span fillers (alpha 0.07)
+  /// don't count, which is the #v32 rule. Counts BOTH shapes: the widget cells
+  /// (`_dayCell`) and the painted grids that replaced most of them (#v34.7).
+  int dayCellCount(WidgetTester t) {
+    final widgets = t
+        .widgetList<Container>(find.byType(Container))
+        .where((c) =>
+            c.margin == const EdgeInsets.only(right: 2) &&
+            c.decoration is BoxDecoration &&
+            (c.decoration as BoxDecoration).borderRadius != null &&
+            ((c.decoration as BoxDecoration).color?.a ?? 0) > 0.1)
+        .length;
+    var painted = 0;
+    for (final g in t.widgetList<CellGrid>(find.byType(CellGrid))) {
+      for (var i = 0; i < g.count; i++) {
+        if (col(g.fillOf(i)).a > 0.1) painted++;
+      }
+    }
+    return widgets + painted;
+  }
 
   testWidgets('STYLE button only appears for YEARLY', (tester) async {
     final s = await boot();
