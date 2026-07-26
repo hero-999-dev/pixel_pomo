@@ -147,6 +147,26 @@ void main() {
   });
 
   group('Forest density and the top-edge headroom (v34.10)', () {
+    test('at the garden edge the woods drop to undergrowth', () {
+      // "bahcenin dibindeki agaclar daha kücük agaclar olsun, cali ve daha cok
+      // tas" — nothing tall enough to lean over the plot and break its line.
+      var tall = 0, rocks = 0, props = 0;
+      for (var r = -4; r < 14; r++) {
+        for (var c = -4; c < 8; c++) {
+          if (isGardenTile(c, r, 4, 10)) continue;
+          if (tilesOutsidePlot(c, r, 4, 10) > kGardenEdgeTiles) continue;
+          final id = forestPropAt(c, r, gardenEdge: true);
+          if (id == null) continue;
+          props++;
+          if (id.startsWith('rock_')) rocks++;
+          if (id.startsWith('tree_') && forestPropTiles(id) > 2) tall++;
+        }
+      }
+      expect(props, greaterThan(10), reason: 'sanity: the band should hold props');
+      expect(tall, 0, reason: 'a full-height tree is standing against the garden');
+      expect(rocks / props, greaterThan(0.15), reason: 'the user asked for more rocks here');
+    });
+
     test('the woods are thinner than the old wall but not empty', () {
       // #v34.9's screen-space frame looked empty; the pre-v34.8 world forest
       // read as a solid green wall once trees grew to 2-4 tiles. Count what a
@@ -162,8 +182,8 @@ void main() {
         }
       }
       final fill = props / (props + gaps) * 100;
-      expect(fill, greaterThan(55), reason: 'the woods are too sparse ($fill%)');
-      expect(fill, lessThan(78), reason: 'back to a solid wall of trees ($fill%)');
+      expect(fill, greaterThan(48), reason: 'the woods are too sparse ($fill%)');
+      expect(fill, lessThan(70), reason: 'back to a solid wall of trees ($fill%)');
     });
 
     test('no tall tree is placed where its head would be cut off', () {

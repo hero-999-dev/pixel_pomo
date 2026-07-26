@@ -35,11 +35,11 @@ const int kDirFrames = 8;
 /// Forest sprite pool sizes — must match the counts emitted by tools/gen_objects.py.
 const int kForestTrees = 20, kForestBushes = 10, kForestRocks = 5;
 
-/// Share of forest tiles left as bare grass (#v34.10). The pre-v34.8 woods left
-/// 18% and read as a solid green wall once the trees grew to 2–4 tiles; the
-/// v34.9 backdrop went to the other extreme and looked empty. 34% sits between
-/// the two — raise it to thin the woods, lower it to thicken them.
-const int kForestGapPercent = 34;
+/// Share of forest tiles left as bare grass. The pre-v34.8 woods left 18% and
+/// read as a solid green wall once the trees grew to 2–4 tiles; the v34.9
+/// backdrop went to the other extreme and looked empty. 34% was still "cok
+/// yogun", so 42% (#v34.11) — raise it to thin the woods further.
+const int kForestGapPercent = 42;
 
 /// Tiles nearest the TOP of the visible area only ever get small trees
 /// (#v34.10). A 4-tile tree standing near the top edge has its canopy cut off
@@ -104,26 +104,59 @@ int _hash2(int c, int r) {
 /// Deterministic, varied forest prop for an unclaimed tile (or null = grass gap).
 /// Weighting: mostly trees, some bushes, few rocks, occasional gap — stable so
 /// the forest never shimmers between frames (#5).
-String? forestPropAt(int c, int r, {bool allowTallTrees = true}) {
+/// How far outside the plot (in tiles) counts as "at the garden's edge", where
+/// the woods drop to undergrowth (#v34.11). A full-height tree right against
+/// the plot leans over the garden and crosses its line, which is what "bahcenin
+/// hizasina gecmelerini istemiyorum" meant.
+const int kGardenEdgeTiles = 2;
+
+/// Tiles outside the plot rect, 0 when inside. Chebyshev, so a corner counts
+/// the same as a side.
+int tilesOutsidePlot(int c, int r, int cols, int rows) {
+  final dx = c < 0 ? -c : (c > cols - 1 ? c - (cols - 1) : 0);
+  final dy = r < 0 ? -r : (r > rows - 1 ? r - (rows - 1) : 0);
+  return dx > dy ? dx : dy;
+}
+
+String? forestPropAt(int c, int r, {bool allowTallTrees = true, bool gardenEdge = false}) {
   final h = _hash2(c, r);
   final bucket = h % 100;
   final pick = h ~/ 100;
   String id(String kind, int n) => '${kind}_${(pick % n).toString().padLeft(2, '0')}';
   if (bucket < kForestGapPercent) return null; // bare grass
+
+  // Right at the garden's edge the woods thin into undergrowth: small trees,
+  // more bushes, and a lot more rocks. Nothing tall enough to lean over the
+  // plot and break its outline (#v34.11).
+  if (gardenEdge) {
+    if (bucket < 58) {
+      return _smallTree(pick);
+    } else if (bucket < 80) {
+      return id('bush', kForestBushes);
+    }
+    return id('rock', kForestRocks);
+  }
+
   if (bucket < 84) {
     final n = pick % kForestTrees;
-    // near the top edge, fall back to the nearest SMALL tree so its head is
-    // not cut off by the viewport (#v34.10)
-    if (!allowTallTrees && kTreeTiles[n] > 2) {
-      for (var i = 0; i < kForestTrees; i++) {
-        final alt = (n + i) % kForestTrees;
-        if (kTreeTiles[alt] == 2) return 'tree_${alt.toString().padLeft(2, '0')}';
-      }
-    }
+    // near the top edge, fall back to a SMALL tree so its head is not cut off
+    // by the viewport (#v34.10)
+    if (!allowTallTrees && kTreeTiles[n] > 2) return _smallTree(pick);
     return 'tree_${n.toString().padLeft(2, '0')}';
   }
   if (bucket < 94) return id('bush', kForestBushes);
   return id('rock', kForestRocks);
+}
+
+/// The nearest 2-tile tree to [pick] — used wherever a full-height tree would
+/// be cut off or would lean over the garden.
+String _smallTree(int pick) {
+  final n = pick % kForestTrees;
+  for (var i = 0; i < kForestTrees; i++) {
+    final alt = (n + i) % kForestTrees;
+    if (kTreeTiles[alt] == 2) return 'tree_${alt.toString().padLeft(2, '0')}';
+  }
+  return 'tree_00';
 }
 
 /// Flat ambient palette per fence id as `(side, top, rail)`. The top face is a
@@ -664,7 +697,18 @@ class GardenPainter extends CustomPainter {
           // layer underneath it and can never interleave with — or pop in
           // front of — a flower or a fence. That is the "don't follow like the
           // flowers" part, and it also means no cross-sort to flip mid-turn.
-          final fp = forestPropAt(c, r, allowTallTrees: r > vb.minR + kNoTallTreeRows);
+          // Tall trees live at the BACK only (#v34.11). Two overlapping
+          // billboards genuinely swap order when their depths cross as the
+          // camera turns — that is correct perspective, not a bug — but with a
+          // 4-tile tree in the near rows the swap is enormous and reads as a
+          // pop. Keeping the big ones behind the plot means the things that
+          // cross in front of each other are all roughly one size, so a swap
+          // is barely visible. Also excluded: the top rows, where a tall
+          // canopy would be cut off by the viewport (#v34.10).
+          final nearRows = r >= _rows; // in front of the plot, closest to the eye
+          final fp = forestPropAt(c, r,
+              allowTallTrees: r > vb.minR + kNoTallTreeRows && !nearRows,
+              gardenEdge: tilesOutsidePlot(c, r, _cols, _rows) <= kGardenEdgeTiles);
           if (fp == null) continue;
           final anchor = p.ground(c, r);
           final isRock = fp.startsWith('rock_');

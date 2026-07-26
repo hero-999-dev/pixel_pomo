@@ -536,14 +536,39 @@ class GardenRenderer(private val data: GardenData) {
     /** Share of forest tiles left as bare grass. MUST match kForestGapPercent
      *  in garden_engine.dart, or the phone garden and the live wallpaper grow
      *  different forests from the same save (#v34.10). */
-    private val forestGapPercent = 34
+    private val forestGapPercent = 42
+
+    /** Tiles outside the plot rect, 0 inside (Chebyshev) — mirrors
+     *  tilesOutsidePlot in garden_engine.dart. */
+    private fun tilesOutsidePlot(c: Int, r: Int): Int {
+        val dx = if (c < 0) -c else if (c > cols - 1) c - (cols - 1) else 0
+        val dy = if (r < 0) -r else if (r > rows - 1) r - (rows - 1) else 0
+        return maxOf(dx, dy)
+    }
+
+    /** The nearest 2-tile tree — mirrors _smallTree in garden_engine.dart. */
+    private fun smallTree(pick: Int): String {
+        val n = pick % 20
+        for (i in 0 until 20) {
+            val alt = (n + i) % 20
+            if (treeTiles[alt] == 2) return "tree_" + alt.toString().padStart(2, '0')
+        }
+        return "tree_00"
+    }
 
     private fun forestPropAt(c: Int, r: Int): String? {
         val hsh = hash2(c, r); val bucket = hsh % 100; val pick = hsh / 100
         fun id(kind: String, n: Int) = "${kind}_" + (pick % n).toString().padStart(2, '0')
         // thresholds mirror forestPropAt in garden_engine.dart (#v34.10)
+        // At the garden's edge the woods drop to undergrowth — small trees,
+        // more bushes, a lot more rocks — so nothing leans over the plot
+        // (#v34.11). Mirrors forestPropAt in garden_engine.dart.
+        val edge = tilesOutsidePlot(c, r) <= 2
         return when {
             bucket < forestGapPercent -> null
+            edge && bucket < 58 -> smallTree(pick)
+            edge && bucket < 80 -> id("bush", 10)
+            edge -> id("rock", 5)
             bucket < 84 -> id("tree", 20)
             bucket < 94 -> id("bush", 10)
             else -> id("rock", 5)
