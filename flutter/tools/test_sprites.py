@@ -53,6 +53,19 @@ class TreeTableIsMirrored(unittest.TestCase):
         self.assertEqual(g.TREE_TILES, dart, "gen_objects.py and garden_engine.dart disagree")
         self.assertEqual(g.TREE_TILES, kotlin, "gen_objects.py and GardenRenderer.kt disagree")
 
+    def test_the_forest_gap_share_matches_in_dart_and_kotlin(self):
+        # Density is duplicated the same way the size table is (#v34.10), and
+        # a mismatch means the phone garden and the live wallpaper grow
+        # different forests from the same save.
+        dart = self._table(
+            os.path.join(FLUTTER, "lib", "engine", "garden_engine.dart"),
+            r"const int kForestGapPercent = (\d+);")
+        kotlin = self._table(
+            os.path.join(FLUTTER, "android_overlay", "kotlin", "com", "pixelpomo",
+                         "pixel_pomo", "GardenRenderer.kt"),
+            r"val forestGapPercent = (\d+)")
+        self.assertEqual(dart, kotlin, "the two renderers disagree on forest density")
+
     def test_the_table_covers_every_tree(self):
         self.assertEqual(len(g.TREE_TILES), 20, "one entry per tree_NN sprite")
         self.assertTrue(all(t in (2, 3, 4) for t in g.TREE_TILES), "sizes are 2, 3 or 4 tiles")

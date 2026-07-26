@@ -533,13 +533,19 @@ class GardenRenderer(private val data: GardenData) {
         return treeTiles[n % treeTiles.size].toDouble()
     }
 
+    /** Share of forest tiles left as bare grass. MUST match kForestGapPercent
+     *  in garden_engine.dart, or the phone garden and the live wallpaper grow
+     *  different forests from the same save (#v34.10). */
+    private val forestGapPercent = 34
+
     private fun forestPropAt(c: Int, r: Int): String? {
         val hsh = hash2(c, r); val bucket = hsh % 100; val pick = hsh / 100
         fun id(kind: String, n: Int) = "${kind}_" + (pick % n).toString().padStart(2, '0')
+        // thresholds mirror forestPropAt in garden_engine.dart (#v34.10)
         return when {
-            bucket < 18 -> null
-            bucket < 80 -> id("tree", 20)
-            bucket < 95 -> id("bush", 10)
+            bucket < forestGapPercent -> null
+            bucket < 84 -> id("tree", 20)
+            bucket < 94 -> id("bush", 10)
             else -> id("rock", 5)
         }
     }

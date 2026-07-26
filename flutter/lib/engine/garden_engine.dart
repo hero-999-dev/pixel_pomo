@@ -35,13 +35,17 @@ const int kDirFrames = 8;
 /// Forest sprite pool sizes — must match the counts emitted by tools/gen_objects.py.
 const int kForestTrees = 20, kForestBushes = 10, kForestRocks = 5;
 
-/// How thick the static forest frame is, in backdrop cells, and what fraction
-/// of its cells actually get a prop (#v34.9). The old world forest filled ~82%
-/// of every tile it covered and read as a solid green wall — "agaclar cok
-/// yogun". Lower [kForestFill] to thin the woods, raise [kForestBandCells] to
-/// push the tree line further in.
-const double kForestBandCells = 1.6;
-const int kForestFill = 46;
+/// Share of forest tiles left as bare grass (#v34.10). The pre-v34.8 woods left
+/// 18% and read as a solid green wall once the trees grew to 2–4 tiles; the
+/// v34.9 backdrop went to the other extreme and looked empty. 34% sits between
+/// the two — raise it to thin the woods, lower it to thicken them.
+const int kForestGapPercent = 34;
+
+/// Tiles nearest the TOP of the visible area only ever get small trees
+/// (#v34.10). A 4-tile tree standing near the top edge has its canopy cut off
+/// by the viewport — "bazi agaclarin kafasi kesik" — because there is simply
+/// no room above it to draw the head. Big trees are kept where they fit.
+const int kNoTallTreeRows = 3;
 
 /// How many tiles wide/tall each tree is drawn at (#v34.8).
 ///
@@ -100,14 +104,25 @@ int _hash2(int c, int r) {
 /// Deterministic, varied forest prop for an unclaimed tile (or null = grass gap).
 /// Weighting: mostly trees, some bushes, few rocks, occasional gap — stable so
 /// the forest never shimmers between frames (#5).
-String? forestPropAt(int c, int r) {
+String? forestPropAt(int c, int r, {bool allowTallTrees = true}) {
   final h = _hash2(c, r);
   final bucket = h % 100;
   final pick = h ~/ 100;
   String id(String kind, int n) => '${kind}_${(pick % n).toString().padLeft(2, '0')}';
-  if (bucket < 18) return null; // grass gap
-  if (bucket < 80) return id('tree', kForestTrees);
-  if (bucket < 95) return id('bush', kForestBushes);
+  if (bucket < kForestGapPercent) return null; // bare grass
+  if (bucket < 84) {
+    final n = pick % kForestTrees;
+    // near the top edge, fall back to the nearest SMALL tree so its head is
+    // not cut off by the viewport (#v34.10)
+    if (!allowTallTrees && kTreeTiles[n] > 2) {
+      for (var i = 0; i < kForestTrees; i++) {
+        final alt = (n + i) % kForestTrees;
+        if (kTreeTiles[alt] == 2) return 'tree_${alt.toString().padLeft(2, '0')}';
+      }
+    }
+    return 'tree_${n.toString().padLeft(2, '0')}';
+  }
+  if (bucket < 94) return id('bush', kForestBushes);
   return id('rock', kForestRocks);
 }
 
@@ -548,14 +563,16 @@ class GardenPainter extends CustomPainter {
       p.projectGrid(Offset(-hx, hy)),
     ];
 
-    // 0) forest floor + the STATIC 2D forest backdrop (#v34.9). The woods used
-    //    to be world props on every visible tile outside the plot: they swung
-    //    around as the camera yawed, overlapping trees flipped depth order
-    //    mid-turn (the same class of pop the fences had), and the whole thing
-    //    was too dense. It is a fixed screen-space frame now — it never moves,
-    //    never re-sorts, and the garden simply turns inside it.
+    // 0) forest floor — dark woodland ground over the whole screen so the
+    //    garden is a clearing critters drift into.
+    //
+    //    #v34.10: the forest is world props again. #v34.9 made it a static
+    //    screen-space frame, which did stop the rotation pop but read as
+    //    wallpaper — "bahce dönüyor baska birsey dönmüyor". It turns with the
+    //    camera like it used to; what the user did NOT want was the woods
+    //    behaving like the garden's own flowers, which is handled by keeping
+    //    them out of the depth-sorted prop list (see below).
     canvas.drawRect(Offset.zero & size, Paint()..color = const Color(0xFF12301A));
-    _paintForestBackdrop(canvas, size);
 
     // 1) soil slab — extrude each claimed-plot edge downward for 2.5D thickness.
     final soil = Paint()..color = Color(soilColor);
@@ -626,6 +643,7 @@ class GardenPainter extends CustomPainter {
     //    a nearer rail/post instead of always drawing over it (#v31.18).
     final vb = p.visibleTileBounds(size); // forest on every visible tile → fills the screen (#v18)
     final standing = <(double, void Function())>[]; // (depthY, paint)
+    final woods = <(double, void Function())>[]; // the forest, its own layer
     for (var r = vb.minR; r <= vb.maxR; r++) {
       for (var c = vb.minC; c <= vb.maxC; c++) {
         if (isGardenTile(c, r, _cols, _rows)) {
@@ -639,10 +657,29 @@ class GardenPainter extends CustomPainter {
             standing.add(
                 (anchor.dy, () => _paintBillboard(canvas, sprites.flower(prop), anchor, p.t)));
           }
+        } else {
+          // A forest prop on a tile outside the plot. Collected into its OWN
+          // list, not the garden's depth-sorted `standing` one (#v34.10): the
+          // woods are scenery behind the garden, so they paint as one flat
+          // layer underneath it and can never interleave with — or pop in
+          // front of — a flower or a fence. That is the "don't follow like the
+          // flowers" part, and it also means no cross-sort to flip mid-turn.
+          final fp = forestPropAt(c, r, allowTallTrees: r > vb.minR + kNoTallTreeRows);
+          if (fp == null) continue;
+          final anchor = p.ground(c, r);
+          final isRock = fp.startsWith('rock_');
+          final tiles = forestPropTiles(fp);
+          woods.add((anchor.dy,
+              () => _paintBillboard(canvas, sprites.forestProp(fp), anchor, p.t,
+                  height: isRock ? 0.6 : tiles * 1.05,
+                  width: isRock ? 0.8 : tiles * 0.95)));
         }
-        // nothing else: the forest is a static backdrop now, not world props
-        // on every tile outside the plot (#v34.9)
       }
+    }
+    // the woods first, back-to-front among themselves, all of it under the
+    // garden's own props
+    for (final i in stableDepthOrder(woods.map((w) => w.$1).toList(growable: false))) {
+      woods[i].$2();
     }
     _collectFenceRails(canvas, p, standing);
     for (final i in stableDepthOrder(standing.map((s) => s.$1).toList(growable: false))) {
@@ -802,67 +839,6 @@ class GardenPainter extends CustomPainter {
   /// Draw a flower as a flat, camera-facing billboard. Flowers are radially
   /// symmetric, so one sprite looks the same from every angle — no directional
   /// atlas to slice, no wasted memory, no fake snapping.
-  /// The static 2D forest frame around the screen (#v34.9).
-  ///
-  /// Screen space on purpose: it does not rotate, zoom or pan with the garden,
-  /// so rotating the camera cannot make two overlapping trees swap depth — the
-  /// pop the user saw is gone by construction rather than by a sort fix. The
-  /// layout is hashed from the cell index, so it is identical every frame and
-  /// never shimmers.
-  ///
-  /// Density is [kForestFill]: the band is a grid of cells and only that
-  /// fraction of them get a prop. The world forest filled ~82% of every tile
-  /// and read as a solid green wall.
-  void _paintForestBackdrop(Canvas canvas, Size size) {
-    final cell = size.shortestSide * 0.13; // one backdrop cell
-    final band = (kForestBandCells * cell).clamp(cell, size.shortestSide / 2);
-    final cols = (size.width / cell).ceil() + 1;
-    final rows = (size.height / cell).ceil() + 1;
-
-    for (var r = 0; r < rows; r++) {
-      for (var c = 0; c < cols; c++) {
-        final x = c * cell, y = r * cell;
-        // only the frame: skip anything fully inside the clearing
-        final inside = x > band && x < size.width - band &&
-            y > band && y < size.height - band;
-        if (inside) continue;
-
-        final h = _hash2(c + 7, r + 13);
-        if (h % 100 >= kForestFill) continue; // a gap, so it isn't a wall
-        final pick = h ~/ 100;
-        final String id;
-        final bucket = (h ~/ 7) % 100;
-        if (bucket < 74) {
-          id = 'tree_${(pick % kForestTrees).toString().padLeft(2, '0')}';
-        } else if (bucket < 92) {
-          id = 'bush_${(pick % kForestBushes).toString().padLeft(2, '0')}';
-        } else {
-          id = 'rock_${(pick % kForestRocks).toString().padLeft(2, '0')}';
-        }
-        final img = sprites.forestProp(id);
-        if (img == null) continue;
-
-        // jitter off the grid so the frame doesn't read as rows of soldiers
-        final jx = ((h >> 3) % 100 - 50) / 100.0 * cell * 0.5;
-        final jy = ((h >> 9) % 100 - 50) / 100.0 * cell * 0.4;
-
-        final tiles = forestPropTiles(id);
-        final isRock = id.startsWith('rock_');
-        final hgt = cell * (isRock ? 0.55 : tiles * 0.62);
-        final wid = cell * (isRock ? 0.7 : tiles * 0.56);
-        final dst = Rect.fromCenter(
-            center: Offset(x + cell / 2 + jx, y + cell / 2 + jy - hgt * 0.15),
-            width: wid,
-            height: hgt);
-        canvas.drawImageRect(
-            img,
-            Rect.fromLTWH(0, 0, img.width.toDouble(), img.height.toDouble()),
-            dst,
-            Paint()..filterQuality = FilterQuality.none);
-      }
-    }
-  }
-
   void _paintBillboard(Canvas canvas, ui.Image? img, Offset anchor, double t,
       {double height = 1.05, double width = 0.9, double sway = 0}) {
     if (img == null) return;

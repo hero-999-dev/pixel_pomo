@@ -6,7 +6,7 @@ a living wallpaper. Built with the
 [Press Start 2P](https://fonts.google.com/specimen/Press+Start+2P) font for that
 classic arcade look.
 
-> **Status:** **v0.34.9** — one Flutter (Dart) codebase ships **both** an Android APK and an
+> **Status:** **v0.34.10** — one Flutter (Dart) codebase ships **both** an Android APK and an
 > iOS app. On top of the core timer it has a full-screen **living 2.5D garden**, an animated
 > **Android live wallpaper**, an **app blocker** to keep you off distracting apps during a focus
 > session, **session stats** with charts and history, a **coin + shop** economy, **6 themes**,
@@ -137,7 +137,7 @@ and coins, for trying out stats/heatmap features without needing to build up rea
 ## 🧪 Testing
 
 All app logic lives in **pure, framework-free Dart** (timer engine, labels, stats, economy, garden, flowers, the app-blocker
-rules) so it can be unit-tested without a device. **336 Dart tests** plus a widget smoke test (boots the app and opens every
+rules) so it can be unit-tested without a device. **340 Dart tests** plus a widget smoke test (boots the app and opens every
 screen) **gate every build**. The garden engine has its own geometry tests. Run them from `flutter/`:
 
 ```bash

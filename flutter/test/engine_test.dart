@@ -146,6 +146,66 @@ void main() {
     });
   });
 
+  group('Forest density and the top-edge headroom (v34.10)', () {
+    test('the woods are thinner than the old wall but not empty', () {
+      // #v34.9's screen-space frame looked empty; the pre-v34.8 world forest
+      // read as a solid green wall once trees grew to 2-4 tiles. Count what a
+      // real patch actually produces.
+      var props = 0, gaps = 0;
+      for (var r = -30; r < 30; r++) {
+        for (var c = -30; c < 30; c++) {
+          if (forestPropAt(c, r) == null) {
+            gaps++;
+          } else {
+            props++;
+          }
+        }
+      }
+      final fill = props / (props + gaps) * 100;
+      expect(fill, greaterThan(55), reason: 'the woods are too sparse ($fill%)');
+      expect(fill, lessThan(78), reason: 'back to a solid wall of trees ($fill%)');
+    });
+
+    test('no tall tree is placed where its head would be cut off', () {
+      // "bazi agaclarin kafasi kesik" — a 4-tile tree near the top of the
+      // viewport has no room above it to draw its canopy.
+      for (var r = -40; r < 40; r++) {
+        for (var c = -40; c < 40; c++) {
+          final id = forestPropAt(c, r, allowTallTrees: false);
+          if (id != null && id.startsWith('tree_')) {
+            expect(forestPropTiles(id), 2,
+                reason: '$id is ${forestPropTiles(id)} tiles in the no-tall-tree band');
+          }
+        }
+      }
+    });
+
+    test('the restriction only swaps the tree, it never leaves a hole', () {
+      // Falling back to a small tree must not turn a tree tile into grass —
+      // that would thin the top of the woods into a bald strip.
+      for (var r = -40; r < 40; r++) {
+        for (var c = -40; c < 40; c++) {
+          final free = forestPropAt(c, r);
+          final capped = forestPropAt(c, r, allowTallTrees: false);
+          expect(capped == null, free == null,
+              reason: 'tile ($c,$r) changed between prop and gap');
+          if (free != null) {
+            expect(capped!.split('_').first, free.split('_').first,
+                reason: 'tile ($c,$r) changed kind, not just tree size');
+          }
+        }
+      }
+    });
+
+    test('the layout is stable — the same tile always gives the same prop', () {
+      // it is hashed, not random: a shimmering forest would be the bug
+      for (var i = 0; i < 200; i++) {
+        final c = i * 7 - 500, r = i * 13 - 300;
+        expect(forestPropAt(c, r), forestPropAt(c, r));
+      }
+    });
+  });
+
   group('Forest trees are drawn at their own size (v34.8)', () {
     test('a tree reports the tile count from the table; bushes and rocks are one', () {
       for (var i = 0; i < kTreeTiles.length; i++) {
