@@ -146,6 +146,83 @@ void main() {
     });
   });
 
+  group('Critters abandon a flower that gets removed (v34.4)', () {
+    /// Step until the system has a critter, or give up.
+    CritterSystem spawned(int seed, List<Offset> flowers) {
+      final sys = CritterSystem(seed);
+      for (var i = 0; i < 400 && sys.critters.isEmpty; i++) {
+        sys.step(0.05, 6, flowers);
+      }
+      return sys;
+    }
+
+    test('a critter heading for a removed flower leaves instead of hovering over nothing', () {
+      // The bug: the target is captured once at spawn, so clearing the tile
+      // left the critter flying to - and then sniffing at - an empty patch of
+      // grass for its whole hover, up to the 18s lifetime cap.
+      final flowers = [const Offset(0, 0)];
+      final sys = spawned(7, flowers);
+      expect(sys.critters, isNotEmpty, reason: 'sanity: a critter should have spawned');
+
+      // the flower is dug up
+      for (var i = 0; i < 20; i++) {
+        sys.step(0.05, 6, const []);
+      }
+      for (final c in sys.critters) {
+        expect(c.leaving, isTrue, reason: 'still visiting a flower that is gone');
+      }
+    });
+
+    test('it clears off quickly, not on the 18s lifetime cap', () {
+      final sys = spawned(7, [const Offset(0, 0)]);
+      expect(sys.critters, isNotEmpty);
+      final lifeAtRemoval = sys.critters.first.life;
+
+      for (var i = 0; i < 400 && sys.critters.isNotEmpty; i++) {
+        sys.step(0.05, 6, const []);
+      }
+      expect(sys.critters, isEmpty, reason: 'never left the garden');
+      // flying out from the middle is a few seconds; the cap is a backstop,
+      // not the mechanism.
+      expect(lifeAtRemoval + 400 * 0.05, greaterThan(Critter.maxLife),
+          reason: 'sanity: the loop is long enough that the cap alone could have done it');
+    });
+
+    test('removing ONE of several flowers only sends the visitors to that one away', () {
+      final far = const Offset(4, 4);
+      final flowers = [const Offset(0, 0), far];
+      // seed chosen so the spawned critter targets the origin flower
+      var sys = spawned(7, flowers);
+      expect(sys.critters, isNotEmpty);
+      final targetsFar = (sys.critters.first.target - far).distance < 0.75;
+
+      // keep only the far flower
+      for (var i = 0; i < 20; i++) {
+        sys.step(0.05, 6, [far]);
+      }
+      for (final c in sys.critters) {
+        expect(c.leaving, targetsFar ? isFalse : isTrue,
+            reason: targetsFar
+                ? 'a critter visiting the surviving flower was sent away'
+                : 'a critter visiting the removed flower stayed');
+      }
+    });
+
+    test('a critter already on its way out is left alone', () {
+      final flowers = [const Offset(0, 0)];
+      final sys = spawned(7, flowers);
+      // run it all the way through approach + hover into leave
+      for (var i = 0; i < 200 && !sys.critters.first.leaving; i++) {
+        sys.step(0.05, 6, flowers);
+      }
+      expect(sys.critters.first.leaving, isTrue);
+      final exit = sys.critters.first.target;
+      sys.step(0.05, 6, const []);
+      expect(sys.critters.first.target, exit,
+          reason: 'the exit heading was overwritten by the abandon check');
+    });
+  });
+
   group('Critter perch height varies while hovering (v31.17)', () {
     test('visits settle at varied heights on the plant, not always the same spot', () {
       // "bugs jump to top" bug: every hovering critter used a hardcoded lift

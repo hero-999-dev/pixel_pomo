@@ -284,7 +284,8 @@ void main() {
 
     // the same colour through two different slots' pickers: it must land on the
     // slot whose box was tapped, and leave the rest of them alone
-    final before = List.of(Themes.dark.picks);
+    // MATCHA is the default theme since #v34.4, so that is what the editor seeds from.
+    final before = List.of(Themes.fallback.picks);
     await pick(tester, 1, 0xFFE5484D); // MAIN TEXT
     await pick(tester, 5, 0xFFE5484D); // BREAK
     await tapVisible(tester, find.text('SAVE'));
@@ -308,7 +309,7 @@ void main() {
     expect(find.text(t('en', 'cIncome')), findsOneWidget, reason: 'it says which slot it is on');
     // it opens ON that slot's current colour, not on some default
     final bar = tester.widget<Container>(find.byKey(const Key('pickerPreview')));
-    expect((bar.decoration as BoxDecoration).color, col(Themes.dark.work));
+    expect((bar.decoration as BoxDecoration).color, col(Themes.fallback.work));
     // the ready swatches stayed on the editor screen (#v33.6)
     expect(find.byKey(ValueKey('swatch_${kAllSwatches.first}')), findsNothing);
   });
@@ -385,7 +386,7 @@ void main() {
 
     expect(find.text('CUSTOM'), findsNothing);
     expect(find.text('EDIT COLORS'), findsNothing);
-    expect(find.text('> DARK'), findsOneWidget); // the presets are still there
+    expect(find.text('> ${Themes.fallback.displayName}'), findsOneWidget); // the presets are still there
   });
 
   testWidgets('turning the switch off stops wearing the custom theme but keeps the picks',

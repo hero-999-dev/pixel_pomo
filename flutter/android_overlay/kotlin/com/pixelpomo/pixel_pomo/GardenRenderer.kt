@@ -406,12 +406,38 @@ class GardenRenderer(private val data: GardenData) {
                 spawnIn = 6.0 + Random.nextDouble() * 8.0 // a visitor every ~6–14s
                 if (list.size < MAX_ACTIVE && flowers.isNotEmpty()) spawn(half, flowers)
             }
-            for (c in list) { c.life += d; stepOne(c, d, half) }
+            for (c in list) {
+                c.life += d
+                // The flower it came for may have been dug up mid-visit (#v34.4).
+                // Mirrors CritterSystem.step in garden_engine.dart: the target is
+                // captured at spawn, so without this the critter sniffs an empty
+                // patch of grass until the lifetime cap.
+                if (c.state != CState.LEAVE && !flowerStillThere(c.tx, c.ty, flowers)) sendAway(c, half)
+                stepOne(c, d, half)
+            }
             // despawn on exit OR past the hard lifetime cap, so none can stick (#3)
             list.removeAll { c ->
                 c.life > MAX_LIFE ||
                     (c.state == CState.LEAVE && (abs(c.x) > half + 0.5 || abs(c.y) > half + 0.5))
             }
+        }
+
+        /** Is some flower still at (or very near) this target? Tolerance covers
+         * spawn's +/-0.35-tile landing jitter, mirroring the Dart side. */
+        private fun flowerStillThere(tx: Double, ty: Double, flowers: List<Pair<Double, Double>>): Boolean {
+            for (f in flowers) {
+                val dx = f.first - tx; val dy = f.second - ty
+                if (sqrt(dx * dx + dy * dy) <= 0.75) return true
+            }
+            return false
+        }
+
+        /** Turn a critter around and send it out the nearest side. */
+        private fun sendAway(c: Critter, half: Double) {
+            c.state = CState.LEAVE
+            c.timer = 0.0
+            c.tx = if (c.x < 0) -(half + 1) else (half + 1)
+            c.ty = c.y
         }
 
         private fun spawn(half: Double, flowers: List<Pair<Double, Double>>) {
@@ -447,11 +473,7 @@ class GardenRenderer(private val data: GardenData) {
                         val ease = 0.2 + 0.8 * minOf(1.0, dist / 0.6)
                         c.x += tox / dist * c.speed * ease * dt; c.y += toy / dist * c.speed * ease * dt
                     }
-                CState.HOVER ->
-                    if (c.timer >= c.hoverFor) {
-                        c.state = CState.LEAVE; c.timer = 0.0
-                        c.tx = if (c.x < 0) -(half + 1) else (half + 1); c.ty = c.y
-                    }
+                CState.HOVER -> if (c.timer >= c.hoverFor) sendAway(c, half)
                 CState.LEAVE -> {
                     // always progress, even if the exit ~= here, so it can't freeze (#3)
                     val dx = if (dist > 1e-3) tox / dist else 1.0

@@ -61,7 +61,7 @@ class AppStore extends ChangeNotifier {
   int workMin = 25;
   int breakMin = 5;
   int sessions = 4;
-  PixelTheme theme = Themes.dark;
+  PixelTheme theme = Themes.fallback; // MATCHA (#v34.4)
   // The user-built theme (#v32.3): [customSpec] keeps the raw picks so the editor
   // reopens on them, [customTheme] is the contrast-corrected result that gets
   // rendered. Both null until the user saves one.
@@ -344,7 +344,7 @@ class AppStore extends ChangeNotifier {
   void setDetailedCustom(bool v) {
     detailedCustom = v;
     _prefs.setBool(_kDetailedCustom, v);
-    if (!v && theme.id == customThemeId) selectTheme(Themes.dark);
+    if (!v && theme.id == customThemeId) selectTheme(Themes.fallback);
     notifyListeners();
   }
 

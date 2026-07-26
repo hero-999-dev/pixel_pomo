@@ -23,6 +23,9 @@ void main() {
   Widget settingsHost(AppStore s) => MaterialApp(
       home: Scaffold(body: AnimatedBuilder(animation: s, builder: (_, __) => SettingsScreen(s))));
 
+  Widget host(AppStore s, Widget Function() build) => MaterialApp(
+      home: Scaffold(body: AnimatedBuilder(animation: s, builder: (_, __) => build())));
+
   testWidgets('WALLPAPER is on the row even with no photo saved', (tester) async {
     final s = await boot();
     await tester.pumpWidget(settingsHost(s));
@@ -110,6 +113,32 @@ void main() {
     expect(s.wallpaperPath, isNull);
     expect(s.homeBackdrop, 'clean', reason: 'nothing left to show');
     expect(s.wallZoom, 1.0, reason: 'the next photo starts uncropped');
+
+    dir.deleteSync(recursive: true);
+    s.dispose();
+  });
+
+  testWidgets('there is exactly ONE remove control, and it is on the edit panel (#v34.4)',
+      (tester) async {
+    // It used to sit on the theme editor as well as on the panel that editor
+    // opens - two of the same control, and the one on the editor was the
+    // further of the two from the photo it deletes.
+    final dir = Directory.systemTemp.createTempSync('pp_wall2');
+    final photo = File('${dir.path}/photo.png')
+      ..writeAsBytesSync(base64Decode(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='));
+
+    final s = await boot();
+    s.setWallpaper(photo.path);
+    s.setDetailedCustom(true);
+
+    await tester.pumpWidget(host(s, () => CustomThemeScreen(s)));
+    await tester.pumpAndSettle();
+
+    expect(find.text('REMOVE WALLPAPER'), findsNothing,
+        reason: 'the duplicate remove is back on the theme editor');
+    // ...and the button that opens the panel no longer says "CROP"
+    expect(find.text('EDIT WALLPAPER'), findsOneWidget);
 
     dir.deleteSync(recursive: true);
     s.dispose();

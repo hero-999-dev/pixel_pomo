@@ -1285,21 +1285,18 @@ class _CustomThemeScreenState extends State<CustomThemeScreen> {
     final s = widget.s;
     final has = s.wallpaperPath != null;
     return [
+      // ONE button (#v34.4). REMOVE WALLPAPER used to sit here as well as on
+      // the panel this opens — two of the same control, and the one here was
+      // the further of the two from the photo it deletes. Removing lives on
+      // the edit panel now, next to what you are looking at.
       secondaryBtn(preview, lang, t(lang, has ? 'wallEdit' : 'wallChoose'), () async {
-        // already have one → straight to the crop panel; the photo is the same
+        // already have one → straight to the edit panel; the photo is the same
         final path = has ? s.wallpaperPath : await pickWallpaper();
         if (path == null || !context.mounted) return;
         if (!has) s.setWallpaper(path);
         await openPanel(context, s, () => WallpaperCropScreen(s, path));
         if (mounted) setState(() {});
       }, fontSize: 11),
-      if (has) ...[
-        const SizedBox(height: 8),
-        secondaryBtn(preview, lang, t(lang, 'wallRemove'), () {
-          s.removeWallpaper();
-          setState(() {});
-        }, fontSize: 11),
-      ],
       const SizedBox(height: 18),
     ];
   }

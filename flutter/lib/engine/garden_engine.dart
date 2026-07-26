@@ -344,6 +344,9 @@ class Critter {
   final double perch;
 
   Critter(this.kind, this.pos, this.target, this.speed, this.phase, this.hoverFor, this.perch);
+
+  /// On its way out of the garden — no longer visiting anything.
+  bool get leaving => state == _CState.leave;
 }
 
 /// Owns the (at most 2) active critters and spawns them occasionally. Works
@@ -380,6 +383,12 @@ class CritterSystem {
     }
     for (final c in critters) {
       c.life += d;
+      // The flower it came for may have been dug up mid-visit (#v34.4). The
+      // target is captured once at spawn, so without this the critter flew to
+      // — and then sniffed at — an empty patch of grass for its whole hover,
+      // up to the 18s lifetime cap. Re-checked every frame against the CURRENT
+      // list, which step() is already handed.
+      if (!c.leaving && !_flowerStillThere(c.target, flowers)) _sendAway(c, half);
       _stepOne(c, d, half);
     }
     // despawn on exit OR once past the hard lifetime cap, so none can stick (#3)
@@ -387,6 +396,26 @@ class CritterSystem {
         c.life > Critter.maxLife ||
         (c.state == _CState.leave &&
             (c.pos.dx.abs() > half + 0.5 || c.pos.dy.abs() > half + 0.5)));
+  }
+
+  /// Is some flower still at (or very near) [target]?
+  ///
+  /// The tolerance covers `_spawn`'s ±0.35-tile landing jitter with a little
+  /// slack; anything farther means the flower this critter chose is gone, not
+  /// that it aimed loosely.
+  static bool _flowerStillThere(Offset target, List<Offset> flowers) {
+    for (final f in flowers) {
+      if ((f - target).distance <= 0.75) return true;
+    }
+    return false;
+  }
+
+  /// Turn a critter around and send it out the nearest side.
+  void _sendAway(Critter c, double half) {
+    c.state = _CState.leave;
+    c.timer = 0;
+    final ex = c.pos.dx < 0 ? -(half + 1) : (half + 1);
+    c.target = Offset(ex, c.pos.dy);
   }
 
   void _spawn(double half, List<Offset> flowers) {
@@ -432,12 +461,7 @@ class CritterSystem {
         }
         break;
       case _CState.hover:
-        if (c.timer >= c.hoverFor) {
-          c.state = _CState.leave;
-          c.timer = 0;
-          final ex = c.pos.dx < 0 ? -(half + 1) : (half + 1);
-          c.target = Offset(ex, c.pos.dy);
-        }
+        if (c.timer >= c.hoverFor) _sendAway(c, half);
         break;
       case _CState.leave:
         // always progress, even if the exit target is ~where we already are,

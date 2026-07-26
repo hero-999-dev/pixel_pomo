@@ -487,8 +487,11 @@ class Themes {
       breakColor: 0xFF89DCEB, onSurface: 0xFFCAD9C4, onSurfaceDim: 0xFF9DB09A,
       onAccent: 0xFF1A2420, shadow: 0xFF0F1611);
 
-  static const all = [dark, light, mocha, frappe, latte, matcha];
-  static const fallback = dark;
+  // MATCHA first and the default (#v34.4) — it is the theme that matches the
+  // garden, which is the app's face, and it is what a fresh install should
+  // open on. Order here IS the order the Theme screen lists them in.
+  static const all = [matcha, dark, light, mocha, frappe, latte];
+  static const fallback = matcha;
 
   static PixelTheme byId(String? id) {
     for (final t in all) {
