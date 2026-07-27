@@ -146,25 +146,94 @@ void main() {
     });
   });
 
-  group('Forest density and the top-edge headroom (v34.10)', () {
-    test('at the garden edge the woods drop to undergrowth', () {
-      // "bahcenin dibindeki agaclar daha kücük agaclar olsun, cali ve daha cok
-      // tas" — nothing tall enough to lean over the plot and break its line.
-      var tall = 0, rocks = 0, props = 0;
-      for (var r = -4; r < 14; r++) {
-        for (var c = -4; c < 8; c++) {
-          if (isGardenTile(c, r, 4, 10)) continue;
-          if (tilesOutsidePlot(c, r, 4, 10) > kGardenEdgeTiles) continue;
-          final id = forestPropAt(c, r, gardenEdge: true);
+  group('The woods are undergrowth with a few landmark trees (v34.12)', () {
+    // "tüm orman alt taraf gibi olsun" — the whole forest built from the small
+    // trees, bushes and rocks that used to appear only in the band against the
+    // garden — "ayrica büyük agaclar ormanin icinde aralarda teker teker olsun
+    // birkac tane".
+    const cols = 4, rows = 10;
+
+    Map<(int, int), String> patch({int span = 40}) {
+      final out = <(int, int), String>{};
+      for (var r = -span; r < rows + span; r++) {
+        for (var c = -span; c < cols + span; c++) {
+          final id = forestPropAt(c, r, cols, rows);
+          if (id != null) out[(c, r)] = id;
+        }
+      }
+      return out;
+    }
+
+    bool isBig(String id) => id.startsWith('tree_') && forestPropTiles(id) >= 3;
+
+    test('nearly every tree is a small one, and a few are not', () {
+      final trees = patch().values.where((id) => id.startsWith('tree_')).toList();
+      expect(trees.length, greaterThan(500), reason: 'sanity: the patch grew a forest');
+      final big = trees.where(isBig).length;
+      expect(big, greaterThan(0), reason: 'no landmark trees left at all');
+      expect(big / trees.length, lessThan(0.08),
+          reason: 'big trees are the exception, not the forest (${big / trees.length})');
+    });
+
+    test('no two big trees ever stand close enough to overlap', () {
+      // This is the whole fix for "kamera acisi degisince büyük agaclarin
+      // birbirinin icine gecmesi ... arkadaki agac öne geciyor". Two
+      // overlapping billboards genuinely swap paint order when their ground
+      // depths cross mid-turn — correct perspective, not a bug — so the only
+      // way to kill the pop is to stop them overlapping at all.
+      final widest = kTreeTiles.reduce(math.max) * 0.95;
+      expect(4, greaterThanOrEqualTo(widest.ceil()),
+          reason: 'the block spacing no longer covers the widest tree');
+      final big = patch().entries.where((e) => isBig(e.value)).map((e) => e.key).toList();
+      expect(big.length, greaterThan(20), reason: 'sanity: found big trees to compare');
+      for (var i = 0; i < big.length; i++) {
+        for (var j = i + 1; j < big.length; j++) {
+          final d = math.max(
+              (big[i].$1 - big[j].$1).abs(), (big[i].$2 - big[j].$2).abs());
+          expect(d, greaterThanOrEqualTo(4),
+              reason: 'big trees at ${big[i]} and ${big[j]} are $d tiles apart');
+        }
+      }
+    });
+
+    test('big trees keep well back from the plot', () {
+      patch().forEach((at, id) {
+        if (!isBig(id)) return;
+        expect(tilesOutsidePlot(at.$1, at.$2, cols, rows),
+            greaterThanOrEqualTo(kBigTreeClearTiles),
+            reason: '$id at $at is crowding the clearing');
+      });
+    });
+
+    test('only bushes and rocks stand against the garden line', () {
+      // "ona uygun agac, kaya ve otlarla dolduruldun" — the apron. The plot
+      // paints over the woods now so nothing can actually cross the outline;
+      // this keeps the hidden sliver small enough that the cut never shows.
+      var props = 0, rocks = 0;
+      for (var r = -kUndergrowthTiles; r < rows + kUndergrowthTiles; r++) {
+        for (var c = -kUndergrowthTiles; c < cols + kUndergrowthTiles; c++) {
+          final d = tilesOutsidePlot(c, r, cols, rows);
+          if (d == 0 || d > kUndergrowthTiles) continue;
+          final id = forestPropAt(c, r, cols, rows);
           if (id == null) continue;
           props++;
           if (id.startsWith('rock_')) rocks++;
-          if (id.startsWith('tree_') && forestPropTiles(id) > 2) tall++;
+          expect(id.startsWith('tree_'), false,
+              reason: '$id at ($c,$r) is a tree hard against the plot');
         }
       }
-      expect(props, greaterThan(10), reason: 'sanity: the band should hold props');
-      expect(tall, 0, reason: 'a full-height tree is standing against the garden');
-      expect(rocks / props, greaterThan(0.15), reason: 'the user asked for more rocks here');
+      expect(props, greaterThan(5), reason: 'sanity: the apron should hold props');
+      expect(props, lessThan(20),
+          reason: 'the apron is dense enough to read as a laid stone border ($props)');
+      expect(rocks, greaterThan(0), reason: 'the user asked for rocks here');
+    });
+
+    test('a tile inside the plot grows nothing', () {
+      for (var r = 0; r < rows; r++) {
+        for (var c = 0; c < cols; c++) {
+          expect(forestPropAt(c, r, cols, rows), isNull);
+        }
+      }
     });
 
     test('the woods are thinner than the old wall but not empty', () {
@@ -174,7 +243,7 @@ void main() {
       var props = 0, gaps = 0;
       for (var r = -30; r < 30; r++) {
         for (var c = -30; c < 30; c++) {
-          if (forestPropAt(c, r) == null) {
+          if (forestPropAt(c, r, cols, rows) == null) {
             gaps++;
           } else {
             props++;
@@ -186,42 +255,17 @@ void main() {
       expect(fill, lessThan(70), reason: 'back to a solid wall of trees ($fill%)');
     });
 
-    test('no tall tree is placed where its head would be cut off', () {
-      // "bazi agaclarin kafasi kesik" — a 4-tile tree near the top of the
-      // viewport has no room above it to draw its canopy.
-      for (var r = -40; r < 40; r++) {
-        for (var c = -40; c < 40; c++) {
-          final id = forestPropAt(c, r, allowTallTrees: false);
-          if (id != null && id.startsWith('tree_')) {
-            expect(forestPropTiles(id), 2,
-                reason: '$id is ${forestPropTiles(id)} tiles in the no-tall-tree band');
-          }
-        }
-      }
-    });
-
-    test('the restriction only swaps the tree, it never leaves a hole', () {
-      // Falling back to a small tree must not turn a tree tile into grass —
-      // that would thin the top of the woods into a bald strip.
-      for (var r = -40; r < 40; r++) {
-        for (var c = -40; c < 40; c++) {
-          final free = forestPropAt(c, r);
-          final capped = forestPropAt(c, r, allowTallTrees: false);
-          expect(capped == null, free == null,
-              reason: 'tile ($c,$r) changed between prop and gap');
-          if (free != null) {
-            expect(capped!.split('_').first, free.split('_').first,
-                reason: 'tile ($c,$r) changed kind, not just tree size');
-          }
-        }
-      }
-    });
-
-    test('the layout is stable — the same tile always gives the same prop', () {
-      // it is hashed, not random: a shimmering forest would be the bug
-      for (var i = 0; i < 200; i++) {
-        final c = i * 7 - 500, r = i * 13 - 300;
-        expect(forestPropAt(c, r), forestPropAt(c, r));
+    test('what grows on a tile depends on the tile alone, never the camera', () {
+      // The "cizimde aci degisiyor ... agac saga bakarken sola bakiyormus gibi"
+      // report was this bug: the painter fed the VIEWPORT into the choice
+      // (`allowTallTrees: r > vb.minR + 3`), so one tile grew a 2-tile tree at
+      // one yaw and a 4-tile one at another and changed shape as you turned.
+      // Nothing in the painter mirrors a billboard — the sprite never flipped,
+      // the tile swapped species. forestPropAt now takes the tile and the plot
+      // and nothing else, so this also pins the signature.
+      for (var i = 0; i < 300; i++) {
+        final c = i * 7 - 900, r = i * 13 - 500;
+        expect(forestPropAt(c, r, cols, rows), forestPropAt(c, r, cols, rows));
       }
     });
   });
@@ -363,8 +407,8 @@ void main() {
       var trees = 0, bushes = 0, rocks = 0, gaps = 0;
       for (var c = -20; c < 20; c++) {
         for (var r = -20; r < 20; r++) {
-          final id = forestPropAt(c, r);
-          expect(forestPropAt(c, r), id); // stable
+          final id = forestPropAt(c, r, 4, 10);
+          expect(forestPropAt(c, r, 4, 10), id); // stable
           if (id == null) {
             gaps++;
             continue;

@@ -64,6 +64,13 @@ class GardenRenderer(private val data: GardenData) {
         cosY = cos(cam.yaw); sinY = sin(cam.yaw)
 
         canvas.drawColor(Color.rgb(0x12, 0x30, 0x1A)) // forest floor
+        // The woods go down FIRST, under the clearing (#v34.12): a billboard is
+        // anchored on its tile and drawn upward, so a prop on the near side
+        // reaches up over the plot's edge. Painting it under the grass is what
+        // guarantees "ormanin hic bir kisminin bahcenin cizgisini gecmesini
+        // istemiyorum" at every yaw, instead of a distance band that leaks.
+        // Mirrors GardenPainter.paint step 0b in garden_engine.dart.
+        drawWoods(canvas, w, h)
         fillClearing(canvas)
         drawGrassFlowers(canvas) // a few wild blooms on empty grass (#v18)
 
@@ -73,32 +80,19 @@ class GardenRenderer(private val data: GardenData) {
         // rail/post regardless of actual depth (#v31.18).
         val items = ArrayList<Item>()
         val flowers = ArrayList<Pair<Double, Double>>() // planted-flower garden coords, for the critters
-        val vb = visibleBounds(w, h) // forest on every visible tile → fills the screen (#v18)
-        for (r in vb[2]..vb[3]) {
-            for (c in vb[0]..vb[1]) {
-                val inGarden = c in 0 until cols && r in 0 until rows
-                if (inGarden) {
-                    val idx = r * cols + c
-                    data.groundAt(idx)?.let { drawRoad(canvas, c, r, it) }
-                    val prop = data.propAt(idx) ?: continue
-                    val (x, y) = ground(c, r)
-                    if (isFence(prop)) {
-                        items.add(Item(y) { drawFencePost(canvas, c, r, prop) })
-                    } else {
-                        flowers.add(gridXY(c, r))
-                        // match the in-app _paintBillboard dimensions (#v22): flowers 1.05h×0.9w.
-                        val bmp = flowerBitmap(prop)
-                        items.add(Item(y) { billboard(canvas, bmp, x, y, 1.05, 0.9) })
-                    }
+        for (r in 0 until rows) {
+            for (c in 0 until cols) {
+                val idx = r * cols + c
+                data.groundAt(idx)?.let { drawRoad(canvas, c, r, it) }
+                val prop = data.propAt(idx) ?: continue
+                val (x, y) = ground(c, r)
+                if (isFence(prop)) {
+                    items.add(Item(y) { drawFencePost(canvas, c, r, prop) })
                 } else {
-                    val fp = forestPropAt(c, r) ?: continue
-                    val (x, y) = ground(c, r)
-                    // trees are drawn at their own tile size (#v34.8) — mirrors
-                    // forestPropTiles / kTreeTiles in garden_engine.dart
-                    val (ht, wd) = if (fp.startsWith("rock_")) 0.6 to 0.8
-                                   else forestPropTiles(fp).let { it * 1.05 to it * 0.95 }
-                    val bmp = data.bitmap(spriteFor(fp))
-                    items.add(Item(y) { billboard(canvas, bmp, x, y, ht, wd) })
+                    flowers.add(gridXY(c, r))
+                    // match the in-app _paintBillboard dimensions (#v22): flowers 1.05h×0.9w.
+                    val bmp = flowerBitmap(prop)
+                    items.add(Item(y) { billboard(canvas, bmp, x, y, 1.05, 0.9) })
                 }
             }
         }
@@ -136,6 +130,35 @@ class GardenRenderer(private val data: GardenData) {
     private fun ground(c: Int, r: Int): Pair<Double, Double> {
         val (gx, gy) = gridXY(c, r)
         return projGrid(gx, gy)
+    }
+
+    /** The forest, back-to-front among itself, under the clearing. Mirrors
+     *  GardenPainter._paintWoods in garden_engine.dart. */
+    private fun drawWoods(canvas: Canvas, w: Int, h: Int) {
+        val vb = visibleBounds(w, h)
+        // Scan past the viewport far enough that a tree whose GROUND tile is off
+        // screen still paints its canopy into view (#v34.12) — otherwise the
+        // screen edge is a row of flat-cut trunks. Off-screen props are culled
+        // below, so this only costs hash lookups.
+        val bleed = ceil(treeTiles.max() * 1.05 / KVY).toInt()
+        val woods = ArrayList<Item>()
+        for (r in (vb[2] - bleed)..(vb[3] + bleed)) {
+            for (c in (vb[0] - bleed)..(vb[1] + bleed)) {
+                val fp = forestPropAt(c, r) ?: continue // null inside the plot
+                val (x, y) = ground(c, r)
+                // trees are drawn at their own tile size (#v34.8) — mirrors
+                // forestPropTiles / kTreeTiles in garden_engine.dart
+                val (ht, wd) = if (fp.startsWith("rock_")) 0.6 to 0.8
+                               else forestPropTiles(fp).let { it * 1.05 to it * 0.95 }
+                if (y < 0 || y - ht * t > h) continue
+                val halfW = wd * t / 2
+                if (x + halfW < 0 || x - halfW > w) continue
+                val bmp = data.bitmap(spriteFor(fp))
+                woods.add(Item(y) { billboard(canvas, bmp, x, y, ht, wd) })
+            }
+        }
+        woods.sortBy { it.depth }
+        for (it in woods) it.paint()
     }
 
     // Tile the real grass.png across the claimed plot under the same projection the
@@ -546,30 +569,55 @@ class GardenRenderer(private val data: GardenData) {
         return maxOf(dx, dy)
     }
 
-    /** The nearest 2-tile tree — mirrors _smallTree in garden_engine.dart. */
-    private fun smallTree(pick: Int): String {
+    /** The whole forest is 2-tile trees, bushes and rocks; big trees are sparse
+     *  isolated landmarks. MUST match kBigTreeBlock / kBigTreePercent /
+     *  kBigTreeClearTiles / kUndergrowthTiles in garden_engine.dart (#v34.12). */
+    private val bigTreeBlock = 7
+    private val bigTreePercent = 60
+    private val bigTreeClearTiles = 6
+    private val undergrowthTiles = 1
+
+    /** Mirrors _treeOfSize / _smallTree / _bigTree in garden_engine.dart. */
+    private fun treeOfSize(pick: Int, want: (Int) -> Boolean, fallback: String): String {
         val n = pick % 20
         for (i in 0 until 20) {
             val alt = (n + i) % 20
-            if (treeTiles[alt] == 2) return "tree_" + alt.toString().padStart(2, '0')
+            if (want(treeTiles[alt])) return "tree_" + alt.toString().padStart(2, '0')
         }
-        return "tree_00"
+        return fallback
     }
 
+    private fun smallTree(pick: Int) = treeOfSize(pick, { it == 2 }, "tree_00")
+
+    /** One candidate big tree per block, offset inside `[1, block-3]` so sites in
+     *  neighbouring blocks stay >= 4 tiles apart — wider than the widest tree, so
+     *  two big trees never overlap and so can never visibly swap depth as the
+     *  camera turns. Mirrors _bigTreeAt in garden_engine.dart. */
+    private fun bigTreeAt(c: Int, r: Int): String? {
+        val bc = Math.floorDiv(c, bigTreeBlock); val br = Math.floorDiv(r, bigTreeBlock)
+        val hsh = hash2(bc * 2 + 1, br * 2 + 1)
+        if (hsh % 100 >= bigTreePercent) return null
+        val span = bigTreeBlock - 3
+        val ox = (hsh / 100) % span + 1; val oy = (hsh / 700) % span + 1
+        if (c - bc * bigTreeBlock != ox || r - br * bigTreeBlock != oy) return null
+        return treeOfSize(hsh / 4900, { it >= 3 }, "tree_01")
+    }
+
+    /** Mirrors forestPropAt in garden_engine.dart — a pure function of the tile
+     *  and the plot size, so nothing about the camera can change what grows. */
     private fun forestPropAt(c: Int, r: Int): String? {
+        val d = tilesOutsidePlot(c, r)
+        if (d == 0) return null // inside the plot — the garden owns this tile
         val hsh = hash2(c, r); val bucket = hsh % 100; val pick = hsh / 100
         fun id(kind: String, n: Int) = "${kind}_" + (pick % n).toString().padStart(2, '0')
-        // thresholds mirror forestPropAt in garden_engine.dart (#v34.10)
-        // At the garden's edge the woods drop to undergrowth — small trees,
-        // more bushes, a lot more rocks — so nothing leans over the plot
-        // (#v34.11). Mirrors forestPropAt in garden_engine.dart.
-        val edge = tilesOutsidePlot(c, r) <= 2
+        if (d >= bigTreeClearTiles) bigTreeAt(c, r)?.let { return it }
         return when {
             bucket < forestGapPercent -> null
-            edge && bucket < 58 -> smallTree(pick)
-            edge && bucket < 80 -> id("bush", 10)
-            edge -> id("rock", 5)
-            bucket < 84 -> id("tree", 20)
+            // the apron is thinner than the woods proper, or the ring of tiles
+            // hugging a straight plot edge reads as a laid stone border
+            d <= undergrowthTiles && bucket < 62 -> null
+            d <= undergrowthTiles -> if (bucket < 84) id("bush", 10) else id("rock", 5)
+            bucket < 84 -> smallTree(pick)
             bucket < 94 -> id("bush", 10)
             else -> id("rock", 5)
         }

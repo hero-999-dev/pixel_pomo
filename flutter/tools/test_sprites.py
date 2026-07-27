@@ -53,18 +53,40 @@ class TreeTableIsMirrored(unittest.TestCase):
         self.assertEqual(g.TREE_TILES, dart, "gen_objects.py and garden_engine.dart disagree")
         self.assertEqual(g.TREE_TILES, kotlin, "gen_objects.py and GardenRenderer.kt disagree")
 
-    def test_the_forest_gap_share_matches_in_dart_and_kotlin(self):
-        # Density is duplicated the same way the size table is (#v34.10), and
-        # a mismatch means the phone garden and the live wallpaper grow
-        # different forests from the same save.
-        dart = self._table(
-            os.path.join(FLUTTER, "lib", "engine", "garden_engine.dart"),
-            r"const int kForestGapPercent = (\d+);")
-        kotlin = self._table(
-            os.path.join(FLUTTER, "android_overlay", "kotlin", "com", "pixelpomo",
-                         "pixel_pomo", "GardenRenderer.kt"),
-            r"val forestGapPercent = (\d+)")
-        self.assertEqual(dart, kotlin, "the two renderers disagree on forest density")
+    # Every number that decides what grows where is written twice — once in Dart
+    # for the phone garden, once in Kotlin for the live wallpaper. A mismatch is
+    # silent and grows two different forests from the same save (#v34.10).
+    FOREST_CONSTANTS = [
+        ("forest density", r"const int kForestGapPercent = (\d+);",
+         r"val forestGapPercent = (\d+)"),
+        ("big-tree block size", r"const int kBigTreeBlock = (\d+);",
+         r"val bigTreeBlock = (\d+)"),
+        ("big-tree share of blocks", r"const int kBigTreePercent = (\d+);",
+         r"val bigTreePercent = (\d+)"),
+        ("big-tree clearance", r"const int kBigTreeClearTiles = (\d+);",
+         r"val bigTreeClearTiles = (\d+)"),
+        ("undergrowth apron", r"const int kUndergrowthTiles = (\d+);",
+         r"val undergrowthTiles = (\d+)"),
+    ]
+
+    def test_every_forest_constant_matches_in_dart_and_kotlin(self):
+        dart_path = os.path.join(FLUTTER, "lib", "engine", "garden_engine.dart")
+        kotlin_path = os.path.join(FLUTTER, "android_overlay", "kotlin", "com",
+                                   "pixelpomo", "pixel_pomo", "GardenRenderer.kt")
+        for label, dart_re, kotlin_re in self.FOREST_CONSTANTS:
+            with self.subTest(constant=label):
+                self.assertEqual(self._table(dart_path, dart_re),
+                                 self._table(kotlin_path, kotlin_re),
+                                 f"the two renderers disagree on {label}")
+
+    def test_the_block_spacing_is_wider_than_the_widest_tree(self):
+        # Big trees sit one per block, offset within [1, block-3], so two sites
+        # in neighbouring blocks are at least `block + 1 - (block - 3)` = 4
+        # tiles apart. That is what stops two big trees ever overlapping — and
+        # therefore ever visibly swapping depth as the camera turns (#v34.12).
+        widest = max(g.TREE_TILES) * 0.95
+        self.assertGreaterEqual(4, widest,
+                                "the 4-tile block spacing no longer clears the widest tree")
 
     def test_the_table_covers_every_tree(self):
         self.assertEqual(len(g.TREE_TILES), 20, "one entry per tree_NN sprite")

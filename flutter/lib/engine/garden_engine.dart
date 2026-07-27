@@ -41,11 +41,34 @@ const int kForestTrees = 20, kForestBushes = 10, kForestRocks = 5;
 /// yogun", so 42% (#v34.11) — raise it to thin the woods further.
 const int kForestGapPercent = 42;
 
-/// Tiles nearest the TOP of the visible area only ever get small trees
-/// (#v34.10). A 4-tile tree standing near the top edge has its canopy cut off
-/// by the viewport — "bazi agaclarin kafasi kesik" — because there is simply
-/// no room above it to draw the head. Big trees are kept where they fit.
-const int kNoTallTreeRows = 3;
+/// The woods are small trees, bushes and rocks EVERYWHERE (#v34.12) — "tüm
+/// orman alt taraf gibi olsun". Big trees are the exception, not the rule: one
+/// candidate site per [kBigTreeBlock]x[kBigTreeBlock] block of tiles, placed
+/// away from the block's own edges so two sites in neighbouring blocks always
+/// sit at least 4 tiles apart — wider than the widest tree, so **no two big
+/// trees can ever overlap on screen**.
+///
+/// That separation is the actual fix for "kamera acisi degisince büyük
+/// agaclarin birbirinin icine gecmesi". Two overlapping billboards genuinely
+/// do swap paint order when their ground depths cross mid-turn — that is
+/// correct perspective, not a bug — but with 4-tile canopies the swap covers
+/// half the screen and reads as a pop. Trees that never overlap can never
+/// visibly swap, so the pop is gone by construction rather than by tuning.
+const int kBigTreeBlock = 7;
+
+/// Share of blocks that actually grow their big tree. The rest have none, so
+/// the big ones read as occasional landmarks — "birkac tane" — instead of a
+/// regular grid of them.
+const int kBigTreePercent = 60;
+
+/// Big trees stay this many tiles back from the plot. They can no longer cross
+/// the garden's outline (the plot paints over the woods now), but a 4-tile
+/// canopy hugging the edge would still hide the clearing behind it.
+const int kBigTreeClearTiles = 6;
+
+/// Within this many tiles of the plot the woods are bushes and rocks only —
+/// the "kaya ve otlar" apron the user asked for along the garden's line.
+const int kUndergrowthTiles = 1;
 
 /// How many tiles wide/tall each tree is drawn at (#v34.8).
 ///
@@ -101,15 +124,6 @@ int _hash2(int c, int r) {
   return h & 0x7fffffff;
 }
 
-/// Deterministic, varied forest prop for an unclaimed tile (or null = grass gap).
-/// Weighting: mostly trees, some bushes, few rocks, occasional gap — stable so
-/// the forest never shimmers between frames (#5).
-/// How far outside the plot (in tiles) counts as "at the garden's edge", where
-/// the woods drop to undergrowth (#v34.11). A full-height tree right against
-/// the plot leans over the garden and crosses its line, which is what "bahcenin
-/// hizasina gecmelerini istemiyorum" meant.
-const int kGardenEdgeTiles = 2;
-
 /// Tiles outside the plot rect, 0 when inside. Chebyshev, so a corner counts
 /// the same as a side.
 int tilesOutsidePlot(int c, int r, int cols, int rows) {
@@ -118,45 +132,83 @@ int tilesOutsidePlot(int c, int r, int cols, int rows) {
   return dx > dy ? dx : dy;
 }
 
-String? forestPropAt(int c, int r, {bool allowTallTrees = true, bool gardenEdge = false}) {
+/// Floor division — Dart's `~/` truncates toward zero, which would fuse the
+/// blocks either side of 0 into one double-width block.
+int _floorDiv(int a, int b) => (a >= 0 ? a : a - b + 1) ~/ b;
+
+/// Deterministic forest prop for a tile outside the plot (null = bare
+/// woodland floor).
+///
+/// **A pure function of the tile and the plot size — nothing else.** Until
+/// #v34.12 the caller passed in flags derived from the *viewport*
+/// (`allowTallTrees: r > vb.minR + 3`), so the same tile grew a 2-tile tree at
+/// one camera yaw and a 4-tile one at another: the tree visibly changed shape
+/// as you turned, which is what "cizimde aci degisiyor ... saga bakarken sola
+/// bakiyormus gibi" was seeing. It was never a mirrored sprite — nothing in
+/// the painter flips a billboard — it was the tile swapping species mid-turn.
+/// Anything that depends on the camera cannot decide what grows where.
+String? forestPropAt(int c, int r, int cols, int rows) {
+  final d = tilesOutsidePlot(c, r, cols, rows);
+  if (d == 0) return null; // inside the plot — the garden owns this tile
   final h = _hash2(c, r);
   final bucket = h % 100;
   final pick = h ~/ 100;
   String id(String kind, int n) => '${kind}_${(pick % n).toString().padLeft(2, '0')}';
-  if (bucket < kForestGapPercent) return null; // bare grass
 
-  // Right at the garden's edge the woods thin into undergrowth: small trees,
-  // more bushes, and a lot more rocks. Nothing tall enough to lean over the
-  // plot and break its outline (#v34.11).
-  if (gardenEdge) {
-    if (bucket < 58) {
-      return _smallTree(pick);
-    } else if (bucket < 80) {
-      return id('bush', kForestBushes);
-    }
-    return id('rock', kForestRocks);
+  // A big tree, where one of the sparse isolated sites lands far enough back.
+  // Checked BEFORE the gap roll: a landmark tree shouldn't be cancelled by the
+  // same coin flip that thins the undergrowth.
+  if (d >= kBigTreeClearTiles) {
+    final big = _bigTreeAt(c, r);
+    if (big != null) return big;
   }
 
-  if (bucket < 84) {
-    final n = pick % kForestTrees;
-    // near the top edge, fall back to a SMALL tree so its head is not cut off
-    // by the viewport (#v34.10)
-    if (!allowTallTrees && kTreeTiles[n] > 2) return _smallTree(pick);
-    return 'tree_${n.toString().padLeft(2, '0')}';
+  if (bucket < kForestGapPercent) return null; // bare woodland floor
+
+  // Everything else is undergrowth: small trees, bushes, rocks. Right against
+  // the plot even the small trees drop out, leaving the low apron — and the
+  // apron is thinner than the woods proper, or the ring of tiles hugging a
+  // straight plot edge lines its props up into what reads as a laid stone
+  // border around the garden rather than the edge of a clearing.
+  if (d <= kUndergrowthTiles) {
+    if (bucket < 62) return null;
+    return bucket < 84 ? id('bush', kForestBushes) : id('rock', kForestRocks);
   }
+  if (bucket < 84) return _smallTree(pick);
   if (bucket < 94) return id('bush', kForestBushes);
   return id('rock', kForestRocks);
 }
 
-/// The nearest 2-tile tree to [pick] — used wherever a full-height tree would
-/// be cut off or would lean over the garden.
-String _smallTree(int pick) {
+/// The big tree standing on tile (c,r), if any. One candidate site per
+/// [kBigTreeBlock]-square block, offset within `[1, block-3]` on each axis so
+/// sites in neighbouring blocks are always >= 4 tiles apart — the widest tree
+/// is 3.8 tiles, so two big trees never overlap and so can never visibly swap
+/// depth as the camera turns.
+String? _bigTreeAt(int c, int r) {
+  final bc = _floorDiv(c, kBigTreeBlock), br = _floorDiv(r, kBigTreeBlock);
+  // a separate hash stream from the per-tile one, so which blocks grow a tree
+  // is independent of what the tiles themselves rolled
+  final h = _hash2(bc * 2 + 1, br * 2 + 1);
+  if (h % 100 >= kBigTreePercent) return null; // this block has no big tree
+  final span = kBigTreeBlock - 3;
+  final ox = (h ~/ 100) % span + 1, oy = (h ~/ 700) % span + 1;
+  if (c - bc * kBigTreeBlock != ox || r - br * kBigTreeBlock != oy) return null;
+  return _bigTree(h ~/ 4900);
+}
+
+/// The nearest 2-tile tree to [pick] — the whole forest is built from these.
+String _smallTree(int pick) => _treeOfSize(pick, (t) => t == 2, 'tree_00');
+
+/// The nearest 3-or-4-tile tree to [pick].
+String _bigTree(int pick) => _treeOfSize(pick, (t) => t >= 3, 'tree_01');
+
+String _treeOfSize(int pick, bool Function(int) want, String fallback) {
   final n = pick % kForestTrees;
   for (var i = 0; i < kForestTrees; i++) {
     final alt = (n + i) % kForestTrees;
-    if (kTreeTiles[alt] == 2) return 'tree_${alt.toString().padLeft(2, '0')}';
+    if (want(kTreeTiles[alt])) return 'tree_${alt.toString().padLeft(2, '0')}';
   }
-  return 'tree_00';
+  return fallback;
 }
 
 /// Flat ambient palette per fence id as `(side, top, rail)`. The top face is a
@@ -607,6 +659,25 @@ class GardenPainter extends CustomPainter {
     //    them out of the depth-sorted prop list (see below).
     canvas.drawRect(Offset.zero & size, Paint()..color = const Color(0xFF12301A));
 
+    // 0b) the woods, painted BEFORE the plot (#v34.12).
+    //
+    //     "ormanin hic bir kisminin bahcenin cizgisini gecmesini istemiyorum."
+    //     A billboard is anchored on its tile's ground point and drawn upward,
+    //     so a prop on the near side of the clearing reaches up over the plot's
+    //     edge — that is what kept crossing the outline. Every earlier attempt
+    //     was a distance band guessed against the tree height, and each one
+    //     leaked, because the screen clearance a tile actually has depends on
+    //     the camera yaw and the band did not.
+    //
+    //     Painting the woods under the soil slab and the grass makes it exact
+    //     instead of tuned: the plot covers anything that reaches it, at every
+    //     yaw, zoom and pan, whatever size the trees are. The outline is always
+    //     one unbroken shape. The size ramp in forestPropAt stays, but its job
+    //     is now cosmetic — keep the props that hug the line short enough that
+    //     the hidden sliver is never noticeable.
+    final standing = <(double, void Function())>[]; // (depthY, paint) — garden props
+    _paintWoods(canvas, p, size);
+
     // 1) soil slab — extrude each claimed-plot edge downward for 2.5D thickness.
     final soil = Paint()..color = Color(soilColor);
     for (var i = 0; i < 4; i++) {
@@ -666,64 +737,26 @@ class GardenPainter extends CustomPainter {
     // 3) customize gridlines over the claimed plot.
     if (customizing) _paintGrid(canvas, p);
 
-    // 4) standing things, depth-sorted back-to-front by screen-y: forest trees
-    //    on every VISIBLE tile outside the claimed plot (so the woods fill the
-    //    screen — no void) + claimed props + the fence rails between them.
-    //    Fences are low-poly 3D posts/rails; trees and flowers are flat
-    //    billboards grounded with a contact shadow. Rails share this same sort
-    //    (keyed by the midpoint of the two posts they link) instead of always
-    //    painting in an earlier fixed pass, so a flower correctly passes behind
-    //    a nearer rail/post instead of always drawing over it (#v31.18).
-    final vb = p.visibleTileBounds(size); // forest on every visible tile → fills the screen (#v18)
-    final standing = <(double, void Function())>[]; // (depthY, paint)
-    final woods = <(double, void Function())>[]; // the forest, its own layer
-    for (var r = vb.minR; r <= vb.maxR; r++) {
-      for (var c = vb.minC; c <= vb.maxC; c++) {
-        if (isGardenTile(c, r, _cols, _rows)) {
-          final prop = garden.propAt(r * _cols + c);
-          if (prop == null) continue;
-          final anchor = p.ground(c, r);
-          if (Placeables.isFence(prop)) {
-            standing.add((anchor.dy, () => _paintFencePost(canvas, p, c, r, prop)));
-          } else {
-            // flowers stand still — no wind sway (#v20 item 2)
-            standing.add(
-                (anchor.dy, () => _paintBillboard(canvas, sprites.flower(prop), anchor, p.t)));
-          }
+    // 4) the garden's own standing things, depth-sorted back-to-front by
+    //    screen-y: claimed props + the fence rails between them. Fences are
+    //    low-poly 3D posts/rails; flowers are flat billboards. Rails share this
+    //    same sort (keyed by the midpoint of the two posts they link) instead
+    //    of always painting in an earlier fixed pass, so a flower correctly
+    //    passes behind a nearer rail/post instead of always drawing over it
+    //    (#v31.18). The woods went down in step 0b, under all of this.
+    for (var r = 0; r < _rows; r++) {
+      for (var c = 0; c < _cols; c++) {
+        final prop = garden.propAt(r * _cols + c);
+        if (prop == null) continue;
+        final anchor = p.ground(c, r);
+        if (Placeables.isFence(prop)) {
+          standing.add((anchor.dy, () => _paintFencePost(canvas, p, c, r, prop)));
         } else {
-          // A forest prop on a tile outside the plot. Collected into its OWN
-          // list, not the garden's depth-sorted `standing` one (#v34.10): the
-          // woods are scenery behind the garden, so they paint as one flat
-          // layer underneath it and can never interleave with — or pop in
-          // front of — a flower or a fence. That is the "don't follow like the
-          // flowers" part, and it also means no cross-sort to flip mid-turn.
-          // Tall trees live at the BACK only (#v34.11). Two overlapping
-          // billboards genuinely swap order when their depths cross as the
-          // camera turns — that is correct perspective, not a bug — but with a
-          // 4-tile tree in the near rows the swap is enormous and reads as a
-          // pop. Keeping the big ones behind the plot means the things that
-          // cross in front of each other are all roughly one size, so a swap
-          // is barely visible. Also excluded: the top rows, where a tall
-          // canopy would be cut off by the viewport (#v34.10).
-          final nearRows = r >= _rows; // in front of the plot, closest to the eye
-          final fp = forestPropAt(c, r,
-              allowTallTrees: r > vb.minR + kNoTallTreeRows && !nearRows,
-              gardenEdge: tilesOutsidePlot(c, r, _cols, _rows) <= kGardenEdgeTiles);
-          if (fp == null) continue;
-          final anchor = p.ground(c, r);
-          final isRock = fp.startsWith('rock_');
-          final tiles = forestPropTiles(fp);
-          woods.add((anchor.dy,
-              () => _paintBillboard(canvas, sprites.forestProp(fp), anchor, p.t,
-                  height: isRock ? 0.6 : tiles * 1.05,
-                  width: isRock ? 0.8 : tiles * 0.95)));
+          // flowers stand still — no wind sway (#v20 item 2)
+          standing.add(
+              (anchor.dy, () => _paintBillboard(canvas, sprites.flower(prop), anchor, p.t)));
         }
       }
-    }
-    // the woods first, back-to-front among themselves, all of it under the
-    // garden's own props
-    for (final i in stableDepthOrder(woods.map((w) => w.$1).toList(growable: false))) {
-      woods[i].$2();
     }
     _collectFenceRails(canvas, p, standing);
     for (final i in stableDepthOrder(standing.map((s) => s.$1).toList(growable: false))) {
@@ -732,6 +765,49 @@ class GardenPainter extends CustomPainter {
 
     // 5) critters on top of everything (projected from claimed garden coords)
     _paintCritters(canvas, p, t);
+  }
+
+  /// The forest — every tile outside the plot that can reach the screen, sorted
+  /// back-to-front among themselves.
+  ///
+  /// Kept in its own layer instead of merged into the garden's `standing` sort
+  /// (#v34.10): the woods are scenery, so they can never interleave with — or
+  /// pop in front of — a flower or a fence. That is the "orman cicekler gibi
+  /// kamerayi takip etmesin" part. The trees still turn with the world, they
+  /// just take no part in the garden's own depth sort.
+  void _paintWoods(Canvas canvas, Projector p, Size size) {
+    final vb = p.visibleTileBounds(size);
+    // Scan past the viewport far enough that a tree whose GROUND tile is off
+    // screen still paints its canopy into view (#v34.12). Without this the top
+    // of the screen was a row of flat-cut trunks — "agaclarin kafasi kesik" —
+    // because the tile that would have grown the tree standing up there was
+    // never visited at all. One tile of up-screen travel costs at most 1/kVy
+    // tiles of grid travel, so this is the worst case for the tallest tree.
+    // Purely extra hash lookups: anything that lands off screen is culled below
+    // before it reaches the paint list.
+    final tallest = kTreeTiles.reduce((a, b) => a > b ? a : b);
+    final bleed = (tallest * 1.05 / kVy).ceil();
+    final woods = <(double, void Function())>[];
+    for (var r = vb.minR - bleed; r <= vb.maxR + bleed; r++) {
+      for (var c = vb.minC - bleed; c <= vb.maxC + bleed; c++) {
+        final fp = forestPropAt(c, r, _cols, _rows); // null inside the plot
+        if (fp == null) continue;
+        final anchor = p.ground(c, r);
+        final isRock = fp.startsWith('rock_');
+        final tiles = forestPropTiles(fp);
+        final h = isRock ? 0.6 : tiles * 1.05;
+        final w = isRock ? 0.8 : tiles * 0.95;
+        if (anchor.dy < 0 || anchor.dy - h * p.t > size.height) continue;
+        final halfW = w * p.t / 2;
+        if (anchor.dx + halfW < 0 || anchor.dx - halfW > size.width) continue;
+        woods.add((anchor.dy,
+            () => _paintBillboard(canvas, sprites.forestProp(fp), anchor, p.t,
+                height: h, width: w)));
+      }
+    }
+    for (final i in stableDepthOrder(woods.map((w) => w.$1).toList(growable: false))) {
+      woods[i].$2();
+    }
   }
 
   // ---- decorative grass daisies (#v19) --------------------------------------
