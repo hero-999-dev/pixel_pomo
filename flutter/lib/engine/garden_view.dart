@@ -98,6 +98,10 @@ class GardenView extends StatefulWidget {
   /// When false the view ignores gestures (used as a live backdrop).
   final bool interactive;
 
+  /// Draw the woods only, with no clearing in them — the FOREST home backdrop
+  /// (#v35.0).
+  final bool forestOnly;
+
   /// When provided, the parent owns the camera so it can read the current
   /// framing (yaw/zoom/pan) — used to set the live wallpaper (v15).
   final GardenCamera? camera;
@@ -119,6 +123,7 @@ class GardenView extends StatefulWidget {
     this.captureKey,
     this.cameraMode = false,
     this.interactive = true,
+    this.forestOnly = false,
     this.camera,
   });
 
@@ -304,6 +309,7 @@ class _GardenViewState extends State<GardenView> with SingleTickerProviderStateM
         groundColor: widget.groundColor,
         soilColor: widget.soilColor,
         repaint: _frame,
+        forestOnly: widget.forestOnly,
       );
 
   @override

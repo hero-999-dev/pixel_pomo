@@ -11,6 +11,7 @@ import math
 import os
 import struct
 import zlib
+from collections import deque
 
 # Number of frames in every directional atlas (must match dir8 in the Dart
 # engine). Frame k is the billboard spun by k*360/FRAMES degrees about the
@@ -272,38 +273,54 @@ def _tree_variant(seed):
         if not rows:
             return
         cols = [c for c in range(n) if any(mask[r][c] for r in range(n))]
-        top, bot = rows[0], rows[-1]
-        mid_x = (cols[0] + cols[-1]) / 2.0
-
-        # rim thickness scales with the crown, so a 64px tree isn't outlined
-        # with the same 1px edge a 32px one gets
+        ctr_r = (rows[0] + rows[-1]) / 2.0
+        ctr_c = (cols[0] + cols[-1]) / 2.0
         hcx, hcy, hrad, hsq, has_lit = lobes[0]
-        rim = max(1, int(round(hrad * 0.30)))
 
-        def outside(r, c):
-            return not (0 <= r < n and 0 <= c < n and mask[r][c])
+        # True distance from the crown's outline, so the shading is a RIM that
+        # follows the silhouette (#v34.18). The half-plane tests this replaces
+        # ("lower 18% is underside", "right of centre and near an edge is
+        # shade") painted flat slabs instead: a dark horizontal band across the
+        # bottom of every canopy, which read as a shadow lying under the tree
+        # beside its trunk — "agaclarin altlarinda odun kisminin disinda gölge
+        # olmasin" — and a blocky dark wedge wherever a lobe stuck out to the
+        # lower right, which made one shoulder not match the other, "sag alt
+        # problemli sol alt ile es degil".
+        dist = [[0] * n for _ in range(n)]
+        frontier = deque()
+        for r in range(n):
+            for c in range(n):
+                if not mask[r][c]:
+                    frontier.append((r, c))
+        seen = [[not mask[r][c] for c in range(n)] for r in range(n)]
+        while frontier:
+            r, c = frontier.popleft()
+            for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                nr, nc = r + dr, c + dc
+                if 0 <= nr < n and 0 <= nc < n and not seen[nr][nc]:
+                    seen[nr][nc] = True
+                    dist[nr][nc] = dist[r][c] + 1
+                    frontier.append((nr, nc))
 
         for r in range(n):
             for c in range(n):
                 if not mask[r][c]:
                     continue
-                # distance to the crown's own outline, sampled in the four
-                # directions that matter for a lit-from-above-left look
-                near_edge = any(
-                    outside(r + dr * k, c + dc * k)
-                    for k in range(1, rim + 1)
-                    for dr, dc in ((1, 0), (0, 1), (0, -1), (-1, 0)))
-                below = (r - top) / max(1.0, bot - top)
+                d = dist[r][c]
+                lower = r > ctr_r
+                right = c > ctr_c
                 hx = (c - hcx) + hrad * 0.42          # highlight centre, up-left
                 hy = (r - hcy) * hsq + hrad * 0.42
-                if below > 0.82:
-                    col = under
-                elif near_edge and (c > mid_x or below > 0.55):
-                    col = shade
+                if d == 1 and lower:
+                    col = under        # a ONE-pixel underside rim, not a band
+                elif d == 1 and right:
+                    col = shade        # away from the light
+                elif d <= 2 and (lower or right):
+                    col = shade        # a thin falloff so the rim isn't a hard line
                 elif has_lit and hx * hx + hy * hy < (hrad * 0.30) ** 2:
                     col = lit
                 else:
-                    col = mid
+                    col = mid          # the lit side keeps no dark outline at all
                 g[r][c] = col
 
     if shape == 1:

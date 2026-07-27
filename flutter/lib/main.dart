@@ -487,6 +487,10 @@ class HomeScreen extends StatelessWidget {
           lang: lang,
           tr: (k) => t(lang, k),
           interactive: false,
+          forestOnly: s.homeForestBackdrop,
+          // FOREST is the view from high above (#v35.0) — zoomed out so the
+          // canopy reads as a treetop carpet rather than a handful of trunks.
+          camera: s.homeForestBackdrop ? GardenCamera(zoom: 0.5) : null,
         );
       },
     );
@@ -691,12 +695,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
       // row now, and tapping it with no photo opens the how-to (#v34).
       Row(
         children: [
-          for (final mode in ['clean', 'garden', 'wallpaper']) ...[
-            if (mode != 'clean') const SizedBox(width: 12),
+          for (final mode in ['clean', 'garden', 'forest', 'wallpaper']) ...[
+            if (mode != 'clean') const SizedBox(width: 8),
             Expanded(
               child: PixelButton(
                 key: Key('homeMode_$mode'),
-                text: t(lang, mode == 'clean' ? 'clean' : (mode == 'garden' ? 'gardenMode' : 'wallMode')),
+                text: t(
+                    lang,
+                    switch (mode) {
+                      'clean' => 'clean',
+                      'garden' => 'gardenMode',
+                      'forest' => 'forestMode',
+                      _ => 'wallMode',
+                    }),
                 fill: s.homeBackdrop == mode ? th.accent : th.panel,
                 border: s.homeBackdrop == mode ? th.onSurface : th.onSurfaceDim,
                 textColor: s.homeBackdrop == mode ? th.onAccent : th.onSurface,

@@ -293,16 +293,7 @@ String? forestPropAt(int c, int r, int cols, int rows) {
     if (big != null) return big;
   }
 
-  // The tile hard against the clearing has its own mix (#v34.17): denser than
-  // the woods so its rim has no holes, but with far fewer trees in it — the
-  // flanks take a NARROW tree only, and the near and far edges none at all,
-  // since a tree there reaches 1.5 tiles up over the garden.
-  if (d == 1) {
-    if (bucket < kRingInnerGapPercent) return null;
-    if (bucket < 44 && isPlotSideTile(c, r, cols, rows)) return _narrowTree(pick);
-    if (bucket < 68) return id('bush', kForestBushes);
-    return id('rock', kForestRocks);
-  }
+  if (d == 1) return _innerRingProp(c, r, cols, rows);
 
   if (bucket < kForestGapPercent) return null; // bare woodland floor
 
@@ -322,6 +313,73 @@ String? forestPropAt(int c, int r, int cols, int rows) {
   if (bucket < 84) return _smallTree(pick);
   if (bucket < 94) return id('bush', kForestBushes);
   return id('rock', kForestRocks);
+}
+
+/// The tile one step FURTHER from the plot than (c,r), along whichever edge
+/// this tile sits off.
+(int, int) _outward(int c, int r, int cols, int rows) {
+  if (c < 0) return (c - 1, r);
+  if (c > cols - 1) return (c + 1, r);
+  if (r < 0) return (c, r - 1);
+  return (c, r + 1);
+}
+
+/// The tile one step ALONG the rim from (c,r) — sideways on a flank, lengthways
+/// on the near and far edges.
+(int, int) _alongRim(int c, int r, int cols, int rows) =>
+    isPlotSideTile(c, r, cols, rows) ? (c, r - 1) : (c - 1, r);
+
+/// The raw roll for the tile hard against the clearing, before the two
+/// anti-clustering rules below are applied to it.
+String? _innerRingRaw(int c, int r, int cols, int rows) {
+  final bucket = _hash2(c, r) % 100;
+  final pick = _hash2(c, r) ~/ 100;
+  String id(String kind, int n) => '${kind}_${(pick % n).toString().padLeft(2, '0')}';
+  if (bucket < kRingInnerGapPercent) return null;
+  final flank = isPlotSideTile(c, r, cols, rows);
+  if (flank) {
+    if (bucket < 52) return _narrowTree(pick);
+    if (bucket < 88) return id('bush', kForestBushes);
+    return id('rock', kForestRocks);
+  }
+  // The near and far edges take NO rocks (#v34.18). The plot's soil slab hangs
+  // below its edge, and a rock one tile out is short enough that its sprite
+  // straddles the slab's lower lip — so it reads as a pebble stuck to the side
+  // of the raised bed rather than sitting on the ground: "tas havada duruyor".
+  // A bush is tall enough to clear the slab and read as standing on the floor.
+  return id('bush', kForestBushes);
+}
+
+/// The tile hard against the clearing (#v34.17), with the rim tidied (#v34.18).
+///
+/// Two deterministic anti-clustering passes on top of the roll, because at one
+/// tile out the eye reads the whole rim as a line and picks out any repetition
+/// in it — "2 tas yana gelmesin", "üstte 2 ve 3. satir ayni anda bosalmis".
+/// Both look at a NEIGHBOUR'S raw roll, never at its finished value, so there
+/// is no chain of dependencies and the result stays a pure function of the tile.
+String? _innerRingProp(int c, int r, int cols, int rows) {
+  final pick = _hash2(c, r) ~/ 100;
+  var me = _innerRingRaw(c, r, cols, rows);
+
+  // a hole is only allowed if the tile behind it is not also a hole, or the
+  // two rings open up together and leave a bald patch in the rim
+  if (me == null) {
+    final (oc, or_) = _outward(c, r, cols, rows);
+    if (forestPropAt(oc, or_, cols, rows) == null) {
+      return 'bush_${(pick % kForestBushes).toString().padLeft(2, '0')}';
+    }
+    return null;
+  }
+
+  // no two rocks side by side along the rim
+  if (me.startsWith('rock_')) {
+    final (nc, nr) = _alongRim(c, r, cols, rows);
+    final neighbour = _innerRingRaw(nc, nr, cols, rows);
+    if (neighbour != null && neighbour.startsWith('rock_')) {
+      return 'bush_${(pick % kForestBushes).toString().padLeft(2, '0')}';
+    }
+  }
+  return me;
 }
 
 /// The big tree standing on tile (c,r), if any. One candidate site per
@@ -758,6 +816,13 @@ class CritterSystem {
 
 // ---- painter ----------------------------------------------------------------
 
+/// Sampling offset for the FOREST backdrop (#v35.0). The woods are a pure
+/// function of the tile, so drawing them from far away in world space gives a
+/// screen of deep forest — no clearing, no undergrowth rim, and no plot-shaped
+/// hole in the middle — without a second code path to keep in step with this
+/// one. Any large offset does; this one is arbitrary.
+const int kForestBackdropOffset = 4096;
+
 class GardenPainter extends CustomPainter {
   final Garden garden;
   final GardenCamera cam;
@@ -766,6 +831,10 @@ class GardenPainter extends CustomPainter {
   final bool customizing;
   final int groundColor;
   final int soilColor;
+
+  /// Draw only the woods, from [kForestBackdropOffset] away — the "forest"
+  /// home backdrop, a canopy seen from above with no garden in it.
+  final bool forestOnly;
 
   GardenPainter({
     required this.garden,
@@ -776,6 +845,7 @@ class GardenPainter extends CustomPainter {
     required this.groundColor,
     required this.soilColor,
     required Listenable repaint,
+    this.forestOnly = false,
   }) : super(repaint: repaint);
 
   double get time => critterSystem.time;
@@ -811,6 +881,12 @@ class GardenPainter extends CustomPainter {
     //    behaving like the garden's own flowers, which is handled by keeping
     //    them out of the depth-sorted prop list (see below).
     canvas.drawRect(Offset.zero & size, Paint()..color = const Color(0xFF12301A));
+
+    // FOREST backdrop: the woods and nothing else (#v35.0).
+    if (forestOnly) {
+      _paintWoods(canvas, p, size);
+      return;
+    }
 
     final standing = <(double, void Function())>[]; // (depthY, paint) — garden props
 
@@ -934,9 +1010,10 @@ class GardenPainter extends CustomPainter {
     final tallest = kTreeTiles.reduce((a, b) => a > b ? a : b);
     final bleed = (tallest * 1.05 / kVy).ceil();
     final woods = <(double, void Function())>[];
+    final off = forestOnly ? kForestBackdropOffset : 0;
     for (var r = vb.minR - bleed; r <= vb.maxR + bleed; r++) {
       for (var c = vb.minC - bleed; c <= vb.maxC + bleed; c++) {
-        final fp = forestPropAt(c, r, _cols, _rows); // null inside the plot
+        final fp = forestPropAt(c + off, r + off, _cols, _rows); // null inside the plot
         if (fp == null) continue;
         final anchor = p.ground(c, r);
         final h = forestPropHeight(fp), w = forestPropWidth(fp);

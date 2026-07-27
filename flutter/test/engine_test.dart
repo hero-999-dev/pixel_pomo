@@ -292,6 +292,82 @@ void main() {
       expect(found, greaterThan(0), reason: 'sanity: the flanks grew some trees');
     });
 
+    test('no two rocks sit side by side along the rim', () {
+      // "2 tas yana gelmesin" — at one tile out the eye reads the rim as a
+      // line, so a repeated sprite in it is obvious in a way it never is out
+      // in the woods.
+      for (var r = -1; r <= rows; r++) {
+        for (var c = -1; c <= cols; c++) {
+          if (tilesOutsidePlot(c, r, cols, rows) != 1) continue;
+          final me = forestPropAt(c, r, cols, rows);
+          if (me == null || !me.startsWith('rock_')) continue;
+          for (final (nc, nr) in [(c - 1, r), (c + 1, r), (c, r - 1), (c, r + 1)]) {
+            if (tilesOutsidePlot(nc, nr, cols, rows) != 1) continue;
+            final other = forestPropAt(nc, nr, cols, rows);
+            expect(other?.startsWith('rock_') ?? false, false,
+                reason: 'rocks touching at ($c,$r) and ($nc,$nr)');
+          }
+        }
+      }
+    });
+
+    test('a hole in the rim is never backed by a second one', () {
+      // "üstte 2 ve 3. satir ayni anda bosalmis kötü duruyor" — one gap reads
+      // as a clearing edge, two stacked reads as a bald patch.
+      for (var r = -1; r <= rows; r++) {
+        for (var c = -1; c <= cols; c++) {
+          if (tilesOutsidePlot(c, r, cols, rows) != 1) continue;
+          if (forestPropAt(c, r, cols, rows) != null) continue;
+          final out = c < 0
+              ? (c - 1, r)
+              : c > cols - 1
+                  ? (c + 1, r)
+                  : r < 0
+                      ? (c, r - 1)
+                      : (c, r + 1);
+          expect(forestPropAt(out.$1, out.$2, cols, rows), isNotNull,
+              reason: 'the rim is bald at ($c,$r) and behind it');
+        }
+      }
+    });
+
+    test('no rocks against the near and far edges', () {
+      // "tas havada duruyor": the plot's soil slab hangs below its edge, and a
+      // rock one tile out is short enough that its sprite straddles the slab's
+      // lower lip — so it reads as stuck to the side of the raised bed rather
+      // than standing on the forest floor. A bush clears the slab.
+      for (var r = -1; r <= rows; r++) {
+        for (var c = -1; c <= cols; c++) {
+          if (tilesOutsidePlot(c, r, cols, rows) != 1) continue;
+          if (isPlotSideTile(c, r, cols, rows)) continue;
+          final id = forestPropAt(c, r, cols, rows);
+          expect(id?.startsWith('rock_') ?? false, false,
+              reason: '$id at ($c,$r) is a rock against the slab');
+        }
+      }
+    });
+
+    test('the forest backdrop samples deep woods, with no clearing in it', () {
+      // #v35.0 — the FOREST home backdrop draws the same woods from
+      // kForestBackdropOffset away, so every tile on screen is deep forest:
+      // no plot-shaped hole, no undergrowth rim, and no second code path.
+      var props = 0, tiles = 0, rimProps = 0;
+      for (var r = -20; r < 20; r++) {
+        for (var c = -20; c < 20; c++) {
+          final oc = c + kForestBackdropOffset, or = r + kForestBackdropOffset;
+          expect(tilesOutsidePlot(oc, or, cols, rows),
+              greaterThan(kUndergrowthTiles),
+              reason: 'the offset does not clear the clearing rim');
+          tiles++;
+          final id = forestPropAt(oc, or, cols, rows);
+          if (id != null) props++;
+          if (id != null && id.startsWith('rock_')) rimProps++;
+        }
+      }
+      expect(props / tiles, greaterThan(0.5), reason: 'the backdrop has holes in it');
+      expect(rimProps, greaterThan(0), reason: 'sanity: deep woods still have rocks');
+    });
+
     test('the innermost ring tile is denser than the woods', () {
       // "birinci hatta bazen cok bosluk oluyor" — a hole at one tile out is a
       // hole in the clearing's own rim, so it runs at its own lower gap rate.

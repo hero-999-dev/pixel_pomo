@@ -92,7 +92,12 @@ class AppStore extends ChangeNotifier {
   // GARDEN on a fresh install (#v34) — the garden is the app's face, and a new
   // user who never opens Settings should see it.
   String homeBackdrop = 'garden';
-  bool get homeGardenBackdrop => homeBackdrop == 'garden';
+
+  /// The home screen shows the live 2.5D scene — as the garden clearing, or as
+  /// FOREST: the same world seen from far enough up that the plot is out of
+  /// frame and only the canopy shows (#v35.0).
+  bool get homeGardenBackdrop => homeBackdrop == 'garden' || homeBackdrop == 'forest';
+  bool get homeForestBackdrop => homeBackdrop == 'forest';
 
   /// True when the home screen sits on imagery rather than the flat theme
   /// background — the garden or a wallpaper. Both need the light text + hard

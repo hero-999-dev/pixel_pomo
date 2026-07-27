@@ -279,7 +279,14 @@ class TreesAreWellFormed(unittest.TestCase):
         for seed in range(1, len(g.TREE_TILES) + 1):
             canopy = [px for row in g._tree_variant(seed) for px in row
                       if px[3] and px[1] > px[0] and px[1] > px[2]]
-            if canopy and sum(px[1] for px in canopy) / len(canopy) < 75:
+            # 90 sits in the empty band between the two clusters the seven hue
+            # families actually produce: 74.7-80.7 for the three dark ones and
+            # 104-132 for the four bright ones, with nothing in between. The
+            # old 75 was calibrated against the pre-#v34.18 shading, where a
+            # wide dark underside band dragged every mean down — it landed
+            # INSIDE the dark cluster, so thinning the rim to a 1px outline
+            # made genuinely-dark trees start reading as bright.
+            if canopy and sum(px[1] for px in canopy) / len(canopy) < 90:
                 dark += 1
         self.assertGreaterEqual(dark, 3, "no dark trees left in the mix")
         self.assertLess(dark, len(g.TREE_TILES), "every tree went dark")

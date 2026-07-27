@@ -654,6 +654,49 @@ class GardenRenderer(private val data: GardenData) {
         return dx > 0 && dy == 0
     }
 
+    /** The raw roll for the tile hard against the clearing, before the two
+     *  anti-clustering rules. Mirrors _innerRingRaw in garden_engine.dart. */
+    private fun innerRingRaw(c: Int, r: Int): String? {
+        val hsh = hash2(c, r); val bucket = hsh % 100; val pick = hsh / 100
+        fun id(kind: String, n: Int) = "${kind}_" + (pick % n).toString().padStart(2, '0')
+        if (bucket < ringInnerGapPercent) return null
+        if (isPlotSideTile(c, r)) {
+            return when {
+                bucket < 52 -> narrowTree(pick)
+                bucket < 88 -> id("bush", 10)
+                else -> id("rock", 5)
+            }
+        }
+        // no rocks on the near/far edges: the soil slab hangs below the plot's
+        // edge and a rock one tile out straddles its lower lip (#v34.18)
+        return id("bush", 10)
+    }
+
+    /** Mirrors _innerRingProp in garden_engine.dart: no bald patch where the
+     *  rim and the row behind it open together, and no two rocks side by side
+     *  along the rim. Both read a NEIGHBOUR'S raw roll, never its finished
+     *  value, so there is no chain of dependencies. */
+    private fun innerRingProp(c: Int, r: Int): String? {
+        val pick = hash2(c, r) / 100
+        fun bush() = "bush_" + (pick % 10).toString().padStart(2, '0')
+        val me = innerRingRaw(c, r)
+        if (me == null) {
+            val (oc, or) = when {
+                c < 0 -> (c - 1) to r
+                c > cols - 1 -> (c + 1) to r
+                r < 0 -> c to (r - 1)
+                else -> c to (r + 1)
+            }
+            return if (forestPropAt(oc, or) == null) bush() else null
+        }
+        if (me.startsWith("rock_")) {
+            val (nc, nr) = if (isPlotSideTile(c, r)) c to (r - 1) else (c - 1) to r
+            val nb = innerRingRaw(nc, nr)
+            if (nb != null && nb.startsWith("rock_")) return bush()
+        }
+        return me
+    }
+
     /** Mirrors forestPropAt in garden_engine.dart — a pure function of the tile
      *  and the plot size, so nothing about the camera can change what grows. */
     private fun forestPropAt(c: Int, r: Int): String? {
@@ -664,18 +707,7 @@ class GardenRenderer(private val data: GardenData) {
         if (d >= midTreeClearTiles) {
             bigTreeAt(c, r, if (d >= bigTreeClearTiles) 4 else 3)?.let { return it }
         }
-        // The tile hard against the clearing has its own mix (#v34.17): denser
-        // than the woods so its rim has no holes, but with far fewer trees —
-        // the flanks take a NARROW tree only, the near and far edges none.
-        // Mirrors forestPropAt in garden_engine.dart.
-        if (d == 1) {
-            return when {
-                bucket < ringInnerGapPercent -> null
-                bucket < 44 && isPlotSideTile(c, r) -> narrowTree(pick)
-                bucket < 68 -> id("bush", 10)
-                else -> id("rock", 5)
-            }
-        }
+        if (d == 1) return innerRingProp(c, r)
         return when {
             bucket < forestGapPercent -> null
             d <= undergrowthTiles && bucket < 78 -> smallTree(pick)
