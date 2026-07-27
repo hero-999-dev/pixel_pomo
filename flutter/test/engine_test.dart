@@ -196,13 +196,29 @@ void main() {
       }
     });
 
-    test('big trees keep well back from the plot', () {
+    test('taller trees keep their distance, by size', () {
+      // 3-tile trees may come as close as kMidTreeClearTiles so the middle
+      // distances aren't one repeated silhouette (#v34.15); a full 4-tile tree
+      // leans 1.8 tiles over the plot from there, so it stays further back.
       patch().forEach((at, id) {
         if (!isBig(id)) return;
-        expect(tilesOutsidePlot(at.$1, at.$2, cols, rows),
-            greaterThanOrEqualTo(kBigTreeClearTiles),
-            reason: '$id at $at is crowding the clearing');
+        final d = tilesOutsidePlot(at.$1, at.$2, cols, rows);
+        final need = forestPropTiles(id) >= 4 ? kBigTreeClearTiles : kMidTreeClearTiles;
+        expect(d, greaterThanOrEqualTo(need),
+            reason: '$id (${forestPropTiles(id)} tiles) at $at is $d out, needs $need');
       });
+    });
+
+    test('the woods have more than one tree size in them', () {
+      // "hala cesitlilikle görsel olarak problem var" — before #v34.15 every
+      // tree within six tiles of the plot was a 2-tile one.
+      final sizes = patch(span: 12)
+          .values
+          .where((id) => id.startsWith('tree_'))
+          .map(forestPropTiles)
+          .toSet();
+      expect(sizes.length, greaterThan(1),
+          reason: 'every tree near the clearing is the same size');
     });
 
     test('the ring is small trees, bushes and rocks — and only those', () {
@@ -314,8 +330,13 @@ void main() {
         }
       }
       final fill = props / (props + gaps) * 100;
-      expect(fill, greaterThan(48), reason: 'the woods are too sparse ($fill%)');
-      expect(fill, lessThan(70), reason: 'back to a solid wall of trees ($fill%)');
+      // The floor went 48 -> 60 in #v34.15: the same share of filled tiles
+      // covers far less screen now that the woods are 2-tile trees and 0.85
+      // bushes instead of 3- and 4-tile ones, and it started reading as holes
+      // — "alt tarafta fazla bosluklar oluyor". Density is a property of what
+      // stands on the tiles, not of the tile count alone.
+      expect(fill, greaterThan(60), reason: 'the woods are full of holes ($fill%)');
+      expect(fill, lessThan(78), reason: 'back to a solid wall of trees ($fill%)');
     });
 
     test('a bush is drawn shorter than a flower, and a rock shorter still', () {
@@ -589,6 +610,47 @@ void main() {
       expect(wheelZoom(0.5, 120), 0.5); // floor holds
       expect(wheelZoom(4.0, -120), 4.0); // ceiling holds
       // the clamp range is the SAME one the pinch gesture uses (0.5 - 4.0)
+    });
+
+    test('zooming keeps the point under the finger under the finger', () {
+      // "ormana dogru yaklastirmak istiyorum, bahceye dogru gidiyor" — the
+      // projector centres the world on size/2 + pan and scales the tile size by
+      // the zoom, so zoom on its own magnifies about the SCREEN CENTRE, which
+      // is exactly where the plot sits. Assert the invariant that fixes it:
+      // whatever world point was under the focal point stays under it.
+      const size = Size(400, 800);
+      final centre = Offset(size.width / 2, size.height / 2);
+
+      /// Where a world offset `g` (in pre-zoom screen pixels from the centre)
+      /// lands, given a pan and a zoom.
+      Offset onScreen(Offset g, Offset pan, double zoom) => centre + pan + g * zoom;
+
+      for (final focal in [const Offset(40, 90), const Offset(370, 700), centre]) {
+        for (final pan in [Offset.zero, const Offset(35, -60)]) {
+          for (final (from, to) in [(1.0, 2.0), (2.0, 1.0), (1.0, 4.0), (3.0, 0.5)]) {
+            // the world point currently under the focal point
+            final g = (focal - centre - pan) / from;
+            final pan2 = zoomAboutFocal(pan, size, focal, from, to);
+            final after = onScreen(g, pan2, to);
+            expect(after.dx, closeTo(focal.dx, 1e-9),
+                reason: 'focal $focal pan $pan zoom $from->$to drifted in x');
+            expect(after.dy, closeTo(focal.dy, 1e-9),
+                reason: 'focal $focal pan $pan zoom $from->$to drifted in y');
+          }
+        }
+      }
+    });
+
+    test('zooming at the screen centre is the old centre-anchored behaviour', () {
+      // the regression the fix must NOT introduce: a pinch centred on the
+      // middle of the screen should still behave exactly as it always did
+      const size = Size(400, 800);
+      expect(zoomAboutFocal(Offset.zero, size, const Offset(200, 400), 1, 2), Offset.zero);
+    });
+
+    test('a zero or negative starting zoom is refused, not divided by', () {
+      expect(zoomAboutFocal(const Offset(5, 5), const Size(400, 800),
+          const Offset(10, 10), 0, 2), const Offset(5, 5));
     });
 
     test('WASD and arrows pan the camera, other keys are refused', () {

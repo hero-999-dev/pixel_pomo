@@ -232,7 +232,7 @@ class GardenRenderer(private val data: GardenData) {
 
     /** Percent of grass daisies that are tinted rather than white. MUST match
      *  kGrassBloomTintPercent in garden_engine.dart. */
-    private val grassBloomTintPercent = 22
+    private val grassBloomTintPercent = 25
 
     private fun drawGrassFlowers(canvas: Canvas) {
         for (r in 0 until rows) {
@@ -578,7 +578,7 @@ class GardenRenderer(private val data: GardenData) {
     /** Share of forest tiles left as bare grass. MUST match kForestGapPercent
      *  in garden_engine.dart, or the phone garden and the live wallpaper grow
      *  different forests from the same save (#v34.10). */
-    private val forestGapPercent = 42
+    private val forestGapPercent = 34
 
     /** Tiles outside the plot rect, 0 inside (Chebyshev) — mirrors
      *  tilesOutsidePlot in garden_engine.dart. */
@@ -594,6 +594,7 @@ class GardenRenderer(private val data: GardenData) {
     private val bigTreeBlock = 7
     private val bigTreePercent = 60
     private val bigTreeClearTiles = 6
+    private val midTreeClearTiles = 4
     private val undergrowthTiles = 2
     private val ringTreeTiles = 2
 
@@ -624,14 +625,14 @@ class GardenRenderer(private val data: GardenData) {
      *  neighbouring blocks stay >= 4 tiles apart — wider than the widest tree, so
      *  two big trees never overlap and so can never visibly swap depth as the
      *  camera turns. Mirrors _bigTreeAt in garden_engine.dart. */
-    private fun bigTreeAt(c: Int, r: Int): String? {
+    private fun bigTreeAt(c: Int, r: Int, maxTiles: Int): String? {
         val bc = Math.floorDiv(c, bigTreeBlock); val br = Math.floorDiv(r, bigTreeBlock)
         val hsh = hash2(bc * 2 + 1, br * 2 + 1)
         if (hsh % 100 >= bigTreePercent) return null
         val span = bigTreeBlock - 3
         val ox = (hsh / 100) % span + 1; val oy = (hsh / 700) % span + 1
         if (c - bc * bigTreeBlock != ox || r - br * bigTreeBlock != oy) return null
-        return treeOfSize(hsh / 4900, { it >= 3 }, "tree_01")
+        return treeOfSize(hsh / 4900, { it in 3..maxTiles }, "tree_01")
     }
 
     /** Mirrors forestPropAt in garden_engine.dart — a pure function of the tile
@@ -641,7 +642,9 @@ class GardenRenderer(private val data: GardenData) {
         if (d == 0) return null // inside the plot — the garden owns this tile
         val hsh = hash2(c, r); val bucket = hsh % 100; val pick = hsh / 100
         fun id(kind: String, n: Int) = "${kind}_" + (pick % n).toString().padStart(2, '0')
-        if (d >= bigTreeClearTiles) bigTreeAt(c, r)?.let { return it }
+        if (d >= midTreeClearTiles) {
+            bigTreeAt(c, r, if (d >= bigTreeClearTiles) 4 else 3)?.let { return it }
+        }
         return when {
             bucket < forestGapPercent -> null
             // the transition ring — same density as the woods, only the

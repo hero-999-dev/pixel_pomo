@@ -26,6 +26,28 @@ import 'garden_engine.dart';
 double wheelZoom(double zoom, double scrollDy) =>
     (zoom * math.pow(1.1, -scrollDy / 120)).clamp(0.5, 4.0);
 
+/// Pan that keeps the world point under [focal] pinned to that spot while the
+/// zoom goes from [fromZoom] to [toZoom] (#v34.15).
+///
+/// The projector centres the world on `size/2 + pan` and scales the tile size
+/// by the zoom, so changing the zoom alone magnifies about the **screen
+/// centre** — and the screen centre is where the garden sits. Zooming in
+/// anywhere else still flew toward the plot: "ormana dogru yaklastirmak
+/// istiyorum, bahceye dogru gidiyor". The bigger the plot grew the more of the
+/// centre it occupied, which is why it got worse with EXPAND.
+///
+/// Derivation: a world point maps to `centre + M(t)·g`, and M scales linearly
+/// with the zoom, so holding `g` under `focal` across a zoom ratio `k` gives
+/// `centre' = focal - k·(focal - centre)`; in pan terms, with `u` the focal
+/// point's offset from the screen centre, `pan' = u·(1 - k) + pan·k`.
+Offset zoomAboutFocal(
+    Offset pan, Size size, Offset focal, double fromZoom, double toZoom) {
+  if (fromZoom <= 0) return pan;
+  final k = toZoom / fromZoom;
+  final u = focal - Offset(size.width / 2, size.height / 2);
+  return u * (1 - k) + pan * k;
+}
+
 /// Screen-pixels of pan for one key event; Offset.zero for keys we don't own.
 /// Directions read as walking the CAMERA: D looks further right, so the scene
 /// slides left — the same sign convention the drag gesture produces.
@@ -181,7 +203,13 @@ class _GardenViewState extends State<GardenView> with SingleTickerProviderStateM
   void _onPointerSignal(PointerSignalEvent e) {
     if (e is! PointerScrollEvent) return;
     setState(() {
-      _cam.zoom = wheelZoom(_cam.zoom, e.scrollDelta.dy);
+      final next = wheelZoom(_cam.zoom, e.scrollDelta.dy);
+      // zoom at the cursor, same as the pinch does at the fingers (#v34.15)
+      final anchored = zoomAboutFocal(
+          Offset(_cam.panX, _cam.panY), _lastSize, e.localPosition, _cam.zoom, next);
+      _cam.zoom = next;
+      _cam.panX = anchored.dx;
+      _cam.panY = anchored.dy;
       _clampWorld();
     });
   }
@@ -223,10 +251,37 @@ class _GardenViewState extends State<GardenView> with SingleTickerProviderStateM
       // min 0.5 (was 1.0) so you can zoom out far enough to frame the WHOLE
       // garden from any yaw — a rotated plot's bounding box is larger, so it used
       // to clip at the old 1.0 floor (capture feedback). Max 4.0 (zoom-in fine).
-      _cam.zoom = (_zoomAtStart * d.scale).clamp(0.5, 4.0);
+      final next = (_zoomAtStart * d.scale).clamp(0.5, 4.0);
+      // Zoom about the fingers, not the screen centre (#v34.15) — otherwise
+      // every zoom drifts toward the plot, whatever you were looking at.
+      final anchored = zoomAboutFocal(
+          Offset(_cam.panX, _cam.panY), _lastSize, d.localFocalPoint, _cam.zoom, next);
+      _cam.zoom = next;
       _cam.yaw = _yawAtStart + d.rotation; // two-finger twist = look from another side
-      _cam.panX += d.focalPointDelta.dx;
-      _cam.panY += d.focalPointDelta.dy;
+      _cam.panX = anchored.dx + d.focalPointDelta.dx;
+      _cam.panY = anchored.dy + d.focalPointDelta.dy;
+      _clampWorld();
+    });
+  }
+
+  /// Double-tap steps the zoom in about the tapped point, and snaps back out
+  /// once it is already close in (#v34.15). There was no double-tap handler at
+  /// all before — "cift tikla yaklastirma sapitiyor" was the pinch's
+  /// centre-anchored zoom plus nothing happening on the gesture the user
+  /// actually reached for.
+  static const double kDoubleTapZoom = 2.0;
+
+  void _onDoubleTapDown(TapDownDetails d) => _doubleTapAt = d.localPosition;
+  Offset _doubleTapAt = Offset.zero;
+
+  void _onDoubleTap() {
+    setState(() {
+      final next = _cam.zoom < kDoubleTapZoom - 0.01 ? kDoubleTapZoom : 1.0;
+      final anchored = zoomAboutFocal(
+          Offset(_cam.panX, _cam.panY), _lastSize, _doubleTapAt, _cam.zoom, next);
+      _cam.zoom = next;
+      _cam.panX = anchored.dx;
+      _cam.panY = anchored.dy;
       _clampWorld();
     });
   }
@@ -290,6 +345,13 @@ class _GardenViewState extends State<GardenView> with SingleTickerProviderStateM
                           onScaleStart: _onScaleStart,
                           onScaleUpdate: _onScaleUpdate,
                           onTapUp: _onTapUp,
+                          // Only outside CUSTOMIZE: with a double-tap callback
+                          // attached, every single tap waits out the
+                          // double-tap timeout before firing, which would make
+                          // planting a tile feel laggy.
+                          onDoubleTapDown:
+                              widget.customizing ? null : _onDoubleTapDown,
+                          onDoubleTap: widget.customizing ? null : _onDoubleTap,
                           child: scene,
                         ),
                       ),

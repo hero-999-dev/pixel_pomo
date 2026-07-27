@@ -39,7 +39,13 @@ const int kForestTrees = 20, kForestBushes = 10, kForestRocks = 5;
 /// read as a solid green wall once the trees grew to 2–4 tiles; the v34.9
 /// backdrop went to the other extreme and looked empty. 34% was still "cok
 /// yogun", so 42% (#v34.11) — raise it to thin the woods further.
-const int kForestGapPercent = 42;
+///
+/// Back down to 34 in #v34.15. 42 was tuned when the woods were 3- and 4-tile
+/// trees that each covered several tiles of screen; once everything became
+/// 2-tile trees and 0.85 bushes the same share of bare tiles started reading as
+/// holes — "alt tarafta fazla bosluklar oluyor". Density is a function of what
+/// is standing on the tiles, not of the number alone.
+const int kForestGapPercent = 34;
 
 /// The woods are small trees, bushes and rocks EVERYWHERE (#v34.12) — "tüm
 /// orman alt taraf gibi olsun". Big trees are the exception, not the rule: one
@@ -61,9 +67,20 @@ const int kBigTreeBlock = 7;
 /// regular grid of them.
 const int kBigTreePercent = 60;
 
-/// Big trees stay this many tiles back from the plot — a 4-tile canopy near the
-/// clearing leans right across it.
+/// A full 4-tile tree stays this many tiles back — its canopy leans 1.8 tiles
+/// over the plot from four tiles out, which is most of the clearing's edge.
 const int kBigTreeClearTiles = 6;
+
+/// 3-tile trees may take a lattice site from this distance, so the size jump
+/// from the 2-tile woods to the landmarks is not all-or-nothing and the middle
+/// distances have something other than one repeated silhouette in them
+/// (#v34.15 — "hala cesitlilikle görsel olarak problem var").
+///
+/// They ride the SAME lattice as the big ones, which is the whole point: sites
+/// are guaranteed 4 tiles apart, so scattering taller trees around cannot
+/// reintroduce the overlap-swap pop. Free-scattered 3-tile trees would sit one
+/// tile apart and overlap by nearly two.
+const int kMidTreeClearTiles = 4;
 
 /// Drawn height and width, in tiles, of a one-tile forest prop. Bushes (which
 /// are mostly squat little trees now, #v34.14) are 0.85 rather than a flower's
@@ -88,11 +105,14 @@ const List<int> kGrassBloomPetals = [
   0xFFF5D98A, // butter
 ];
 
-/// Percent of grass daisies that get a coloured tint instead of white. The
-/// bloom itself is already ~5% of empty tiles, so this is a second, independent
-/// roll on top: about one coloured flower per 500 empty tiles. "Ama cok daha
-/// nadir bir sekilde türesinler" — rare enough to be a find, not a pattern.
-const int kGrassBloomTintPercent = 22;
+/// Percent of grass daisies that get a coloured tint instead of white —
+/// "%75 beyaz gerisi, farkli renkler olsun random sansda olsun" (#v34.15).
+///
+/// The first cut put this at 22, which reads as one coloured bloom per ~90
+/// empty tiles: on a 25-tile plot that is well under one flower, so in practice
+/// the colours never showed up at all. A quarter of the blooms is what "much
+/// rarer than white" actually means at this plot size.
+const int kGrassBloomTintPercent = 25;
 
 /// Index into [kGrassBloomPetals] for a grass daisy, from its tile hash. White
 /// nearly always; a coloured one is a find, not a pattern. The tint rolls on a
@@ -226,11 +246,12 @@ String? forestPropAt(int c, int r, int cols, int rows) {
   final pick = h ~/ 100;
   String id(String kind, int n) => '${kind}_${(pick % n).toString().padLeft(2, '0')}';
 
-  // A big tree, where one of the sparse isolated sites lands far enough back.
-  // Checked BEFORE the gap roll: a landmark tree shouldn't be cancelled by the
-  // same coin flip that thins the undergrowth.
-  if (d >= kBigTreeClearTiles) {
-    final big = _bigTreeAt(c, r);
+  // A taller tree, where one of the sparse isolated lattice sites lands far
+  // enough back. Checked BEFORE the gap roll: a landmark shouldn't be cancelled
+  // by the same coin flip that thins the undergrowth. Nearer sites are capped
+  // at 3 tiles so nothing leans more than about a tile over the clearing.
+  if (d >= kMidTreeClearTiles) {
+    final big = _bigTreeAt(c, r, d >= kBigTreeClearTiles ? 4 : 3);
     if (big != null) return big;
   }
 
@@ -259,7 +280,7 @@ String? forestPropAt(int c, int r, int cols, int rows) {
 /// sites in neighbouring blocks are always >= 4 tiles apart — the widest tree
 /// is 3.8 tiles, so two big trees never overlap and so can never visibly swap
 /// depth as the camera turns.
-String? _bigTreeAt(int c, int r) {
+String? _bigTreeAt(int c, int r, int maxTiles) {
   final bc = _floorDiv(c, kBigTreeBlock), br = _floorDiv(r, kBigTreeBlock);
   // a separate hash stream from the per-tile one, so which blocks grow a tree
   // is independent of what the tiles themselves rolled
@@ -268,14 +289,16 @@ String? _bigTreeAt(int c, int r) {
   final span = kBigTreeBlock - 3;
   final ox = (h ~/ 100) % span + 1, oy = (h ~/ 700) % span + 1;
   if (c - bc * kBigTreeBlock != ox || r - br * kBigTreeBlock != oy) return null;
-  return _bigTree(h ~/ 4900);
+  return _bigTree(h ~/ 4900, maxTiles);
 }
 
 /// The nearest 2-tile tree to [pick] — the whole forest is built from these.
 String _smallTree(int pick) => _treeOfSize(pick, (t) => t == 2, 'tree_00');
 
-/// The nearest 3-or-4-tile tree to [pick].
-String _bigTree(int pick) => _treeOfSize(pick, (t) => t >= 3, 'tree_01');
+/// The nearest tree to [pick] taller than the woods but no taller than
+/// [maxTiles].
+String _bigTree(int pick, int maxTiles) =>
+    _treeOfSize(pick, (t) => t >= 3 && t <= maxTiles, 'tree_01');
 
 String _treeOfSize(int pick, bool Function(int) want, String fallback) {
   final n = pick % kForestTrees;

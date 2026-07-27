@@ -65,6 +65,8 @@ class TreeTableIsMirrored(unittest.TestCase):
          r"val bigTreePercent = (\d+)"),
         ("big-tree clearance", r"const int kBigTreeClearTiles = (\d+);",
          r"val bigTreeClearTiles = (\d+)"),
+        ("mid-tree clearance", r"const int kMidTreeClearTiles = (\d+);",
+         r"val midTreeClearTiles = (\d+)"),
         ("undergrowth ring depth", r"const int kUndergrowthTiles = (\d+);",
          r"val undergrowthTiles = (\d+)"),
         ("small trees inside the ring", r"const int kRingTreeTiles = (\d+);",
