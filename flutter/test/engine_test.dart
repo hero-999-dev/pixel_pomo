@@ -250,7 +250,7 @@ void main() {
           if (d == 0 || d > kUndergrowthTiles) continue;
           final id = forestPropAt(c, r, cols, rows);
           if (id == null) continue;
-          final h = id.startsWith('rock_') ? 0.6 : forestPropTiles(id) * 1.05;
+          final h = forestPropHeight(id); // the painter's own number, not a copy
           expect(h - d * kVy, lessThan(1.0),
               reason: '$id at ($c,$r), $d tiles out, leans '
                   '${(h - d * kVy).toStringAsFixed(2)} tiles over the garden');
@@ -316,6 +316,45 @@ void main() {
       final fill = props / (props + gaps) * 100;
       expect(fill, greaterThan(48), reason: 'the woods are too sparse ($fill%)');
       expect(fill, lessThan(70), reason: 'back to a solid wall of trees ($fill%)');
+    });
+
+    test('a bush is drawn shorter than a flower, and a rock shorter still', () {
+      // The one-tile props had 2-3 empty pixel rows under their art while
+      // trees and flowers had none, so the renderer — which puts the canvas
+      // bottom on the ground — hung them in the air ("calilar sanki havadaymis
+      // gibi duruyor"). Removing that padding makes the art fill its canvas,
+      // which would also make them stand TALLER on screen than they used to,
+      // so the drawn height came down to compensate. Both halves have to move
+      // together: the sprite gate pins the padding, this pins the height.
+      expect(forestPropHeight('bush_03'), lessThan(1.05));
+      expect(forestPropHeight('rock_01'), lessThan(forestPropHeight('bush_03')));
+      expect(forestPropHeight('tree_00'), 2 * 1.05);
+      expect(forestPropWidth('bush_03'), kBushWidth);
+      // a bush one tile out must stay well under the plot's edge
+      expect(kBushHeight - kVy, lessThan(0.3));
+      expect(kRockHeight - kVy, lessThanOrEqualTo(0.0));
+    });
+
+    test('coloured grass daisies are rare, and white is still the default', () {
+      // "onlarin farkli renkli versiyonlari da türesin ayni sekilde, ama cok
+      // daha nadir bir sekilde türesinler."
+      var white = 0, tinted = 0;
+      final seen = <int>{};
+      for (var i = 0; i < 20000; i++) {
+        final t = grassBloomTint(i * 7919 % 0x7fffffff);
+        seen.add(t);
+        if (t == 0) {
+          white++;
+        } else {
+          tinted++;
+        }
+      }
+      expect(white / (white + tinted), greaterThan(0.6),
+          reason: 'white is no longer the ordinary grass daisy');
+      expect(tinted, greaterThan(0), reason: 'no coloured daisies ever appear');
+      expect(seen.length, kGrassBloomPetals.length,
+          reason: 'some petal colours can never come up');
+      expect(kGrassBloomPetals.first, 0xFFFFFFFF, reason: 'index 0 must stay white');
     });
 
     test('what grows on a tile depends on the tile alone, never the camera', () {

@@ -243,7 +243,15 @@ def _tree_variant(seed):
         lower-right edge, a dark underside. The highlight is deliberately a
         SMALL cap — lighting half the crown made every tree read as two flat
         colours split down the middle."""
-        for r in range(int(bcy - rad - 1), int(bcy + rad / squash + 2)):
+        # The row range must cover the ellipse's REAL vertical extent, which is
+        # rad/squash, at BOTH ends. It used to read `bcy - rad - 1` on top and
+        # `bcy + rad/squash + 2` underneath, so any blob with squash < 1 — i.e.
+        # every poplar, at 0.60 — had the top ~10 rows of its crown simply never
+        # visited, and came out with a hard horizontal cut across the head:
+        # "sanki agac tepeden kesilmis gibi". It slipped past the canvas-edge
+        # test because the cut lands mid-canvas, not on row 0.
+        span = rad / squash
+        for r in range(int(bcy - span - 1), int(bcy + span + 2)):
             for c in range(int(bcx - rad - 1), int(bcx + rad + 2)):
                 dx, dy = c - bcx, (r - bcy) * squash
                 d2 = dx * dx + dy * dy
@@ -280,8 +288,16 @@ def _tree_variant(seed):
     elif shape == 2:
         # POPLAR — tall and narrow. The crown stops well short of the ground so
         # the trunk actually shows; a full-height crown just looked like a bush.
-        blob(cx, n * 0.38, n * 0.25, squash=0.60)
-        trunk_top = n * 0.70
+        #
+        # Sized to FIT: the vertical extent of a squashed blob is rad/squash,
+        # so the old (0.38 centre, 0.25 rad, 0.60 squash) reached y = -0.037n,
+        # i.e. above the canvas. Once the row-range bug above was fixed and the
+        # crown was actually drawn to its full height, that overhang became a
+        # flat cut along row 0. Centre 0.42 with rad 0.20 / squash 0.62 puts the
+        # crown top at 0.097n — clear of the edge — and keeps it narrower than
+        # it is tall (0.40n wide by 0.65n) so it still reads as a poplar.
+        blob(cx, n * 0.42, n * 0.20, squash=0.62)
+        trunk_top = n * 0.72
     elif shape == 3:
         # OAK — a wide crown from three overlapping lobes. Only the middle lobe
         # carries the highlight, so the shoulders don't read as separate trees.
@@ -319,25 +335,77 @@ def _tree_variant(seed):
 
 
 def _bush_variant(seed):
+    """A one-tile plant. Most are SQUAT LITTLE TREES — a short trunk under a
+    round crown — and the rest are leafy bushes (#v34.14).
+
+    They used to all be one checkerboard-dithered ellipse floating in the middle
+    of the canvas: "gerektiginden fazla cali ... %80i cali olunca güzel
+    durmuyor", and "calilar sanki havadaymis gibi duruyor". Two separate faults.
+
+    The float was measurable: the blob sat at rows 7-13 of a 16px canvas, so
+    every bush carried 2-3 rows of empty padding under it while trees and
+    flowers are flush to row 15. The renderer puts the canvas bottom on the
+    ground, so that padding is a gap of air under the plant. Everything here now
+    reaches row 15.
+    """
     rnd = (seed * 2654435761 + 40503) & 0x7fffffff
     def rb(n):
         nonlocal rnd
         rnd = (rnd * 1103515245 + 12345) & 0x7fffffff
         return rnd % n
     g = blank(16, 16)
-    greens = ["2A6B33", "327A3B", "246B2E", "3C8A45"]
-    a = hexrgb(greens[rb(len(greens))]) + (255,)
-    b = hexrgb(greens[rb(len(greens))]) + (255,)
-    rad = 3.0 + rb(2)
-    cx, cy = 7.5, 10.0
-    for r in range(16):
-        for c in range(16):
-            if (c - cx) ** 2 + ((r - cy) * 1.3) ** 2 <= rad * rad:
-                g[r][c] = b if (r + c) % 2 else a
+    # lit / mid / shade, so a one-tile plant is shaded like the big trees are
+    families = [
+        ("4E9B4A", "327A3B", "1E5537"),
+        ("3C8A45", "2A6B33", "17401F"),
+        ("6BA83F", "4A8A32", "356A25"),
+        ("3F8F5C", "246B2E", "134018"),
+    ]
+    lit, mid, shade = (hexrgb(h) + (255,) for h in families[rb(len(families))])
+    bark = hexrgb(["4A3421", "3A2A18"][rb(2)]) + (255,)
+
+    def crown(cx, cy, rad, squash):
+        span = rad / squash
+        for r in range(int(cy - span - 1), int(cy + span + 2)):
+            for c in range(int(cx - rad - 1), int(cx + rad + 2)):
+                if not (0 <= r < 16 and 0 <= c < 16):
+                    continue
+                dx, dy = c - cx, (r - cy) * squash
+                d2 = dx * dx + dy * dy
+                if d2 > rad * rad:
+                    continue
+                if dy > rad * 0.45:
+                    g[r][c] = shade
+                elif dx + rad * 0.4 < 0 and dy + rad * 0.4 < 0:
+                    g[r][c] = lit
+                else:
+                    g[r][c] = mid
+
+    if seed % 5 != 0:
+        # SQUAT TREE — crown on a stubby trunk, trunk flush to the ground row.
+        cx = 7.5
+        rad = 4.0 + rb(2)
+        cy = 6.5 + rb(2)
+        crown(cx, cy, rad, 1.20)
+        # Trunk from inside the crown down to row 15, measured not guessed.
+        # Test the ALPHA, not the cell: blank() fills with (0,0,0,0) and a
+        # non-empty tuple is truthy, so `if g[r][7]` is true on every row and
+        # the trunk came out as a two-pixel stub under a floating crown.
+        bottom = max((r for r in range(16) if g[r][7][3] or g[r][8][3]), default=9)
+        for r in range(int(bottom) - 1, 16):
+            for c in (7, 8):
+                g[r][c] = bark
+    else:
+        # LEAFY BUSH — a low wide mound, no trunk, still flush to row 15.
+        cx = 7.5
+        rad = 5.0 + rb(2)
+        crown(cx, 15.0, rad, 0.85)
     return g
 
 
 def _rock_variant(seed):
+    """A one-tile rock, flush to the ground row (#v34.14) — it used to leave 2-3
+    empty rows under it, which the renderer turns into a gap of air."""
     rnd = (seed * 40503 + 12345) & 0x7fffffff
     def rb(n):
         nonlocal rnd
@@ -347,12 +415,12 @@ def _rock_variant(seed):
     grays = ["6E6E6E", "7C7C7C", "5E5E5E", "888888"]
     a = hexrgb(grays[rb(len(grays))]) + (255,)
     b = hexrgb("4A4A4A") + (255,)
-    rad = 2.5 + rb(2)
-    cx, cy = 7.5, 11.0
+    rad = 4.5 + rb(2)
+    cx, cy = 7.5, 15.0          # centre ON the ground row: a half-buried boulder
     for r in range(16):
         for c in range(16):
-            if (c - cx) ** 2 + ((r - cy) * 1.4) ** 2 <= rad * rad:
-                g[r][c] = b if r > cy else a   # darker bottom
+            if (c - cx) ** 2 + ((r - cy) * 1.1) ** 2 <= rad * rad:
+                g[r][c] = b if r > cy - rad * 0.35 else a   # darker bottom
     return g
 
 

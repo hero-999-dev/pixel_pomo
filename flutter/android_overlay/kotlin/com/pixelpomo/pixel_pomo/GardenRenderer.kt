@@ -147,9 +147,8 @@ class GardenRenderer(private val data: GardenData) {
                 val fp = forestPropAt(c, r) ?: continue // null inside the plot
                 val (x, y) = ground(c, r)
                 // trees are drawn at their own tile size (#v34.8) — mirrors
-                // forestPropTiles / kTreeTiles in garden_engine.dart
-                val (ht, wd) = if (fp.startsWith("rock_")) 0.6 to 0.8
-                               else forestPropTiles(fp).let { it * 1.05 to it * 0.95 }
+                // forestPropHeight / forestPropWidth in garden_engine.dart
+                val (ht, wd) = propSize(fp)
                 if (y < 0 || y - ht * t > h) continue
                 val halfW = wd * t / 2
                 if (x + halfW < 0 || x - halfW > w) continue
@@ -224,21 +223,41 @@ class GardenRenderer(private val data: GardenData) {
         return (h and 0x7fffffffL).toInt()
     }
 
+    /** Petal colours for the wild grass daisies. Index 0 is the white one; the
+     *  rest are the rare coloured variants. MUST match kGrassBloomPetals in
+     *  garden_engine.dart (#v34.14). */
+    private val grassBloomPetals = intArrayOf(
+        0xFFFFFFFF.toInt(), 0xFFF2A6C4.toInt(), 0xFF9AB8F0.toInt(),
+        0xFFE0B0F0.toInt(), 0xFFF5D98A.toInt())
+
+    /** Percent of grass daisies that are tinted rather than white. MUST match
+     *  kGrassBloomTintPercent in garden_engine.dart. */
+    private val grassBloomTintPercent = 22
+
     private fun drawGrassFlowers(canvas: Canvas) {
         for (r in 0 until rows) {
             for (c in 0 until cols) {
                 val idx = r * cols + c
                 if (data.groundAt(idx) != null || data.propAt(idx) != null) continue // only empty grass
-                if (grassFlowerHash(c, r) % 100 >= 5) continue // ~5% — sparse
+                val h = grassFlowerHash(c, r)
+                if (h % 100 >= 5) continue // ~5% — sparse
                 val (x, y) = ground(c, r)
-                drawBloom(canvas, x, y)
+                drawBloom(canvas, x, y, grassBloomPetals[bloomTint(h)])
             }
         }
     }
 
-    // a small FLAT pixel daisy lying on the grass (white petals + yellow eye) —
+    /** Mirrors _bloomTint in garden_engine.dart — a second, independent roll on
+     *  top of the 5% bloom chance, so a coloured flower is roughly one per 500
+     *  empty tiles and reads as a find rather than a pattern. */
+    private fun bloomTint(h: Int): Int {
+        if ((h / 100) % 100 >= grassBloomTintPercent) return 0
+        return 1 + (h / 10000) % (grassBloomPetals.size - 1)
+    }
+
+    // a small FLAT pixel daisy lying on the grass (petals + yellow eye) —
     // mirrors the in-app _paintBloom (#v20), not a billboard object.
-    private fun drawBloom(canvas: Canvas, x: Double, y: Double) {
+    private fun drawBloom(canvas: Canvas, x: Double, y: Double, petals: Int) {
         val s = t * 0.085
         fun petal(dx: Double, dy: Double, color: Int) {
             paint.color = color
@@ -247,10 +266,10 @@ class GardenRenderer(private val data: GardenData) {
             canvas.drawRect((px - s / 2).toFloat(), (py - s * KVY / 2).toFloat(),
                 (px + s / 2).toFloat(), (py + s * KVY / 2).toFloat(), paint)
         }
-        petal(0.0, -s, Color.WHITE)
-        petal(0.0, s, Color.WHITE)
-        petal(-s, 0.0, Color.WHITE)
-        petal(s, 0.0, Color.WHITE)
+        petal(0.0, -s, petals)
+        petal(0.0, s, petals)
+        petal(-s, 0.0, petals)
+        petal(s, 0.0, petals)
         petal(0.0, 0.0, Color.rgb(0xF2, 0xC9, 0x4C)) // yellow eye
     }
 
@@ -575,8 +594,19 @@ class GardenRenderer(private val data: GardenData) {
     private val bigTreeBlock = 7
     private val bigTreePercent = 60
     private val bigTreeClearTiles = 6
-    private val undergrowthTiles = 3
+    private val undergrowthTiles = 2
     private val ringTreeTiles = 2
+
+    /** Drawn size of a one-tile prop. Bushes are 0.85, not a flower's 1.05:
+     *  their art fills its canvas since the bottom padding was removed
+     *  (#v34.14), so full height would stand them taller than they look now.
+     *  MUST match kBushHeight/kBushWidth/kRockHeight/kRockWidth in
+     *  garden_engine.dart. */
+    private fun propSize(fp: String): Pair<Double, Double> = when {
+        fp.startsWith("rock_") -> 0.6 to 0.8
+        fp.startsWith("bush_") -> 0.85 to 0.9
+        else -> forestPropTiles(fp).let { it * 1.05 to it * 0.95 }
+    }
 
     /** Mirrors _treeOfSize / _smallTree / _bigTree in garden_engine.dart. */
     private fun treeOfSize(pick: Int, want: (Int) -> Boolean, fallback: String): String {

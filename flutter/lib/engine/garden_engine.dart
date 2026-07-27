@@ -61,23 +61,59 @@ const int kBigTreeBlock = 7;
 /// regular grid of them.
 const int kBigTreePercent = 60;
 
-/// Big trees stay this many tiles back from the plot. They can no longer cross
-/// the garden's outline (the plot paints over the woods now), but a 4-tile
-/// canopy hugging the edge would still hide the clearing behind it.
+/// Big trees stay this many tiles back from the plot — a 4-tile canopy near the
+/// clearing leans right across it.
 const int kBigTreeClearTiles = 6;
 
+/// Drawn height and width, in tiles, of a one-tile forest prop. Bushes (which
+/// are mostly squat little trees now, #v34.14) are 0.85 rather than a flower's
+/// 1.05: their art fills its 16px canvas properly since the bottom padding was
+/// removed, so drawing them at full height would make them stand taller on
+/// screen than they used to and lean further over the plot. 0.85 keeps the
+/// plant the same size it looks now while actually touching the ground.
+const double kBushHeight = 0.85, kBushWidth = 0.9;
+
+/// Rocks sit lower and wider than they are tall.
+const double kRockHeight = 0.6, kRockWidth = 0.8;
+
+/// Petal colours for the wild daisies scattered on the clearing's grass. Index
+/// 0 is the white one that has always been there; the rest are the coloured
+/// variants (#v34.14). The yellow eye is shared, so a tinted bloom reads as the
+/// same little flower in another colour rather than a different species.
+const List<int> kGrassBloomPetals = [
+  0xFFFFFFFF, // white
+  0xFFF2A6C4, // pink
+  0xFF9AB8F0, // cornflower
+  0xFFE0B0F0, // lilac
+  0xFFF5D98A, // butter
+];
+
+/// Percent of grass daisies that get a coloured tint instead of white. The
+/// bloom itself is already ~5% of empty tiles, so this is a second, independent
+/// roll on top: about one coloured flower per 500 empty tiles. "Ama cok daha
+/// nadir bir sekilde türesinler" — rare enough to be a find, not a pattern.
+const int kGrassBloomTintPercent = 22;
+
+/// Index into [kGrassBloomPetals] for a grass daisy, from its tile hash. White
+/// nearly always; a coloured one is a find, not a pattern. The tint rolls on a
+/// DIFFERENT slice of the hash than the 5% bloom chance, so the two are
+/// independent and the colours don't cluster on whichever tiles happened to
+/// bloom.
+int grassBloomTint(int hash) {
+  if ((hash ~/ 100) % 100 >= kGrassBloomTintPercent) return 0; // white
+  return 1 + (hash ~/ 10000) % (kGrassBloomPetals.length - 1);
+}
+
 /// The clearing has a transition ring this many tiles deep before the woods
-/// proper start (#v34.12b) — "bahcenin disindaki 3 tilein kücük agaclarla,
-/// calilarla, kayalarla cevrili olmasi, sonrasinda orman baslasin".
+/// proper start — "ilk 2 sira her taraftan, kücük cali, tas, ve kücük agac
+/// olsun" (#v34.14; it was 3 in #v34.12b).
 ///
-/// It is **graded by height**, closest first: rocks and bushes against the
-/// line, small trees only from [kRingTreeTiles] out. That grading is what keeps
-/// the garden's outline clean without hiding anything. A billboard is anchored
-/// on its tile and drawn straight up, while moving one tile away from the plot
-/// buys only `kVy` tiles of screen separation — so a 2.1-tile tree standing one
-/// tile out still reaches 1.5 tiles over the plot's edge, and a rock does not
-/// reach it at all.
-const int kUndergrowthTiles = 3;
+/// The innermost tile takes bushes and rocks; small trees join from
+/// [kRingTreeTiles] out. A billboard is anchored on its tile and drawn straight
+/// up, while moving one tile away buys only `kVy` tiles of screen separation,
+/// so a 2.1-tile tree standing one tile out reaches 1.5 tiles over the plot's
+/// edge, while a 0.85 bush reaches 0.25 and a rock none at all.
+const int kUndergrowthTiles = 2;
 
 /// Small trees join the ring from this tile out; the innermost tile is bushes
 /// and rocks. Only the innermost, deliberately — the first cut of this graded
@@ -100,6 +136,22 @@ const int kRingTreeTiles = 2;
 /// 16px per tile, so a mismatch also changes the pixel density) and the same
 /// table in the Kotlin wallpaper's GardenRenderer.
 const List<int> kTreeTiles = [2, 3, 2, 4, 3, 2, 3, 3, 2, 4, 2, 3, 4, 2, 3, 2, 3, 4, 2, 3];
+
+/// Drawn size of a forest prop, in tiles. One source for the painter, the live
+/// wallpaper's mirror and the lean maths in the tests — a prop whose drawn
+/// height drifts from what the tests reason about is how a plant ends up
+/// hanging in the air or leaning over the garden.
+double forestPropHeight(String id) => id.startsWith('rock_')
+    ? kRockHeight
+    : id.startsWith('bush_')
+        ? kBushHeight
+        : forestPropTiles(id) * 1.05;
+
+double forestPropWidth(String id) => id.startsWith('rock_')
+    ? kRockWidth
+    : id.startsWith('bush_')
+        ? kBushWidth
+        : forestPropTiles(id) * 0.95;
 
 /// Tiles occupied by a forest prop id — trees vary, bushes and rocks are one.
 double forestPropTiles(String id) {
@@ -809,10 +861,7 @@ class GardenPainter extends CustomPainter {
         final fp = forestPropAt(c, r, _cols, _rows); // null inside the plot
         if (fp == null) continue;
         final anchor = p.ground(c, r);
-        final isRock = fp.startsWith('rock_');
-        final tiles = forestPropTiles(fp);
-        final h = isRock ? 0.6 : tiles * 1.05;
-        final w = isRock ? 0.8 : tiles * 0.95;
+        final h = forestPropHeight(fp), w = forestPropWidth(fp);
         if (anchor.dy < 0 || anchor.dy - h * p.t > size.height) continue;
         final halfW = w * p.t / 2;
         if (anchor.dx + halfW < 0 || anchor.dx - halfW > size.width) continue;
@@ -833,31 +882,35 @@ class GardenPainter extends CustomPainter {
     return h & 0x7fffffff;
   }
 
-  /// Scatter **sparse white daisies** on empty grass tiles (no planted prop /
-  /// road), so the clearing has life without looking like a quilt. Deterministic,
-  /// so they don't shimmer between frames (#v19).
+  /// Scatter **sparse daisies** on empty grass tiles (no planted prop / road),
+  /// so the clearing has life without looking like a quilt. Deterministic, so
+  /// they don't shimmer between frames (#v19).
   void _paintGrassFlowers(Canvas canvas, Projector p) {
     for (var r = 0; r < _rows; r++) {
       for (var c = 0; c < _cols; c++) {
         if (garden.tiles.containsKey(r * _cols + c)) continue; // skip planted/road
-        if (_grassFlowerHash(c, r) % 100 >= 5) continue; // ~5% of empty tiles — sparse
-        _paintBloom(canvas, p.ground(c, r), p.t);
+        final h = _grassFlowerHash(c, r);
+        if (h % 100 >= 5) continue; // ~5% of empty tiles — sparse
+        _paintBloom(canvas, p.ground(c, r), p.t, kGrassBloomPetals[grassBloomTint(h)]);
       }
     }
   }
 
-  /// A small **flat** pixel daisy lying on the grass (white petals + yellow eye) —
-  /// not a billboard object; matches the 2D flowered-grass look the user sent (#v20).
-  void _paintBloom(Canvas canvas, Offset a, double t) {
+
+  /// A small **flat** pixel daisy lying on the grass — not a billboard object;
+  /// matches the 2D flowered-grass look the user sent (#v20). [petals] is the
+  /// petal colour; the eye stays yellow so a coloured bloom still reads as the
+  /// same flower in a different colour (#v34.14).
+  void _paintBloom(Canvas canvas, Offset a, double t, int petals) {
     final s = t * 0.085;
-    final white = Paint()..color = const Color(0xFFFFFFFF);
+    final petal = Paint()..color = Color(petals);
     final eye = Paint()..color = const Color(0xFFF2C94C);
     void px(double dx, double dy, Paint p) => canvas.drawRect(
         Rect.fromCenter(center: a.translate(dx, dy * kVy), width: s, height: s * kVy), p);
-    px(0, -s, white); // petals, flattened onto the ground by kVy
-    px(0, s, white);
-    px(-s, 0, white);
-    px(s, 0, white);
+    px(0, -s, petal); // petals, flattened onto the ground by kVy
+    px(0, s, petal);
+    px(-s, 0, petal);
+    px(s, 0, petal);
     px(0, 0, eye); // yellow centre
   }
 

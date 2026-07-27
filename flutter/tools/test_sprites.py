@@ -69,7 +69,48 @@ class TreeTableIsMirrored(unittest.TestCase):
          r"val undergrowthTiles = (\d+)"),
         ("small trees inside the ring", r"const int kRingTreeTiles = (\d+);",
          r"val ringTreeTiles = (\d+)"),
+        ("grass-bloom tint rarity", r"const int kGrassBloomTintPercent = (\d+);",
+         r"val grassBloomTintPercent = (\d+)"),
     ]
+
+    def test_the_one_tile_prop_sizes_match_in_dart_and_kotlin(self):
+        # A prop drawn at a different height in the two renderers sits at a
+        # different place relative to the garden's edge in each (#v34.14).
+        dart_path = os.path.join(FLUTTER, "lib", "engine", "garden_engine.dart")
+        kotlin_path = os.path.join(FLUTTER, "android_overlay", "kotlin", "com",
+                                   "pixelpomo", "pixel_pomo", "GardenRenderer.kt")
+        with open(dart_path, encoding="utf-8") as fh:
+            dart = fh.read()
+        with open(kotlin_path, encoding="utf-8") as fh:
+            kotlin = fh.read()
+        for name, dart_re, kotlin_re in [
+            ("bush", r"const double kBushHeight = ([\d.]+), kBushWidth = ([\d.]+);",
+             r'startsWith\("bush_"\) -> ([\d.]+) to ([\d.]+)'),
+            ("rock", r"const double kRockHeight = ([\d.]+), kRockWidth = ([\d.]+);",
+             r'startsWith\("rock_"\) -> ([\d.]+) to ([\d.]+)'),
+        ]:
+            with self.subTest(prop=name):
+                d = re.search(dart_re, dart)
+                k = re.search(kotlin_re, kotlin)
+                self.assertIsNotNone(d, f"{name} size not found in garden_engine.dart")
+                self.assertIsNotNone(k, f"{name} size not found in GardenRenderer.kt")
+                self.assertEqual([float(x) for x in d.groups()],
+                                 [float(x) for x in k.groups()],
+                                 f"the two renderers draw a {name} at different sizes")
+
+    def test_the_grass_bloom_palette_matches_in_dart_and_kotlin(self):
+        dart_path = os.path.join(FLUTTER, "lib", "engine", "garden_engine.dart")
+        kotlin_path = os.path.join(FLUTTER, "android_overlay", "kotlin", "com",
+                                   "pixelpomo", "pixel_pomo", "GardenRenderer.kt")
+        with open(dart_path, encoding="utf-8") as fh:
+            dart = re.search(r"kGrassBloomPetals = \[(.*?)\];", fh.read(), re.S)
+        with open(kotlin_path, encoding="utf-8") as fh:
+            kotlin = re.search(r"grassBloomPetals = intArrayOf\((.*?)\)\n", fh.read(), re.S)
+        self.assertIsNotNone(dart)
+        self.assertIsNotNone(kotlin)
+        hexes = lambda s: [x.lower() for x in re.findall(r"0x([0-9A-Fa-f]{8})", s)]
+        self.assertEqual(hexes(dart.group(1)), hexes(kotlin.group(1)),
+                         "the two renderers scatter different coloured daisies")
 
     def test_every_forest_constant_matches_in_dart_and_kotlin(self):
         dart_path = os.path.join(FLUTTER, "lib", "engine", "garden_engine.dart")
@@ -187,6 +228,57 @@ class TreesAreWellFormed(unittest.TestCase):
             self.assertEqual(len(g._bush_variant(seed)), 16)
         for seed in range(1, 6):
             self.assertEqual(len(g._rock_variant(seed)), 16)
+
+    def test_every_prop_stands_on_the_bottom_row_of_its_canvas(self):
+        # "calilar sanki havadaymis gibi duruyor" (#v34.14). The renderer puts
+        # the canvas BOTTOM on the tile's ground point, so an empty row under
+        # the art is a gap of air under the plant. Bushes and rocks each carried
+        # 2-3 of them while trees and flowers had none — same drawn height,
+        # different ground contact, and nothing in the suite looked.
+        def bottom_pad(grid):
+            n = len(grid)
+            rows = [r for r in range(n) if any(px[3] for px in grid[r])]
+            return n - 1 - max(rows) if rows else n
+
+        for seed in range(1, len(g.TREE_TILES) + 1):
+            with self.subTest(prop=f"tree_{seed - 1:02d}"):
+                self.assertEqual(bottom_pad(g._tree_variant(seed)), 0)
+        for seed in range(1, 11):
+            with self.subTest(prop=f"bush_{seed - 1:02d}"):
+                self.assertEqual(bottom_pad(g._bush_variant(seed)), 0)
+        for seed in range(1, 6):
+            with self.subTest(prop=f"rock_{seed - 1:02d}"):
+                self.assertEqual(bottom_pad(g._rock_variant(seed)), 0)
+
+    def test_no_tree_has_a_flat_cut_across_its_head(self):
+        # "digerleri gibi yumusak bir sekilde üstü cizmek varken düz cizgi
+        # direk, sanki agac tepeden kesilmis gibi" (#v34.14).
+        #
+        # blob() derived its row range asymmetrically — `bcy - rad` on top but
+        # `bcy + rad/squash` underneath — so any blob with squash < 1, i.e.
+        # every poplar at 0.60, never had the top ~10 rows of its crown visited
+        # and came out with a hard horizontal edge. The existing canvas-edge
+        # test could not see it: the cut lands mid-canvas, not on row 0.
+        #
+        # Measured as the longest run of adjacent columns whose topmost opaque
+        # pixel is on the SAME row, against the canopy's width. A round crown
+        # sits near 25%; the broken poplars were at 81%.
+        for seed in range(1, len(g.TREE_TILES) + 1):
+            with self.subTest(tree=f"tree_{seed - 1:02d}"):
+                grid = g._tree_variant(seed)
+                n = len(grid)
+                tops = [next((r for r in range(n) if grid[r][c][3]), None)
+                        for c in range(n)]
+                width = sum(1 for t in tops if t is not None)
+                best = cur = 0
+                prev = None
+                for t in tops:
+                    cur = cur + 1 if (t is not None and t == prev) else (1 if t is not None else 0)
+                    prev = t
+                    best = max(best, cur)
+                self.assertLess(best / width, 0.45,
+                                f"{best} of {width} canopy columns start on one row "
+                                f"— the head is cut flat, not drawn round")
 
 
 if __name__ == "__main__":
