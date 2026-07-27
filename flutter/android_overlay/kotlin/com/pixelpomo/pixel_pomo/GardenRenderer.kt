@@ -689,9 +689,9 @@ class GardenRenderer(private val data: GardenData) {
                 else -> id("rock", 5)
             }
         }
-        // no rocks on the near/far edges: the soil slab hangs below the plot's
-        // edge and a rock one tile out straddles its lower lip (#v34.18)
-        return id("bush", 10)
+        // the near/far edges get the flanks' mix minus the trees (#v35.3) —
+        // 80% bush read as one repeated plant along the whole row
+        return if (bucket < 76) id("bush", 10) else id("rock", 5)
     }
 
     /** Mirrors _innerRingProp in garden_engine.dart: no bald patch where the

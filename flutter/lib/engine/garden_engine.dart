@@ -341,12 +341,19 @@ String? _innerRingRaw(int c, int r, int cols, int rows) {
     if (bucket < 88) return id('bush', kForestBushes);
     return id('rock', kForestRocks);
   }
-  // The near and far edges take NO rocks (#v34.18). The plot's soil slab hangs
-  // below its edge, and a rock one tile out is short enough that its sprite
-  // straddles the slab's lower lip — so it reads as a pebble stuck to the side
-  // of the raised bed rather than sitting on the ground: "tas havada duruyor".
-  // A bush is tall enough to clear the slab and read as standing on the floor.
-  return id('bush', kForestBushes);
+  // The near and far edges get the flanks' MIX minus the trees (#v35.3) —
+  // "üst tarafta birinci satirda gereginden fazla kücük agac oluyor ... sol ve
+  // sag taraf gibi yapalim". They were 80% bush, and a bush is a squat little
+  // tree, so the whole row read as one repeated plant.
+  //
+  // Rocks come back here with the same share the flanks give them. They were
+  // pulled in #v34.18 because a rock one tile out straddles the soil slab's
+  // lower lip on whichever edge faces the camera — but that cost the row all
+  // its variety on BOTH edges to fix one, and the low bushes have the same
+  // problem to a lesser degree anyway. No trees: a 2-tile tree here still
+  // reaches 1.5 tiles up over the clearing.
+  if (bucket < 76) return id('bush', kForestBushes);
+  return id('rock', kForestRocks);
 }
 
 /// The tile hard against the clearing (#v34.17), with the rim tidied (#v34.18).

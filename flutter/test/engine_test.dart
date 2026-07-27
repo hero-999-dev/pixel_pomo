@@ -331,20 +331,28 @@ void main() {
       }
     });
 
-    test('no rocks against the near and far edges', () {
-      // "tas havada duruyor": the plot's soil slab hangs below its edge, and a
-      // rock one tile out is short enough that its sprite straddles the slab's
-      // lower lip — so it reads as stuck to the side of the raised bed rather
-      // than standing on the forest floor. A bush clears the slab.
+    test('the near and far rim is a mix, not one repeated plant', () {
+      // "üst tarafta birinci satirda gereginden fazla kücük agac oluyor ... sol
+      // ve sag taraf gibi yapalim" (#v35.3). These edges used to be 80% bush,
+      // and a bush IS a squat little tree, so the whole row read as the same
+      // plant over and over. They get the flanks' mix minus the trees now — a
+      // 2-tile tree one tile out still reaches 1.5 tiles up over the clearing,
+      // which is why the trees stay on the flanks only.
+      var bushes = 0, rocks = 0, trees = 0;
       for (var r = -1; r <= rows; r++) {
         for (var c = -1; c <= cols; c++) {
           if (tilesOutsidePlot(c, r, cols, rows) != 1) continue;
           if (isPlotSideTile(c, r, cols, rows)) continue;
           final id = forestPropAt(c, r, cols, rows);
-          expect(id?.startsWith('rock_') ?? false, false,
-              reason: '$id at ($c,$r) is a rock against the slab');
+          if (id == null) continue;
+          if (id.startsWith('bush_')) bushes++;
+          if (id.startsWith('rock_')) rocks++;
+          if (id.startsWith('tree_')) trees++;
         }
       }
+      expect(trees, 0, reason: 'a tree here leans 1.5 tiles over the clearing');
+      expect(rocks, greaterThan(0), reason: 'the rim has no rocks in it at all');
+      expect(bushes, greaterThan(rocks), reason: 'the rim is mostly rock now');
     });
 
     test('identical props almost never touch', () {

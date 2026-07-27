@@ -323,10 +323,19 @@ def _tree_variant(seed):
         blob(cx + n * 0.18, n * 0.46, n * 0.18, highlight=False)
         trunk_top = n * 0.68
     else:
-        # ROUND broadleaf — one crown plus a small shoulder lobe (no highlight
-        # of its own, or it reads as a hole punched in the canopy)
+        # ROUND broadleaf — one crown plus a shoulder lobe on EACH side (no
+        # highlight of their own, or they read as holes punched in the canopy).
+        #
+        # The lobe used to land on one randomly chosen side
+        # (`cx + n*0.15 * (1 if rb(2) else -1)`), which is the "bir tarafi cikik"
+        # tree: a bump growing out of one shoulder with nothing opposite it.
+        # Mirrored here and NOWHERE else — the per-lobe shading stays exactly as
+        # it was, so the pine keeps its tiers and the trunk keeps its shaded
+        # side. Those two are what #v34.17-#v35.1 destroyed, and this is the one
+        # asymmetry that was ever the complaint (#v35.3).
         blob(cx, n * 0.38, n * 0.27)
-        blob(cx + n * 0.15 * (1 if rb(2) else -1), n * 0.50, n * 0.15, highlight=False)
+        blob(cx - n * 0.15, n * 0.50, n * 0.15, highlight=False)
+        blob(cx + n * 0.15, n * 0.50, n * 0.15, highlight=False)
         trunk_top = n * 0.72
 
     # Trunk: start it INSIDE the canopy, not at a guessed fraction of the
