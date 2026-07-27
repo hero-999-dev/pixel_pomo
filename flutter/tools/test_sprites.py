@@ -94,7 +94,7 @@ class TreeTableIsMirrored(unittest.TestCase):
                              f"tree_{idx:02d} is in kNarrowTrees but is not a 2-tile tree")
             cols = [c for c in range(n) if any(grid[r][c][3] for r in range(n))]
             width = (max(cols) - min(cols) + 1) / n
-            self.assertLessEqual(width, 0.60,
+            self.assertLessEqual(width, 0.50,
                                  f"tree_{idx:02d} fills {width:.0%} of its canvas — not narrow")
         # and nothing narrow was left out, or the flanks lose variety for no reason
         for idx, tiles in enumerate(g.TREE_TILES):
@@ -103,7 +103,7 @@ class TreeTableIsMirrored(unittest.TestCase):
             grid = g._tree_variant(idx + 1)
             n = len(grid)
             cols = [c for c in range(n) if any(grid[r][c][3] for r in range(n))]
-            self.assertGreater((max(cols) - min(cols) + 1) / n, 0.60,
+            self.assertGreater((max(cols) - min(cols) + 1) / n, 0.50,
                                f"tree_{idx:02d} is narrow but missing from kNarrowTrees")
 
     def test_the_one_tile_prop_sizes_match_in_dart_and_kotlin(self):
@@ -219,6 +219,42 @@ class TreesAreWellFormed(unittest.TestCase):
                 for r in range(n):
                     self.assertFalse(grid[r][0][3], f"tree {seed} touches the left edge")
                     self.assertFalse(grid[r][n - 1][3], f"tree {seed} touches the right edge")
+
+    def test_every_tree_is_mirror_symmetric(self):
+        # "ben sag sol esit cizim istedim" (#v35.1). The round broadleaf grew a
+        # shoulder lobe on ONE randomly chosen side, so a bump stuck out of one
+        # shoulder with nothing opposite it — every "yuvarlak cikinti" report
+        # was pointing at that, and two rounds of shading fixes never touched
+        # it because the asymmetry was in the SILHOUETTE, not the shading.
+        #
+        # Exact pixel equality, which also pins the two things that quietly
+        # break mirroring: blobs centred on n/2 instead of (n-1)/2, and the
+        # trunk's darker bark being applied to one side only.
+        for seed in range(1, len(g.TREE_TILES) + 1):
+            with self.subTest(tree=f"tree_{seed - 1:02d}"):
+                grid = g._tree_variant(seed)
+                n = len(grid)
+                for r in range(n):
+                    for c in range(n // 2):
+                        self.assertEqual(grid[r][c], grid[r][n - 1 - c],
+                                         f"row {r} differs at columns {c} / {n - 1 - c}")
+
+    def test_every_tree_shows_some_trunk(self):
+        # "yere baglamissin agaci": the pine's widest tier sat at 0.70n with a
+        # half-height of 0.30n, so the canopy's underside landed exactly on the
+        # ground row — the crown swallowed the trunk and the tree read as a bush
+        # glued to the floor. Assert there are rows of trunk with no canopy
+        # beside them, which is what "the trunk shows" actually means.
+        for seed in range(1, len(g.TREE_TILES) + 1):
+            with self.subTest(tree=f"tree_{seed - 1:02d}"):
+                grid = g._tree_variant(seed)
+                bare = 0
+                for row in grid:
+                    ink = [px for px in row if px[3]]
+                    if ink and all(px[0] > px[1] for px in ink):  # brown only
+                        bare += 1
+                self.assertGreaterEqual(bare, 2,
+                                        "the canopy reaches the ground — no trunk shows")
 
     def test_no_canopy_has_a_seam_running_through_it(self):
         # "yuvarlagin icinde sanki baska bir agac parcasi varmis gibi bogumlar"
@@ -353,8 +389,15 @@ class TreesAreWellFormed(unittest.TestCase):
         # test could not see it: the cut lands mid-canvas, not on row 0.
         #
         # Measured as the longest run of adjacent columns whose topmost opaque
-        # pixel is on the SAME row, against the canopy's width. A round crown
-        # sits near 25%; the broken poplars were at 81%.
+        # pixel is on the SAME row, against the CANVAS width.
+        #
+        # Against the canopy's ink width — the first version — it punished
+        # narrow crowns for nothing: a 12-pixel-wide poplar top discretises to
+        # 6 columns on one row simply because that is what a small rounded arc
+        # does, scoring 0.50 while looking perfectly round. Against the canvas
+        # the numbers separate on the thing that matters, how much of the tree's
+        # own frame the flat edge spans: every current sprite is <= 0.19, and
+        # the poplars that really were cut measured 0.34-0.39.
         for seed in range(1, len(g.TREE_TILES) + 1):
             with self.subTest(tree=f"tree_{seed - 1:02d}"):
                 grid = g._tree_variant(seed)
@@ -368,9 +411,11 @@ class TreesAreWellFormed(unittest.TestCase):
                     cur = cur + 1 if (t is not None and t == prev) else (1 if t is not None else 0)
                     prev = t
                     best = max(best, cur)
-                self.assertLess(best / width, 0.45,
-                                f"{best} of {width} canopy columns start on one row "
-                                f"— the head is cut flat, not drawn round")
+                self.assertLess(best / n, 0.28,
+                                f"{best} adjacent canopy columns start on one row, "
+                                f"spanning {best / n:.0%} of the {n}px canvas "
+                                f"(canopy is {width}px wide) — the head is cut "
+                                f"flat, not drawn round")
 
 
 if __name__ == "__main__":

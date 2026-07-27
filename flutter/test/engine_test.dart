@@ -347,6 +347,37 @@ void main() {
       }
     });
 
+    test('identical props almost never touch', () {
+      // "ayni tür kücük cali ve agaclarin, kayalarin aynisinin yanyana olmasini
+      // istemiyorum" — two identical sprites side by side read as a tiling
+      // artefact rather than as a forest, and the eye finds every one.
+      //
+      // The bound is 2%, not 0. Variants are corrected against a neighbour's
+      // once-corrected value, which leaves the case where the neighbour was
+      // itself moved onto this tile's pick; measured, that is ~1% of adjacent
+      // pairs against 10-20% for a plain hash. Driving it to exactly zero needs
+      // a scan order, and a scan order would stop the forest being a pure
+      // function of the tile — the property that keeps it from changing as the
+      // camera moves (#v34.12). This bound is the trade, stated out loud.
+      var pairs = 0, twins = 0;
+      for (var r = -30; r < rows + 30; r++) {
+        for (var c = -30; c < cols + 30; c++) {
+          final me = forestPropAt(c, r, cols, rows);
+          if (me == null) continue;
+          for (final (nc, nr) in [(c + 1, r), (c, r + 1)]) {
+            final other = forestPropAt(nc, nr, cols, rows);
+            if (other == null) continue;
+            pairs++;
+            if (other == me) twins++;
+          }
+        }
+      }
+      expect(pairs, greaterThan(2000), reason: 'sanity: enough pairs to measure');
+      expect(twins / pairs, lessThan(0.02),
+          reason: '${(twins / pairs * 100).toStringAsFixed(1)}% of neighbouring '
+              'props are identical twins');
+    });
+
     test('the forest backdrop samples deep woods, with no clearing in it', () {
       // #v35.0 — the FOREST home backdrop draws the same woods from
       // kForestBackdropOffset away, so every tile on screen is deep forest:

@@ -232,7 +232,10 @@ def _tree_variant(seed):
 
     shape = rb(4)                          # 0 round, 1 pine, 2 poplar, 3 oak
     trunk_w = max(2, n // 10)
-    cx = n / 2.0
+    # (n-1)/2, not n/2: the mirror axis of a pixel grid runs through the middle
+    # of the middle column, so a blob centred on n/2 comes out half a pixel off
+    # and no amount of symmetric geometry above it can be mirror-exact.
+    cx = (n - 1) / 2.0
     ground = n - 1
 
     def put(c, r, col):
@@ -302,25 +305,30 @@ def _tree_variant(seed):
                     dist[nr][nc] = dist[r][c] + 1
                     frontier.append((nr, nc))
 
+        # Everything below is MIRROR-SYMMETRIC about the crown's own centre
+        # column: the rim treats left and right alike and the highlight sits on
+        # the centre line. A side-lit crown is the usual pixel-art choice, but
+        # it makes one shoulder darker than the other, and "sag sol esit cizim"
+        # is the explicit ask. A symmetry test pins it.
+        lit_r = rows[0] + (rows[-1] - rows[0]) * 0.24
+        lit_rad = max(1.5, hrad * 0.34)
         for r in range(n):
             for c in range(n):
                 if not mask[r][c]:
                     continue
                 d = dist[r][c]
-                lower = r > ctr_r
-                right = c > ctr_c
-                hx = (c - hcx) + hrad * 0.42          # highlight centre, up-left
-                hy = (r - hcy) * hsq + hrad * 0.42
-                if d == 1 and lower:
+                hx = c - ctr_c
+                hy = (r - lit_r) * 1.3
+                if d == 1 and r > ctr_r:
                     col = under        # a ONE-pixel underside rim, not a band
-                elif d == 1 and right:
-                    col = shade        # away from the light
-                elif d <= 2 and (lower or right):
-                    col = shade        # a thin falloff so the rim isn't a hard line
-                elif has_lit and hx * hx + hy * hy < (hrad * 0.30) ** 2:
-                    col = lit
+                elif d == 1:
+                    col = shade        # the rest of the outline, both sides alike
+                elif d == 2 and r > ctr_r:
+                    col = shade        # a thin falloff under the crown
+                elif has_lit and hx * hx + hy * hy < lit_rad * lit_rad:
+                    col = lit          # a centred cap, not an up-left one
                 else:
-                    col = mid          # the lit side keeps no dark outline at all
+                    col = mid
                 g[r][c] = col
 
     if shape == 1:
@@ -331,7 +339,14 @@ def _tree_variant(seed):
         # top 0.18, not 0.13: the spike's own radius put it at y<0, so the
         # canopy was flat-cut by the canvas edge — the tree had no head. A test
         # now asserts no tree touches any edge (#v34.9).
-        top, bottom = n * 0.18, n * 0.70
+        #
+        # bottom 0.46, not 0.70: the widest tier's own half-height is
+        # 0.34n/1.12 = 0.30n, so a centre at 0.70n put the canopy's underside
+        # exactly on the ground row. The crown swallowed the trunk and the tree
+        # read as a bush glued to the floor — "yere baglamissin agaci". At 0.46
+        # the canopy stops at 0.76n and a quarter of the trunk shows, like every
+        # other shape. A test now pins that every tree HAS a visible trunk.
+        top, bottom = n * 0.18, n * 0.46
         for i in range(tiers):
             f = i / (tiers - 1)
             rad = n * (0.15 + 0.19 * f)
@@ -360,10 +375,17 @@ def _tree_variant(seed):
         blob(cx + n * 0.18, n * 0.46, n * 0.18, highlight=False)
         trunk_top = n * 0.68
     else:
-        # ROUND broadleaf — one crown plus a small shoulder lobe (no highlight
-        # of its own, or it reads as a hole punched in the canopy)
+        # ROUND broadleaf — one crown plus a shoulder lobe on EACH side.
+        #
+        # It used to get a single lobe on one randomly chosen side, which is
+        # what every "yuvarlak cikinti" report was pointing at: a bump growing
+        # out of one shoulder and nothing opposite it, so the tree looked like
+        # it had something stuck to it rather than like a tree. Mirrored now —
+        # "sag sol esit cizim". A test asserts every canopy is mirror-symmetric,
+        # which is the property that was actually being asked for.
         blob(cx, n * 0.38, n * 0.27)
-        blob(cx + n * 0.15 * (1 if rb(2) else -1), n * 0.50, n * 0.15, highlight=False)
+        blob(cx - n * 0.15, n * 0.50, n * 0.15, highlight=False)
+        blob(cx + n * 0.15, n * 0.50, n * 0.15, highlight=False)
         trunk_top = n * 0.72
 
     paint_canopy()   # one silhouette, shaded once — no seams between the lobes
@@ -384,8 +406,13 @@ def _tree_variant(seed):
     for r in range(int(trunk_top), n):
         f = (r - trunk_top) / max(1.0, ground - trunk_top)
         half = trunk_w / 2.0 + f * trunk_w * 0.35
-        for c in range(int(cx - half), int(cx + half) + 1):
-            put(c, r, bark_d if c - cx > half * 0.25 else bark)
+        for c in range(n):
+            # tested by distance from the axis rather than a rounded range, so
+            # the trunk is mirror-exact like the crown above it; the darker bark
+            # is on BOTH outer edges, not just the right one
+            off = abs(c - cx)
+            if off <= half:
+                put(c, r, bark_d if off > half * 0.55 else bark)
 
     return g
 

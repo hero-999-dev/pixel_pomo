@@ -81,7 +81,7 @@ const int kBigTreeClearTiles = 7;
 /// The drawn rect is the same for every 2-tile tree — what changes is how much
 /// of it the artwork actually fills, 41-56% here against 66-72% for the rest.
 /// Gated by a sprite test, so re-rolling a silhouette cannot leave this stale.
-const List<int> kNarrowTrees = [5, 13, 15];
+const List<int> kNarrowTrees = [5, 13];
 
 /// Bare-ground share for the tile hard against the clearing. Lower than the
 /// woods' [kForestGapPercent] because at one tile out a hole is a hole in the
@@ -279,10 +279,9 @@ int _floorDiv(int a, int b) => (a >= 0 ? a : a - b + 1) ~/ b;
 String? forestPropAt(int c, int r, int cols, int rows) {
   final d = tilesOutsidePlot(c, r, cols, rows);
   if (d == 0) return null; // inside the plot — the garden owns this tile
-  final h = _hash2(c, r);
-  final bucket = h % 100;
-  final pick = h ~/ 100;
-  String id(String kind, int n) => '${kind}_${(pick % n).toString().padLeft(2, '0')}';
+  final bucket = _hash2(c, r) % 100;
+  String id(String kind, int n) =>
+      '${kind}_${_variant(c, r, n).toString().padLeft(2, '0')}';
 
   // A taller tree, where one of the sparse isolated lattice sites lands far
   // enough back. Checked BEFORE the gap roll: a landmark shouldn't be cancelled
@@ -306,11 +305,11 @@ String? forestPropAt(int c, int r, int cols, int rows) {
   // in front of the clearing, which is just what a tree in front of a clearing
   // does.
   if (d <= kUndergrowthTiles) {
-    if (bucket < 78) return _smallTree(pick);
+    if (bucket < 78) return _smallTree(c, r);
     if (bucket < 90) return id('bush', kForestBushes);
     return id('rock', kForestRocks);
   }
-  if (bucket < 84) return _smallTree(pick);
+  if (bucket < 84) return _smallTree(c, r);
   if (bucket < 94) return id('bush', kForestBushes);
   return id('rock', kForestRocks);
 }
@@ -333,12 +332,12 @@ String? forestPropAt(int c, int r, int cols, int rows) {
 /// anti-clustering rules below are applied to it.
 String? _innerRingRaw(int c, int r, int cols, int rows) {
   final bucket = _hash2(c, r) % 100;
-  final pick = _hash2(c, r) ~/ 100;
-  String id(String kind, int n) => '${kind}_${(pick % n).toString().padLeft(2, '0')}';
+  String id(String kind, int n) =>
+      '${kind}_${_variant(c, r, n).toString().padLeft(2, '0')}';
   if (bucket < kRingInnerGapPercent) return null;
   final flank = isPlotSideTile(c, r, cols, rows);
   if (flank) {
-    if (bucket < 52) return _narrowTree(pick);
+    if (bucket < 52) return _narrowTree(c, r);
     if (bucket < 88) return id('bush', kForestBushes);
     return id('rock', kForestRocks);
   }
@@ -396,31 +395,78 @@ String? _bigTreeAt(int c, int r, int maxTiles) {
   final span = kBigTreeBlock - 3;
   final ox = (h ~/ 100) % span + 1, oy = (h ~/ 700) % span + 1;
   if (c - bc * kBigTreeBlock != ox || r - br * kBigTreeBlock != oy) return null;
-  return _bigTree(h ~/ 4900, maxTiles);
+  return _bigTree(c, r, maxTiles);
 }
 
-/// The nearest 2-tile tree to [pick] — the whole forest is built from these.
-String _smallTree(int pick) => _treeOfSize(pick, (t) => t == 2, 'tree_00');
+/// A variant index in `[0, n)` for this tile that differs from the ones its two
+/// already-decided neighbours rolled (#v35.1).
+///
+/// "Ayni tür kücük cali ve agaclarin, kayalarin aynisinin yanyana olmasini
+/// istemiyorum" — with ten bushes a plain hash repeats side by side one time in
+/// ten, and the eye finds every one of them, because two identical sprites
+/// touching read as a tiling artefact rather than as a forest.
+///
+/// Compares against the neighbours' RAW roll, never their final value, so there
+/// is no chain of dependencies and the result stays a pure function of the tile.
+/// One level: differ from the two upstream neighbours' RAW rolls.
+int _variant1(int c, int r, int n) {
+  int raw(int cc, int rr) => (_hash2(cc, rr) ~/ 100) % n;
+  var v = raw(c, r);
+  final a = raw(c - 1, r), b = raw(c, r - 1);
+  for (var guard = 0; (v == a || v == b) && guard < n; guard++) {
+    v = (v + 1) % n;
+  }
+  return v;
+}
+
+int _variant(int c, int r, int n) {
+  if (n <= 1) return 0;
+  // Two levels, not one. Correcting against a neighbour's RAW roll leaves the
+  // case where the neighbour was itself bumped INTO this tile's value, which
+  // measured 2.9% of adjacent pairs — still roughly fifteen visible twins on a
+  // screen. Comparing against the neighbour's once-corrected value instead
+  // takes it to a fraction of a percent. It cannot be driven to exactly zero
+  // without a scan order, and a scan order would stop this being a pure
+  // function of the tile — which is the property that keeps the forest from
+  // changing as the camera moves (#v34.12).
+  var v = _variant1(c, r, n);
+  final a = _variant1(c - 1, r, n), b = _variant1(c, r - 1, n);
+  for (var guard = 0; (v == a || v == b) && guard < n; guard++) {
+    v = (v + 1) % n;
+  }
+  return v;
+}
+
+/// Tree pool indices whose size passes [want], in order.
+List<int> _treesOfSize(bool Function(int) want) => [
+      for (var i = 0; i < kForestTrees; i++)
+        if (want(kTreeTiles[i])) i,
+    ];
+
+String _treeId(int i) => 'tree_${i.toString().padLeft(2, '0')}';
+
+/// Pick from a size class by VARIANT rather than by scanning forward from a
+/// hash. The old `_treeOfSize` walked up from `pick % 20` to the next tree of
+/// the right size, which bunched picks onto whichever index followed a long run
+/// of wrong sizes — so the same silhouette turned up next to itself far more
+/// often than one-in-eight. Indexing the eligible list directly spreads them
+/// evenly and lets [_variant] keep neighbours apart.
+String _treeOfSize(int c, int r, bool Function(int) want, String fallback) {
+  final pool = _treesOfSize(want);
+  if (pool.isEmpty) return fallback;
+  return _treeId(pool[_variant(c, r, pool.length)]);
+}
+
+/// The 2-tile trees the whole forest is built from.
+String _smallTree(int c, int r) => _treeOfSize(c, r, (t) => t == 2, 'tree_00');
 
 /// One of the narrow 2-tile trees — see [kNarrowTrees].
-String _narrowTree(int pick) {
-  final n = kNarrowTrees[pick % kNarrowTrees.length];
-  return 'tree_${n.toString().padLeft(2, '0')}';
-}
+String _narrowTree(int c, int r) =>
+    _treeId(kNarrowTrees[_variant(c, r, kNarrowTrees.length)]);
 
-/// The nearest tree to [pick] taller than the woods but no taller than
-/// [maxTiles].
-String _bigTree(int pick, int maxTiles) =>
-    _treeOfSize(pick, (t) => t >= 3 && t <= maxTiles, 'tree_01');
-
-String _treeOfSize(int pick, bool Function(int) want, String fallback) {
-  final n = pick % kForestTrees;
-  for (var i = 0; i < kForestTrees; i++) {
-    final alt = (n + i) % kForestTrees;
-    if (want(kTreeTiles[alt])) return 'tree_${alt.toString().padLeft(2, '0')}';
-  }
-  return fallback;
-}
+/// A tree taller than the woods but no taller than [maxTiles].
+String _bigTree(int c, int r, int maxTiles) =>
+    _treeOfSize(c, r, (t) => t >= 3 && t <= maxTiles, 'tree_01');
 
 /// Flat ambient palette per fence id as `(side, top, rail)`. The top face is a
 /// touch brighter than the sides — light from the sky, baked to the geometry, so
@@ -823,6 +869,16 @@ class CritterSystem {
 /// one. Any large offset does; this one is arbitrary.
 const int kForestBackdropOffset = 4096;
 
+/// Roughly how many trees the FOREST backdrop fits across the screen.
+///
+/// The framing is set from this rather than from a camera zoom, because zoom
+/// runs through `Projector.fit`, which is sized to the PLOT — so the same zoom
+/// gave a different tree size as the garden grew, and on an 11-wide plot it
+/// came out as a close-up of a dozen trees instead of the carpet of them the
+/// reference image shows. Trees are 2 tiles wide, so the tile size is
+/// `width / (2 * this)` and the result is the same on any screen (#v35.1).
+const int kForestBackdropTreesAcross = 20;
+
 class GardenPainter extends CustomPainter {
   final Garden garden;
   final GardenCamera cam;
@@ -857,7 +913,17 @@ class GardenPainter extends CustomPainter {
     // One screen-filling 2.5D world (#1): the claimed plot is the grass clearing;
     // the projector is sized to the plot, and the forest is drawn over every
     // visible tile outside it, so the woods fill the whole screen at any pan/zoom.
-    final p = Projector.fit(_cols, _rows, cam, size);
+    // The FOREST backdrop frames by tree size, not by the plot (see
+    // kForestBackdropTreesAcross) — Projector.fit is sized to the clearing, so
+    // through it the same zoom means a different tree size on every garden.
+    final p = forestOnly
+        ? Projector(
+            _cols,
+            _rows,
+            size.width / (2.0 * kForestBackdropTreesAcross),
+            Offset(size.width / 2, size.height / 2),
+            cam.yaw)
+        : Projector.fit(_cols, _rows, cam, size);
     final t = p.t;
     final slab = Projector.slabFor(t);
 

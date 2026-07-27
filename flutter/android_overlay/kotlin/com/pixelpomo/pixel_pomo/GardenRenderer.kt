@@ -600,10 +600,10 @@ class GardenRenderer(private val data: GardenData) {
     /** The narrow 2-tile trees — the only ones allowed in the innermost ring
      *  tile on the flanks, where a prop overlaps the clearing sideways. MUST
      *  match kNarrowTrees in garden_engine.dart (#v34.17). */
-    private val narrowTrees = intArrayOf(5, 13, 15)
+    private val narrowTrees = intArrayOf(5, 13)
 
-    private fun narrowTree(pick: Int): String =
-        "tree_" + narrowTrees[pick % narrowTrees.size].toString().padStart(2, '0')
+    private fun narrowTree(c: Int, r: Int): String =
+        "tree_" + narrowTrees[variant(c, r, narrowTrees.size)].toString().padStart(2, '0')
     private val undergrowthTiles = 2
     private val ringTreeTiles = 2
 
@@ -618,17 +618,39 @@ class GardenRenderer(private val data: GardenData) {
         else -> forestPropTiles(fp).let { it * 1.05 to it * 0.95 }
     }
 
-    /** Mirrors _treeOfSize / _smallTree / _bigTree in garden_engine.dart. */
-    private fun treeOfSize(pick: Int, want: (Int) -> Boolean, fallback: String): String {
-        val n = pick % 20
-        for (i in 0 until 20) {
-            val alt = (n + i) % 20
-            if (want(treeTiles[alt])) return "tree_" + alt.toString().padStart(2, '0')
-        }
-        return fallback
+    /** A variant index that differs from the two upstream neighbours', so two
+     *  identical sprites never sit side by side. Mirrors _variant1/_variant in
+     *  garden_engine.dart (#v35.1) — two levels, compared against neighbours'
+     *  earlier-stage values so there is no dependency chain. */
+    private fun variant1(c: Int, r: Int, n: Int): Int {
+        fun raw(cc: Int, rr: Int) = (hash2(cc, rr) / 100) % n
+        var v = raw(c, r)
+        val a = raw(c - 1, r); val b = raw(c, r - 1)
+        var guard = 0
+        while ((v == a || v == b) && guard < n) { v = (v + 1) % n; guard++ }
+        return v
     }
 
-    private fun smallTree(pick: Int) = treeOfSize(pick, { it == 2 }, "tree_00")
+    private fun variant(c: Int, r: Int, n: Int): Int {
+        if (n <= 1) return 0
+        var v = variant1(c, r, n)
+        val a = variant1(c - 1, r, n); val b = variant1(c, r - 1, n)
+        var guard = 0
+        while ((v == a || v == b) && guard < n) { v = (v + 1) % n; guard++ }
+        return v
+    }
+
+    /** Mirrors _treeOfSize / _smallTree / _bigTree in garden_engine.dart:
+     *  index the eligible pool by variant instead of scanning forward from a
+     *  hash, which bunched picks onto whichever index followed a run of
+     *  wrong-sized trees. */
+    private fun treeOfSize(c: Int, r: Int, want: (Int) -> Boolean, fallback: String): String {
+        val pool = (0 until 20).filter { want(treeTiles[it]) }
+        if (pool.isEmpty()) return fallback
+        return "tree_" + pool[variant(c, r, pool.size)].toString().padStart(2, '0')
+    }
+
+    private fun smallTree(c: Int, r: Int) = treeOfSize(c, r, { it == 2 }, "tree_00")
 
     /** One candidate big tree per block, offset inside `[1, block-3]` so sites in
      *  neighbouring blocks stay >= 4 tiles apart — wider than the widest tree, so
@@ -641,7 +663,7 @@ class GardenRenderer(private val data: GardenData) {
         val span = bigTreeBlock - 3
         val ox = (hsh / 100) % span + 1; val oy = (hsh / 700) % span + 1
         if (c - bc * bigTreeBlock != ox || r - br * bigTreeBlock != oy) return null
-        return treeOfSize(hsh / 4900, { it in 3..maxTiles }, "tree_01")
+        return treeOfSize(c, r, { it in 3..maxTiles }, "tree_01")
     }
 
     /** Off the plot's COLUMN edge (beside it) rather than its row edge (in
@@ -657,12 +679,12 @@ class GardenRenderer(private val data: GardenData) {
     /** The raw roll for the tile hard against the clearing, before the two
      *  anti-clustering rules. Mirrors _innerRingRaw in garden_engine.dart. */
     private fun innerRingRaw(c: Int, r: Int): String? {
-        val hsh = hash2(c, r); val bucket = hsh % 100; val pick = hsh / 100
-        fun id(kind: String, n: Int) = "${kind}_" + (pick % n).toString().padStart(2, '0')
+        val bucket = hash2(c, r) % 100
+        fun id(kind: String, n: Int) = "${kind}_" + variant(c, r, n).toString().padStart(2, '0')
         if (bucket < ringInnerGapPercent) return null
         if (isPlotSideTile(c, r)) {
             return when {
-                bucket < 52 -> narrowTree(pick)
+                bucket < 52 -> narrowTree(c, r)
                 bucket < 88 -> id("bush", 10)
                 else -> id("rock", 5)
             }
@@ -677,8 +699,7 @@ class GardenRenderer(private val data: GardenData) {
      *  along the rim. Both read a NEIGHBOUR'S raw roll, never its finished
      *  value, so there is no chain of dependencies. */
     private fun innerRingProp(c: Int, r: Int): String? {
-        val pick = hash2(c, r) / 100
-        fun bush() = "bush_" + (pick % 10).toString().padStart(2, '0')
+        fun bush() = "bush_" + variant(c, r, 10).toString().padStart(2, '0')
         val me = innerRingRaw(c, r)
         if (me == null) {
             val (oc, or) = when {
@@ -702,18 +723,18 @@ class GardenRenderer(private val data: GardenData) {
     private fun forestPropAt(c: Int, r: Int): String? {
         val d = tilesOutsidePlot(c, r)
         if (d == 0) return null // inside the plot — the garden owns this tile
-        val hsh = hash2(c, r); val bucket = hsh % 100; val pick = hsh / 100
-        fun id(kind: String, n: Int) = "${kind}_" + (pick % n).toString().padStart(2, '0')
+        val bucket = hash2(c, r) % 100
+        fun id(kind: String, n: Int) = "${kind}_" + variant(c, r, n).toString().padStart(2, '0')
         if (d >= midTreeClearTiles) {
             bigTreeAt(c, r, if (d >= bigTreeClearTiles) 4 else 3)?.let { return it }
         }
         if (d == 1) return innerRingProp(c, r)
         return when {
             bucket < forestGapPercent -> null
-            d <= undergrowthTiles && bucket < 78 -> smallTree(pick)
+            d <= undergrowthTiles && bucket < 78 -> smallTree(c, r)
             d <= undergrowthTiles && bucket < 90 -> id("bush", 10)
             d <= undergrowthTiles -> id("rock", 5)
-            bucket < 84 -> smallTree(pick)
+            bucket < 84 -> smallTree(c, r)
             bucket < 94 -> id("bush", 10)
             else -> id("rock", 5)
         }

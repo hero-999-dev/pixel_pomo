@@ -487,10 +487,10 @@ class HomeScreen extends StatelessWidget {
           lang: lang,
           tr: (k) => t(lang, k),
           interactive: false,
+          // FOREST frames itself from kForestBackdropTreesAcross, so it needs
+          // no camera override — a zoom here would go through Projector.fit,
+          // which is sized to the plot (#v35.1).
           forestOnly: s.homeForestBackdrop,
-          // FOREST is the view from high above (#v35.0) — zoomed out so the
-          // canopy reads as a treetop carpet rather than a handful of trunks.
-          camera: s.homeForestBackdrop ? GardenCamera(zoom: 0.5) : null,
         );
       },
     );
