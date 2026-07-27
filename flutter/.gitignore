@@ -6,7 +6,13 @@
 .flutter-plugins
 .flutter-plugins-dependencies
 .packages
-pubspec.lock
+# pubspec.lock IS tracked (#v34.12). This is an application, not a library, so
+# the lock is the only thing making a CI build reproducible. Untracked, CI
+# re-resolved the whole tree on every run: on 2026-07-27 the transitive `jni`
+# went 1.0.0 -> 1.0.1 upstream, 1.0.1's android/build.gradle applies the Kotlin
+# Gradle Plugin the old way, and `assembleRelease` died with "Could not find
+# method kotlin()" on a commit that built fine locally an hour earlier. Nothing
+# in the repo had changed. Run `flutter pub upgrade` to move deps deliberately.
 build/
 ios/
 android/
