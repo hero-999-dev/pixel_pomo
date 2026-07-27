@@ -73,6 +73,8 @@ class TreeTableIsMirrored(unittest.TestCase):
          r"val ringTreeTiles = (\d+)"),
         ("inner-ring density", r"const int kRingInnerGapPercent = (\d+);",
          r"val ringInnerGapPercent = (\d+)"),
+        ("white bloom weight", r"const int kGrassBloomWhiteWeight = (\d+);",
+         r"val grassBloomWhiteWeight = (\d+)"),
         ("narrow trees", r"const List<int> kNarrowTrees = \[([^\]]*)\]",
          r"val narrowTrees = intArrayOf\(([^)]*)\)"),
         ("forest jitter", r"const double kForestJitter = ([\d.]+);",

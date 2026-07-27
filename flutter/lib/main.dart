@@ -682,7 +682,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _stepper(th, lang, t(lang, 'study'), work, 5, 300, 5, (v) => _apply(() => work = v)),
         _stepper(th, lang, t(lang, 'breakMin'), brk, 1, 120, 1, (v) => _apply(() => brk = v)),
         _stepper(th, lang, t(lang, 'sessions'), sess, 1, 24, 1, (v) => _apply(() => sess = v)),
-        const SizedBox(height: 24),
+        // 8, not 24: _stepperRow already carries `bottom: 16` of its own, so a
+        // full 24 here made the gap before LANGUAGE 40px against every other
+        // section's 24 — "language kismi ile sessions arasindaki mesafe
+        // digerlerinden daha fazla" (#v35.6).
+        const SizedBox(height: 8),
       ],
       Text(t(lang, 'language'), style: pixelStyle(lang, 12, col(th.onSurfaceDim), text: t(lang, 'language'))),
       const SizedBox(height: 12),
@@ -690,42 +694,57 @@ class _SettingsScreenState extends State<SettingsScreen> {
       const SizedBox(height: 24),
       Text(t(lang, 'homeMode'), style: pixelStyle(lang, 12, col(th.onSurfaceDim), text: t(lang, 'homeMode'))),
       const SizedBox(height: 12),
-      // three modes since #v32.4. WALLPAPER used to be hidden until one was
-      // saved, which left no hint that the mode existed — it is always on the
-      // row now, and tapping it with no photo opens the how-to (#v34).
-      Row(
-        children: [
-          for (final mode in ['clean', 'garden', 'forest', 'wallpaper']) ...[
-            if (mode != 'clean') const SizedBox(width: 8),
-            Expanded(
-              child: PixelButton(
-                key: Key('homeMode_$mode'),
-                text: t(
-                    lang,
-                    switch (mode) {
-                      'clean' => 'clean',
-                      'garden' => 'gardenMode',
-                      'forest' => 'forestMode',
-                      _ => 'wallMode',
-                    }),
-                fill: s.homeBackdrop == mode ? th.accent : th.panel,
-                border: s.homeBackdrop == mode ? th.onSurface : th.onSurfaceDim,
-                textColor: s.homeBackdrop == mode ? th.onAccent : th.onSurface,
-                shadow: th.shadow,
-                lang: lang,
-                fontSize: 11,
-                onTap: () {
-                  if (mode == 'wallpaper' && s.wallpaperPath == null) {
-                    openPanel(context, s, () => WallpaperHowToScreen(s));
-                  } else {
-                    s.setHomeBackdrop(mode);
-                  }
-                },
+      // Four modes since #v35.0 (FOREST joined CLEAN / GARDEN / WALLPAPER), laid
+      // out 2x2 rather than in one row of four (#v35.6).
+      //
+      // PixelButton fits its label with BoxFit.scaleDown, PER BUTTON — so in a
+      // row of four the longest label shrank its own text the most, and a
+      // shorter text makes a shorter box. WALLPAPER (or "DUVAR KAĞIDI",
+      // "HINTERGRUNDBILD") ended up visibly smaller than CLEAN beside it:
+      // "wallpaper diger karelerle ayni boyutta degil kücük duruyor".
+      //
+      // Half-width boxes give every label room at the full font size, so
+      // nothing scales and all four are identical — which is what was asked
+      // for, and is also why this is a layout change rather than a font tweak.
+      for (final pair in [
+        ['clean', 'garden'],
+        ['forest', 'wallpaper'],
+      ]) ...[
+        Row(
+          children: [
+            for (final mode in pair) ...[
+              if (mode != pair.first) const SizedBox(width: 12),
+              Expanded(
+                child: PixelButton(
+                  key: Key('homeMode_$mode'),
+                  text: t(
+                      lang,
+                      switch (mode) {
+                        'clean' => 'clean',
+                        'garden' => 'gardenMode',
+                        'forest' => 'forestMode',
+                        _ => 'wallMode',
+                      }),
+                  fill: s.homeBackdrop == mode ? th.accent : th.panel,
+                  border: s.homeBackdrop == mode ? th.onSurface : th.onSurfaceDim,
+                  textColor: s.homeBackdrop == mode ? th.onAccent : th.onSurface,
+                  shadow: th.shadow,
+                  lang: lang,
+                  fontSize: 11,
+                  onTap: () {
+                    if (mode == 'wallpaper' && s.wallpaperPath == null) {
+                      openPanel(context, s, () => WallpaperHowToScreen(s));
+                    } else {
+                      s.setHomeBackdrop(mode);
+                    }
+                  },
+                ),
               ),
-            ),
+            ],
           ],
-        ],
-      ),
+        ),
+        if (pair.first == 'clean') const SizedBox(height: 12),
+      ],
       const SizedBox(height: 24),
       Text(t(lang, 'autoBreak'), style: pixelStyle(lang, 12, col(th.onSurfaceDim), text: t(lang, 'autoBreak'))),
       const SizedBox(height: 12),

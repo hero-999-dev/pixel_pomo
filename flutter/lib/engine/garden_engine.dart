@@ -122,17 +122,20 @@ const List<int> kGrassBloomPetals = [
   0xFFF5D98A, // butter
 ];
 
+/// How many shares white gets against one share for each colour (#v35.6) —
+/// "beyaz cicek oranini 3 kat daha arttir". With four colours that puts white
+/// at 3/7 of the blooms and each colour at 1/7.
+const int kGrassBloomWhiteWeight = 3;
+
 /// Index into [kGrassBloomPetals] for a grass daisy, from its tile hash.
-///
-/// **Every colour equally likely, white included** (#v35.5) — "beyaz cogunlukla
-/// olsun demistim, ondan vazgeciyorum, hepsi esit oranda gelme sansi olsun".
-/// The white-dominant weighting this replaces went through two rounds of tuning
-/// (22% tinted, then 25%) before the requirement itself changed; there is no
-/// weighting left to tune now.
 ///
 /// Rolls on a DIFFERENT slice of the hash than the 5% bloom chance, so the two
 /// stay independent and the colours don't cluster on whichever tiles bloomed.
-int grassBloomTint(int hash) => (hash ~/ 100) % kGrassBloomPetals.length;
+int grassBloomTint(int hash) {
+  final colours = kGrassBloomPetals.length - 1; // everything except white
+  final roll = (hash ~/ 100) % (kGrassBloomWhiteWeight + colours);
+  return roll < kGrassBloomWhiteWeight ? 0 : 1 + (roll - kGrassBloomWhiteWeight);
+}
 
 /// The clearing has a transition ring this many tiles deep before the woods
 /// proper start — "ilk 2 sira her taraftan, kücük cali, tas, ve kücük agac

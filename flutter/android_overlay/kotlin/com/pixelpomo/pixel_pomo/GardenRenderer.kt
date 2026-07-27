@@ -269,10 +269,17 @@ class GardenRenderer(private val data: GardenData) {
         }
     }
 
-    /** Mirrors grassBloomTint in garden_engine.dart — every petal colour equally
-     *  likely, white included (#v35.5). Rolls on a different slice of the hash
-     *  than the 5% bloom chance so the two stay independent. */
-    private fun bloomTint(h: Int): Int = (h / 100) % grassBloomPetals.size
+    /** Shares white gets against one per colour. MUST match
+     *  kGrassBloomWhiteWeight in garden_engine.dart (#v35.6). */
+    private val grassBloomWhiteWeight = 3
+
+    /** Mirrors grassBloomTint in garden_engine.dart. Rolls on a different slice
+     *  of the hash than the 5% bloom chance so the two stay independent. */
+    private fun bloomTint(h: Int): Int {
+        val colours = grassBloomPetals.size - 1
+        val roll = (h / 100) % (grassBloomWhiteWeight + colours)
+        return if (roll < grassBloomWhiteWeight) 0 else 1 + (roll - grassBloomWhiteWeight)
+    }
 
     // a small FLAT pixel daisy lying on the grass (petals + yellow eye) —
     // mirrors the in-app _paintBloom (#v20), not a billboard object.

@@ -566,20 +566,23 @@ void main() {
       expect(kRockHeight - kVy, lessThanOrEqualTo(0.0));
     });
 
-    test('every grass daisy colour is equally likely, white included', () {
-      // "beyaz cogunlukla olsun demistim, ondan vazgeciyorum, hepsi esit oranda
-      // gelme sansi olsun, random olsun" (#v35.5). This replaces a test that
-      // asserted white was the MAJORITY — the requirement itself changed, so
-      // the old assertion is gone rather than relaxed.
+    test('white daisies come up 3x as often as each colour', () {
+      // "beyaz cicek oranini 3 kat daha arttir" (#v35.6). The colours stay
+      // even with each other; only white is weighted.
       final counts = List<int>.filled(kGrassBloomPetals.length, 0);
-      const n = 20000;
+      const n = 21000;
       for (var i = 0; i < n; i++) {
         counts[grassBloomTint(i * 7919 % 0x7fffffff)]++;
       }
-      final want = n / kGrassBloomPetals.length;
-      for (var i = 0; i < counts.length; i++) {
-        expect((counts[i] - want).abs() / want, lessThan(0.15),
-            reason: 'petal $i came up ${counts[i]} times, expected about $want');
+      final share = n / (kGrassBloomWhiteWeight + kGrassBloomPetals.length - 1);
+      expect((counts[0] - share * kGrassBloomWhiteWeight).abs() /
+              (share * kGrassBloomWhiteWeight),
+          lessThan(0.15),
+          reason: 'white came up ${counts[0]} of $n, expected about '
+              '${share * kGrassBloomWhiteWeight}');
+      for (var i = 1; i < counts.length; i++) {
+        expect((counts[i] - share).abs() / share, lessThan(0.15),
+            reason: 'petal $i came up ${counts[i]} times, expected about $share');
       }
       expect(kGrassBloomPetals.first, 0xFFFFFFFF,
           reason: 'index 0 is white — the one every other colour is a variant of');
