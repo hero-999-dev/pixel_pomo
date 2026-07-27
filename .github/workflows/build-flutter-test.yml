@@ -48,7 +48,9 @@ jobs:
         working-directory: flutter
         run: |
           flutter create --org com.pixelpomo.test --project-name pixel_pomo --platforms=ios,android .
-          git checkout -- pubspec.yaml lib
+          # pubspec.lock too: flutter create runs its own `pub get` against the TEMPLATE
+          # pubspec, rewriting the lock and discarding the pins Pub get needs (#v34.12).
+          git checkout -- pubspec.yaml pubspec.lock lib
           rm -f test/widget_test.dart analysis_options.yaml
 
       - name: Pub get
