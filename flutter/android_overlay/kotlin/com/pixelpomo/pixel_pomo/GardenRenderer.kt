@@ -593,8 +593,17 @@ class GardenRenderer(private val data: GardenData) {
      *  kBigTreeClearTiles / kUndergrowthTiles in garden_engine.dart (#v34.12). */
     private val bigTreeBlock = 7
     private val bigTreePercent = 60
-    private val bigTreeClearTiles = 6
+    private val bigTreeClearTiles = 7
     private val midTreeClearTiles = 4
+    private val ringInnerGapPercent = 20
+
+    /** The narrow 2-tile trees — the only ones allowed in the innermost ring
+     *  tile on the flanks, where a prop overlaps the clearing sideways. MUST
+     *  match kNarrowTrees in garden_engine.dart (#v34.17). */
+    private val narrowTrees = intArrayOf(5, 13, 15)
+
+    private fun narrowTree(pick: Int): String =
+        "tree_" + narrowTrees[pick % narrowTrees.size].toString().padStart(2, '0')
     private val undergrowthTiles = 2
     private val ringTreeTiles = 2
 
@@ -655,16 +664,21 @@ class GardenRenderer(private val data: GardenData) {
         if (d >= midTreeClearTiles) {
             bigTreeAt(c, r, if (d >= bigTreeClearTiles) 4 else 3)?.let { return it }
         }
+        // The tile hard against the clearing has its own mix (#v34.17): denser
+        // than the woods so its rim has no holes, but with far fewer trees —
+        // the flanks take a NARROW tree only, the near and far edges none.
+        // Mirrors forestPropAt in garden_engine.dart.
+        if (d == 1) {
+            return when {
+                bucket < ringInnerGapPercent -> null
+                bucket < 44 && isPlotSideTile(c, r) -> narrowTree(pick)
+                bucket < 68 -> id("bush", 10)
+                else -> id("rock", 5)
+            }
+        }
         return when {
             bucket < forestGapPercent -> null
-            // the transition ring — same density as the woods, only the
-            // innermost tile drops the small trees (they would lean 1.5 tiles
-            // over the plot from there)
-            // small trees from ringTreeTiles out, and in the innermost tile too
-            // where it is a FLANK rather than the near/far edge (#v34.16) —
-            // mirrors isPlotSideTile in garden_engine.dart
-            d <= undergrowthTiles && bucket < 78 && d >= ringTreeTiles -> smallTree(pick)
-            d <= undergrowthTiles && bucket < 66 && isPlotSideTile(c, r) -> smallTree(pick)
+            d <= undergrowthTiles && bucket < 78 -> smallTree(pick)
             d <= undergrowthTiles && bucket < 90 -> id("bush", 10)
             d <= undergrowthTiles -> id("rock", 5)
             bucket < 84 -> smallTree(pick)

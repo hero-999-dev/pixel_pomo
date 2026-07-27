@@ -272,6 +272,42 @@ void main() {
       expect(edgeTiles, greaterThan(0), reason: 'sanity: near/far edge tiles exist');
     });
 
+    test('the flank trees are the narrow ones', () {
+      // "ilk hatta sag solda genis agac degilde, böyle ince uzun tarza agac"
+      // (#v34.17). A flank prop overlaps the clearing sideways, so how much of
+      // its drawn rect the artwork actually fills is the thing that matters —
+      // every 2-tile tree is drawn the same width, but a poplar fills 41% of it
+      // against a broadleaf's 72%. The sprite gate checks kNarrowTrees really
+      // are the narrow sprites; this checks the flank uses only those.
+      var found = 0;
+      for (var r = 0; r < rows; r++) {
+        for (final c in [-1, cols]) {
+          final id = forestPropAt(c, r, cols, rows);
+          if (id == null || !id.startsWith('tree_')) continue;
+          found++;
+          expect(kNarrowTrees, contains(int.parse(id.substring(5))),
+              reason: '$id at ($c,$r) is a wide tree on the flank');
+        }
+      }
+      expect(found, greaterThan(0), reason: 'sanity: the flanks grew some trees');
+    });
+
+    test('the innermost ring tile is denser than the woods', () {
+      // "birinci hatta bazen cok bosluk oluyor" — a hole at one tile out is a
+      // hole in the clearing's own rim, so it runs at its own lower gap rate.
+      var props = 0, tiles = 0;
+      for (var r = -1; r <= rows; r++) {
+        for (var c = -1; c <= cols; c++) {
+          if (tilesOutsidePlot(c, r, cols, rows) != 1) continue;
+          tiles++;
+          if (forestPropAt(c, r, cols, rows) != null) props++;
+        }
+      }
+      final fill = props / tiles;
+      expect(fill, greaterThan(1 - kForestGapPercent / 100),
+          reason: 'the inner ring is no denser than the woods ($fill)');
+    });
+
     test('a flank prop never reaches far across the clearing sideways', () {
       // The flank's exemption from the vertical-lean bound is only sound
       // because its SIDEWAYS overlap is small. A tile one out has its centre

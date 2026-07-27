@@ -238,36 +238,73 @@ def _tree_variant(seed):
         if 0 <= c < n and 0 <= r < n:
             g[int(r)][int(c)] = col
 
+    # Lobes are COLLECTED, not painted (#v34.17). Each one used to shade itself
+    # as it was drawn, so wherever two lobes overlapped the second one laid its
+    # own dark rim down INSIDE the crown they share — a curved seam through the
+    # middle of the canopy that reads as a lump, or as a piece of another tree
+    # stuck to this one: "yuvarlagin icinde sanki baska bir agac parcasi varmis
+    # gibi bogumlar var". A crown is one shape, so it has to be shaded once,
+    # from the outline of the WHOLE crown.
+    lobes = []
+
     def blob(bcx, bcy, rad, squash=1.0, highlight=True):
-        """A shaded ellipse of canopy: a small highlight up-left, shade on the
-        lower-right edge, a dark underside. The highlight is deliberately a
-        SMALL cap — lighting half the crown made every tree read as two flat
-        colours split down the middle."""
-        # The row range must cover the ellipse's REAL vertical extent, which is
-        # rad/squash, at BOTH ends. It used to read `bcy - rad - 1` on top and
+        lobes.append((bcx, bcy, rad, squash, highlight))
+
+    def paint_canopy():
+        """Union the lobes, then shade that single silhouette."""
+        # The row range must cover each ellipse's REAL vertical extent, which is
+        # rad/squash. It used to read `bcy - rad - 1` on top and
         # `bcy + rad/squash + 2` underneath, so any blob with squash < 1 — i.e.
         # every poplar, at 0.60 — had the top ~10 rows of its crown simply never
         # visited, and came out with a hard horizontal cut across the head:
         # "sanki agac tepeden kesilmis gibi". It slipped past the canvas-edge
         # test because the cut lands mid-canvas, not on row 0.
-        span = rad / squash
-        for r in range(int(bcy - span - 1), int(bcy + span + 2)):
-            for c in range(int(bcx - rad - 1), int(bcx + rad + 2)):
-                dx, dy = c - bcx, (r - bcy) * squash
-                d2 = dx * dx + dy * dy
-                if d2 > rad * rad:
+        mask = [[False] * n for _ in range(n)]
+        for bcx, bcy, rad, squash, _ in lobes:
+            span = rad / squash
+            for r in range(max(0, int(bcy - span - 1)), min(n, int(bcy + span + 2))):
+                for c in range(max(0, int(bcx - rad - 1)), min(n, int(bcx + rad + 2))):
+                    dx, dy = c - bcx, (r - bcy) * squash
+                    if dx * dx + dy * dy <= rad * rad:
+                        mask[r][c] = True
+
+        rows = [r for r in range(n) if any(mask[r])]
+        if not rows:
+            return
+        cols = [c for c in range(n) if any(mask[r][c] for r in range(n))]
+        top, bot = rows[0], rows[-1]
+        mid_x = (cols[0] + cols[-1]) / 2.0
+
+        # rim thickness scales with the crown, so a 64px tree isn't outlined
+        # with the same 1px edge a 32px one gets
+        hcx, hcy, hrad, hsq, has_lit = lobes[0]
+        rim = max(1, int(round(hrad * 0.30)))
+
+        def outside(r, c):
+            return not (0 <= r < n and 0 <= c < n and mask[r][c])
+
+        for r in range(n):
+            for c in range(n):
+                if not mask[r][c]:
                     continue
-                edge = d2 > (rad - max(1.0, rad * 0.30)) ** 2
-                hx, hy = dx + rad * 0.42, dy + rad * 0.42   # highlight centre, up-left
-                if dy > rad * 0.55:
+                # distance to the crown's own outline, sampled in the four
+                # directions that matter for a lit-from-above-left look
+                near_edge = any(
+                    outside(r + dr * k, c + dc * k)
+                    for k in range(1, rim + 1)
+                    for dr, dc in ((1, 0), (0, 1), (0, -1), (-1, 0)))
+                below = (r - top) / max(1.0, bot - top)
+                hx = (c - hcx) + hrad * 0.42          # highlight centre, up-left
+                hy = (r - hcy) * hsq + hrad * 0.42
+                if below > 0.82:
                     col = under
-                elif edge and (dx > rad * 0.1 or dy > 0):
+                elif near_edge and (c > mid_x or below > 0.55):
                     col = shade
-                elif highlight and hx * hx + hy * hy < (rad * 0.30) ** 2:
+                elif has_lit and hx * hx + hy * hy < (hrad * 0.30) ** 2:
                     col = lit
                 else:
                     col = mid
-                put(c, r, col)
+                g[r][c] = col
 
     if shape == 1:
         # PINE — stacked tiers, widest at the bottom, a spike on top. The tiers
@@ -311,6 +348,8 @@ def _tree_variant(seed):
         blob(cx, n * 0.38, n * 0.27)
         blob(cx + n * 0.15 * (1 if rb(2) else -1), n * 0.50, n * 0.15, highlight=False)
         trunk_top = n * 0.72
+
+    paint_canopy()   # one silhouette, shaded once — no seams between the lobes
 
     # Trunk: start it INSIDE the canopy, not at a guessed fraction of the
     # height. Half the trees came out with the trunk floating below a crown

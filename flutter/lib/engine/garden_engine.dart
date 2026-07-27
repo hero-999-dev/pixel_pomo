@@ -67,9 +67,26 @@ const int kBigTreeBlock = 7;
 /// regular grid of them.
 const int kBigTreePercent = 60;
 
-/// A full 4-tile tree stays this many tiles back — its canopy leans 1.8 tiles
-/// over the plot from four tiles out, which is most of the clearing's edge.
-const int kBigTreeClearTiles = 6;
+/// A full 4-tile tree stays this many tiles back — "ilk 6 hatta cok büyük
+/// agaclar olmasin" (#v34.17; was 6, so one still landed on the sixth row).
+const int kBigTreeClearTiles = 7;
+
+/// The 2-tile trees whose sprite is NARROW — the poplars, plus the slimmest
+/// broadleaf. Indices into the tree pool, and the only trees allowed in the
+/// innermost ring tile on the flanks.
+///
+/// A flank prop overlaps the clearing SIDEWAYS, by `width/2 - 0.5` tiles, so a
+/// narrow silhouette is the one thing that genuinely reduces how far it reaches
+/// in: "ilk hatta sag solda genis agac degilde, böyle ince uzun tarza agac".
+/// The drawn rect is the same for every 2-tile tree — what changes is how much
+/// of it the artwork actually fills, 41-56% here against 66-72% for the rest.
+/// Gated by a sprite test, so re-rolling a silhouette cannot leave this stale.
+const List<int> kNarrowTrees = [5, 13, 15];
+
+/// Bare-ground share for the tile hard against the clearing. Lower than the
+/// woods' [kForestGapPercent] because at one tile out a hole is a hole in the
+/// clearing's own rim — "birinci hatta bazen cok bosluk oluyor".
+const int kRingInnerGapPercent = 20;
 
 /// 3-tile trees may take a lattice site from this distance, so the size jump
 /// from the 2-tile woods to the landmarks is not all-or-nothing and the middle
@@ -276,6 +293,17 @@ String? forestPropAt(int c, int r, int cols, int rows) {
     if (big != null) return big;
   }
 
+  // The tile hard against the clearing has its own mix (#v34.17): denser than
+  // the woods so its rim has no holes, but with far fewer trees in it — the
+  // flanks take a NARROW tree only, and the near and far edges none at all,
+  // since a tree there reaches 1.5 tiles up over the garden.
+  if (d == 1) {
+    if (bucket < kRingInnerGapPercent) return null;
+    if (bucket < 44 && isPlotSideTile(c, r, cols, rows)) return _narrowTree(pick);
+    if (bucket < 68) return id('bush', kForestBushes);
+    return id('rock', kForestRocks);
+  }
+
   if (bucket < kForestGapPercent) return null; // bare woodland floor
 
   // The transition ring — small trees, bushes and rocks, at the same density as
@@ -287,13 +315,7 @@ String? forestPropAt(int c, int r, int cols, int rows) {
   // in front of the clearing, which is just what a tree in front of a clearing
   // does.
   if (d <= kUndergrowthTiles) {
-    // Small trees from kRingTreeTiles out, and in the innermost tile too where
-    // it is a FLANK rather than the near or far edge (#v34.16) — see
-    // isPlotSideTile. Sparser on the flank so it reads as a treeline rather
-    // than a hedge planted along the fence.
-    final trees = d >= kRingTreeTiles || isPlotSideTile(c, r, cols, rows);
-    final treeShare = d >= kRingTreeTiles ? 78 : 66;
-    if (bucket < treeShare && trees) return _smallTree(pick);
+    if (bucket < 78) return _smallTree(pick);
     if (bucket < 90) return id('bush', kForestBushes);
     return id('rock', kForestRocks);
   }
@@ -321,6 +343,12 @@ String? _bigTreeAt(int c, int r, int maxTiles) {
 
 /// The nearest 2-tile tree to [pick] — the whole forest is built from these.
 String _smallTree(int pick) => _treeOfSize(pick, (t) => t == 2, 'tree_00');
+
+/// One of the narrow 2-tile trees — see [kNarrowTrees].
+String _narrowTree(int pick) {
+  final n = kNarrowTrees[pick % kNarrowTrees.length];
+  return 'tree_${n.toString().padLeft(2, '0')}';
+}
 
 /// The nearest tree to [pick] taller than the woods but no taller than
 /// [maxTiles].

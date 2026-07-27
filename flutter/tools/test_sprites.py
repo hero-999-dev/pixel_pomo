@@ -73,7 +73,38 @@ class TreeTableIsMirrored(unittest.TestCase):
          r"val ringTreeTiles = (\d+)"),
         ("grass-bloom tint rarity", r"const int kGrassBloomTintPercent = (\d+);",
          r"val grassBloomTintPercent = (\d+)"),
+        ("inner-ring density", r"const int kRingInnerGapPercent = (\d+);",
+         r"val ringInnerGapPercent = (\d+)"),
+        ("narrow trees", r"const List<int> kNarrowTrees = \[([^\]]*)\]",
+         r"val narrowTrees = intArrayOf\(([^)]*)\)"),
     ]
+
+    def test_the_narrow_tree_list_is_actually_the_narrow_trees(self):
+        # kNarrowTrees is the only thing standing between a flank tile and a
+        # wide canopy reaching across the clearing's edge, and it is a hand-kept
+        # list of indices — exactly the kind that goes stale the moment a
+        # silhouette is re-rolled. Derive the answer and compare (#v34.17).
+        dart = self._table(
+            os.path.join(FLUTTER, "lib", "engine", "garden_engine.dart"),
+            r"const List<int> kNarrowTrees = \[([^\]]*)\]")
+        for idx in dart:
+            grid = g._tree_variant(idx + 1)
+            n = len(grid)
+            self.assertEqual(g.TREE_TILES[idx], 2,
+                             f"tree_{idx:02d} is in kNarrowTrees but is not a 2-tile tree")
+            cols = [c for c in range(n) if any(grid[r][c][3] for r in range(n))]
+            width = (max(cols) - min(cols) + 1) / n
+            self.assertLessEqual(width, 0.60,
+                                 f"tree_{idx:02d} fills {width:.0%} of its canvas — not narrow")
+        # and nothing narrow was left out, or the flanks lose variety for no reason
+        for idx, tiles in enumerate(g.TREE_TILES):
+            if tiles != 2 or idx in dart:
+                continue
+            grid = g._tree_variant(idx + 1)
+            n = len(grid)
+            cols = [c for c in range(n) if any(grid[r][c][3] for r in range(n))]
+            self.assertGreater((max(cols) - min(cols) + 1) / n, 0.60,
+                               f"tree_{idx:02d} is narrow but missing from kNarrowTrees")
 
     def test_the_one_tile_prop_sizes_match_in_dart_and_kotlin(self):
         # A prop drawn at a different height in the two renderers sits at a
@@ -188,6 +219,58 @@ class TreesAreWellFormed(unittest.TestCase):
                 for r in range(n):
                     self.assertFalse(grid[r][0][3], f"tree {seed} touches the left edge")
                     self.assertFalse(grid[r][n - 1][3], f"tree {seed} touches the right edge")
+
+    def test_no_canopy_has_a_seam_running_through_it(self):
+        # "yuvarlagin icinde sanki baska bir agac parcasi varmis gibi bogumlar"
+        # (#v34.17). Each lobe used to shade itself as it was painted, so where
+        # two lobes overlapped the later one laid its dark rim down INSIDE the
+        # shared crown — a curved seam through the middle of the canopy.
+        #
+        # The observable property: a crown shaded from its own outline keeps its
+        # DARK tones on that outline. A lobe rim painted inside the shared crown
+        # puts them deep in the middle instead. Measured as the true distance to
+        # transparency (multi-source BFS), independent of how the generator
+        # decides what is an edge — so this is a check on the result, not a
+        # restatement of the algorithm.
+        #
+        # The bound was set by running this against the pre-fix generator, not
+        # by guessing: the SHADE tone (second darkest) reached 0.250n inside the
+        # crown on the ten lobed trees and 0.094n at worst on the fixed ones, so
+        # 0.12n fails every sprite the user complained about and passes all
+        # twenty now. A first attempt used "the two darkest tones" at 0.20n and
+        # would have passed the broken sprites unchanged — the underside band is
+        # legitimately deep, and averaging it in hid the signal.
+        for seed in range(1, len(g.TREE_TILES) + 1):
+            with self.subTest(tree=f"tree_{seed - 1:02d}"):
+                grid = g._tree_variant(seed)
+                n = len(grid)
+                canopy = [[bool(px[3]) and px[1] >= px[0] for px in row] for row in grid]
+                dist = [[-1] * n for _ in range(n)]
+                q = deque()
+                for r in range(n):
+                    for c in range(n):
+                        if not canopy[r][c]:
+                            dist[r][c] = 0
+                            q.append((r, c))
+                while q:
+                    r, c = q.popleft()
+                    for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                        nr, nc = r + dr, c + dc
+                        if 0 <= nr < n and 0 <= nc < n and dist[nr][nc] < 0:
+                            dist[nr][nc] = dist[r][c] + 1
+                            q.append((nr, nc))
+                tones = {}
+                for r in range(n):
+                    for c in range(n):
+                        if canopy[r][c]:
+                            tones.setdefault(grid[r][c][:3], []).append((r, c))
+                if len(tones) < 3:
+                    continue  # a single-tone crown has no seams to find
+                shade = sorted(tones, key=sum)[1]  # darkest is the underside band
+                deepest = max(dist[r][c] for r, c in tones[shade]) / n
+                self.assertLessEqual(deepest, 0.12,
+                                     f"shade sits {deepest:.3f}n inside the crown "
+                                     f"— that is a lobe seam, not an outline")
 
     def test_the_forest_keeps_some_dark_trees(self):
         # #v34.9 — the user asked for the old deep-green trees back in the mix,
