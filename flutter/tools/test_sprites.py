@@ -220,94 +220,6 @@ class TreesAreWellFormed(unittest.TestCase):
                     self.assertFalse(grid[r][0][3], f"tree {seed} touches the left edge")
                     self.assertFalse(grid[r][n - 1][3], f"tree {seed} touches the right edge")
 
-    def test_every_tree_is_mirror_symmetric(self):
-        # "ben sag sol esit cizim istedim" (#v35.1). The round broadleaf grew a
-        # shoulder lobe on ONE randomly chosen side, so a bump stuck out of one
-        # shoulder with nothing opposite it — every "yuvarlak cikinti" report
-        # was pointing at that, and two rounds of shading fixes never touched
-        # it because the asymmetry was in the SILHOUETTE, not the shading.
-        #
-        # Exact pixel equality, which also pins the two things that quietly
-        # break mirroring: blobs centred on n/2 instead of (n-1)/2, and the
-        # trunk's darker bark being applied to one side only.
-        for seed in range(1, len(g.TREE_TILES) + 1):
-            with self.subTest(tree=f"tree_{seed - 1:02d}"):
-                grid = g._tree_variant(seed)
-                n = len(grid)
-                for r in range(n):
-                    for c in range(n // 2):
-                        self.assertEqual(grid[r][c], grid[r][n - 1 - c],
-                                         f"row {r} differs at columns {c} / {n - 1 - c}")
-
-    def test_every_tree_shows_some_trunk(self):
-        # "yere baglamissin agaci": the pine's widest tier sat at 0.70n with a
-        # half-height of 0.30n, so the canopy's underside landed exactly on the
-        # ground row — the crown swallowed the trunk and the tree read as a bush
-        # glued to the floor. Assert there are rows of trunk with no canopy
-        # beside them, which is what "the trunk shows" actually means.
-        for seed in range(1, len(g.TREE_TILES) + 1):
-            with self.subTest(tree=f"tree_{seed - 1:02d}"):
-                grid = g._tree_variant(seed)
-                bare = 0
-                for row in grid:
-                    ink = [px for px in row if px[3]]
-                    if ink and all(px[0] > px[1] for px in ink):  # brown only
-                        bare += 1
-                self.assertGreaterEqual(bare, 2,
-                                        "the canopy reaches the ground — no trunk shows")
-
-    def test_no_canopy_has_a_seam_running_through_it(self):
-        # "yuvarlagin icinde sanki baska bir agac parcasi varmis gibi bogumlar"
-        # (#v34.17). Each lobe used to shade itself as it was painted, so where
-        # two lobes overlapped the later one laid its dark rim down INSIDE the
-        # shared crown — a curved seam through the middle of the canopy.
-        #
-        # The observable property: a crown shaded from its own outline keeps its
-        # DARK tones on that outline. A lobe rim painted inside the shared crown
-        # puts them deep in the middle instead. Measured as the true distance to
-        # transparency (multi-source BFS), independent of how the generator
-        # decides what is an edge — so this is a check on the result, not a
-        # restatement of the algorithm.
-        #
-        # The bound was set by running this against the pre-fix generator, not
-        # by guessing: the SHADE tone (second darkest) reached 0.250n inside the
-        # crown on the ten lobed trees and 0.094n at worst on the fixed ones, so
-        # 0.12n fails every sprite the user complained about and passes all
-        # twenty now. A first attempt used "the two darkest tones" at 0.20n and
-        # would have passed the broken sprites unchanged — the underside band is
-        # legitimately deep, and averaging it in hid the signal.
-        for seed in range(1, len(g.TREE_TILES) + 1):
-            with self.subTest(tree=f"tree_{seed - 1:02d}"):
-                grid = g._tree_variant(seed)
-                n = len(grid)
-                canopy = [[bool(px[3]) and px[1] >= px[0] for px in row] for row in grid]
-                dist = [[-1] * n for _ in range(n)]
-                q = deque()
-                for r in range(n):
-                    for c in range(n):
-                        if not canopy[r][c]:
-                            dist[r][c] = 0
-                            q.append((r, c))
-                while q:
-                    r, c = q.popleft()
-                    for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-                        nr, nc = r + dr, c + dc
-                        if 0 <= nr < n and 0 <= nc < n and dist[nr][nc] < 0:
-                            dist[nr][nc] = dist[r][c] + 1
-                            q.append((nr, nc))
-                tones = {}
-                for r in range(n):
-                    for c in range(n):
-                        if canopy[r][c]:
-                            tones.setdefault(grid[r][c][:3], []).append((r, c))
-                if len(tones) < 3:
-                    continue  # a single-tone crown has no seams to find
-                shade = sorted(tones, key=sum)[1]  # darkest is the underside band
-                deepest = max(dist[r][c] for r, c in tones[shade]) / n
-                self.assertLessEqual(deepest, 0.12,
-                                     f"shade sits {deepest:.3f}n inside the crown "
-                                     f"— that is a lobe seam, not an outline")
-
     def test_the_forest_keeps_some_dark_trees(self):
         # #v34.9 — the user asked for the old deep-green trees back in the mix,
         # so the tree line has weight instead of being all bright canopy.
@@ -350,6 +262,20 @@ class TreesAreWellFormed(unittest.TestCase):
                             browns += 1
                 self.assertGreater(greens, 0, f"tree {seed} has no canopy")
                 self.assertGreater(browns, 0, f"tree {seed} has no trunk")
+
+    # REMOVED at the user's request (#v35.2): test_every_tree_is_mirror_symmetric,
+    # test_every_tree_shows_some_trunk and test_no_canopy_has_a_seam_running_through_it.
+    #
+    # All three pinned the #v34.17-#v35.1 canopy, which has been reverted to the
+    # #v34.14 one — "agaclari mahvetmissin bunu eski haline getir". Their
+    # properties are genuinely NOT true of the restored art: the round broadleaf's
+    # shoulder lobe sits on one side, the pine's lowest tier reaches the ground
+    # row, and overlapping lobes show their rims. That last one is not even a
+    # defect on a conifer: the "seams" ARE the tiers, which is exactly what the
+    # union-shading fix destroyed and why the trees had to come back.
+    #
+    # Deleted rather than loosened. A test kept alive with its bound relaxed
+    # until it passes says the property still holds when it does not.
 
     def test_bushes_and_rocks_stay_one_tile(self):
         for seed in range(1, 11):

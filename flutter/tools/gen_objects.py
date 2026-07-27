@@ -195,6 +195,22 @@ TREE_TILES = [2, 3, 2, 4, 3, 2, 3, 3, 2, 4, 2, 3, 4, 2, 3, 2, 3, 4, 2, 3]
 TREE_PX_PER_TILE = 16
 
 
+# ── REVERTED to the #v34.14 canopy at the user's request (#v35.2) ──────────
+# "agaclari mahvetmissin bunu eski haline getir".
+#
+# #v34.17 replaced per-lobe shading with a single pass over the union of the
+# lobes, to kill a dark seam where two lobes overlapped. It did — and it also
+# killed the PINE'S TIERS, because on a conifer those "seams" are the tiers:
+# each blob's own rim is what made the stacked steps read as steps. #v35.0 and
+# #v35.1 then flattened the interior further. Rendering the five versions side
+# by side makes it plain: the trees lost their structure over three releases.
+#
+# So the whole canopy is back to the #v34.14 code. What returns with it, stated
+# plainly rather than discovered later: the round broadleaf's shoulder lobe is
+# on ONE side again (asymmetric), and overlapping lobes show their rims. Both
+# were real complaints once; both are the price of the tiers and the interior
+# shading, and the user has now seen both and chosen this side of the trade.
+# The tests that encoded the other side are removed, not weakened.
 def _tree_variant(seed):
     """One forest tree, sized by its class in [TREE_TILES] (#v34.8).
 
@@ -232,104 +248,43 @@ def _tree_variant(seed):
 
     shape = rb(4)                          # 0 round, 1 pine, 2 poplar, 3 oak
     trunk_w = max(2, n // 10)
-    # (n-1)/2, not n/2: the mirror axis of a pixel grid runs through the middle
-    # of the middle column, so a blob centred on n/2 comes out half a pixel off
-    # and no amount of symmetric geometry above it can be mirror-exact.
-    cx = (n - 1) / 2.0
+    cx = n / 2.0
     ground = n - 1
 
     def put(c, r, col):
         if 0 <= c < n and 0 <= r < n:
             g[int(r)][int(c)] = col
 
-    # Lobes are COLLECTED, not painted (#v34.17). Each one used to shade itself
-    # as it was drawn, so wherever two lobes overlapped the second one laid its
-    # own dark rim down INSIDE the crown they share — a curved seam through the
-    # middle of the canopy that reads as a lump, or as a piece of another tree
-    # stuck to this one: "yuvarlagin icinde sanki baska bir agac parcasi varmis
-    # gibi bogumlar var". A crown is one shape, so it has to be shaded once,
-    # from the outline of the WHOLE crown.
-    lobes = []
-
     def blob(bcx, bcy, rad, squash=1.0, highlight=True):
-        lobes.append((bcx, bcy, rad, squash, highlight))
-
-    def paint_canopy():
-        """Union the lobes, then shade that single silhouette."""
-        # The row range must cover each ellipse's REAL vertical extent, which is
-        # rad/squash. It used to read `bcy - rad - 1` on top and
+        """A shaded ellipse of canopy: a small highlight up-left, shade on the
+        lower-right edge, a dark underside. The highlight is deliberately a
+        SMALL cap — lighting half the crown made every tree read as two flat
+        colours split down the middle."""
+        # The row range must cover the ellipse's REAL vertical extent, which is
+        # rad/squash, at BOTH ends. It used to read `bcy - rad - 1` on top and
         # `bcy + rad/squash + 2` underneath, so any blob with squash < 1 — i.e.
         # every poplar, at 0.60 — had the top ~10 rows of its crown simply never
         # visited, and came out with a hard horizontal cut across the head:
         # "sanki agac tepeden kesilmis gibi". It slipped past the canvas-edge
         # test because the cut lands mid-canvas, not on row 0.
-        mask = [[False] * n for _ in range(n)]
-        for bcx, bcy, rad, squash, _ in lobes:
-            span = rad / squash
-            for r in range(max(0, int(bcy - span - 1)), min(n, int(bcy + span + 2))):
-                for c in range(max(0, int(bcx - rad - 1)), min(n, int(bcx + rad + 2))):
-                    dx, dy = c - bcx, (r - bcy) * squash
-                    if dx * dx + dy * dy <= rad * rad:
-                        mask[r][c] = True
-
-        rows = [r for r in range(n) if any(mask[r])]
-        if not rows:
-            return
-        cols = [c for c in range(n) if any(mask[r][c] for r in range(n))]
-        ctr_r = (rows[0] + rows[-1]) / 2.0
-        ctr_c = (cols[0] + cols[-1]) / 2.0
-        hcx, hcy, hrad, hsq, has_lit = lobes[0]
-
-        # True distance from the crown's outline, so the shading is a RIM that
-        # follows the silhouette (#v34.18). The half-plane tests this replaces
-        # ("lower 18% is underside", "right of centre and near an edge is
-        # shade") painted flat slabs instead: a dark horizontal band across the
-        # bottom of every canopy, which read as a shadow lying under the tree
-        # beside its trunk — "agaclarin altlarinda odun kisminin disinda gölge
-        # olmasin" — and a blocky dark wedge wherever a lobe stuck out to the
-        # lower right, which made one shoulder not match the other, "sag alt
-        # problemli sol alt ile es degil".
-        dist = [[0] * n for _ in range(n)]
-        frontier = deque()
-        for r in range(n):
-            for c in range(n):
-                if not mask[r][c]:
-                    frontier.append((r, c))
-        seen = [[not mask[r][c] for c in range(n)] for r in range(n)]
-        while frontier:
-            r, c = frontier.popleft()
-            for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-                nr, nc = r + dr, c + dc
-                if 0 <= nr < n and 0 <= nc < n and not seen[nr][nc]:
-                    seen[nr][nc] = True
-                    dist[nr][nc] = dist[r][c] + 1
-                    frontier.append((nr, nc))
-
-        # Everything below is MIRROR-SYMMETRIC about the crown's own centre
-        # column: the rim treats left and right alike and the highlight sits on
-        # the centre line. A side-lit crown is the usual pixel-art choice, but
-        # it makes one shoulder darker than the other, and "sag sol esit cizim"
-        # is the explicit ask. A symmetry test pins it.
-        lit_r = rows[0] + (rows[-1] - rows[0]) * 0.24
-        lit_rad = max(1.5, hrad * 0.34)
-        for r in range(n):
-            for c in range(n):
-                if not mask[r][c]:
+        span = rad / squash
+        for r in range(int(bcy - span - 1), int(bcy + span + 2)):
+            for c in range(int(bcx - rad - 1), int(bcx + rad + 2)):
+                dx, dy = c - bcx, (r - bcy) * squash
+                d2 = dx * dx + dy * dy
+                if d2 > rad * rad:
                     continue
-                d = dist[r][c]
-                hx = c - ctr_c
-                hy = (r - lit_r) * 1.3
-                if d == 1 and r > ctr_r:
-                    col = under        # a ONE-pixel underside rim, not a band
-                elif d == 1:
-                    col = shade        # the rest of the outline, both sides alike
-                elif d == 2 and r > ctr_r:
-                    col = shade        # a thin falloff under the crown
-                elif has_lit and hx * hx + hy * hy < lit_rad * lit_rad:
-                    col = lit          # a centred cap, not an up-left one
+                edge = d2 > (rad - max(1.0, rad * 0.30)) ** 2
+                hx, hy = dx + rad * 0.42, dy + rad * 0.42   # highlight centre, up-left
+                if dy > rad * 0.55:
+                    col = under
+                elif edge and (dx > rad * 0.1 or dy > 0):
+                    col = shade
+                elif highlight and hx * hx + hy * hy < (rad * 0.30) ** 2:
+                    col = lit
                 else:
                     col = mid
-                g[r][c] = col
+                put(c, r, col)
 
     if shape == 1:
         # PINE — stacked tiers, widest at the bottom, a spike on top. The tiers
@@ -339,14 +294,7 @@ def _tree_variant(seed):
         # top 0.18, not 0.13: the spike's own radius put it at y<0, so the
         # canopy was flat-cut by the canvas edge — the tree had no head. A test
         # now asserts no tree touches any edge (#v34.9).
-        #
-        # bottom 0.46, not 0.70: the widest tier's own half-height is
-        # 0.34n/1.12 = 0.30n, so a centre at 0.70n put the canopy's underside
-        # exactly on the ground row. The crown swallowed the trunk and the tree
-        # read as a bush glued to the floor — "yere baglamissin agaci". At 0.46
-        # the canopy stops at 0.76n and a quarter of the trunk shows, like every
-        # other shape. A test now pins that every tree HAS a visible trunk.
-        top, bottom = n * 0.18, n * 0.46
+        top, bottom = n * 0.18, n * 0.70
         for i in range(tiers):
             f = i / (tiers - 1)
             rad = n * (0.15 + 0.19 * f)
@@ -375,20 +323,11 @@ def _tree_variant(seed):
         blob(cx + n * 0.18, n * 0.46, n * 0.18, highlight=False)
         trunk_top = n * 0.68
     else:
-        # ROUND broadleaf — one crown plus a shoulder lobe on EACH side.
-        #
-        # It used to get a single lobe on one randomly chosen side, which is
-        # what every "yuvarlak cikinti" report was pointing at: a bump growing
-        # out of one shoulder and nothing opposite it, so the tree looked like
-        # it had something stuck to it rather than like a tree. Mirrored now —
-        # "sag sol esit cizim". A test asserts every canopy is mirror-symmetric,
-        # which is the property that was actually being asked for.
+        # ROUND broadleaf — one crown plus a small shoulder lobe (no highlight
+        # of its own, or it reads as a hole punched in the canopy)
         blob(cx, n * 0.38, n * 0.27)
-        blob(cx - n * 0.15, n * 0.50, n * 0.15, highlight=False)
-        blob(cx + n * 0.15, n * 0.50, n * 0.15, highlight=False)
+        blob(cx + n * 0.15 * (1 if rb(2) else -1), n * 0.50, n * 0.15, highlight=False)
         trunk_top = n * 0.72
-
-    paint_canopy()   # one silhouette, shaded once — no seams between the lobes
 
     # Trunk: start it INSIDE the canopy, not at a guessed fraction of the
     # height. Half the trees came out with the trunk floating below a crown
@@ -406,13 +345,8 @@ def _tree_variant(seed):
     for r in range(int(trunk_top), n):
         f = (r - trunk_top) / max(1.0, ground - trunk_top)
         half = trunk_w / 2.0 + f * trunk_w * 0.35
-        for c in range(n):
-            # tested by distance from the axis rather than a rounded range, so
-            # the trunk is mirror-exact like the crown above it; the darker bark
-            # is on BOTH outer edges, not just the right one
-            off = abs(c - cx)
-            if off <= half:
-                put(c, r, bark_d if off > half * 0.55 else bark)
+        for c in range(int(cx - half), int(cx + half) + 1):
+            put(c, r, bark_d if c - cx > half * 0.25 else bark)
 
     return g
 
