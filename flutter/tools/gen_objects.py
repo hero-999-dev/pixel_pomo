@@ -189,6 +189,22 @@ def tree_grid():
 # change here has to be mirrored in both — see garden_engine.dart.
 TREE_TILES = [2, 3, 2, 4, 3, 2, 3, 3, 2, 4, 2, 3, 4, 2, 3, 2, 3, 4, 2, 3]
 
+# Hue family per tree, indexing `families` in _tree_variant (#v35.5). An
+# explicit table, not a random pick, because the counts across only twenty trees
+# are the whole point and a roll cannot hit them:
+#
+#   - a UNIFORM pick gave the olive (family 3, hue 71 — the yellowest by a wide
+#     margin, the next is 95) four of the twenty, more than any other family,
+#     which tipped the wood into autumn: "cok sonbahar havasi katiyor o";
+#   - WEIGHTING the roll fixed the olive but wrecked everything else — with
+#     twenty samples the noise dominates, and one family landed six times while
+#     four others landed once each.
+#
+# So the distribution is written down: **olive twice, every other family three
+# times**. Placement in the world is still hashed per tile, so this fixes the
+# palette's balance without making the forest itself repeat.
+TREE_FAMILY = [0, 4, 2, 5, 1, 6, 3, 2, 4, 1, 6, 0, 5, 2, 4, 1, 6, 5, 3, 0]
+
 # Pixels per tile in a tree sprite. A 4-tile tree drawn from a 16px grid would
 # upscale 4x more than a flower does and read as a blurry blob; sizing the grid
 # with the tree keeps the pixel density even across the whole scene.
@@ -242,7 +258,8 @@ def _tree_variant(seed):
         ("246B2E", "1B5526", "134018", "09230D"),   # darker still
         ("35704A", "245234", "173824", "0B2015"),   # dark blue-green
     ]
-    lit, mid, shade, under = (hexrgb(h) + (255,) for h in families[rb(len(families))])
+    lit, mid, shade, under = (
+        hexrgb(h) + (255,) for h in families[TREE_FAMILY[(seed - 1) % len(TREE_FAMILY)]])
     bark = hexrgb(["4A3421", "3A2A18", "56402A"][rb(3)]) + (255,)
     bark_d = hexrgb("241a10") + (255,)
 

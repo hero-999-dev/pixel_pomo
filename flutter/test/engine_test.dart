@@ -566,26 +566,23 @@ void main() {
       expect(kRockHeight - kVy, lessThanOrEqualTo(0.0));
     });
 
-    test('coloured grass daisies are rare, and white is still the default', () {
-      // "onlarin farkli renkli versiyonlari da türesin ayni sekilde, ama cok
-      // daha nadir bir sekilde türesinler."
-      var white = 0, tinted = 0;
-      final seen = <int>{};
-      for (var i = 0; i < 20000; i++) {
-        final t = grassBloomTint(i * 7919 % 0x7fffffff);
-        seen.add(t);
-        if (t == 0) {
-          white++;
-        } else {
-          tinted++;
-        }
+    test('every grass daisy colour is equally likely, white included', () {
+      // "beyaz cogunlukla olsun demistim, ondan vazgeciyorum, hepsi esit oranda
+      // gelme sansi olsun, random olsun" (#v35.5). This replaces a test that
+      // asserted white was the MAJORITY — the requirement itself changed, so
+      // the old assertion is gone rather than relaxed.
+      final counts = List<int>.filled(kGrassBloomPetals.length, 0);
+      const n = 20000;
+      for (var i = 0; i < n; i++) {
+        counts[grassBloomTint(i * 7919 % 0x7fffffff)]++;
       }
-      expect(white / (white + tinted), greaterThan(0.6),
-          reason: 'white is no longer the ordinary grass daisy');
-      expect(tinted, greaterThan(0), reason: 'no coloured daisies ever appear');
-      expect(seen.length, kGrassBloomPetals.length,
-          reason: 'some petal colours can never come up');
-      expect(kGrassBloomPetals.first, 0xFFFFFFFF, reason: 'index 0 must stay white');
+      final want = n / kGrassBloomPetals.length;
+      for (var i = 0; i < counts.length; i++) {
+        expect((counts[i] - want).abs() / want, lessThan(0.15),
+            reason: 'petal $i came up ${counts[i]} times, expected about $want');
+      }
+      expect(kGrassBloomPetals.first, 0xFFFFFFFF,
+          reason: 'index 0 is white — the one every other colour is a variant of');
     });
 
     test('what grows on a tile depends on the tile alone, never the camera', () {

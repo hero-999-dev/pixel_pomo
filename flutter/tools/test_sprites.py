@@ -71,8 +71,6 @@ class TreeTableIsMirrored(unittest.TestCase):
          r"val undergrowthTiles = (\d+)"),
         ("small trees inside the ring", r"const int kRingTreeTiles = (\d+);",
          r"val ringTreeTiles = (\d+)"),
-        ("grass-bloom tint rarity", r"const int kGrassBloomTintPercent = (\d+);",
-         r"val grassBloomTintPercent = (\d+)"),
         ("inner-ring density", r"const int kRingInnerGapPercent = (\d+);",
          r"val ringInnerGapPercent = (\d+)"),
         ("narrow trees", r"const List<int> kNarrowTrees = \[([^\]]*)\]",

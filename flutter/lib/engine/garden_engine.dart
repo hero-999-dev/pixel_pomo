@@ -81,7 +81,7 @@ const int kBigTreeClearTiles = 7;
 /// The drawn rect is the same for every 2-tile tree — what changes is how much
 /// of it the artwork actually fills, 41-56% here against 66-72% for the rest.
 /// Gated by a sprite test, so re-rolling a silhouette cannot leave this stale.
-const List<int> kNarrowTrees = [5, 13];
+const List<int> kNarrowTrees = [2, 10, 18];
 
 /// Bare-ground share for the tile hard against the clearing. Lower than the
 /// woods' [kForestGapPercent] because at one tile out a hole is a hole in the
@@ -122,24 +122,17 @@ const List<int> kGrassBloomPetals = [
   0xFFF5D98A, // butter
 ];
 
-/// Percent of grass daisies that get a coloured tint instead of white —
-/// "%75 beyaz gerisi, farkli renkler olsun random sansda olsun" (#v34.15).
+/// Index into [kGrassBloomPetals] for a grass daisy, from its tile hash.
 ///
-/// The first cut put this at 22, which reads as one coloured bloom per ~90
-/// empty tiles: on a 25-tile plot that is well under one flower, so in practice
-/// the colours never showed up at all. A quarter of the blooms is what "much
-/// rarer than white" actually means at this plot size.
-const int kGrassBloomTintPercent = 25;
-
-/// Index into [kGrassBloomPetals] for a grass daisy, from its tile hash. White
-/// nearly always; a coloured one is a find, not a pattern. The tint rolls on a
-/// DIFFERENT slice of the hash than the 5% bloom chance, so the two are
-/// independent and the colours don't cluster on whichever tiles happened to
-/// bloom.
-int grassBloomTint(int hash) {
-  if ((hash ~/ 100) % 100 >= kGrassBloomTintPercent) return 0; // white
-  return 1 + (hash ~/ 10000) % (kGrassBloomPetals.length - 1);
-}
+/// **Every colour equally likely, white included** (#v35.5) — "beyaz cogunlukla
+/// olsun demistim, ondan vazgeciyorum, hepsi esit oranda gelme sansi olsun".
+/// The white-dominant weighting this replaces went through two rounds of tuning
+/// (22% tinted, then 25%) before the requirement itself changed; there is no
+/// weighting left to tune now.
+///
+/// Rolls on a DIFFERENT slice of the hash than the 5% bloom chance, so the two
+/// stay independent and the colours don't cluster on whichever tiles bloomed.
+int grassBloomTint(int hash) => (hash ~/ 100) % kGrassBloomPetals.length;
 
 /// The clearing has a transition ring this many tiles deep before the woods
 /// proper start — "ilk 2 sira her taraftan, kücük cali, tas, ve kücük agac

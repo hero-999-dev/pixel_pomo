@@ -255,9 +255,6 @@ class GardenRenderer(private val data: GardenData) {
         0xFFFFFFFF.toInt(), 0xFFF2A6C4.toInt(), 0xFF9AB8F0.toInt(),
         0xFFE0B0F0.toInt(), 0xFFF5D98A.toInt())
 
-    /** Percent of grass daisies that are tinted rather than white. MUST match
-     *  kGrassBloomTintPercent in garden_engine.dart. */
-    private val grassBloomTintPercent = 25
 
     private fun drawGrassFlowers(canvas: Canvas) {
         for (r in 0 until rows) {
@@ -272,13 +269,10 @@ class GardenRenderer(private val data: GardenData) {
         }
     }
 
-    /** Mirrors _bloomTint in garden_engine.dart — a second, independent roll on
-     *  top of the 5% bloom chance, so a coloured flower is roughly one per 500
-     *  empty tiles and reads as a find rather than a pattern. */
-    private fun bloomTint(h: Int): Int {
-        if ((h / 100) % 100 >= grassBloomTintPercent) return 0
-        return 1 + (h / 10000) % (grassBloomPetals.size - 1)
-    }
+    /** Mirrors grassBloomTint in garden_engine.dart — every petal colour equally
+     *  likely, white included (#v35.5). Rolls on a different slice of the hash
+     *  than the 5% bloom chance so the two stay independent. */
+    private fun bloomTint(h: Int): Int = (h / 100) % grassBloomPetals.size
 
     // a small FLAT pixel daisy lying on the grass (petals + yellow eye) —
     // mirrors the in-app _paintBloom (#v20), not a billboard object.
@@ -625,7 +619,7 @@ class GardenRenderer(private val data: GardenData) {
     /** The narrow 2-tile trees — the only ones allowed in the innermost ring
      *  tile on the flanks, where a prop overlaps the clearing sideways. MUST
      *  match kNarrowTrees in garden_engine.dart (#v34.17). */
-    private val narrowTrees = intArrayOf(5, 13)
+    private val narrowTrees = intArrayOf(2, 10, 18)
 
     private fun narrowTree(c: Int, r: Int): String =
         "tree_" + narrowTrees[variant(c, r, narrowTrees.size)].toString().padStart(2, '0')
