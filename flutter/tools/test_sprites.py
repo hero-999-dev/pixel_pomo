@@ -77,6 +77,8 @@ class TreeTableIsMirrored(unittest.TestCase):
          r"val ringInnerGapPercent = (\d+)"),
         ("narrow trees", r"const List<int> kNarrowTrees = \[([^\]]*)\]",
          r"val narrowTrees = intArrayOf\(([^)]*)\)"),
+        ("forest jitter", r"const double kForestJitter = ([\d.]+);",
+         r"val forestJitter = ([\d.]+)"),
     ]
 
     def test_the_narrow_tree_list_is_actually_the_narrow_trees(self):

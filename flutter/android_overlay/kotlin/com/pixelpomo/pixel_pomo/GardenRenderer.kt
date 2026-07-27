@@ -132,6 +132,31 @@ class GardenRenderer(private val data: GardenData) {
         return projGrid(gx, gy)
     }
 
+    /** Sub-tile offset for a forest prop, in tiles. MUST match kForestJitter /
+     *  forestJitter in garden_engine.dart (#v35.4).
+     *
+     *  Props on exact tile centres share one ground depth per row, so a whole
+     *  row crosses the row behind it on the same frame and a dozen trees swap
+     *  paint order at once. Off the lattice they cross one at a time. Grid
+     *  space, so it turns with the world. */
+    private val forestJitter = 0.34
+
+    private fun jitterOf(c: Int, r: Int): Pair<Double, Double> {
+        val h = hash2(c * 3 + 1, r * 5 + 2)
+        fun axis(v: Int) = (v % 101 / 100.0 - 0.5) * 2 * forestJitter
+        return axis(h) to axis(h / 101)
+    }
+
+    /** Ground point for a forest prop: jittered, except for the landmark trees,
+     *  which stay pinned to their lattice point so the 4-tile spacing that stops
+     *  them overlapping is not eroded. Mirrors _paintWoods. */
+    private fun propGround(c: Int, r: Int, fp: String): Pair<Double, Double> {
+        if (forestPropTiles(fp) >= 3) return ground(c, r)
+        val (jx, jy) = jitterOf(c, r)
+        val (gx, gy) = gridXY(c, r)
+        return projGrid(gx + jx, gy + jy)
+    }
+
     /** The forest, back-to-front among itself, under the clearing. Mirrors
      *  GardenPainter._paintWoods in garden_engine.dart. */
     private fun drawWoods(canvas: Canvas, w: Int, h: Int) {
@@ -145,7 +170,7 @@ class GardenRenderer(private val data: GardenData) {
         for (r in (vb[2] - bleed)..(vb[3] + bleed)) {
             for (c in (vb[0] - bleed)..(vb[1] + bleed)) {
                 val fp = forestPropAt(c, r) ?: continue // null inside the plot
-                val (x, y) = ground(c, r)
+                val (x, y) = propGround(c, r, fp)
                 // trees are drawn at their own tile size (#v34.8) — mirrors
                 // forestPropHeight / forestPropWidth in garden_engine.dart
                 val (ht, wd) = propSize(fp)

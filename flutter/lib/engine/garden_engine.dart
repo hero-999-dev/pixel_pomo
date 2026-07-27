@@ -240,6 +240,26 @@ int tilesOutsidePlot(int c, int r, int cols, int rows) {
   return dx > dy ? dx : dy;
 }
 
+/// How far, in tiles, a forest prop may stand off its tile's centre (#v35.4).
+///
+/// Every prop used to sit exactly on the centre, so a whole ROW of them shared
+/// one ground depth to the pixel and crossed the row behind them on the SAME
+/// frame as the camera turned — a dozen trees swapping paint order at once,
+/// which is what reads as a glitch rather than as perspective. Off the lattice
+/// they cross one at a time and the swap reads as leaves shifting.
+const double kForestJitter = 0.34;
+
+/// The sub-tile offset for a forest prop, in tiles.
+///
+/// Applied in GRID space, so it turns with the world and stays a pure function
+/// of the tile. A screen-space jitter would let the camera decide where a tree
+/// stands, which is the fault #v34.12 removed.
+Offset forestJitter(int c, int r) {
+  final h = _hash2(c * 3 + 1, r * 5 + 2);
+  double axis(int v) => (v % 101 / 100.0 - 0.5) * 2 * kForestJitter;
+  return Offset(axis(h), axis(h ~/ 101));
+}
+
 /// Is this tile off the plot's COLUMN edge (beside it) rather than off its row
 /// edge (in front of or behind it)?
 ///
@@ -1088,7 +1108,15 @@ class GardenPainter extends CustomPainter {
       for (var c = vb.minC - bleed; c <= vb.maxC + bleed; c++) {
         final fp = forestPropAt(c + off, r + off, _cols, _rows); // null inside the plot
         if (fp == null) continue;
-        final anchor = p.ground(c, r);
+        // Landmark trees stay pinned to their lattice point (#v35.4): the
+        // lattice is what guarantees they sit 4 tiles apart and so never
+        // overlap, and jitter on both of a pair could close that to 3.3 —
+        // narrower than the widest canopy. They are isolated already, so they
+        // are not the ones producing the mass row-swaps this fixes.
+        final j = forestJitter(c + off, r + off);
+        final anchor = forestPropTiles(fp) >= 3
+            ? p.ground(c, r)
+            : p.projectGrid(p.gridOfD(c + j.dx, r + j.dy));
         final h = forestPropHeight(fp), w = forestPropWidth(fp);
         if (anchor.dy < 0 || anchor.dy - h * p.t > size.height) continue;
         final halfW = w * p.t / 2;
