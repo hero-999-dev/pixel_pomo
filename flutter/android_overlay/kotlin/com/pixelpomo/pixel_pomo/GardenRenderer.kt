@@ -635,6 +635,16 @@ class GardenRenderer(private val data: GardenData) {
         return treeOfSize(hsh / 4900, { it in 3..maxTiles }, "tree_01")
     }
 
+    /** Off the plot's COLUMN edge (beside it) rather than its row edge (in
+     *  front of / behind it). A prop one tile in front reaches 1.5 tiles up
+     *  over the clearing's edge; the same prop on the flank only overlaps by
+     *  half a sprite width. Mirrors isPlotSideTile in garden_engine.dart. */
+    private fun isPlotSideTile(c: Int, r: Int): Boolean {
+        val dx = if (c < 0) -c else if (c > cols - 1) c - (cols - 1) else 0
+        val dy = if (r < 0) -r else if (r > rows - 1) r - (rows - 1) else 0
+        return dx > 0 && dy == 0
+    }
+
     /** Mirrors forestPropAt in garden_engine.dart — a pure function of the tile
      *  and the plot size, so nothing about the camera can change what grows. */
     private fun forestPropAt(c: Int, r: Int): String? {
@@ -650,7 +660,11 @@ class GardenRenderer(private val data: GardenData) {
             // the transition ring — same density as the woods, only the
             // innermost tile drops the small trees (they would lean 1.5 tiles
             // over the plot from there)
+            // small trees from ringTreeTiles out, and in the innermost tile too
+            // where it is a FLANK rather than the near/far edge (#v34.16) —
+            // mirrors isPlotSideTile in garden_engine.dart
             d <= undergrowthTiles && bucket < 78 && d >= ringTreeTiles -> smallTree(pick)
+            d <= undergrowthTiles && bucket < 66 && isPlotSideTile(c, r) -> smallTree(pick)
             d <= undergrowthTiles && bucket < 90 -> id("bush", 10)
             d <= undergrowthTiles -> id("rock", 5)
             bucket < 84 -> smallTree(pick)

@@ -223,6 +223,27 @@ int tilesOutsidePlot(int c, int r, int cols, int rows) {
   return dx > dy ? dx : dy;
 }
 
+/// Is this tile off the plot's COLUMN edge (beside it) rather than off its row
+/// edge (in front of or behind it)?
+///
+/// A billboard is drawn straight up from its tile, so a prop one tile in FRONT
+/// of the clearing reaches 1.5 tiles up over its edge, while the same prop one
+/// tile to the SIDE only overlaps by half a sprite width — it stands alongside
+/// the garden instead of in front of it. That is why small trees are allowed in
+/// the innermost ring tile on the flanks and not on the near and far edges:
+/// "kücük agaclar koyabilirsin 1. hatta ama cok kücük, yan taraflarda olsun,
+/// alt tarafda ve üst tarafta olmasin" (#v34.16).
+///
+/// Measured in GRID space, so it stays a pure function of the tile — at yaw 0
+/// the column edges are the screen's left and right, and as the camera turns
+/// the flanks turn with the garden rather than the prop changing species
+/// mid-rotation, which is the fault #v34.12 removed.
+bool isPlotSideTile(int c, int r, int cols, int rows) {
+  final dx = c < 0 ? -c : (c > cols - 1 ? c - (cols - 1) : 0);
+  final dy = r < 0 ? -r : (r > rows - 1 ? r - (rows - 1) : 0);
+  return dx > 0 && dy == 0;
+}
+
 /// Floor division — Dart's `~/` truncates toward zero, which would fuse the
 /// blocks either side of 0 into one double-width block.
 int _floorDiv(int a, int b) => (a >= 0 ? a : a - b + 1) ~/ b;
@@ -266,7 +287,13 @@ String? forestPropAt(int c, int r, int cols, int rows) {
   // in front of the clearing, which is just what a tree in front of a clearing
   // does.
   if (d <= kUndergrowthTiles) {
-    if (bucket < 78 && d >= kRingTreeTiles) return _smallTree(pick);
+    // Small trees from kRingTreeTiles out, and in the innermost tile too where
+    // it is a FLANK rather than the near or far edge (#v34.16) — see
+    // isPlotSideTile. Sparser on the flank so it reads as a treeline rather
+    // than a hedge planted along the fence.
+    final trees = d >= kRingTreeTiles || isPlotSideTile(c, r, cols, rows);
+    final treeShare = d >= kRingTreeTiles ? 78 : 66;
+    if (bucket < treeShare && trees) return _smallTree(pick);
     if (bucket < 90) return id('bush', kForestBushes);
     return id('rock', kForestRocks);
   }

@@ -246,6 +246,60 @@ void main() {
       expect(rocks, greaterThan(0), reason: 'the ring has no rocks in it');
     });
 
+    test('the innermost ring tile grows trees on the flanks only', () {
+      // "kücük agaclar koyabilirsin 1. hatta ama cok kücük, yan taraflarda
+      // olsun, alt tarafda ve üst tarafta olmasin" (#v34.16). A prop one tile
+      // in FRONT of the clearing reaches 1.5 tiles up over its edge; the same
+      // prop on the flank stands alongside instead and only overlaps by half a
+      // sprite width.
+      var flankTrees = 0, edgeTiles = 0;
+      for (var r = -1; r <= rows; r++) {
+        for (var c = -1; c <= cols; c++) {
+          if (tilesOutsidePlot(c, r, cols, rows) != 1) continue;
+          final id = forestPropAt(c, r, cols, rows);
+          if (id == null) continue;
+          if (isPlotSideTile(c, r, cols, rows)) {
+            if (id.startsWith('tree_')) flankTrees++;
+          } else {
+            edgeTiles++;
+            expect(id.startsWith('tree_'), false,
+                reason: '$id at ($c,$r) is a tree on the near/far edge, '
+                    'where it leans 1.5 tiles over the clearing');
+          }
+        }
+      }
+      expect(flankTrees, greaterThan(0), reason: 'no trees on the flanks at all');
+      expect(edgeTiles, greaterThan(0), reason: 'sanity: near/far edge tiles exist');
+    });
+
+    test('a flank prop never reaches far across the clearing sideways', () {
+      // The flank's exemption from the vertical-lean bound is only sound
+      // because its SIDEWAYS overlap is small. A tile one out has its centre
+      // 0.5 tiles beyond the plot edge, so a sprite of width w overlaps by
+      // w/2 - 0.5. Keep that under half a tile, or a flank tree covers a real
+      // strip of the garden instead of brushing its edge.
+      for (var r = 0; r < rows; r++) {
+        for (final c in [-1, cols]) {
+          final id = forestPropAt(c, r, cols, rows);
+          if (id == null) continue;
+          final over = forestPropWidth(id) / 2 - 0.5;
+          expect(over, lessThan(0.5),
+              reason: '$id at ($c,$r) reaches ${over.toStringAsFixed(2)} '
+                  'tiles sideways into the clearing');
+        }
+      }
+    });
+
+    test('a flank tile is beside the plot, a near/far tile is not', () {
+      // the classifier itself, since the rule above rests entirely on it
+      expect(isPlotSideTile(-1, 0, 4, 10), isTrue); // left of the plot
+      expect(isPlotSideTile(4, 9, 4, 10), isTrue); // right of it
+      expect(isPlotSideTile(0, -1, 4, 10), isFalse); // behind it
+      expect(isPlotSideTile(2, 10, 4, 10), isFalse); // in front of it
+      expect(isPlotSideTile(-1, -1, 4, 10), isFalse); // diagonal corner
+      expect(isPlotSideTile(1, 5, 4, 10), isFalse); // inside the plot
+    });
+
     test('nothing near the plot can lean more than a canopy tip over it', () {
       // The woods paint ON TOP of the clearing again (#v34.12b) — a tree that
       // vanishes behind the garden is worse than one that crosses its line —
@@ -264,6 +318,11 @@ void main() {
         for (var c = -12; c < cols + 12; c++) {
           final d = tilesOutsidePlot(c, r, cols, rows);
           if (d == 0 || d > kUndergrowthTiles) continue;
+          // A flank prop stands ALONGSIDE the clearing, not in front of it, so
+          // its upward reach never crosses the edge and the vertical bound is
+          // simply the wrong measure there (#v34.16). Its horizontal overlap is
+          // bounded by the sprite width instead, and checked below.
+          if (isPlotSideTile(c, r, cols, rows)) continue;
           final id = forestPropAt(c, r, cols, rows);
           if (id == null) continue;
           final h = forestPropHeight(id); // the painter's own number, not a copy
