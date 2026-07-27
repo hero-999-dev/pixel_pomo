@@ -64,15 +64,15 @@ class GardenRenderer(private val data: GardenData) {
         cosY = cos(cam.yaw); sinY = sin(cam.yaw)
 
         canvas.drawColor(Color.rgb(0x12, 0x30, 0x1A)) // forest floor
-        // The woods go down FIRST, under the clearing (#v34.12): a billboard is
-        // anchored on its tile and drawn upward, so a prop on the near side
-        // reaches up over the plot's edge. Painting it under the grass is what
-        // guarantees "ormanin hic bir kisminin bahcenin cizgisini gecmesini
-        // istemiyorum" at every yaw, instead of a distance band that leaks.
-        // Mirrors GardenPainter.paint step 0b in garden_engine.dart.
-        drawWoods(canvas, w, h)
         fillClearing(canvas)
         drawGrassFlowers(canvas) // a few wild blooms on empty grass (#v18)
+        // The woods paint ON TOP of the clearing, as their own layer under the
+        // garden's props. #v34.12 briefly painted them underneath, which did
+        // make the outline untouchable and was wrong — a tree in front of the
+        // clearing that vanishes behind it is the worse artefact. The line is
+        // kept clean by the graded undergrowth ring instead. Mirrors
+        // GardenPainter.paint step 4 in garden_engine.dart.
+        drawWoods(canvas, w, h)
 
         // Standing things, depth-sorted back-to-front by screen-y, INCLUDING fence
         // rails (keyed by the midpoint of the two posts they link) — they used to
@@ -575,7 +575,8 @@ class GardenRenderer(private val data: GardenData) {
     private val bigTreeBlock = 7
     private val bigTreePercent = 60
     private val bigTreeClearTiles = 6
-    private val undergrowthTiles = 1
+    private val undergrowthTiles = 3
+    private val ringTreeTiles = 2
 
     /** Mirrors _treeOfSize / _smallTree / _bigTree in garden_engine.dart. */
     private fun treeOfSize(pick: Int, want: (Int) -> Boolean, fallback: String): String {
@@ -613,10 +614,12 @@ class GardenRenderer(private val data: GardenData) {
         if (d >= bigTreeClearTiles) bigTreeAt(c, r)?.let { return it }
         return when {
             bucket < forestGapPercent -> null
-            // the apron is thinner than the woods proper, or the ring of tiles
-            // hugging a straight plot edge reads as a laid stone border
-            d <= undergrowthTiles && bucket < 62 -> null
-            d <= undergrowthTiles -> if (bucket < 84) id("bush", 10) else id("rock", 5)
+            // the transition ring — same density as the woods, only the
+            // innermost tile drops the small trees (they would lean 1.5 tiles
+            // over the plot from there)
+            d <= undergrowthTiles && bucket < 78 && d >= ringTreeTiles -> smallTree(pick)
+            d <= undergrowthTiles && bucket < 90 -> id("bush", 10)
+            d <= undergrowthTiles -> id("rock", 5)
             bucket < 84 -> smallTree(pick)
             bucket < 94 -> id("bush", 10)
             else -> id("rock", 5)

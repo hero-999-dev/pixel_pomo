@@ -65,8 +65,10 @@ class TreeTableIsMirrored(unittest.TestCase):
          r"val bigTreePercent = (\d+)"),
         ("big-tree clearance", r"const int kBigTreeClearTiles = (\d+);",
          r"val bigTreeClearTiles = (\d+)"),
-        ("undergrowth apron", r"const int kUndergrowthTiles = (\d+);",
+        ("undergrowth ring depth", r"const int kUndergrowthTiles = (\d+);",
          r"val undergrowthTiles = (\d+)"),
+        ("small trees inside the ring", r"const int kRingTreeTiles = (\d+);",
+         r"val ringTreeTiles = (\d+)"),
     ]
 
     def test_every_forest_constant_matches_in_dart_and_kotlin(self):

@@ -205,27 +205,90 @@ void main() {
       });
     });
 
-    test('only bushes and rocks stand against the garden line', () {
-      // "ona uygun agac, kaya ve otlarla dolduruldun" — the apron. The plot
-      // paints over the woods now so nothing can actually cross the outline;
-      // this keeps the hidden sliver small enough that the cut never shows.
-      var props = 0, rocks = 0;
+    test('the ring is small trees, bushes and rocks — and only those', () {
+      // "bahcenin disindaki 3 tilein kücük agaclarla, calilarla, kayalarla
+      // cevrili olmasi, sonrasinda orman baslasin".
+      var trees = 0, bushes = 0, rocks = 0;
       for (var r = -kUndergrowthTiles; r < rows + kUndergrowthTiles; r++) {
         for (var c = -kUndergrowthTiles; c < cols + kUndergrowthTiles; c++) {
           final d = tilesOutsidePlot(c, r, cols, rows);
           if (d == 0 || d > kUndergrowthTiles) continue;
           final id = forestPropAt(c, r, cols, rows);
           if (id == null) continue;
-          props++;
-          if (id.startsWith('rock_')) rocks++;
-          expect(id.startsWith('tree_'), false,
-              reason: '$id at ($c,$r) is a tree hard against the plot');
+          if (id.startsWith('tree_')) {
+            trees++;
+            expect(forestPropTiles(id), 2, reason: '$id at ($c,$r) is a big tree in the ring');
+          } else if (id.startsWith('bush_')) {
+            bushes++;
+          } else {
+            rocks++;
+          }
         }
       }
-      expect(props, greaterThan(5), reason: 'sanity: the apron should hold props');
-      expect(props, lessThan(20),
-          reason: 'the apron is dense enough to read as a laid stone border ($props)');
-      expect(rocks, greaterThan(0), reason: 'the user asked for rocks here');
+      expect(trees, greaterThan(0), reason: 'the ring has no small trees in it');
+      expect(bushes, greaterThan(0), reason: 'the ring has no bushes in it');
+      expect(rocks, greaterThan(0), reason: 'the ring has no rocks in it');
+    });
+
+    test('nothing near the plot can lean more than a canopy tip over it', () {
+      // The woods paint ON TOP of the clearing again (#v34.12b) — a tree that
+      // vanishes behind the garden is worse than one that crosses its line —
+      // so the outline is protected by height, not by paint order. A billboard
+      // rises `h` tiles while one tile of distance buys only `kVy` tiles of
+      // screen separation, so a prop at distance `d` reaches `h - d * kVy`
+      // tiles past the plot's edge on whichever side faces the camera.
+      //
+      // The bound is 1.0 — under a tile, i.e. a canopy tip passing in front of
+      // the clearing, never a whole tree planted over it. It is NOT zero on
+      // purpose: clearing it entirely means no small trees within 4 tiles, and
+      // the ring is supposed to be built from small trees. What it does catch
+      // is the thing that actually looked broken — a 3- or 4-tile tree against
+      // the plot, which reaches 2.6 to 3.6 tiles over and swallows the edge.
+      for (var r = -12; r < rows + 12; r++) {
+        for (var c = -12; c < cols + 12; c++) {
+          final d = tilesOutsidePlot(c, r, cols, rows);
+          if (d == 0 || d > kUndergrowthTiles) continue;
+          final id = forestPropAt(c, r, cols, rows);
+          if (id == null) continue;
+          final h = id.startsWith('rock_') ? 0.6 : forestPropTiles(id) * 1.05;
+          expect(h - d * kVy, lessThan(1.0),
+              reason: '$id at ($c,$r), $d tiles out, leans '
+                  '${(h - d * kVy).toStringAsFixed(2)} tiles over the garden');
+        }
+      }
+    });
+
+    test('the ring is as full as the woods, not a bare moat', () {
+      // First cut graded the ring hard by height and left the innermost tile
+      // rocks-only; at yaw 0 every tile beside the plot is at distance 1, so
+      // each side became an evenly spaced column of pebbles with a bare band
+      // behind it. The ring has to read as undergrowth.
+      var props = 0, tiles = 0;
+      for (var r = -kUndergrowthTiles; r < rows + kUndergrowthTiles; r++) {
+        for (var c = -kUndergrowthTiles; c < cols + kUndergrowthTiles; c++) {
+          final d = tilesOutsidePlot(c, r, cols, rows);
+          if (d == 0 || d > kUndergrowthTiles) continue;
+          tiles++;
+          if (forestPropAt(c, r, cols, rows) != null) props++;
+        }
+      }
+      expect(props / tiles, greaterThan(0.5),
+          reason: 'the ring is a moat, not undergrowth (${props / tiles})');
+    });
+
+    test('the woods proper start right after the ring', () {
+      // "sonrasinda orman baslasin" — the band immediately outside the ring
+      // must actually be forest, not more thinned-out rim.
+      var props = 0, tiles = 0;
+      for (var r = -14; r < rows + 14; r++) {
+        for (var c = -14; c < cols + 14; c++) {
+          if (tilesOutsidePlot(c, r, cols, rows) != kUndergrowthTiles + 1) continue;
+          tiles++;
+          if (forestPropAt(c, r, cols, rows) != null) props++;
+        }
+      }
+      expect(props / tiles, greaterThan(0.5),
+          reason: 'the first forest row is still rim-thin (${props / tiles})');
     });
 
     test('a tile inside the plot grows nothing', () {

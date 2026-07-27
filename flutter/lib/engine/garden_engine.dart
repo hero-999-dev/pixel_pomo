@@ -66,9 +66,28 @@ const int kBigTreePercent = 60;
 /// canopy hugging the edge would still hide the clearing behind it.
 const int kBigTreeClearTiles = 6;
 
-/// Within this many tiles of the plot the woods are bushes and rocks only —
-/// the "kaya ve otlar" apron the user asked for along the garden's line.
-const int kUndergrowthTiles = 1;
+/// The clearing has a transition ring this many tiles deep before the woods
+/// proper start (#v34.12b) — "bahcenin disindaki 3 tilein kücük agaclarla,
+/// calilarla, kayalarla cevrili olmasi, sonrasinda orman baslasin".
+///
+/// It is **graded by height**, closest first: rocks and bushes against the
+/// line, small trees only from [kRingTreeTiles] out. That grading is what keeps
+/// the garden's outline clean without hiding anything. A billboard is anchored
+/// on its tile and drawn straight up, while moving one tile away from the plot
+/// buys only `kVy` tiles of screen separation — so a 2.1-tile tree standing one
+/// tile out still reaches 1.5 tiles over the plot's edge, and a rock does not
+/// reach it at all.
+const int kUndergrowthTiles = 3;
+
+/// Small trees join the ring from this tile out; the innermost tile is bushes
+/// and rocks. Only the innermost, deliberately — the first cut of this graded
+/// the ring hard by height (rocks at 1, bushes at 2, trees at 3) and it looked
+/// far worse than the problem: at yaw 0 the tiles beside the plot are all at
+/// distance 1, so each side became an evenly spaced vertical column of pebbles,
+/// and the ring as a whole read as a bare moat. The height grading only ever
+/// mattered on the ONE side that happens to be between the camera and the plot,
+/// and it was being paid for on all four.
+const int kRingTreeTiles = 2;
 
 /// How many tiles wide/tall each tree is drawn at (#v34.8).
 ///
@@ -165,14 +184,18 @@ String? forestPropAt(int c, int r, int cols, int rows) {
 
   if (bucket < kForestGapPercent) return null; // bare woodland floor
 
-  // Everything else is undergrowth: small trees, bushes, rocks. Right against
-  // the plot even the small trees drop out, leaving the low apron — and the
-  // apron is thinner than the woods proper, or the ring of tiles hugging a
-  // straight plot edge lines its props up into what reads as a laid stone
-  // border around the garden rather than the edge of a clearing.
+  // The transition ring — small trees, bushes and rocks, at the same density as
+  // the woods so it reads as undergrowth and not as a moat. Only the innermost
+  // tile drops the trees: a 2.1-tile tree standing one tile out leans a full
+  // 1.5 tiles over the plot on whichever side faces the camera, which is the
+  // "crossing the garden's line" everyone has been looking at. From two tiles
+  // out the worst case is 0.9 and from three it is 0.3 — a canopy tip passing
+  // in front of the clearing, which is just what a tree in front of a clearing
+  // does.
   if (d <= kUndergrowthTiles) {
-    if (bucket < 62) return null;
-    return bucket < 84 ? id('bush', kForestBushes) : id('rock', kForestRocks);
+    if (bucket < 78 && d >= kRingTreeTiles) return _smallTree(pick);
+    if (bucket < 90) return id('bush', kForestBushes);
+    return id('rock', kForestRocks);
   }
   if (bucket < 84) return _smallTree(pick);
   if (bucket < 94) return id('bush', kForestBushes);
@@ -659,24 +682,7 @@ class GardenPainter extends CustomPainter {
     //    them out of the depth-sorted prop list (see below).
     canvas.drawRect(Offset.zero & size, Paint()..color = const Color(0xFF12301A));
 
-    // 0b) the woods, painted BEFORE the plot (#v34.12).
-    //
-    //     "ormanin hic bir kisminin bahcenin cizgisini gecmesini istemiyorum."
-    //     A billboard is anchored on its tile's ground point and drawn upward,
-    //     so a prop on the near side of the clearing reaches up over the plot's
-    //     edge — that is what kept crossing the outline. Every earlier attempt
-    //     was a distance band guessed against the tree height, and each one
-    //     leaked, because the screen clearance a tile actually has depends on
-    //     the camera yaw and the band did not.
-    //
-    //     Painting the woods under the soil slab and the grass makes it exact
-    //     instead of tuned: the plot covers anything that reaches it, at every
-    //     yaw, zoom and pan, whatever size the trees are. The outline is always
-    //     one unbroken shape. The size ramp in forestPropAt stays, but its job
-    //     is now cosmetic — keep the props that hug the line short enough that
-    //     the hidden sliver is never noticeable.
     final standing = <(double, void Function())>[]; // (depthY, paint) — garden props
-    _paintWoods(canvas, p, size);
 
     // 1) soil slab — extrude each claimed-plot edge downward for 2.5D thickness.
     final soil = Paint()..color = Color(soilColor);
@@ -737,13 +743,23 @@ class GardenPainter extends CustomPainter {
     // 3) customize gridlines over the claimed plot.
     if (customizing) _paintGrid(canvas, p);
 
-    // 4) the garden's own standing things, depth-sorted back-to-front by
-    //    screen-y: claimed props + the fence rails between them. Fences are
-    //    low-poly 3D posts/rails; flowers are flat billboards. Rails share this
-    //    same sort (keyed by the midpoint of the two posts they link) instead
-    //    of always painting in an earlier fixed pass, so a flower correctly
-    //    passes behind a nearer rail/post instead of always drawing over it
-    //    (#v31.18). The woods went down in step 0b, under all of this.
+    // 4) the woods, then the garden's own standing things.
+    //
+    //    The woods paint ON TOP of the clearing, as their own depth-sorted
+    //    layer under the garden's props. #v34.12 briefly painted them
+    //    underneath, which did make the outline mathematically untouchable —
+    //    and was wrong: "agaclar bahcenin altinda kaliyor ne anladim bu isten".
+    //    A tree standing in front of the clearing that vanishes behind it is a
+    //    worse artefact than the one it was fixing. The line is kept clean by
+    //    the undergrowth ring instead (see kUndergrowthTiles): nothing within
+    //    reach of the plot is tall enough to lean over it in the first place.
+    _paintWoods(canvas, p, size);
+
+    //    Then claimed props + the fence rails between them. Fences are low-poly
+    //    3D posts/rails; flowers are flat billboards. Rails share this same sort
+    //    (keyed by the midpoint of the two posts they link) instead of always
+    //    painting in an earlier fixed pass, so a flower correctly passes behind
+    //    a nearer rail/post instead of always drawing over it (#v31.18).
     for (var r = 0; r < _rows; r++) {
       for (var c = 0; c < _cols; c++) {
         final prop = garden.propAt(r * _cols + c);
