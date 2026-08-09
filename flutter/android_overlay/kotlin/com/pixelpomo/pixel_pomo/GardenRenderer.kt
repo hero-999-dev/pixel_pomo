@@ -86,9 +86,16 @@ class GardenRenderer(private val data: GardenData) {
                 data.groundAt(idx)?.let { drawRoad(canvas, c, r, it) }
                 val prop = data.propAt(idx) ?: continue
                 val (x, y) = ground(c, r)
-                if (isFence(prop)) {
+                val mesh = if (isHouse(prop)) data.mesh(prop) else null
+                if (mesh != null) {
+                    // a building: real geometry, in the same back-to-front pass
+                    // as everything else (#v36). Not added to `flowers` — bees
+                    // visit plants, not houses.
+                    val (gx, gy) = gridXY(c, r)
+                    items.add(Item(y) { drawMesh(canvas, gx, gy, mesh) })
+                } else if (isFence(prop)) {
                     items.add(Item(y) { drawFencePost(canvas, c, r, prop) })
-                } else {
+                } else if (!isHouse(prop)) {
                     flowers.add(gridXY(c, r))
                     // match the in-app _paintBillboard dimensions (#v22): flowers 1.05h×0.9w.
                     val bmp = flowerBitmap(prop)
@@ -309,6 +316,8 @@ class GardenRenderer(private val data: GardenData) {
 
     private fun isFence(id: String) = id.startsWith("fence_")
 
+    private fun isHouse(id: String) = id.startsWith("house_")
+
     private fun fenceAt(idx: Int): Boolean {
         if (idx < 0 || idx >= cols * rows) return false
         return isFence(data.propAt(idx) ?: return false)
@@ -333,14 +342,37 @@ class GardenRenderer(private val data: GardenData) {
         canvas.drawPath(path, quad)
     }
 
-    /// 8 corners (4 base, 4 top) of an upright box — mirrors `boxCorners`.
-    private fun boxCorners(gx: Double, gy: Double, half: Double, height: Double): Array<Pair<Double, Double>> {
+    /// 8 corners (4 base, 4 top) of an upright box — mirrors `boxCornersAt`.
+    private fun boxCornersAt(gx: Double, gy: Double, halfW: Double, halfD: Double,
+                             baseE: Double, height: Double): Array<Pair<Double, Double>> {
         val base = arrayOf(
-            projGrid(gx - half, gy - half), projGrid(gx + half, gy - half),
-            projGrid(gx + half, gy + half), projGrid(gx - half, gy + half))
+            projElev(gx - halfW, gy - halfD, baseE), projElev(gx + halfW, gy - halfD, baseE),
+            projElev(gx + halfW, gy + halfD, baseE), projElev(gx - halfW, gy + halfD, baseE))
         return arrayOf(base[0], base[1], base[2], base[3],
             base[0].first to base[0].second - height * t, base[1].first to base[1].second - height * t,
             base[2].first to base[2].second - height * t, base[3].first to base[3].second - height * t)
+    }
+
+    /// The square, ground-standing case — the fence post. Mirrors `boxCorners`.
+    private fun boxCorners(gx: Double, gy: Double, half: Double, height: Double) =
+        boxCornersAt(gx, gy, half, half, 0.0, height)
+
+    /**
+     * One building, drawn as its stack of boxes back-to-front — mirrors
+     * `paintMesh` in garden_engine.dart. Boxes are keyed on their own footprint
+     * centre so the far wall paints first and the house doesn't turn inside out
+     * as the framing yaw changes; ties (stacked boxes) keep the file's own
+     * bottom-up order, which is what puts the roof on the walls.
+     */
+    private fun drawMesh(canvas: Canvas, gx: Double, gy: Double, mesh: List<MeshBox>) {
+        for (b in mesh.sortedBy { projGrid(gx + it.x, gy + it.y).second }) {
+            val box = boxCornersAt(gx + b.x, gy + b.y, b.w / 2, b.d / 2, b.z, b.h)
+            for (i in 0 until 4) {
+                val j = (i + 1) % 4
+                fillQuad(canvas, box[i], box[j], box[j + 4], box[i + 4], b.side)
+            }
+            fillQuad(canvas, box[4], box[5], box[6], box[7], b.top)
+        }
     }
 
     /// Raised rails between adjacent fence posts — mirrors `_collectFenceRails`. Each

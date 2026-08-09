@@ -3,9 +3,16 @@ package com.pixelpomo.pixel_pomo
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import org.json.JSONObject
 
 /** Background + foreground colors mirrored from the Dart PixelTheme (v15). */
 data class ThemeColors(val bg: Int, val onSurface: Int)
+
+/** One axis-aligned box of a building; mirrors Dart MeshBox (#v36). */
+data class MeshBox(
+    val x: Double, val y: Double, val z: Double,
+    val w: Double, val d: Double, val h: Double,
+    val side: Int, val top: Int)
 
 /** The camera framing the wallpaper reproduces; mirrors Dart WallpaperCam. */
 data class CamFraming(val yaw: Double, val zoom: Double, val panXFrac: Double, val panYFrac: Double)
@@ -24,6 +31,7 @@ class GardenData(private val context: Context) {
     var theme = ThemeColors(0xFF161616.toInt(), 0xFFF4F4F4.toInt()); private set
     var cam = CamFraming(0.0, 1.0, 0.0, 0.0); private set
     private val cache = HashMap<String, Bitmap?>()
+    private val meshCache = HashMap<String, List<MeshBox>?>()
 
     init { reload() }
 
@@ -96,4 +104,27 @@ class GardenData(private val context: Context) {
             }
         } catch (e: Exception) { null }
     }
+
+    /**
+     * A building's box mesh, read from the SAME generated JSON the Flutter app
+     * loads (#v36) — that shared file is the whole reason meshes ship as JSON
+     * rather than as generated Dart: two renderers, one description of the
+     * object. Missing or malformed means the house simply isn't drawn here.
+     */
+    fun mesh(id: String): List<MeshBox>? = meshCache.getOrPut(id) {
+        try {
+            val raw = context.assets.open("flutter_assets/assets/meshes/$id.json")
+                .use { it.readBytes().toString(Charsets.UTF_8) }
+            val arr = JSONObject(raw).getJSONArray("boxes")
+            (0 until arr.length()).map { i ->
+                val b = arr.getJSONObject(i)
+                MeshBox(
+                    b.getDouble("x"), b.getDouble("y"), b.getDouble("z"),
+                    b.getDouble("w"), b.getDouble("d"), b.getDouble("h"),
+                    argb(b.getString("side")), argb(b.getString("top")))
+            }.takeIf { it.isNotEmpty() }
+        } catch (e: Exception) { null }
+    }
+
+    private fun argb(hex: String) = (0xFF000000L or hex.removePrefix("#").toLong(16)).toInt()
 }

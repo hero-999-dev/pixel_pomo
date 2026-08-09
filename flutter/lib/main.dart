@@ -3158,7 +3158,12 @@ class _GardenScreenState extends State<GardenScreen> {
     // everything the player owns and hasn't placed yet (flowers + objects)
     final flowers =
         hasRoad ? <Flower>[] : Flowers.all.where((f) => s.availableOf(f.id) > 0).toList();
-    final objects = Placeables.objectIds.where((id) => s.availableOf(id) > 0).toList();
+    // a house follows the flower rule, not the fence one — a cottage standing in
+    // the middle of a path reads as a mistake, so it is hidden on a road tile
+    // rather than offered and then silently refused by Garden.plant (#v36).
+    final objects = Placeables.objectIds
+        .where((id) => s.availableOf(id) > 0 && !(hasRoad && Placeables.isHouse(id)))
+        .toList();
     if (current == null && flowers.isEmpty && objects.isEmpty) {
       s.messenger?.call(s.owned.isEmpty ? 'needFlowers' : 'noneLeft');
       return;

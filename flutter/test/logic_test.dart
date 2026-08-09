@@ -347,29 +347,38 @@ void main() {
     });
   });
 
-  group('Placeables (roads + fences)', () {
-    test('catalogue: 4 roads + 3 fences, classified correctly', () {
+  group('Placeables (roads + fences + buildings)', () {
+    test('catalogue: 4 roads + 3 fences + 1 building, classified correctly', () {
       expect(Placeables.roadIds.length, 4);
       expect(Placeables.fenceIds.length, 3);
-      expect(Placeables.objectIds.length, 7);
+      expect(Placeables.houseIds.length, 1);
+      expect(Placeables.objectIds.length, 8);
       expect(Placeables.isRoad('road_concrete'), true);
       expect(Placeables.isFence('road_concrete'), false);
       expect(Placeables.isFence('fence_stone'), true);
       expect(Placeables.isRoad('fence_stone'), false);
+      expect(Placeables.isHouse('house_wood'), true);
+      expect(Placeables.isFence('house_wood'), false);
       expect(Placeables.isObject('gul'), false);
     });
 
-    test('costOf: objects 5, flowers 10', () {
-      for (final id in Placeables.objectIds) {
+    test('costOf: decor 5, buildings 15, flowers 10', () {
+      for (final id in [...Placeables.roadIds, ...Placeables.fenceIds]) {
         expect(Economy.costOf(id), 5, reason: id);
+      }
+      for (final id in Placeables.houseIds) {
+        expect(Economy.costOf(id), 15, reason: id);
       }
       expect(Economy.costOf('gul'), 10);
     });
 
-    test('sellPrice: half the buy price floored (flowers 5, decor 2)', () {
+    test('sellPrice: half the buy price floored (flowers 5, decor 2, houses 7)', () {
       expect(Economy.sellPrice('gul'), 5);
-      for (final id in Placeables.objectIds) {
+      for (final id in [...Placeables.roadIds, ...Placeables.fenceIds]) {
         expect(Economy.sellPrice(id), 2, reason: id);
+      }
+      for (final id in Placeables.houseIds) {
+        expect(Economy.sellPrice(id), 7, reason: id);
       }
     });
 

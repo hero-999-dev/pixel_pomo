@@ -12,6 +12,7 @@
 //  yaws. Pure rendering + camera math live here; it reads a [Garden] from
 //  logic.dart and a [SpriteBank].
 // ─────────────────────────────────────────────────────────────────────────
+import 'dart:convert' show jsonDecode;
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -500,20 +501,142 @@ const Map<String, (int side, int top, int rail)> _fence3d = {
   'fence_stone': (0xFF6E6E6E, 0xFF9A9A9A, 0xFF9A9A9A),
 };
 
-/// The 8 screen-space corners of an upright box at garden [c] (tile units), with
-/// a square footprint of half-width [half] tiles rising [height] tiles. Indices
-/// 0..3 are the base ring (CW), 4..7 the matching top ring directly above. This
-/// is the low-poly primitive every standing 3D object (fence posts now, trees /
-/// houses next) is built from — real geometry that rotates correctly and keeps a
-/// solid footprint from every angle, instead of a flat sprite that thins out.
-List<Offset> boxCorners(Projector p, Offset c, double half, double height) {
+/// The 8 screen-space corners of an upright box centred on garden [c] (tile
+/// units), spanning [halfW]×[halfD] tiles on the ground, with its base at
+/// elevation [baseE] tiles and rising [height] tiles from there. Indices 0..3
+/// are the base ring (CW), 4..7 the matching top ring directly above.
+///
+/// This is the low-poly primitive every standing 3D object is built from — real
+/// geometry that rotates correctly and keeps a solid footprint from every angle,
+/// instead of a flat sprite that thins out. [baseE] is what lets a roof sit on
+/// top of walls instead of inside them; the separate [halfW]/[halfD] are what
+/// let a wall be long in one axis and thin in the other (#v36).
+List<Offset> boxCornersAt(
+    Projector p, Offset c, double halfW, double halfD, double baseE, double height) {
   final base = <Offset>[
-    p.projectGrid(Offset(c.dx - half, c.dy - half)),
-    p.projectGrid(Offset(c.dx + half, c.dy - half)),
-    p.projectGrid(Offset(c.dx + half, c.dy + half)),
-    p.projectGrid(Offset(c.dx - half, c.dy + half)),
+    p.projectElevated(Offset(c.dx - halfW, c.dy - halfD), baseE),
+    p.projectElevated(Offset(c.dx + halfW, c.dy - halfD), baseE),
+    p.projectElevated(Offset(c.dx + halfW, c.dy + halfD), baseE),
+    p.projectElevated(Offset(c.dx - halfW, c.dy + halfD), baseE),
   ];
   return [...base, for (final b in base) b.translate(0, -height * p.t)];
+}
+
+/// The square, ground-standing case — the v10 fence post. Kept as its own name
+/// because the fence's geometry is pinned by its own tests.
+List<Offset> boxCorners(Projector p, Offset c, double half, double height) =>
+    boxCornersAt(p, c, half, half, 0.0, height);
+
+/// Fill a flat-shaded quad (one low-poly face). Pixel-crisp, no anti-aliasing.
+void fillQuad(Canvas canvas, Offset a, Offset b, Offset c, Offset d, Color color) {
+  canvas.drawPath(
+      Path()
+        ..moveTo(a.dx, a.dy)
+        ..lineTo(b.dx, b.dy)
+        ..lineTo(c.dx, c.dy)
+        ..lineTo(d.dx, d.dy)
+        ..close(),
+      Paint()
+        ..color = color
+        ..isAntiAlias = false);
+}
+
+// ---- box meshes -------------------------------------------------------------
+
+/// One axis-aligned box in a [BoxMesh]. [x]/[y] offset its centre from the
+/// object's tile centre, [z] is the elevation of its underside, and [w]/[d]/[h]
+/// are its full extents — all in tile units, where one tile is 16 art pixels.
+///
+/// Two flat colours, matching the fence convention: [side] on all four walls and
+/// a brighter [top]. That is a fixed sky glow baked into the geometry, never a
+/// directional sun, so the shading does not swing round when the camera yaws.
+class MeshBox {
+  final double x, y, z, w, d, h;
+  final int side, top;
+  const MeshBox(
+      {required this.x,
+      required this.y,
+      required this.z,
+      required this.w,
+      required this.d,
+      required this.h,
+      required this.side,
+      required this.top});
+
+  static int _argb(Object? hex) =>
+      0xFF000000 | int.parse((hex as String).replaceFirst('#', ''), radix: 16);
+
+  static double _num(Object? v) => (v as num).toDouble();
+
+  factory MeshBox.fromJson(Map<String, dynamic> j) => MeshBox(
+      x: _num(j['x']),
+      y: _num(j['y']),
+      z: _num(j['z']),
+      w: _num(j['w']),
+      d: _num(j['d']),
+      h: _num(j['h']),
+      side: _argb(j['side']),
+      top: _argb(j['top']));
+}
+
+/// A stack of boxes making one object, loaded from `assets/meshes/<id>.json`.
+///
+/// The file is generated: `tools/gen_meshes.py` writes the ones we author, and
+/// `tools/obj_to_boxes.py` converts a Blockbench OBJ export into the same shape,
+/// so an artist can model in a real 3D tool without the engine growing a mesh
+/// importer. JSON (not a generated Dart file) because the Android live-wallpaper
+/// renderer is native Kotlin and has to read exactly the same object.
+///
+/// Boxes are authored **bottom-up**: boxes sharing a footprint tie on depth, and
+/// the sort is stable, so file order decides what lands on top.
+class BoxMesh {
+  final String id;
+
+  /// How many tiles the object's footprint spans — the author's own note of how
+  /// big it is meant to read, carried in the file so a converted model can be
+  /// checked against the ones we hand-write. The painter needs only [boxes].
+  final double tiles;
+  final List<MeshBox> boxes;
+  const BoxMesh(this.id, this.tiles, this.boxes);
+
+  factory BoxMesh.fromJson(Map<String, dynamic> j) {
+    final boxes = [
+      for (final b in (j['boxes'] as List)) MeshBox.fromJson(b as Map<String, dynamic>)
+    ];
+    if (boxes.isEmpty) throw const FormatException('a mesh with no boxes draws nothing');
+    return BoxMesh(j['id'] as String, (j['tiles'] as num).toDouble(), boxes);
+  }
+
+  /// The tallest point of the object, in tiles — used for the off-screen cull,
+  /// the same way a billboard's height is.
+  double get height =>
+      boxes.map((b) => b.z + b.h).reduce((a, b) => a > b ? a : b);
+}
+
+/// Back-to-front paint order for one mesh's boxes at the current yaw.
+///
+/// Keyed on each box's own footprint centre, so a far wall paints before the
+/// near one and the house does not turn inside out as the garden is twisted.
+/// [stableDepthOrder] keeps tied (stacked) boxes in their authored order.
+List<int> meshDrawOrder(Projector p, Offset gridCentre, BoxMesh mesh) =>
+    stableDepthOrder([
+      for (final b in mesh.boxes) p.projectGrid(gridCentre.translate(b.x, b.y)).dy
+    ]);
+
+/// Draw [mesh] standing on the tile at [gridCentre]: every box as four side
+/// quads plus its brighter top, in back-to-front order.
+void paintMesh(Canvas canvas, Projector p, Offset gridCentre, BoxMesh mesh) {
+  for (final i in meshDrawOrder(p, gridCentre, mesh)) {
+    final b = mesh.boxes[i];
+    final c = boxCornersAt(
+        p, gridCentre.translate(b.x, b.y), b.w / 2, b.d / 2, b.z, b.h);
+    final side = Color(b.side);
+    for (var k = 0; k < 4; k++) {
+      final n = (k + 1) % 4;
+      fillQuad(canvas, c[k], c[n], c[n + 4], c[k + 4], side);
+    }
+    fillQuad(canvas, c[4], c[5], c[6], c[7], Color(b.top));
+  }
 }
 
 // ---- sprite bank ------------------------------------------------------------
@@ -524,7 +647,15 @@ List<Offset> boxCorners(Projector p, Offset c, double half, double height) {
 /// at all — they render as 3D meshes. Loaded once, reused for the scene.
 class SpriteBank {
   final Map<String, ui.Image> images;
-  const SpriteBank(this.images);
+
+  /// Box meshes from assets/meshes/, keyed by placeable id — the buildings.
+  /// Empty rather than absent if a file is unreadable, so a bad mesh costs one
+  /// missing house instead of a garden that never loads.
+  final Map<String, BoxMesh> meshes;
+
+  const SpriteBank(this.images, [this.meshes = const {}]);
+
+  BoxMesh? mesh(String id) => meshes[id];
 
   ui.Image? grass() => images['grass'];
   ui.Image? forest() => images['forest'];
@@ -544,10 +675,20 @@ class SpriteBank {
 
   static Future<SpriteBank> load() async {
     final out = <String, ui.Image>{};
+    final meshes = <String, BoxMesh>{};
     Future<void> grab(String key, String asset) async {
       final data = await rootBundle.load('assets/objects/$asset');
       final codec = await ui.instantiateImageCodec(data.buffer.asUint8List());
       out[key] = (await codec.getNextFrame()).image;
+    }
+
+    Future<void> grabMesh(String id) async {
+      try {
+        final raw = await rootBundle.loadString('assets/meshes/$id.json');
+        meshes[id] = BoxMesh.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+      } catch (_) {
+        // one unreadable building must not take the whole scene down with it
+      }
     }
 
     await Future.wait([
@@ -570,8 +711,10 @@ class SpriteBank {
         if (Flowers.variantsFor(f.id) > 1)
           for (var v = 0; v < Flowers.variantsFor(f.id); v++)
             grab('flower_${f.id}_$v', 'flower_${f.id}_$v.png'),
+      // buildings are geometry, not sprites; their PNG is only a shop thumbnail
+      for (final id in Placeables.houseIds) grabMesh(id),
     ]);
-    return SpriteBank(out);
+    return SpriteBank(out, meshes);
   }
 }
 
@@ -1060,9 +1203,18 @@ class GardenPainter extends CustomPainter {
         final prop = garden.propAt(r * _cols + c);
         if (prop == null) continue;
         final anchor = p.ground(c, r);
-        if (Placeables.isFence(prop)) {
+        final mesh = Placeables.isHouse(prop) ? sprites.mesh(prop) : null;
+        if (mesh != null) {
+          // a building: real geometry, sorted into the same back-to-front pass
+          // as everything else so a flower in front of it still paints last.
+          // Culled off-screen by its own height, the way a billboard is — a
+          // house is many quads, and a panned-away garden shouldn't pay for it.
+          if (anchor.dy < 0 || anchor.dy - mesh.height * p.t > size.height) continue;
+          final gc = p.gridOf(c, r);
+          standing.add((anchor.dy, () => paintMesh(canvas, p, gc, mesh)));
+        } else if (Placeables.isFence(prop)) {
           standing.add((anchor.dy, () => _paintFencePost(canvas, p, c, r, prop)));
-        } else {
+        } else if (Placeables.isFlower(prop)) {
           // flowers stand still — no wind sway (#v20 item 2)
           standing.add(
               (anchor.dy, () => _paintBillboard(canvas, sprites.flower(prop), anchor, p.t)));
@@ -1218,7 +1370,7 @@ class GardenPainter extends CustomPainter {
           void half(Offset from, Offset to, double postDy) {
             standing.add((railHalfDepth(postDy), () {
               for (final e in const [0.50, 0.28]) {
-                _fillQuad(canvas, p.projectElevated(from, e + 0.05), p.projectElevated(to, e + 0.05),
+                fillQuad(canvas, p.projectElevated(from, e + 0.05), p.projectElevated(to, e + 0.05),
                     p.projectElevated(to, e - 0.05), p.projectElevated(from, e - 0.05), rail);
               }
             }));
@@ -1242,23 +1394,9 @@ class GardenPainter extends CustomPainter {
     final box = boxCorners(p, gc, 0.10, 0.66);
     for (var i = 0; i < 4; i++) {
       final j = (i + 1) % 4;
-      _fillQuad(canvas, box[i], box[j], box[j + 4], box[i + 4], Color(pal.$1));
+      fillQuad(canvas, box[i], box[j], box[j + 4], box[i + 4], Color(pal.$1));
     }
-    _fillQuad(canvas, box[4], box[5], box[6], box[7], Color(pal.$2));
-  }
-
-  /// Fill a flat-shaded quad (one low-poly face). Pixel-crisp, no anti-aliasing.
-  void _fillQuad(Canvas canvas, Offset a, Offset b, Offset c, Offset d, Color color) {
-    canvas.drawPath(
-        Path()
-          ..moveTo(a.dx, a.dy)
-          ..lineTo(b.dx, b.dy)
-          ..lineTo(c.dx, c.dy)
-          ..lineTo(d.dx, d.dy)
-          ..close(),
-        Paint()
-          ..color = color
-          ..isAntiAlias = false);
+    fillQuad(canvas, box[4], box[5], box[6], box[7], Color(pal.$2));
   }
 
   void _paintGrid(Canvas canvas, Projector p) {

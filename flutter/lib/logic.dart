@@ -642,14 +642,21 @@ class AppBlocker {
 /// so such a tile is stored as the composite `"<road>+<fence>"`. Flowers only
 /// grow on bare grass. A plain id (no `+`) is a single occupant.
 class Placeables {
-  // 4 road surfaces + 3 fence materials.
+  // 4 road surfaces + 3 fence materials + the buildings (#v36).
   static const roadIds = ['road_concrete', 'road_wood', 'road_dirt', 'road_stone'];
   static const fenceIds = ['fence_wood', 'fence_dark', 'fence_stone'];
-  static const objectIds = [...roadIds, ...fenceIds];
+
+  /// Buildings, drawn as real box meshes from `assets/meshes/<id>.json` rather
+  /// than as billboards — a house is the one object a flat sprite cannot fake,
+  /// because turning the camera makes a billboard read as a sheet of paper.
+  static const houseIds = ['house_wood'];
+
+  static const objectIds = [...roadIds, ...fenceIds, ...houseIds];
 
   static bool isObject(String id) => objectIds.contains(id);
   static bool isRoad(String id) => roadIds.contains(id);
   static bool isFence(String id) => fenceIds.contains(id);
+  static bool isHouse(String id) => houseIds.contains(id);
   static bool isFlower(String id) => id.isNotEmpty && !isObject(id);
 
   /// Split a stored tile value into (road, prop). prop is the standing
@@ -688,6 +695,7 @@ class Placeables {
 class Economy {
   static const flowerCost = 10;
   static const objectCost = 5; // roads + fences
+  static const houseCost = 15; // a building is the plot's centrepiece (#v36)
   static const baseGardenCols = 4; // small start (#v23 fb — was 10×20); still the
   static const baseGardenRows = 8; // 1:2 portrait, grows +2×+4 per upgrade (first ⊕ now 2*(4+8)+1=25)
   static const startingGold = 50; // real users' one-time first-launch grant (#v31.11)
@@ -719,8 +727,12 @@ class Economy {
   /// EXPAND price — rises with the plot's perimeter so each ring costs more.
   static int upgradeCost(int cols, int rows) => 2 * (cols + rows) + 1;
 
-  /// Buy price for any catalogue id (flower or object).
-  static int costOf(String id) => Placeables.isObject(id) ? objectCost : flowerCost;
+  /// Buy price for any catalogue id (flower, decor or building).
+  static int costOf(String id) => Placeables.isHouse(id)
+      ? houseCost
+      : Placeables.isObject(id)
+          ? objectCost
+          : flowerCost;
 
   /// Coins refunded for selling one un-placed unit: half the buy price, floored
   /// (flowers 10->5, decor 5->2). A mild sink so buy/sell isn't coin-neutral.

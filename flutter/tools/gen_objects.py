@@ -943,6 +943,61 @@ FENCES = {
 }
 
 
+# ---- buildings (#v36) -------------------------------------------------------
+# A house is drawn in the garden as a real box mesh (assets/meshes/*.json, from
+# tools/gen_meshes.py), so this sprite is ONLY the shop thumbnail — the same
+# arrangement fences have. It is a straight-on elevation of the same cottage.
+#
+# Design brief, per the house style: bottom-heavy silhouette so the building
+# sits; the stepped roof overhangs the body at the eaves so the outline breaks
+# instead of being one flat box; the door is the focal point, dead centre; two
+# lit windows carry the "someone is home" read at 8x8, where the door alone
+# vanishes. Everything mirrors about the 7|8 column pair except the chimney,
+# which is the one deliberate asymmetry — it is architecture, not hand-drawn
+# irregularity, and it is what keeps the roofline from reading as a plain
+# triangle.
+_HOUSE_PAL = {
+    'R': "8C3B2A",  # roof
+    'L': "A8503A",  # roof, sky-lit: the ridge and the eaves board
+    'W': "8B5A2B",  # wall — the wooden fence's own colour, same material
+    'D': "4A2E16",  # door
+    'Y': "F2C94C",  # lit window (the coin/flower-centre gold)
+    'S': "6E6E6E",  # stone chimney
+}
+_HOUSE_OL = "2E1608"  # dark warm brown rim, never black
+
+_HOUSE_WOOD = [
+    "...........SS...",
+    "...........SS...",
+    "......LLLL.SS...",
+    ".....RRRRRRSS...",
+    "....RRRRRRRRS...",
+    "...RRRRRRRRRR...",
+    "..RRRRRRRRRRRR..",
+    ".LLLLLLLLLLLLLL.",
+    "...WWWWWWWWWW...",
+    "...WWYYWWYYWW...",
+    "...WWYYWWYYWW...",
+    "...WWWWDDWWWW...",
+    "...WWWWDDWWWW...",
+    "...WWWWDDWWWW...",
+    "...WWWWDDWWWW...",
+    "................",
+]
+
+
+def house_grid(chars=_HOUSE_WOOD):
+    g = blank(16, 16)
+    for r, line in enumerate(chars):
+        for c, ch in enumerate(line):
+            if ch != '.':
+                g[r][c] = hexrgb(_HOUSE_PAL[ch]) + (255,)
+    return outline(g, _HOUSE_OL)
+
+
+HOUSES = {'house_wood': lambda: house_grid(_HOUSE_WOOD)}
+
+
 # ---- other flowers: 2 hand-authored models each, same modular pipeline as the
 # rose (per-flower d/m/l palette + a centre C, the shared stem/leaves, bloom and
 # plant outlined separately). Rolled out flower-by-flower (#v22); ids NOT listed
@@ -1433,6 +1488,10 @@ def main():
         write_png(os.path.join(OUT, f"{cid}.png"), upscale(make_atlas(fn()), SCALE))
     for fid, fn in FENCES.items():
         write_png(os.path.join(OUT, f"{fid}.png"), upscale(fn(), SCALE))
+    # buildings render as box meshes (tools/gen_meshes.py); this is the shop
+    # thumbnail only, exactly as with the fences above.
+    for hid, fn in HOUSES.items():
+        write_png(os.path.join(OUT, f"{hid}.png"), upscale(fn(), SCALE))
 
     # Flat / single-frame sprites: ground, surround, roads, wallet coin.
     write_png(os.path.join(OUT, "grass.png"), upscale(grass_grid(), SCALE))
