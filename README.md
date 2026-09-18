@@ -1,5 +1,23 @@
 # 🍅 Pixel Pomo
 
+## ⬇️ Download
+
+| Build | What you get | Link |
+|---|---|---|
+| **Latest — v0.36.0** | The app itself. Starts clean: 50 coins, empty history, nothing pre-filled. | **[⬇ flutter-v36](https://github.com/hero-999-dev/pixel_pomo/releases/tag/flutter-v36)** |
+| **Test build** | The same app under a different app id, so it installs *alongside* the real one. Comes pre-loaded with years of sample sessions and coins, so the stats, heatmaps and charts have something to show from the first launch. | **[⬇ flutter-test](https://github.com/hero-999-dev/pixel_pomo/releases/tag/flutter-test)** |
+
+**Android** — download `pixel_pomo_flutter.apk` (`pixel_pomo_test.apk` on the test build) and tap it to install. If
+Android warns about "unknown sources", allow installs for your browser or file app, then re-open the file.
+
+**iPhone** — download `pixel_pomo_ios.ipa` from the same release and sideload it with
+**[SideStore](https://sidestore.io/)** or **AltStore** — they sign the app on-device, so **no Mac is needed**.
+
+> iOS is built only on a manual macOS CI run, so a release titled *"Android"* just means that round's `.ipa` is
+> still pending — take it from the next build, or from an earlier release.
+
+---
+
 A retro **pixel-art Pomodoro timer** for **Android and iPhone**. Focus in 8-bit:
 plant a flower for every session you finish, grow a little garden, and turn it into
 a living wallpaper. Built with the
@@ -13,30 +31,6 @@ classic arcade look.
 > session, **session stats** with charts and history, a **coin + shop** economy, **6 themes**,
 > **6 languages**, and **focus labels**. The original native-Kotlin app (v0.5.0) still lives in
 > [`app/`](app/) as the frozen base the port grew from.
-
----
-
-## 📲 Get it on your phone
-
-You don't build anything yourself — every release attaches a ready-to-install file.
-
-**Android**
-1. Open this repo on GitHub → **Releases** → **`flutter-v32`** (the latest numbered build).
-2. Download **`pixel_pomo_flutter.apk`** and tap to install.
-   - If Android warns about "unknown sources", allow installs for your browser / file app, then re-open the APK.
-   - Installs alongside the old native build (different app id), so you can keep both.
-   - Starts with **50 coins and a completely empty history** — nothing pre-filled.
-
-There's also a separate **Test Pixel Pomo** build (**`flutter-test`** release, rebuilt automatically on every
-push) — a different app id, so it installs *alongside* the real one — pre-filled with years of sample sessions
-and coins, for trying out stats/heatmap features without needing to build up real history first.
-
-**iPhone**
-1. From the same release, download **`pixel_pomo_ios.ipa`**.
-2. Sideload it with **[SideStore](https://sidestore.io/)** or **AltStore** — they sign the app on-device, so **no Mac is needed**.
-
-> iOS builds run on a macOS CI runner and are published when CI minutes are available; a release titled
-> *"Android"* only means the `.ipa` for that round is still pending — grab it from the next build, or use an earlier one.
 
 ---
 
@@ -145,8 +139,6 @@ screen) **gate every build**. The garden engine has its own geometry tests. Run 
 flutter test
 ```
 
-See **[TESTING.md](TESTING.md)** for the covered edge cases and known gaps.
-
 ## 🛠️ Tech
 
 | Piece            | Choice                                                |
@@ -163,15 +155,12 @@ See **[TESTING.md](TESTING.md)** for the covered edge cases and known gaps.
 
 ```
 pixel_pomo/
-├── flutter/        # the current app (Dart) — see flutter/README.md for the full layout
+├── flutter/        # the current app (Dart)
 │   ├── lib/        #   logic, screens, the garden engine
 │   ├── android_overlay/  # native Kotlin: live wallpaper + app-blocker services
 │   └── test/       #   the Dart test suite
 ├── app/            # original native-Kotlin app, frozen at v0.5.0
-├── README.md       # this file
-├── TESTING.md      # test strategy + covered edge cases
-├── log.md          # per-iteration changelog
-└── prompt.md       # master prompt to recreate the project
+└── README.md       # this file
 ```
 
 ## 🧱 Building locally (optional)
@@ -187,8 +176,8 @@ flutter run        # or: flutter build apk / flutter build ios --no-codesign
 ```
 
 The generated `ios/` and `android/` projects aren't committed — CI regenerates them with `flutter create`, then
-restores the committed files (and the native overlay). See **[`flutter/README.md`](flutter/README.md)** for the
-full porting notes, the low-RAM Gradle tip, and the live-wallpaper / app-blocker internals.
+restores the committed files (and the native overlay). Release APKs are signed with a shared key that only CI
+holds, so a locally built APK won't install over one from the releases page — uninstall first.
 
 ## 📜 License
 

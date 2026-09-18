@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Copy the committed native files into the (gitignored, CI-regenerated) android/
 tree, idempotently patch AndroidManifest.xml to declare the wallpaper service, and
-pin the release build to a stable, committed debug keystore (so every CI build is
+pin the release build to a stable debug keystore (so every CI build is
 signed identically and in-place APK updates don't break with "package conflicts
 with an existing package", #v30.2 — a fresh debug key was being auto-generated on
-every ephemeral CI runner otherwise).
+every ephemeral CI runner otherwise). That key is NOT in the repo — the repo is
+public — so CI writes it from the ANDROID_DEBUG_KEYSTORE_B64 secret before this
+runs; a local build without it falls back to Gradle's own per-machine debug key.
 Run from flutter/ after `flutter create`. Safe to run repeatedly."""
 import os
 import shutil
@@ -27,10 +29,17 @@ def copy_tree(rel):
 
 
 def copy_keystore():
+    """Returns whether the shared key was there. Absent is normal on a machine
+    that isn't CI: the build still runs, it just gets a per-machine key, which
+    only matters for an APK meant to install over an existing one."""
     src = os.path.join(HERE, "debug.keystore")
+    if not os.path.exists(src):
+        print("no debug.keystore — Gradle will use its own per-machine debug key")
+        return False
     dst = os.path.join(HERE, "..", "android", "app", "debug.keystore")
     shutil.copy2(src, dst)
     print("copied debug.keystore")
+    return True
 
 
 def patch_build_gradle():
@@ -201,9 +210,10 @@ def main():
     copy_tree(PKG)
     copy_tree(os.path.join("res", "xml"))
     copy_tree(os.path.join("res", "drawable"))
-    copy_keystore()
+    has_keystore = copy_keystore()
     patch_manifest()
-    patch_build_gradle()
+    if has_keystore:
+        patch_build_gradle()
     patch_ios_plist()
 
 

@@ -63,6 +63,25 @@ jobs:
         working-directory: flutter
         run: dart run flutter_launcher_icons
 
+      # The shared debug key is no longer committed (this repo is public), so it
+      # comes from a secret instead. Without it each runner would sign with its
+      # own throwaway key and the published APK would stop installing over an
+      # older one (#v30.2) — hence the hard failure rather than a silent fallback.
+      - name: Restore debug keystore
+        working-directory: flutter
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_B64 }}
+        run: |
+          python3 - <<'PY'
+          import base64, os, sys
+          b64 = os.environ.get("KEYSTORE_B64", "")
+          if not b64:
+              sys.exit("ANDROID_DEBUG_KEYSTORE_B64 is not set - this build would ship an APK that cannot install over an existing one (#v30.2).")
+          with open("android_overlay/debug.keystore", "wb") as fh:
+              fh.write(base64.b64decode(b64))
+          print("restored debug.keystore")
+          PY
+
       # android/ is regenerated above, so our native live-wallpaper files live in
       # flutter/android_overlay/ and get copied in + the manifest patched here.
       - name: Apply Android native overlay (live wallpaper)
