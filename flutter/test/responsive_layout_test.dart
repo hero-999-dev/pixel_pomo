@@ -155,6 +155,33 @@ void main() {
     }
   });
 
+  group('the money month navigator fits every month name at 320px (#v35.7)', () {
+    // The overlay pumped above only ever shows TODAY's month, so the row that
+    // overflowed by 14px in September passed all summer: "MAY 2026" is 104px
+    // of monospace and "SEPTEMBER 2026" is 182 against the 168 the two arrow
+    // buttons leave. Browsing back through a full year puts every month name
+    // on the row, whatever day the suite runs on. PL is here for
+    // "PAŹDZIERNIK", the longest name in any of the languages.
+    for (final lang in ['en', 'tr', 'pl']) {
+      testWidgets(lang, (tester) async {
+        sizeTo(tester, 320, 2400);
+        final s = await boot();
+        s.selectLanguage(lang);
+        await tester.pumpWidget(MaterialApp(home: MoneyScreen(s)));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull, reason: 'money overflows in $lang at 320px');
+
+        final back = find.ancestor(of: find.text('<'), matching: find.byType(IconButton)).first;
+        for (var month = 1; month < 12; month++) {
+          await tester.tap(back);
+          await tester.pumpAndSettle();
+          expect(tester.takeException(), isNull,
+              reason: 'money overflows $month month(s) back in $lang at 320px');
+        }
+      });
+    }
+  });
+
   testWidgets('shop BUY sits left of SELL, on the same row (#v33.1)', (tester) async {
     sizeTo(tester, 390, 1400);
     final s = await boot();

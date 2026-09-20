@@ -179,20 +179,39 @@ PixelButton secondaryBtn(PixelTheme th, String lang, String text, VoidCallback? 
 /// same transform instead of hardcoding the squeezed strings.
 String tightSeparators(String s) => s.replaceAll(' · ', '·');
 
-Widget _capLine(PixelTheme th, String lang, String raw) => Align(
-      alignment: Alignment.centerLeft,
-      child: FittedBox(
-        fit: BoxFit.scaleDown,
-        alignment: Alignment.centerLeft,
-        child: Builder(builder: (_) {
-          final text = tightSeparators(raw);
-          return Text(text,
-              maxLines: 1,
-              softWrap: false,
-              style: pixelStyle(lang, 8, col(th.onSurfaceDim), text: text));
-        }),
-      ),
-    );
+Widget _capLine(PixelTheme th, String lang, String raw) => Builder(builder: (context) {
+      final text = tightSeparators(raw);
+      final style = pixelStyle(lang, 8, col(th.onSurfaceDim), text: text);
+      // The line keeps the height it would have had UNSCALED, however far the
+      // FittedBox has to shrink it (#v35.7). A caption's width is its data —
+      // "14h 15m·AVG 2h 51m" is 144px against "3h 16m·AVG 49m"'s 112 — so two
+      // labels sharing a 107px column scale by different factors, and letting
+      // the height follow the scale left each column's grid at its own top:
+      // the 3-up month rows drifted 2.3px apart at 390px and stopped reading
+      // as one row. A reserved line height makes the caption block a fixed
+      // height for a given line count, so every column in a row agrees.
+      //
+      // Measured against the RESOLVED style, not the one passed in: the
+      // ambient DefaultTextStyle contributes line height that `style` alone
+      // does not show, and the scaler is the viewer's text size, not ours.
+      final tp = TextPainter(
+        text: TextSpan(text: text, style: DefaultTextStyle.of(context).style.merge(style)),
+        textDirection: Directionality.of(context),
+        textScaler: MediaQuery.textScalerOf(context),
+        maxLines: 1,
+      )..layout();
+      return SizedBox(
+        height: tp.height,
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(text, maxLines: 1, softWrap: false, style: style),
+          ),
+        ),
+      );
+    });
 
 /// A full-screen overlay scaffold with a title and a trailing CLOSE button.
 /// [themeOverride] lets a screen paint itself in a theme the app has not
@@ -4548,7 +4567,6 @@ class _MoneyScreenState extends State<MoneyScreen> {
     return overlayScaffold(context, s, t(lang, 'money'), [
       // --- month navigator ---
       Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           IconButton(
             onPressed: () => setState(() {
@@ -4557,8 +4575,25 @@ class _MoneyScreenState extends State<MoneyScreen> {
             }),
             icon: Text('<', style: pixelStyle(lang, 18, col(th.onSurface), text: '<')),
           ),
-          Text('${monthName(lang, view.month)} ${view.year}',
-              style: pixelStyle(lang, 13, col(th.onSurface), text: '${monthName(lang, view.month)} ${view.year}')),
+          // The month takes whatever the two arrows leave and scales down
+          // inside it, instead of pushing the row wider than the screen
+          // (#v35.7): PressStart2P is monospace at 13px a glyph, so
+          // "SEPTEMBER 2026" asks for 182px while a 320px phone leaves 168
+          // between two 48px arrow buttons — the row overflowed by 14px for
+          // the long month names (SEPTEMBER, NOVEMBER, DECEMBER) and read
+          // fine every other month of the year.
+          Expanded(
+            child: Center(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text('${monthName(lang, view.month)} ${view.year}',
+                    maxLines: 1,
+                    softWrap: false,
+                    style: pixelStyle(lang, 13, col(th.onSurface),
+                        text: '${monthName(lang, view.month)} ${view.year}')),
+              ),
+            ),
+          ),
           IconButton(
             onPressed: _offset == 0
                 ? null

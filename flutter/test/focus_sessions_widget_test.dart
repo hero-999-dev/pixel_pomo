@@ -79,9 +79,23 @@ void main() {
 
   testWidgets('labels unused in the window are hidden; unused-today label still in 18 WEEKS', (tester) async {
     final s = await boot();
+    // Two records, written here rather than read off the seed: TestData fills
+    // the gaps between its fixed sessions with pseudo-random ones keyed by
+    // epoch day, so which label happens to sit inside THIS week moves with the
+    // calendar — the version that named READING passed all week and failed on
+    // a Sunday whose filler had put a READING session in the current week.
+    // The property is the same either way: used in the window → shown, unused
+    // → hidden.
+    final today = epochDayOf(DateTime.now());
+    s.records
+      ..clear()
+      ..addAll([
+        SessionRecord(today, 60, 'MATH', minuteOfDay: 8 * 60),
+        // 30 days back: outside WEEKLY whatever weekday it is, inside 18 WEEKS
+        SessionRecord(today - 30, 75, 'READING', minuteOfDay: 22 * 60),
+      ]);
     await tester.pumpWidget(host(s));
     await tester.pumpAndSettle();
-    // READING's seeded sessions are all >20 days back → outside WEEKLY, inside 18 WEEKS
     expect(find.text('READING'), findsOneWidget); // default = 18 WEEKS
     await tester.tap(find.text('WEEKLY'));
     await tester.pumpAndSettle();
