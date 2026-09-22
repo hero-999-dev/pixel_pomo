@@ -547,6 +547,11 @@ class Flowers {
     Flower('orkide', _loc('Orchid', 'Orkide', 'Orchidea', 'Orchidee', '난초', 'Orchidea'), 0xFFC24FE0, 0xFF7A2EA0, _bloom),
     Flower('begonya', _loc('Begonia', 'Begonya', 'Begonia', 'Begonie', '베고니아', 'Begonia'), 0xFFF2585B, 0xFFFFD9A0, _bloom),
     Flower('kamelya', _loc('Camellia', 'Kamelya', 'Kamelia', 'Kamelie', '동백', 'Camelia'), 0xFFE02C6D, 0xFFFFFFFF, _bloom),
+    // Drawing Patch 1 (#v36.1) — houseplants drawn by the user, shipped as
+    // hand-authored PNGs rather than generator grids (see variantCounts).
+    Flower('anthurium', _loc('Anthurium', 'Antoryum', 'Anturium', 'Flamingoblume', '안스리움', 'Anthurium'), 0xFFFF5A5A, 0xFFF2C94C, _bloom),
+    Flower('pilea', _loc('Pilea', 'Pilea', 'Pilea', 'Ufopflanze', '필레아', 'Pilea'), 0xFF3AAF62, 0xFF9BDDA8, _bloom),
+    Flower('sundew', _loc('Sundew', 'Güneşgülü', 'Rosiczka', 'Sonnentau', '끈끈이주걱', 'Drosera'), 0xFF35AE6E, 0xFFF2C94C, _bloom),
   ];
 
   static Flower? byId(String? id) {
@@ -559,11 +564,14 @@ class Flowers {
   /// How many distinct sprite variants a species has; a random one is chosen each
   /// time the flower is planted (#v22). Every species now has 2 hand-authored
   /// models in one consistent APICO/Littlewood style (rose is the reference;
-  /// the rest were rolled out from the user's per-flower guide sheets, #v24).
+  /// the rest were rolled out from the user's per-flower guide sheets, #v24) —
+  /// except anthurium, which the user drew in a single form (#v36.1), so it is
+  /// absent here and falls through to 1.
   static const variantCounts = <String, int>{
     'gul': 2, 'lale': 2, 'kamelya': 2, 'kasimpati': 2,
     'menekse': 2, 'papatya': 2, 'nilufer': 2, 'begonya': 2, 'orkide': 2,
     'kaktusf': 2, 'kaktusd': 2, // cactus 2.0 from the guide-sheet study (#v26)
+    'pilea': 2, 'sundew': 2, // Drawing Patch 1 (#v36.1)
   };
   static int variantsFor(String id) => variantCounts[id] ?? 1;
 

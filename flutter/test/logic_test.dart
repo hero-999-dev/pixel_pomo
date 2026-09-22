@@ -640,9 +640,16 @@ void main() {
       expect(Placeables.flowerBase('papatya'), 'papatya');
     });
 
-    test('variantsFor: every species has 2 models; unknown defaults to 1', () {
+    // Single-form species are listed here explicitly: a species drops to 1 model
+    // only because the art for it is genuinely one drawing (anthurium, #v36.1),
+    // never because someone forgot its variantCounts row.
+    const singleModel = {'anthurium'};
+
+    test('variantsFor: every species has 2 models bar the single-form ones; '
+        'unknown defaults to 1', () {
       for (final f in Flowers.all) {
-        expect(Flowers.variantsFor(f.id), 2, reason: '${f.id} should have 2 models');
+        final want = singleModel.contains(f.id) ? 1 : 2;
+        expect(Flowers.variantsFor(f.id), want, reason: '${f.id} should have $want model(s)');
       }
       expect(Flowers.variantsFor('unknown'), 1);
     });

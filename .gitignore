@@ -23,3 +23,7 @@ Thumbs.db
 
 # Shared Android signing key — CI restores it from ANDROID_DEBUG_KEYSTORE_B64
 flutter/android_overlay/debug.keystore
+
+# macOS resource forks from unzipped art drops
+__MACOSX/
+._*

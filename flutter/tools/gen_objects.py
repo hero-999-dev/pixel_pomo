@@ -1472,6 +1472,11 @@ def main():
     # Flowers with hand-authored 2-model variants render through the modular
     # pipeline (rose + anything in _FLOWER_BLOOMS); the rest keep their single
     # char-grid sprite until they're redrawn. variant 0 is the shop thumbnail.
+    # NB: anthurium / pilea / sundew (Drawing Patch 1, #v36.1) are NOT here and
+    # must not be added — they are the user's own 16x16 pixel art, checked in
+    # directly as flower_{anthurium,pilea,sundew}[_0|_1].png exactly like
+    # coin.png and the menu icons. This loop only touches ids in FLOWERS, so a
+    # regen leaves them alone; putting them in FLOWERS would overwrite the art.
     for fid, (petal, center, chars) in FLOWERS.items():
         if fid == 'gul':
             for v in range(2):  # rose: 2 hand-authored models (#v22)
