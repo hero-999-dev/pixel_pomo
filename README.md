@@ -4,7 +4,7 @@
 
 | Build | What you get | Link |
 |---|---|---|
-| **Latest — v0.36.0** | The app itself. Starts clean: 50 coins, empty history, nothing pre-filled. | **[⬇ flutter-v36](https://github.com/hero-999-dev/pixel_pomo/releases/tag/flutter-v36)** |
+| **Latest — v0.36.1** | The app itself. Starts clean: 50 coins, empty history, nothing pre-filled. | **[⬇ flutter-v36](https://github.com/hero-999-dev/pixel_pomo/releases/tag/flutter-v36)** |
 | **Test build** | The same app under a different app id, so it installs *alongside* the real one. Comes pre-loaded with years of sample sessions and coins, so the stats, heatmaps and charts have something to show from the first launch. | **[⬇ flutter-test](https://github.com/hero-999-dev/pixel_pomo/releases/tag/flutter-test)** |
 
 **Android** — download `pixel_pomo_flutter.apk` (`pixel_pomo_test.apk` on the test build) and tap it to install. If
@@ -24,7 +24,7 @@ a living wallpaper. Built with the
 [Press Start 2P](https://fonts.google.com/specimen/Press+Start+2P) font for that
 classic arcade look.
 
-> **Status:** **v0.36.0** — one Flutter (Dart) codebase ships **both** an Android APK and an
+> **Status:** **v0.36.1** — one Flutter (Dart) codebase ships **both** an Android APK and an
 > iOS app. On top of the core timer it has a full-screen **living 2.5D garden** (now with
 > **buildings** — real box meshes, not billboards), an animated
 > **Android live wallpaper**, an **app blocker** to keep you off distracting apps during a focus
@@ -55,9 +55,10 @@ classic arcade look.
   Plant your flowers on a grass **clearing** ringed by a **forest** (trees, bushes, rocks). **EXPAND** grows the
   plot from the center; **two-finger twist to rotate**, **pinch-zoom and pan**. **Bee, butterfly and ladybug**
   critters drift in and settle at a different spot on each flower they visit — never the same landing
-  point twice. **Every** flower ships **two** hand-drawn models (shape variants in
+  point twice. **14 species**, and all but one ship **two** hand-drawn models (shape variants in
   one colour — rose, tulip, camellia, flower cactus, desert cactus, chrysanthemum, violet, daisy, water lily,
-  begonia, orchid) so a flower bed looks varied.
+  begonia, orchid, and the houseplants **pilea** and **sundew**) so a flower bed looks varied.
+  **Anthurium** is the one single-model species.
 - **📸 Camera & live wallpaper** — a **peek** button hides all the UI; **camera mode** lets you frame any angle, then
   **CAPTURE** to **share** the shot or, on **Android**, **set it as an animated live wallpaper** — your real garden,
   swaying plants and a visiting bug, redrawn on your home screen. **Settings → HOME SCREEN `CLEAN | GARDEN`** can also
@@ -132,7 +133,7 @@ classic arcade look.
 ## 🧪 Testing
 
 All app logic lives in **pure, framework-free Dart** (timer engine, labels, stats, economy, garden, flowers, the app-blocker
-rules) so it can be unit-tested without a device. **341 Dart tests** plus a widget smoke test (boots the app and opens every
+rules) so it can be unit-tested without a device. **387 Dart tests** plus a widget smoke test (boots the app and opens every
 screen) **gate every build**. The garden engine has its own geometry tests. Run them from `flutter/`:
 
 ```bash
