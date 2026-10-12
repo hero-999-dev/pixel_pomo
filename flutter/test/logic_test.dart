@@ -641,9 +641,13 @@ void main() {
     });
 
     // Single-form species are listed here explicitly: a species drops to 1 model
-    // only because the art for it is genuinely one drawing (anthurium, #v36.1),
-    // never because someone forgot its variantCounts row.
-    const singleModel = {'anthurium'};
+    // only because the art for it is genuinely one drawing (anthurium, #v36.1;
+    // the Drawing Patch 2 singles and its redrawn daisy, #v37), never because
+    // someone forgot its variantCounts row.
+    const singleModel = {
+      'anthurium', 'papatya', 'maculata', 'cornflower', 'forgetmenot', 'lilyvalley',
+      'tradescantia',
+    };
 
     test('variantsFor: every species has 2 models bar the single-form ones; '
         'unknown defaults to 1', () {

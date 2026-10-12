@@ -108,9 +108,16 @@ jobs:
         working-directory: flutter
         run: flutter test
 
+      # The in-app updater (lib/updater.dart) decides "is there something newer"
+      # by this one number. It is stamped into the APK here and written into the
+      # release notes below as `build:<n>` — both from the same variable, so the
+      # APK a run uploads always carries exactly the number its notes announce.
+      - name: Stamp the build time
+        run: echo "BUILD_TIME=$(date +%s)" >> "$GITHUB_ENV"
+
       - name: Build Android APK
         working-directory: flutter
-        run: flutter build apk --release
+        run: flutter build apk --release --dart-define=BUILD_TIME=$BUILD_TIME
 
       # iOS only on a manual run — macOS runner is billed at 10x minutes.
       - name: Build iOS (unsigned)
@@ -168,7 +175,7 @@ jobs:
           else
             TITLE="Flutter build (Android, v$VER)"
           fi
-          NOTES="Pixel Pomo — Flutter $VTAG ($VER) from ${GITHUB_SHA::7}. **Android:** install pixel_pomo_flutter.apk. **iOS:** pixel_pomo_ios.ipa is UNSIGNED — sideload with SideStore/AltStore. iOS is built only on a manual run (Actions -> Build Flutter -> Run workflow); routine pushes build Android only to save the 10x macOS minutes."
+          NOTES="Pixel Pomo — Flutter $VTAG ($VER) from ${GITHUB_SHA::7}. **Android:** install pixel_pomo_flutter.apk. **iOS:** pixel_pomo_ios.ipa is UNSIGNED — sideload with SideStore/AltStore. iOS is built only on a manual run (Actions -> Build Flutter -> Run workflow); routine pushes build Android only to save the 10x macOS minutes. The installed app updates itself from this release. build:$BUILD_TIME"
 
           # latest-flutter (a rolling "always newest" tag) was removed #v31.13 —
           # flutter-vNN is the one place to grab a build; no second, redundant

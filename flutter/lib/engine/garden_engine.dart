@@ -582,9 +582,9 @@ class MeshBox {
 /// A stack of boxes making one object, loaded from `assets/meshes/<id>.json`.
 ///
 /// The file is generated: `tools/gen_meshes.py` writes the ones we author, and
-/// `tools/obj_to_boxes.py` converts a Blockbench OBJ export into the same shape,
-/// so an artist can model in a real 3D tool without the engine growing a mesh
-/// importer. JSON (not a generated Dart file) because the Android live-wallpaper
+/// `tools/obj_to_boxes.py` converts a Blockbench OBJ export into the same shape
+/// (`tools/vox_to_boxes.py` a MagicaVoxel .vox), so an artist can model in a
+/// real 3D tool without the engine growing a mesh importer. JSON (not a generated Dart file) because the Android live-wallpaper
 /// renderer is native Kotlin and has to read exactly the same object.
 ///
 /// Boxes are authored **bottom-up**: boxes sharing a footprint tie on depth, and

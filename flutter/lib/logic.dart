@@ -552,6 +552,16 @@ class Flowers {
     Flower('anthurium', _loc('Anthurium', 'Antoryum', 'Anturium', 'Flamingoblume', '안스리움', 'Anthurium'), 0xFFFF5A5A, 0xFFF2C94C, _bloom),
     Flower('pilea', _loc('Pilea', 'Pilea', 'Pilea', 'Ufopflanze', '필레아', 'Pilea'), 0xFF3AAF62, 0xFF9BDDA8, _bloom),
     Flower('sundew', _loc('Sundew', 'Güneşgülü', 'Rosiczka', 'Sonnentau', '끈끈이주걱', 'Drosera'), 0xFF35AE6E, 0xFFF2C94C, _bloom),
+    // Drawing Patch 2 (#v37) — seven more of the user's own drawings. The same
+    // sheet redrew pilea, sundew and the daisy, which kept their ids, so
+    // gardens already planted with them simply show the new art.
+    Flower('maculata', _loc('Polka Dot Begonia', 'Benekli Begonya', 'Begonia plamista', 'Forellenbegonie', '물방울 베고니아', 'Begonia maculata'), 0xFF2E7D4F, 0xFFFFFFFF, _bloom),
+    Flower('cornflower', _loc('Cornflower', 'Peygamber Çiçeği', 'Chaber', 'Kornblume', '수레국화', 'Fiordaliso'), 0xFF3F8FE0, 0xFF1F4E9E, _bloom),
+    Flower('forgetmenot', _loc('Forget-Me-Not', 'Unutma Beni', 'Niezapominajka', 'Vergissmeinnicht', '물망초', 'Nontiscordardimé'), 0xFF5AA9F0, 0xFFF2C94C, _bloom),
+    Flower('lilyvalley', _loc('Lily of the Valley', 'Müge', 'Konwalia', 'Maiglöckchen', '은방울꽃', 'Mughetto'), 0xFFF4EEDC, 0xFF46A03C, _bloom),
+    Flower('lithops', _loc('Lithops', 'Lithops', 'Litops', 'Lithops', '리톱스', 'Lithops'), 0xFF2F9E6E, 0xFFFFFFFF, _bloom),
+    Flower('sunflower', _loc('Sunflower', 'Ayçiçeği', 'Słonecznik', 'Sonnenblume', '해바라기', 'Girasole'), 0xFFF2B01E, 0xFF5A3418, _bloom),
+    Flower('tradescantia', _loc('Tradescantia', 'Telgraf Çiçeği', 'Trzykrotka', 'Dreimasterblume', '자주달개비', 'Tradescantia'), 0xFF2E6B3A, 0xFF4A3A6E, _bloom),
   ];
 
   static Flower? byId(String? id) {
@@ -565,13 +575,16 @@ class Flowers {
   /// time the flower is planted (#v22). Every species now has 2 hand-authored
   /// models in one consistent APICO/Littlewood style (rose is the reference;
   /// the rest were rolled out from the user's per-flower guide sheets, #v24) —
-  /// except anthurium, which the user drew in a single form (#v36.1), so it is
-  /// absent here and falls through to 1.
+  /// except the ones the user drew in a single form (anthurium, #v36.1; five of
+  /// Drawing Patch 2, #v37), which are absent here and fall through to 1. The
+  /// daisy joined them when Drawing Patch 2 redrew it as one model: a garden
+  /// still holding `papatya~1` falls back to the base sprite in both renderers.
   static const variantCounts = <String, int>{
     'gul': 2, 'lale': 2, 'kamelya': 2, 'kasimpati': 2,
-    'menekse': 2, 'papatya': 2, 'nilufer': 2, 'begonya': 2, 'orkide': 2,
+    'menekse': 2, 'nilufer': 2, 'begonya': 2, 'orkide': 2,
     'kaktusf': 2, 'kaktusd': 2, // cactus 2.0 from the guide-sheet study (#v26)
     'pilea': 2, 'sundew': 2, // Drawing Patch 1 (#v36.1)
+    'lithops': 2, 'sunflower': 2, // Drawing Patch 2 (#v37)
   };
   static int variantsFor(String id) => variantCounts[id] ?? 1;
 
@@ -657,7 +670,22 @@ class Placeables {
   /// Buildings, drawn as real box meshes from `assets/meshes/<id>.json` rather
   /// than as billboards — a house is the one object a flat sprite cannot fake,
   /// because turning the camera makes a billboard read as a sheet of paper.
-  static const houseIds = ['house_wood'];
+  static const houseIds = ['house_wood', if (testMeshes) ...testHouseIds];
+
+  /// Voxel models run through `tools/vox_to_boxes.py` to try the mesh path on a
+  /// real phone. They are other people's models and are not ours to ship, so
+  /// they are in the catalogue only in a build made with
+  /// `--dart-define=TEST_MESHES=true` — and the same build step is what copies
+  /// their files in from `test_assets/`, a folder pubspec.yaml does not list.
+  /// The real app therefore has neither the ids nor the meshes. The ids keep the
+  /// `house_` prefix because that is how the Kotlin wallpaper tells a building.
+  static const testMeshes = bool.fromEnvironment('TEST_MESHES');
+  static const testHouseIds = [
+    'house_test_tree',
+    'house_test_tank',
+    'house_test_coffee',
+    'house_test_pipe',
+  ];
 
   static const objectIds = [...roadIds, ...fenceIds, ...houseIds];
 
@@ -665,6 +693,7 @@ class Placeables {
   static bool isRoad(String id) => roadIds.contains(id);
   static bool isFence(String id) => fenceIds.contains(id);
   static bool isHouse(String id) => houseIds.contains(id);
+  static bool isTestHouse(String id) => testHouseIds.contains(id);
   static bool isFlower(String id) => id.isNotEmpty && !isObject(id);
 
   /// Split a stored tile value into (road, prop). prop is the standing
@@ -704,6 +733,7 @@ class Economy {
   static const flowerCost = 10;
   static const objectCost = 5; // roads + fences
   static const houseCost = 15; // a building is the plot's centrepiece (#v36)
+  static const testHouseCost = 50; // the test-build voxel models, one price for all
   static const baseGardenCols = 4; // small start (#v23 fb — was 10×20); still the
   static const baseGardenRows = 8; // 1:2 portrait, grows +2×+4 per upgrade (first ⊕ now 2*(4+8)+1=25)
   static const startingGold = 50; // real users' one-time first-launch grant (#v31.11)
@@ -736,11 +766,13 @@ class Economy {
   static int upgradeCost(int cols, int rows) => 2 * (cols + rows) + 1;
 
   /// Buy price for any catalogue id (flower, decor or building).
-  static int costOf(String id) => Placeables.isHouse(id)
-      ? houseCost
-      : Placeables.isObject(id)
-          ? objectCost
-          : flowerCost;
+  static int costOf(String id) => Placeables.isTestHouse(id)
+      ? testHouseCost
+      : Placeables.isHouse(id)
+          ? houseCost
+          : Placeables.isObject(id)
+              ? objectCost
+              : flowerCost;
 
   /// Coins refunded for selling one un-placed unit: half the buy price, floored
   /// (flowers 10->5, decor 5->2). A mild sink so buy/sell isn't coin-neutral.

@@ -9,11 +9,12 @@ Meshes ship as JSON in ``assets/meshes/`` because there are TWO renderers — th
 Flutter one and the native Kotlin live wallpaper — and they have to draw exactly
 the same object. A generated Dart file could only feed one of them.
 
-Two ways to fill that folder:
+Three ways to fill that folder:
 
 * this file, for shapes we author ourselves (the placeholder cottage below);
 * ``obj_to_boxes.py``, which converts a Blockbench OBJ export into the same
-  schema, so an artist can model in a real 3D tool.
+  schema, so an artist can model in a real 3D tool;
+* ``vox_to_boxes.py``, which does the same for a MagicaVoxel .vox file.
 
 Coordinates are in TILE units, matching the engine (one tile = 16 art pixels):
 

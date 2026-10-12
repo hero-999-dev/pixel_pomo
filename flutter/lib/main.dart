@@ -16,6 +16,7 @@ import 'pixel.dart';
 import 'store.dart';
 import 'strings.dart';
 import 'tutorial.dart';
+import 'updater.dart';
 
 /// Small PNG thumbnail for a garden object (road/fence), crisp pixels. Every
 /// object PNG is now a single frame (fences render as 3D meshes in the garden,
@@ -74,6 +75,7 @@ class _PixelPomoAppState extends State<PixelPomoApp> with WidgetsBindingObserver
           duration: const Duration(seconds: 2),
         ));
     };
+    refreshUpdate(); // a newer APK on GitHub? (#v37, Android only)
   }
 
   @override
@@ -87,6 +89,9 @@ class _PixelPomoAppState extends State<PixelPomoApp> with WidgetsBindingObserver
     // Background mid-session → raise the ongoing countdown notification (#v23 fb);
     // AppStore's stop paths cancel it.
     if (state == AppLifecycleState.paused) store.onBackgrounded();
+    // The app is rarely cold-started — it sits in recents for days — so coming
+    // back to it is the moment to look again (throttled inside).
+    if (state == AppLifecycleState.resumed) refreshUpdate();
   }
 
   @override
@@ -419,6 +424,7 @@ class HomeScreen extends StatelessWidget {
                     // docked at the bottom over the full garden
                     ? Column(children: [
                         _topBar(context, th, lang),
+                        _updateBanner(context, th, lang, running),
                         Padding(
                           padding: const EdgeInsets.only(top: 2, bottom: 4),
                           child: sessionText,
@@ -432,6 +438,7 @@ class HomeScreen extends StatelessWidget {
                     // clean mode: the centered timer (today's layout)
                     : Column(children: [
                         _topBar(context, th, lang),
+                        _updateBanner(context, th, lang, running),
                         Expanded(
                           child: Center(
                             child: Padding(
@@ -514,6 +521,30 @@ class HomeScreen extends StatelessWidget {
       },
     );
   }
+
+  /// "UPDATE AVAILABLE" under the top bar (#v37) — see updater.dart. One tap
+  /// downloads and installs. Hidden while the clock runs: installing replaces
+  /// the running app, which is not an offer to make mid-session.
+  Widget _updateBanner(BuildContext context, PixelTheme th, String lang, bool running) =>
+      ValueListenableBuilder<AppUpdate?>(
+        valueListenable: pendingUpdate,
+        builder: (context, update, _) => update == null || running
+            ? const SizedBox.shrink()
+            : Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: primaryBtn(
+                    th,
+                    lang,
+                    t(lang, 'updateAvailable'),
+                    () => showDialog<void>(
+                        context: context,
+                        barrierDismissible: false,
+                        builder: (_) => UpdateDialog(update, th, lang)),
+                    fontSize: 9,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    key: const Key('updateBanner')),
+              ),
+      );
 
   // web-only test guide popup (never on the phone APK)
   void _showTestGuide(BuildContext context, PixelTheme th, String lang) {
@@ -1086,6 +1117,95 @@ class _StepperValueDialogState extends State<_StepperValueDialog> {
 /// the granted row re-checks on app resume and renders STRUCK THROUGH — so
 /// it's visible which requests are already done instead of two identical
 /// buttons giving no feedback.
+/// Downloads an update and hands it to the installer (#v37). It starts the
+/// moment it opens — the tap on the banner WAS the decision, so there is no
+/// second "are you sure" — and shows how far along it is. [install] is the
+/// seam the tests use in place of a real download.
+class UpdateDialog extends StatefulWidget {
+  final AppUpdate update;
+  final PixelTheme th;
+  final String lang;
+  final Future<void> Function(AppUpdate,
+      {required void Function(int) onProgress, bool Function()? cancelled}) install;
+  const UpdateDialog(this.update, this.th, this.lang,
+      {super.key, this.install = downloadAndInstall});
+  @override
+  State<UpdateDialog> createState() => _UpdateDialogState();
+}
+
+class _UpdateDialogState extends State<UpdateDialog> {
+  int _percent = 0;
+  bool _installing = false, _failed = false, _closed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _run();
+  }
+
+  @override
+  void dispose() {
+    _closed = true; // stops the download at its next chunk
+    super.dispose();
+  }
+
+  Future<void> _run() async {
+    try {
+      await widget.install(widget.update,
+          onProgress: (p) {
+            if (mounted && p != _percent) setState(() => _percent = p);
+          },
+          cancelled: () => _closed);
+      // From here the system installer owns the screen. If it goes ahead the
+      // app is replaced under us; this only shows if the user backs out of it.
+      if (mounted) setState(() => _installing = true);
+    } catch (_) {
+      if (mounted) setState(() => _failed = true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final th = widget.th;
+    final lang = widget.lang;
+    final title = _failed
+        ? t(lang, 'updateFailed')
+        : _installing
+            ? t(lang, 'updateInstalling')
+            : tf(lang, 'updateDownloading', [_percent]);
+    return AlertDialog(
+      backgroundColor: col(th.panel),
+      title: Text(title, style: pixelStyle(lang, 12, col(th.onSurface), text: title)),
+      content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // A fixed width: AlertDialog sizes itself by intrinsic width, and the
+        // bar on its own wants all the width there is.
+        SizedBox(
+          width: 240,
+          child: PixelProgress(
+              percent: _installing ? 100 : _percent,
+              track: th.bg,
+              border: th.onSurfaceDim,
+              fill: _failed ? th.onSurfaceDim : th.accent),
+        ),
+        // Only a build that carries the test voxel models says this: the
+        // published test APK cannot include them (see Placeables.testMeshes).
+        if (Placeables.testMeshes) ...[
+          const SizedBox(height: 12),
+          Text('The published build has no test voxel models.',
+              style: pixelStyle(lang, 9, col(th.onSurfaceDim), text: 'published build')),
+        ],
+      ]),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(t(lang, _failed || _installing ? 'close' : 'cancel'),
+                style: pixelStyle(lang, 11, col(th.accent),
+                    text: t(lang, _failed || _installing ? 'close' : 'cancel')))),
+      ],
+    );
+  }
+}
+
 class _BlockerPermDialog extends StatefulWidget {
   final AppStore s;
   const _BlockerPermDialog(this.s);
@@ -2949,7 +3069,7 @@ class _ShopScreenState extends State<ShopScreen> {
               ],
             ),
           ),
-          Flexible(flex: 3, child: _buySell(s, th, lang, id, Economy.objectCost, () => s.buyItem(id))),
+          Flexible(flex: 3, child: _buySell(s, th, lang, id, Economy.costOf(id), () => s.buyItem(id))),
         ],
       ),
     );

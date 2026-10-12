@@ -1477,7 +1477,12 @@ def main():
     # directly as flower_{anthurium,pilea,sundew}[_0|_1].png exactly like
     # coin.png and the menu icons. This loop only touches ids in FLOWERS, so a
     # regen leaves them alone; putting them in FLOWERS would overwrite the art.
+    # Drawing Patch 2 (#v37) added seven more the same way and REDREW the daisy,
+    # which is in FLOWERS — so it is skipped by name. Its grids stay above
+    # because the Art Kit still reads them.
     for fid, (petal, center, chars) in FLOWERS.items():
+        if fid == 'papatya':
+            continue
         if fid == 'gul':
             for v in range(2):  # rose: 2 hand-authored models (#v22)
                 write_png(os.path.join(OUT, f"flower_gul_{v}.png"), upscale(rose_variant(v), SCALE))

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
@@ -157,6 +158,45 @@ void main() {
       expect(Economy.costOf(id), Economy.houseCost);
       expect(Economy.houseCost, greaterThan(Economy.objectCost));
       expect(Economy.sellPrice(id), Economy.houseCost ~/ 2);
+    });
+  });
+
+  group('The test build\'s voxel models', () {
+    // Other people's MagicaVoxel models, converted to try the mesh path on a
+    // phone. They must never reach the real app, and that is held two ways.
+    test('are not in the catalogue unless the build asks for them', () {
+      // `flutter test` runs without --dart-define=TEST_MESHES=true, exactly as
+      // the real app is built.
+      expect(Placeables.testMeshes, isFalse);
+      expect(Placeables.houseIds, ['house_wood']);
+      for (final id in Placeables.testHouseIds) {
+        expect(Placeables.objectIds, isNot(contains(id)));
+      }
+    });
+
+    test('cannot be bundled: nothing in pubspec, nothing under assets/', () {
+      // The files sit in test_assets/, which only a test build's own step
+      // copies across. If one is ever saved under assets/ instead, the real
+      // app would ship it — so that fails here, before any build.
+      expect(File('pubspec.yaml').readAsStringSync(), isNot(contains('test_assets')));
+      for (final dir in ['assets/meshes', 'assets/objects']) {
+        for (final f in Directory(dir).listSync()) {
+          expect(f.uri.pathSegments.last, isNot(startsWith('house_test_')), reason: f.path);
+        }
+      }
+    });
+
+    test('are buildings to the wallpaper too, which goes by the house_ prefix', () {
+      for (final id in Placeables.testHouseIds) {
+        expect(id, startsWith('house_test_'));
+      }
+    });
+
+    test('cost 50 coins each and sell for half', () {
+      for (final id in Placeables.testHouseIds) {
+        expect(Economy.costOf(id), 50, reason: id);
+        expect(Economy.sellPrice(id), 25, reason: id);
+      }
     });
   });
 

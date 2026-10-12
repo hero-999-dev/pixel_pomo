@@ -163,9 +163,19 @@ def patch_manifest(path=None):
             '        </service>\n'
         )
         xml = xml.replace("    </application>", svc + "    </application>", 1)
+    # --- in-app updates (#v37) ---
+    # INTERNET is the one that was simply missing: `flutter create` only puts it
+    # in the debug and profile manifests, so a RELEASE build had no network at
+    # all — the updater could never have reached GitHub, and the money
+    # tracker's exchange rates had been silently staying on their cache.
+    # REQUEST_INSTALL_PACKAGES lets MainActivity hand a downloaded APK to the
+    # system installer; UPDATE_PACKAGES_WITHOUT_USER_ACTION lets Android 12+
+    # skip its confirm screen when an app updates itself.
     for perm in ("android.permission.SYSTEM_ALERT_WINDOW", "android.permission.QUERY_ALL_PACKAGES",
                  "android.permission.POST_NOTIFICATIONS", "android.permission.FOREGROUND_SERVICE",
-                 "android.permission.FOREGROUND_SERVICE_SPECIAL_USE"):
+                 "android.permission.FOREGROUND_SERVICE_SPECIAL_USE",
+                 "android.permission.INTERNET", "android.permission.REQUEST_INSTALL_PACKAGES",
+                 "android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION"):
         if f'"{perm}"' not in xml:
             xml = xml.replace(
                 "    <application",

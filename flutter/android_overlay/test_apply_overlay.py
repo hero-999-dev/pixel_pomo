@@ -107,6 +107,14 @@ class PatchingIsSafeToRepeat(unittest.TestCase):
         self.assertEqual(xml.count("<activity"), 1)
         self.assertEqual(xml.count("<service"), 3)
 
+    def test_the_updater_can_reach_the_network_and_the_installer(self):
+        # `flutter create` leaves INTERNET out of the release manifest, so
+        # without this patch a release build is offline — which is how the
+        # exchange-rate fetch had been failing silently before #v37 noticed.
+        xml = patched(patched())
+        for perm in ("INTERNET", "REQUEST_INSTALL_PACKAGES", "UPDATE_PACKAGES_WITHOUT_USER_ACTION"):
+            self.assertEqual(xml.count(f'"android.permission.{perm}"'), 1, perm)
+
     def test_the_launcher_intent_filter_survives(self):
         # Rewriting the activity name must not disturb what makes it launchable.
         xml = patched()
