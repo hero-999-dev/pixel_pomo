@@ -8,11 +8,13 @@ and writes, for each id in ``Placeables.testHouseIds``:
     ../test_assets/objects/<id>.png    its shop thumbnail
 
 Into ``test_assets/``, NOT ``assets/``, and that is the whole point. These are
-other people's models, here only to try the mesh path on a real phone, and
-pubspec.yaml does not list ``test_assets/`` — so a build bundles them only if
-its own build step copies them across and passes
-``--dart-define=TEST_MESHES=true``. The real app's build does neither. Both
-folders, the sources and the output, are git-ignored for the same reason.
+other people's models (credited in the README), here only to try the mesh path
+on a real phone, and pubspec.yaml does not list ``test_assets/`` — so a build
+bundles them only if its own build step copies them across and passes
+``--dart-define=TEST_MESHES=true``. The Test Pixel Pomo workflow does both; the
+real app's build does neither. The converted output is committed so that test
+build can be made by CI and survive its own updates; the .vox sources are not.
+When testing is over, delete ``test_assets/`` and ``Placeables.testHouseIds``.
 
     python gen_test_meshes.py
 """

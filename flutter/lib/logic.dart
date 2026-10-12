@@ -673,10 +673,11 @@ class Placeables {
   static const houseIds = ['house_wood', if (testMeshes) ...testHouseIds];
 
   /// Voxel models run through `tools/vox_to_boxes.py` to try the mesh path on a
-  /// real phone. They are other people's models and are not ours to ship, so
-  /// they are in the catalogue only in a build made with
-  /// `--dart-define=TEST_MESHES=true` — and the same build step is what copies
-  /// their files in from `test_assets/`, a folder pubspec.yaml does not list.
+  /// real phone. They are other people's models (credited in the README) and
+  /// are not the real app's to ship, so they are in the catalogue only in a
+  /// build made with `--dart-define=TEST_MESHES=true` — Test Pixel Pomo's — and
+  /// the same build step is what copies their files in from `test_assets/`, a
+  /// folder pubspec.yaml does not list.
   /// The real app therefore has neither the ids nor the meshes. The ids keep the
   /// `house_` prefix because that is how the Kotlin wallpaper tells a building.
   static const testMeshes = bool.fromEnvironment('TEST_MESHES');

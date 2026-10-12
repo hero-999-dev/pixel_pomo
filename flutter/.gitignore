@@ -23,10 +23,6 @@ web/
 .metadata
 *.iml
 
-# The test build's voxel models (tools/gen_test_meshes.py). Other people's
-# work, on a phone for testing only — this repo is public, so they stay out.
-test_assets/
-
 # Python tool caches (tools/)
 __pycache__/
 *.pyc

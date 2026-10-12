@@ -111,9 +111,9 @@ jobs:
       # The voxel models of Placeables.testHouseIds. They live in test_assets/,
       # which pubspec.yaml does not list, so this copy is the only way they get
       # bundled — and it runs AFTER `flutter test`, whose guard fails if they
-      # are ever found under assets/. The folder is git-ignored (the models are
-      # not ours to publish), so on CI this is normally a no-op and the APK is
-      # built without them; a local build with the folder present gets them.
+      # are ever found under assets/. build-flutter.yml has no such step, which
+      # is what keeps them out of the real app. Deleting the folder turns this
+      # into a no-op and the test build goes back to having none.
       - name: Add test meshes
         working-directory: flutter
         run: |

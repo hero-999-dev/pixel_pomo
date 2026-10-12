@@ -1187,13 +1187,6 @@ class _UpdateDialogState extends State<UpdateDialog> {
               border: th.onSurfaceDim,
               fill: _failed ? th.onSurfaceDim : th.accent),
         ),
-        // Only a build that carries the test voxel models says this: the
-        // published test APK cannot include them (see Placeables.testMeshes).
-        if (Placeables.testMeshes) ...[
-          const SizedBox(height: 12),
-          Text('The published build has no test voxel models.',
-              style: pixelStyle(lang, 9, col(th.onSurfaceDim), text: 'published build')),
-        ],
       ]),
       actions: [
         TextButton(

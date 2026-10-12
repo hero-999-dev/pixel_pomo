@@ -196,9 +196,10 @@ holds, so a locally built APK won't install over one from the releases page — 
 | [Bonsai](https://voxbox.store/model/CYn1FYAXmM) | [mgerhardy](https://voxbox.store/profile/mgerhardy) |
 | [Mario props](https://voxbox.store/model/80ziNcfK1O) | [nabeel](https://voxbox.store/profile/nabeel) |
 
-They were used **only to test the voxel pipeline** on a private development build. The models themselves are
-**not in this repository, not in the app and not in any published APK** — thank you to their authors for
-sharing them.
+They are used **only to test the voxel pipeline**: converted copies ship in the separate **Test Pixel Pomo**
+build (as `TEST …` items in its shop) while that testing lasts, and will be removed when it is done. They are
+**not part of the app itself** — the real build's catalogue and assets contain none of them. Thank you to their
+authors for sharing them.
 
 ## 📜 License
 
