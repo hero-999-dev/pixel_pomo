@@ -304,6 +304,16 @@ class StatsChart extends StatefulWidget {
   // "focus minutes", which read wrong on the money chart (#v30.9).
   final String? noDataText;
 
+  /// How a value reads in the trend callout — minutes by default; the money
+  /// screen passes a currency formatter (#v40).
+  final String Function(int)? format;
+
+  /// The short value printed on top of each bar (default: the raw number).
+  final String Function(int)? barFormat;
+
+  /// First row of the trend callout (default FOCUS).
+  final String? totalLabel;
+
   const StatsChart({
     super.key,
     required this.entries,
@@ -317,6 +327,9 @@ class StatsChart extends StatefulWidget {
     required this.panelColor,
     required this.panelBorder,
     this.noDataText,
+    this.format,
+    this.barFormat,
+    this.totalLabel,
   });
 
   @override
@@ -404,9 +417,10 @@ class _ChartPainter extends CustomPainter {
   }
 
   String _cap(String s) => s.length <= 12 ? s : s.substring(0, 12);
-  String _fmt(int min) => StatsAggregator.formatMinutes(min);
+  String _fmt(int v) => c.format?.call(v) ?? StatsAggregator.formatMinutes(v);
 
   String _focus() {
+    if (c.totalLabel != null) return c.totalLabel!;
     const m = {'en': 'FOCUS', 'tr': 'ODAK', 'pl': 'SKUPIENIE', 'de': 'FOKUS', 'fr': 'FOCUS', 'it': 'FOCUS'};
     return m[c.lang] ?? m['en']!;
   }
@@ -442,8 +456,13 @@ class _ChartPainter extends CustomPainter {
       final barH = plotH * (e.value / maxVal);
       fill.color = col(e.color);
       canvas.drawRect(Rect.fromLTWH(cx - barW / 2, padTop + plotH - barH, barW, barH), fill);
-      _text(canvas, _cap(e.label), cx, h - 14, 7, c.textColor, align: TextAlign.center);
-      _text(canvas, '${e.value}', cx, padTop + plotH - barH - 3, 7, c.textColor, align: TextAlign.center); // minutes (#1)
+      // a label may only be as wide as its slot (a 7px pixel glyph per char),
+      // or neighbouring labels print over each other with many bars (#v40)
+      final maxChars = math.max(3, (slot / 7.5).floor());
+      final label = e.label.length <= maxChars ? e.label : e.label.substring(0, maxChars);
+      _text(canvas, label, cx, h - 14, 7, c.textColor, align: TextAlign.center);
+      _text(canvas, c.barFormat?.call(e.value) ?? '${e.value}', cx, padTop + plotH - barH - 3, 7, c.textColor,
+          align: TextAlign.center); // minutes (#1)
     }
   }
 

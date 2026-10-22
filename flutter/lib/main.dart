@@ -4664,6 +4664,7 @@ class _MoneyScreenState extends State<MoneyScreen> {
   StatPeriod _chartPeriod = StatPeriod.monthly; // #v30 item 11
   ChartMode _chartMode = ChartMode.bar;
   int _chartOffset = 0; // chart windows back from now (#v30.9 rec 4)
+  int _chartKind = 0; // 0 expenses · 1 income · 2 compare the two (#v40)
   int _txPage = 0; // entry-list page, newest first (#v30.9 rec 3)
   String? _catFilter; // tapped category bar → only its entries (#v38)
   String? _payFilter; // tapped payment-type bar → only its entries (#v39)
@@ -4940,100 +4941,253 @@ class _MoneyScreenState extends State<MoneyScreen> {
     );
   }
 
-  // income/expense bar + pie chart, current daily/weekly/monthly window
-  // (#v30 item 11) — reuses the same StatsChart widget the Stats screen uses.
+  // ---- money charts (#v30 item 11, reworked #v40) ----
+  // GİDER / GELİR / KARŞILAŞTIR × DAILY..ALL TIME × BAR (by category) / TREND
+  // (over time) / PIE (category share), each with its averages and a
+  // per-category table underneath. Before #v40 the chart had no yearly or
+  // all-time view, no averages at all, and income had no chart of its own.
   Widget _moneyChart(PixelTheme th, String lang, AppStore s) {
     final now = DateTime.now();
-    // browse earlier windows with the same anchor mechanism Stats uses (#v30.9 rec 4)
-    final anchor = StatsAggregator.anchorFor(now, _chartPeriod, _chartOffset);
-    final (start, end) = StatsAggregator.windowDays(anchor, _chartPeriod);
-    final (inc, exp) = MoneyBook.totalsInWindow(s.money, start, end, s.fxRates, s.mainCurrency);
-    final byCat = MoneyBook.byCategoryInWindow(s.money, start, end, s.fxRates, s.mainCurrency);
-    final entries = _chartMode == ChartMode.pie
-        ? [for (final e in byCat) ChartEntry(t(lang, e.key), e.value.round(), LabelColors.defaultFor(e.key))]
-        : [
-            ChartEntry(t(lang, 'income'), inc.round(), th.work),
-            ChartEntry(t(lang, 'expense'), exp.round(), th.accent),
-          ];
+    final cur = s.mainCurrency;
+    final compare = _chartKind == 2;
+    final expense = _chartKind == 0;
+    String whole(int v) => MoneyAmount.format(v.toDouble(), cur, lang: lang).replaceFirst(RegExp(r'[.,]\d\d$'), '');
+    String compact(int v) => MoneyAmount.compact(v, lang: lang);
 
-    Widget periodBtn(String text, StatPeriod p) {
-      final sel = _chartPeriod == p;
-      void pick() => setState(() {
-            _chartPeriod = p;
-            _chartOffset = 0;
-          });
-      return Expanded(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 2),
-          child: sel
-              ? primaryBtn(th, lang, text, pick, fontSize: 8, padding: const EdgeInsets.all(8))
-              : secondaryBtn(th, lang, text, pick, fontSize: 8, padding: const EdgeInsets.all(8)),
-        ),
-      );
-    }
-
-    Widget modeBtn(String text, ChartMode m) {
-      final sel = _chartMode == m;
-      return Expanded(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 3),
-          child: sel
-              ? primaryBtn(th, lang, text, () => setState(() => _chartMode = m), fontSize: 9, padding: const EdgeInsets.all(12))
-              : secondaryBtn(th, lang, text, () => setState(() => _chartMode = m), fontSize: 9, padding: const EdgeInsets.all(12)),
-        ),
-      );
-    }
-
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      Row(children: [
-        periodBtn(t(lang, 'pDaily'), StatPeriod.daily),
-        periodBtn(t(lang, 'pWeekly'), StatPeriod.weekly),
-        periodBtn(t(lang, 'pMonthly'), StatPeriod.monthly),
-      ]),
-      const SizedBox(height: 12),
-      Row(children: [modeBtn(t(lang, 'chartBar'), ChartMode.bar), modeBtn(t(lang, 'chartPie'), ChartMode.pie)]),
-      const SizedBox(height: 10),
-      Row(children: [
-        SizedBox(
-          width: 52,
-          child: secondaryBtn(th, lang, '<', () => setState(() => _chartOffset++),
-              fontSize: 13, padding: const EdgeInsets.all(10)),
-        ),
-        Expanded(
-          child: Center(
-            child: Text(periodWindowLabel(lang, _chartPeriod, _chartOffset),
-                style: pixelStyle(lang, 11, col(th.onSurface),
-                    text: periodWindowLabel(lang, _chartPeriod, _chartOffset))),
+    Widget pick(String text, bool sel, VoidCallback onTap, {double fs = 8, Key? key}) => Expanded(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            child: sel
+                ? primaryBtn(th, lang, text, onTap, fontSize: fs, padding: const EdgeInsets.all(8), key: key)
+                : secondaryBtn(th, lang, text, onTap, fontSize: fs, padding: const EdgeInsets.all(8), key: key),
           ),
-        ),
-        SizedBox(
-          width: 52,
-          child: PixelButton(
-              text: '>', fill: th.panel, border: th.onSurfaceDim, textColor: th.onSurface, shadow: th.shadow,
-              lang: lang, fontSize: 13, padding: const EdgeInsets.all(10),
-              opacity: _chartOffset > 0 ? 1 : 0.35,
-              onTap: () {
-                if (_chartOffset > 0) setState(() => _chartOffset--);
-              }),
-        ),
+        );
+    Widget period(String key, StatPeriod p) => pick(t(lang, key), _chartPeriod == p, () => setState(() {
+          _chartPeriod = p;
+          _chartOffset = 0;
+        }), key: Key('moneyPeriod_${p.name}'));
+    Widget kind(String key, int k) =>
+        pick(t(lang, key), _chartKind == k, () => setState(() => _chartKind = k), fs: 9, key: Key('moneyKind_$k'));
+    Widget mode(String key, ChartMode m) =>
+        pick(t(lang, key), _chartMode == m, () => setState(() => _chartMode = m), fs: 9, key: Key('moneyMode_${m.name}'));
+
+    final exp = MoneyStats.of(s.money, now, _chartPeriod, _chartOffset, s.fxRates, cur, expense: true);
+    final inc = MoneyStats.of(s.money, now, _chartPeriod, _chartOffset, s.fxRates, cur, expense: false);
+    final st = expense ? exp : inc;
+    final accent = expense ? th.accent : th.work;
+
+    late final Widget chart;
+    if (compare) {
+      chart = StatsChart(
+        entries: [
+          ChartEntry(t(lang, 'income'), inc.total.round(), th.work),
+          ChartEntry(t(lang, 'expense'), exp.total.round(), th.accent),
+        ],
+        series: const StatSeries([], [], []),
+        average: 0,
+        mode: ChartMode.bar,
+        lang: lang,
+        axisColor: th.onSurfaceDim,
+        textColor: th.onSurface,
+        lineColor: th.accent,
+        panelColor: th.panel,
+        panelBorder: th.onSurfaceDim,
+        noDataText: t(lang, 'noMoneyData'),
+        barFormat: compact,
+      );
+    } else {
+      final raw = MoneyStats.series(s.money, now, _chartPeriod, _chartOffset, s.fxRates, cur, expense: expense);
+      // category keys → their names in the trend callout
+      final series = StatSeries(raw.totals, raw.tickLabels, [
+        for (final b in raw.byLabel) [for (final e in b) MapEntry(t(lang, e.key), e.value)]
+      ]);
+      final buckets = raw.totals.isEmpty ? 1 : raw.totals.length;
+      // bars: the 5 biggest categories, the rest summed into one bar
+      final top = st.cats.take(5).toList();
+      final rest = st.cats.skip(5).fold<double>(0, (a, c) => a + c.total);
+      chart = StatsChart(
+        entries: _chartMode == ChartMode.pie
+            ? [for (final c in st.cats) ChartEntry(t(lang, c.category), c.total.round(), LabelColors.defaultFor(c.category))]
+            : [
+                for (final c in top) ChartEntry(t(lang, c.category), c.total.round(), LabelColors.defaultFor(c.category)),
+                if (rest > 0) ChartEntry(t(lang, 'chartRest'), rest.round(), th.onSurfaceDim),
+              ],
+        series: series,
+        average: (raw.totals.fold<int>(0, (a, v) => a + v) / buckets).round(),
+        mode: _chartMode,
+        lang: lang,
+        axisColor: th.onSurfaceDim,
+        textColor: th.onSurface,
+        lineColor: accent,
+        panelColor: th.panel,
+        panelBorder: th.onSurfaceDim,
+        noDataText: t(lang, 'noMoneyData'),
+        format: whole,
+        barFormat: compact,
+        totalLabel: t(lang, 'mTotal'),
+      );
+    }
+
+    final showMonthly = _chartPeriod == StatPeriod.yearly || _chartPeriod == StatPeriod.allTime;
+    // expense figures always carry the minus (#v39)
+    String fmt(double v) => expense ? _out(v, cur, lang) : _money(v, cur, lang);
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      _heading(th, lang, t(lang, 'mCharts')),
+      Row(children: [kind('expense', 0), kind('income', 1), kind('mCompare', 2)]),
+      const SizedBox(height: 10),
+      // two rows: five buttons in one shrank their labels to unreadable on a
+      // 320px phone
+      Row(children: [
+        period('pDaily', StatPeriod.daily),
+        period('pWeekly', StatPeriod.weekly),
+        period('pMonthly', StatPeriod.monthly),
       ]),
+      const SizedBox(height: 6),
+      Row(children: [
+        period('pYearly', StatPeriod.yearly),
+        period('pAll', StatPeriod.allTime),
+      ]),
+      if (!compare) ...[
+        const SizedBox(height: 10),
+        Row(children: [mode('chartBar', ChartMode.bar), mode('chartLine', ChartMode.line), mode('chartPie', ChartMode.pie)]),
+      ],
+      if (_chartPeriod != StatPeriod.allTime) ...[
+        const SizedBox(height: 10),
+        Row(children: [
+          SizedBox(
+            width: 52,
+            child: secondaryBtn(th, lang, '<', () => setState(() => _chartOffset++),
+                fontSize: 13, padding: const EdgeInsets.all(10), key: const Key('moneyChartPrev')),
+          ),
+          Expanded(
+            child: Center(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(periodWindowLabel(lang, _chartPeriod, _chartOffset),
+                    style: pixelStyle(lang, 11, col(th.onSurface),
+                        text: periodWindowLabel(lang, _chartPeriod, _chartOffset))),
+              ),
+            ),
+          ),
+          SizedBox(
+            width: 52,
+            child: PixelButton(
+                text: '>', fill: th.panel, border: th.onSurfaceDim, textColor: th.onSurface, shadow: th.shadow,
+                lang: lang, fontSize: 13, padding: const EdgeInsets.all(10),
+                opacity: _chartOffset > 0 ? 1 : 0.35,
+                onTap: () {
+                  if (_chartOffset > 0) setState(() => _chartOffset--);
+                }),
+          ),
+        ]),
+      ],
       const SizedBox(height: 16),
-      SizedBox(
-        height: 200,
-        child: StatsChart(
-          entries: entries,
-          series: const StatSeries([], [], []),
-          average: 0,
-          mode: _chartMode,
-          lang: lang,
-          axisColor: th.onSurfaceDim,
-          textColor: th.onSurface,
-          lineColor: th.accent,
-          panelColor: th.panel,
-          panelBorder: th.onSurfaceDim,
-          noDataText: t(lang, 'noMoneyData'),
-        ),
-      ),
+      SizedBox(height: 200, child: chart),
+      if (_chartMode == ChartMode.line && !compare) ...[
+        const SizedBox(height: 4),
+        Text(t(lang, 'mTapTrend'), style: pixelStyle(lang, 7, col(th.onSurfaceDim), text: t(lang, 'mTapTrend'))),
+      ],
+      const SizedBox(height: 14),
+      if (compare)
+        _compareStats(th, lang, cur, inc, exp)
+      else ...[
+        _statGrid(th, lang, [
+          (t(lang, 'mTotal'), fmt(st.total), accent),
+          (t(lang, 'mCount'), '${st.count}', th.onSurface),
+          (t(lang, 'avgPerDay'), fmt(st.perDay), accent),
+          (t(lang, 'mAvgEntry'), fmt(st.perEntry), accent),
+          if (showMonthly) (t(lang, 'mAvgMonth'), fmt(st.perMonth), accent),
+          (t(lang, 'mLargest'), fmt(st.largest), accent),
+          if (st.change case final ch?)
+            (
+              t(lang, 'mVsPrev'),
+              '${ch >= 0 ? '+' : '-'}${(ch.abs() * 100).round()}%',
+              // more spending is bad news, more income good news
+              (ch >= 0) == expense ? th.accent : th.work
+            ),
+        ]),
+        if (st.cats.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          _heading(th, lang, t(lang, expense ? 'mCatAvgExpense' : 'mCatAvgIncome')),
+          for (final c in st.cats) _catStatRow(th, lang, cur, c, st, expense),
+        ],
+      ],
+    ]);
+  }
+
+  /// Label/value tiles, two per row.
+  Widget _statGrid(PixelTheme th, String lang, List<(String, String, int)> items) {
+    return Wrap(
+      runSpacing: 10,
+      children: [
+        for (final (label, value, color) in items)
+          FractionallySizedBox(
+            widthFactor: 0.5,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(label, style: pixelStyle(lang, 7, col(th.onSurfaceDim), text: label)),
+                const SizedBox(height: 4),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(value, maxLines: 1, style: pixelStyle(lang, 10, col(color), text: value)),
+                ),
+              ]),
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// One category: its total and share, then its average per day / per entry
+  /// and how many entries — "kategoriye göre ortalama".
+  Widget _catStatRow(PixelTheme th, String lang, String cur, MoneyCatStat c, MoneyWindowStats st, bool expense) {
+    final share = st.total <= 0 ? 0.0 : c.total / st.total;
+    String fmt(double v) => expense ? _out(v, cur, lang) : _money(v, cur, lang);
+    final amount = fmt(c.total);
+    final detail = '${(share * 100).round()}% · ${t(lang, 'avgPerDay')} ${fmt(c.total / st.days)}\n'
+        '${tf(lang, 'mEntriesN', [c.count])} · ${t(lang, 'mAvgEntry')} ${fmt(c.total / c.count)}';
+    return Padding(
+      key: Key('moneyCatStat_${c.category}'),
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(children: [
+          Swatch(color: LabelColors.defaultFor(c.category), border: th.onSurfaceDim, size: 10),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(t(lang, c.category),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: pixelStyle(lang, 9, col(th.onSurface), text: t(lang, c.category))),
+          ),
+          Text(amount, style: pixelStyle(lang, 9, col(expense ? th.accent : th.work), text: amount)),
+        ]),
+        const SizedBox(height: 4),
+        LayoutBuilder(builder: (context, box) {
+          return Stack(children: [
+            Container(height: 6, color: col(th.panel)),
+            Container(height: 6, width: (box.maxWidth * share).clamp(2.0, box.maxWidth), color: col(LabelColors.defaultFor(c.category))),
+          ]);
+        }),
+        const SizedBox(height: 4),
+        Text(detail, style: pixelStyle(lang, 7, col(th.onSurfaceDim), text: detail)),
+      ]),
+    );
+  }
+
+  /// KARŞILAŞTIR: income against expenses for the window — net, how much of
+  /// the income was kept, and both daily averages.
+  Widget _compareStats(PixelTheme th, String lang, String cur, MoneyWindowStats inc, MoneyWindowStats exp) {
+    final net = inc.total - exp.total;
+    final kept = inc.total <= 0 ? null : net / inc.total;
+    return _statGrid(th, lang, [
+      (t(lang, 'income'), _money(inc.total, cur, lang), th.work),
+      (t(lang, 'expense'), _out(exp.total, cur, lang), th.accent),
+      (t(lang, 'net'), '${net >= 0 ? '+' : '-'}${_money(net, cur, lang)}', net >= 0 ? th.work : th.accent),
+      (t(lang, 'mSavingsRate'), kept == null ? '-' : '${(kept * 100).round()}%', (kept ?? 0) >= 0 ? th.work : th.accent),
+      (t(lang, 'mIncomePerDay'), _money(inc.perDay, cur, lang), th.work),
+      (t(lang, 'mExpensePerDay'), _out(exp.perDay, cur, lang), th.accent),
     ]);
   }
 

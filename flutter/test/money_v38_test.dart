@@ -197,7 +197,9 @@ void main() {
       s.addMoneyTx(500, 'USD', 'catFood', true, 'lunch');
       await open(tester, s);
       expect(find.text('lunch'), findsOneWidget, reason: 'the note is shown on the row');
-      await tester.tap(find.text('-USD 5.00').last); // .first is the NET total
+      await tester.ensureVisible(find.text('-USD 5.00').last); // .last is the row
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('-USD 5.00').last);
       await tester.pumpAndSettle();
       expect(find.text('EDIT ENTRY'), findsOneWidget);
       await tester.enterText(find.byKey(const Key('txAmount')), '8');
@@ -216,7 +218,9 @@ void main() {
       final s = await boot();
       s.addMoneyTx(500, 'USD', 'catFood', true, '');
       await open(tester, s);
-      await tester.tap(find.text('-USD 5.00').last); // .first is the NET total
+      await tester.ensureVisible(find.text('-USD 5.00').last); // .last is the row
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('-USD 5.00').last);
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('txDelete')));
       await tester.pumpAndSettle();

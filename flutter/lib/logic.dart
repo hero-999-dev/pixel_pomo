@@ -1848,6 +1848,20 @@ class MoneyAmount {
     return '$cur $b';
   }
 
+  /// Short form for chart labels: 950, 1,2K, 45K, 1,3M (no currency).
+  static String compact(num v, {String lang = 'en'}) {
+    final a = v.abs().toDouble();
+    final sign = v < 0 ? '-' : '';
+    String one(double x) {
+      final s = x >= 100 ? x.round().toString() : x.toStringAsFixed(1).replaceFirst(RegExp(r'\.0$'), '');
+      return lang == 'en' ? s : s.replaceAll('.', ',');
+    }
+    if (a >= 1e9) return '$sign${one(a / 1e9)}B';
+    if (a >= 1e6) return '$sign${one(a / 1e6)}M';
+    if (a >= 1e4) return '$sign${one(a / 1e3)}K';
+    return '$sign${a.round()}';
+  }
+
   /// Minor units → the text an edit field starts with ("12.5" → "12,50" in tr).
   static String toInput(int minor, String cur, {String lang = 'en'}) {
     final whole = minor ~/ 100, cents = minor % 100;
@@ -2008,6 +2022,167 @@ class MoneyBook {
     final out = sums.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
     return out;
+  }
+}
+
+/// One category's slice of a money window (#v40).
+class MoneyCatStat {
+  final String category;
+  final double total;
+  final int count;
+  const MoneyCatStat(this.category, this.total, this.count);
+}
+
+/// Expenses OR income over one period window, with the averages the money
+/// screen shows under its chart (#v40).
+class MoneyWindowStats {
+  final double total;
+  final int count;
+  final double largest;
+
+  /// Calendar days the window covers so far (a window still running counts
+  /// up to today; ALL TIME starts at the first entry) — at least 1.
+  final int days;
+
+  /// Months the window touches so far, at least 1.
+  final int months;
+
+  /// Per category, biggest first.
+  final List<MoneyCatStat> cats;
+
+  /// The previous window's total (null for ALL TIME, which has none).
+  final double? previous;
+
+  const MoneyWindowStats(
+      this.total, this.count, this.largest, this.days, this.months, this.cats, this.previous);
+
+  double get perDay => total / days;
+  double get perEntry => count == 0 ? 0 : total / count;
+  double get perMonth => total / months;
+
+  /// Change against the previous window, as a fraction (0.12 = +12%); null
+  /// when there is nothing to compare with.
+  double? get change => previous == null || previous! <= 0 ? null : (total - previous!) / previous!;
+}
+
+class MoneyStats {
+  /// The inclusive day window of [p] [offset] periods back. ALL TIME runs from
+  /// the first entry in [txs] (today if none).
+  static (int, int) window(Iterable<MoneyTx> txs, DateTime now, StatPeriod p, int offset) {
+    final (lo, hi) = StatsAggregator.windowDays(StatsAggregator.anchorFor(now, p, offset), p);
+    if (p != StatPeriod.allTime) return (lo, hi);
+    var first = epochDayOf(now);
+    for (final t in txs) {
+      if (t.epochDay < first) first = t.epochDay;
+    }
+    return (first, hi);
+  }
+
+  static double _total(Iterable<MoneyTx> txs, int lo, int hi, Map<String, double> rates, String main) {
+    var sum = 0.0;
+    for (final t in txs) {
+      if (t.epochDay >= lo && t.epochDay <= hi) sum += MoneyBook.toMain(t, rates, main);
+    }
+    return sum;
+  }
+
+  static MoneyWindowStats of(List<MoneyTx> all, DateTime now, StatPeriod p, int offset,
+      Map<String, double> rates, String main,
+      {required bool expense}) {
+    final txs = all.where((t) => t.isExpense == expense).toList();
+    final (lo, hi) = window(txs, now, p, offset);
+    final today = epochDayOf(now);
+    final end = math.min(hi, today);
+    var total = 0.0, largest = 0.0, count = 0;
+    final byCat = <String, (double, int)>{};
+    for (final t in txs) {
+      if (t.epochDay < lo || t.epochDay > hi) continue;
+      final v = MoneyBook.toMain(t, rates, main);
+      total += v;
+      count++;
+      if (v > largest) largest = v;
+      final (ct, cc) = byCat[t.category] ?? (0.0, 0);
+      byCat[t.category] = (ct + v, cc + 1);
+    }
+    final days = math.max(1, end - lo + 1);
+    final a = dateOfEpochDay(lo), b = dateOfEpochDay(math.max(lo, end));
+    final months = math.max(1, (b.year - a.year) * 12 + b.month - a.month + 1);
+    final cats = [for (final e in byCat.entries) MoneyCatStat(e.key, e.value.$1, e.value.$2)]
+      ..sort((x, y) => y.total.compareTo(x.total));
+    // only compare with a previous window the history fully covers: against
+    // one that began before the first entry, a half-empty month read as
+    // "+8595%" (#v40)
+    double? previous;
+    if (p != StatPeriod.allTime && txs.isNotEmpty) {
+      final (plo, phi) = window(txs, now, p, offset + 1);
+      final first = txs.map((t) => t.epochDay).reduce(math.min);
+      if (first <= plo) previous = _total(txs, plo, phi, rates, main);
+    }
+    return MoneyWindowStats(total, count, largest, days, months, cats, previous);
+  }
+
+  /// Expenses OR income per bucket of [p] (the same buckets as the focus
+  /// stats: 7 days, the week's days, the month's days, 12 months, years), in
+  /// whole units of [main], with a per-category breakdown for the callout.
+  static StatSeries series(List<MoneyTx> all, DateTime now, StatPeriod p, int offset,
+      Map<String, double> rates, String main,
+      {required bool expense}) {
+    final txs = all.where((t) => t.isExpense == expense).toList();
+    final now0 = StatsAggregator.anchorFor(now, p, offset);
+    late int n;
+    late int Function(int day) idx;
+    late List<String> ticks;
+    switch (p) {
+      case StatPeriod.daily:
+        final endE = epochDayOf(now0);
+        n = 7;
+        idx = (d) => d - (endE - 6);
+        ticks = [for (var i = 0; i < 7; i++) '${dateOfEpochDay(endE - 6 + i).day}'];
+      case StatPeriod.weekly:
+        final mon = epochDayOf(now0) - (now0.weekday - 1);
+        n = 7;
+        idx = (d) => d - mon;
+        ticks = [for (var i = 0; i < 7; i++) '${dateOfEpochDay(mon + i).day}'];
+      case StatPeriod.monthly:
+        n = DateTime(now0.year, now0.month + 1, 0).day;
+        idx = (d) {
+          final x = dateOfEpochDay(d);
+          return x.year == now0.year && x.month == now0.month ? x.day - 1 : -1;
+        };
+        ticks = [for (var i = 1; i <= n; i++) '$i'];
+      case StatPeriod.yearly:
+        n = 12;
+        idx = (d) {
+          final x = dateOfEpochDay(d);
+          return x.year == now0.year ? x.month - 1 : -1;
+        };
+        ticks = [for (var i = 1; i <= 12; i++) '$i'];
+      case StatPeriod.allTime:
+        var minY = now0.year;
+        for (final t in txs) {
+          minY = math.min(minY, dateOfEpochDay(t.epochDay).year);
+        }
+        n = now0.year - minY + 1;
+        idx = (d) => dateOfEpochDay(d).year - minY;
+        ticks = [for (var i = 0; i < n; i++) '${minY + i}'];
+    }
+    final sums = List<double>.filled(n, 0);
+    final maps = List.generate(n, (_) => <String, double>{});
+    for (final t in txs) {
+      final i = idx(t.epochDay);
+      if (i < 0 || i >= n) continue;
+      final v = MoneyBook.toMain(t, rates, main);
+      sums[i] += v;
+      maps[i][t.category] = (maps[i][t.category] ?? 0) + v;
+    }
+    return StatSeries(
+      [for (final v in sums) v.round()],
+      ticks,
+      [
+        for (final m in maps)
+          [for (final e in m.entries) MapEntry(e.key, e.value.round())]..sort((a, b) => b.value.compareTo(a.value))
+      ],
+    );
   }
 }
 

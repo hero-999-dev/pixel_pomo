@@ -121,9 +121,13 @@ classic arcade look.
   **Rates refresh every 10 minutes** while online from a live source (Coinbase, falling back to the daily
   currency-api and open.er-api), and **each entry keeps the rate of the moment it was added** — a back-dated one
   is priced at its own day's historical rate — so last month's spending doesn't drift with today's exchange rate. **Monthly totals
-  with a signed NET line**, **category bars**, a **bar / pie chart** (daily / weekly / monthly, with a **◀ ▶
-  history navigator**), and **paged entries**. Pick a **main currency**; rates refresh from the internet
-  (hourly when online). Set a **daily budget** in settings — stay under it for a day and earn **+1 garden
+  with a signed NET line**, **category bars**, and **CHARTS** for **expenses**, **income**, or the two **compared** — **daily /
+  weekly / monthly / yearly / all time** with a **◀ ▶ history navigator**, as **bars by category**, a **trend**
+  over time (tap it for one day/month in detail) or a **pie** — each with its **total, entry count, average per
+  day / per entry / per month, largest entry and change vs the previous period**, plus a **per-category table**
+  (share, average per day, entries, average per entry); compare shows net, the share of income kept and both
+  daily averages. **Paged entries**. Pick a **main currency**; rates refresh from the internet
+  (every 10 minutes when online). Set a **daily budget** in settings — stay under it for a day and earn **+1 garden
   coin**.
 - **⚙️ Settings** — a **STOPWATCH / POMODORO** toggle at the top (POMODORO shows the steppers below,
   STOPWATCH hides them), steppers for **focus / break / sessions**, **auto-start**, the **app blocker**,

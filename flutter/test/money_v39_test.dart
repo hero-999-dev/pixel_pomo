@@ -260,7 +260,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(s.money.single.method, 'payCard');
       expect(find.text('CARD'), findsWidgets); // row line + breakdown bar
-      expect(find.text('SPENDING BY PAYMENT TYPE'), findsOneWidget);
+      expect(find.text('FILTER BY PAYMENT TYPE'), findsOneWidget);
       expect(find.byKey(const Key('moneyPay_payCard')), findsOneWidget);
     });
 
@@ -284,6 +284,8 @@ void main() {
       final s = await boot(tester);
       s.addMoneyTx(1000, 'PLN', 'catFood', true, '');
       await open(tester, s);
+      await tester.ensureVisible(find.text('-PLN 10.00').last);
+      await tester.pumpAndSettle();
       await tester.tap(find.text('-PLN 10.00').last);
       await tester.pumpAndSettle();
       expect(find.text('1 PLN = USD 0.25  (AT ENTRY)'), findsOneWidget);
