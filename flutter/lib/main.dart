@@ -4621,10 +4621,11 @@ class _HabitScreenState extends State<HabitScreen> {
   }
 }
 
-// ---- money manager (#v29) ---------------------------------------------------
+// ---- money manager (#v29, reworked #v38) ------------------------------------
 // Simple single ledger: income/expense entries in any currency, aggregated in
-// the user's MAIN currency via cached rates. Monthly totals + category bars,
-// in-screen settings (main currency + daily budget), daily-budget coin.
+// the user's MAIN currency via cached rates. Today's budget meter, monthly
+// totals + category bars (tap one to filter the list), entries you can tap to
+// edit, in-screen settings (main currency + daily budget), daily-budget coin.
 
 const _expenseCats = [
   'catFood', 'catTransport', 'catHome', 'catFun',
@@ -4632,9 +4633,13 @@ const _expenseCats = [
 ];
 const _incomeCats = ['catSalary', 'catGift', 'catOther'];
 
-String _money(double v, String cur) {
-  final s = v.abs().toStringAsFixed(2);
-  return '$cur $s';
+String _money(double v, String cur, String lang) => MoneyAmount.format(v, cur, lang: lang);
+
+/// "21 OCT" — a short day label for entry rows and the date stepper.
+String _shortDate(String lang, int epochDay) {
+  final d = dateOfEpochDay(epochDay);
+  final m = monthName(lang, d.month);
+  return '${d.day} ${m.substring(0, m.length.clamp(0, 3))}';
 }
 
 class MoneyScreen extends StatefulWidget {
@@ -4650,12 +4655,19 @@ class _MoneyScreenState extends State<MoneyScreen> {
   ChartMode _chartMode = ChartMode.bar;
   int _chartOffset = 0; // chart windows back from now (#v30.9 rec 4)
   int _txPage = 0; // entry-list page, newest first (#v30.9 rec 3)
+  String? _catFilter; // tapped category bar → only its entries (#v38)
 
   @override
   void initState() {
     super.initState();
     widget.s.refreshFx(); // fetch on open if the cache is stale (>1h)
   }
+
+  void _moveMonth(int delta) => setState(() {
+        _offset += delta;
+        _txPage = 0;
+        _catFilter = null;
+      });
 
   @override
   Widget build(BuildContext context) {
@@ -4668,33 +4680,34 @@ class _MoneyScreenState extends State<MoneyScreen> {
     final (income, expense) = MoneyBook.monthTotals(s.money, view.year, view.month, s.fxRates, cur);
     final cats = MoneyBook.byCategory(s.money, view.year, view.month, s.fxRates, cur);
     final maxCat = cats.isEmpty ? 1.0 : cats.first.value;
-    final monthTxs = s.money
-        .where((t) {
-          final d = dateOfEpochDay(t.epochDay);
-          return d.year == view.year && d.month == view.month;
-        })
+    final monthAll = s.money.where((t) {
+      final d = dateOfEpochDay(t.epochDay);
+      return d.year == view.year && d.month == view.month;
+    }).toList();
+    final monthTxs = monthAll
+        .where((t) => _catFilter == null || (t.isExpense && t.category == _catFilter))
         .toList()
       ..sort((a, b) => b.epochDay != a.epochDay
           ? b.epochDay - a.epochDay
           : b.minuteOfDay - a.minuteOfDay);
+    // average spend per day: days so far this month, or the whole past month
+    final daysCounted = _offset == 0 ? now.day : DateTime(view.year, view.month + 1, 0).day;
+    final net = income - expense;
+    final pages = Paging.pageCount(monthTxs.length, 50);
     return overlayScaffold(context, s, t(lang, 'money'), [
       // --- month navigator ---
       Row(
         children: [
           IconButton(
-            onPressed: () => setState(() {
-              _offset++;
-              _txPage = 0;
-            }),
+            key: const Key('moneyPrevMonth'),
+            onPressed: () => _moveMonth(1),
             icon: Text('<', style: pixelStyle(lang, 18, col(th.onSurface), text: '<')),
           ),
           // The month takes whatever the two arrows leave and scales down
           // inside it, instead of pushing the row wider than the screen
           // (#v35.7): PressStart2P is monospace at 13px a glyph, so
           // "SEPTEMBER 2026" asks for 182px while a 320px phone leaves 168
-          // between two 48px arrow buttons — the row overflowed by 14px for
-          // the long month names (SEPTEMBER, NOVEMBER, DECEMBER) and read
-          // fine every other month of the year.
+          // between two 48px arrow buttons.
           Expanded(
             child: Center(
               child: FittedBox(
@@ -4708,62 +4721,98 @@ class _MoneyScreenState extends State<MoneyScreen> {
             ),
           ),
           IconButton(
-            onPressed: _offset == 0
-                ? null
-                : () => setState(() {
-                      _offset--;
-                      _txPage = 0;
-                    }),
+            onPressed: _offset == 0 ? null : () => _moveMonth(-1),
             icon: Text('>', style: pixelStyle(lang, 18, col(_offset == 0 ? th.onSurfaceDim : th.onSurface), text: '>')),
           ),
         ],
       ),
+      const SizedBox(height: 6),
+      // --- today vs the daily budget (current month only) ---
+      if (_offset == 0) ...[_todayCard(th, lang, s), const SizedBox(height: 14)],
       // --- income / expense totals ---
       Row(children: [
-        Expanded(child: _total(th, lang, t(lang, 'income'), _money(income, cur), th.work)),
-        Expanded(child: _total(th, lang, t(lang, 'expense'), _money(expense, cur), th.accent)),
+        Expanded(child: _total(th, lang, t(lang, 'income'), _money(income, cur, lang), th.work)),
+        Expanded(child: _total(th, lang, t(lang, 'expense'), _money(expense, cur, lang), th.accent)),
       ]),
       const SizedBox(height: 10),
-      Center(
-        child: _total(th, lang, t(lang, 'net'),
-            '${income - expense >= 0 ? '+' : '-'}${_money(income - expense, cur)}',
-            income - expense >= 0 ? th.work : th.accent),
-      ),
-      // rates never loaded → conversions silently fall back to raw amounts;
-      // say so instead of letting mixed-currency totals lie (#v30.9)
-      if (s.fxRates.isEmpty) ...[
+      Row(children: [
+        Expanded(
+          child: _total(th, lang, t(lang, 'net'), '${net >= 0 ? '+' : '-'}${_money(net, cur, lang)}',
+              net >= 0 ? th.work : th.accent),
+        ),
+        Expanded(
+          child: _total(th, lang, t(lang, 'avgPerDay'), _money(expense / daysCounted, cur, lang), th.onSurface),
+        ),
+      ]),
+      // some amounts could not be converted → the totals add them as-is;
+      // say so instead of letting mixed-currency totals lie (#v30.9). Was only
+      // shown when NO rates had loaded, not when one currency was missing.
+      if (s.fxRates.isEmpty || MoneyBook.hasUnconverted(monthAll, s.fxRates, cur)) ...[
         const SizedBox(height: 8),
         Text(t(lang, 'noRates'),
+            key: const Key('moneyNoRates'),
             textAlign: TextAlign.center,
             style: pixelStyle(lang, 8, col(th.onSurfaceDim), text: t(lang, 'noRates'))),
       ],
       const SizedBox(height: 16),
       Row(children: [
-        Expanded(child: primaryBtn(th, lang, t(lang, 'addExpense'), () => _addTx(context, s, true), fontSize: 10, padding: const EdgeInsets.all(12))),
+        Expanded(
+            child: primaryBtn(th, lang, t(lang, 'addExpense'), () => _openTx(context, s, isExpense: true, view: view),
+                fontSize: 10, padding: const EdgeInsets.all(12), key: const Key('addExpense'))),
         const SizedBox(width: 10),
-        Expanded(child: secondaryBtn(th, lang, t(lang, 'addIncome'), () => _addTx(context, s, false), fontSize: 10, padding: const EdgeInsets.all(12))),
+        Expanded(
+            child: secondaryBtn(th, lang, t(lang, 'addIncome'), () => _openTx(context, s, isExpense: false, view: view),
+                fontSize: 10, padding: const EdgeInsets.all(12), key: const Key('addIncome'))),
       ]),
       const SizedBox(height: 20),
       // --- income/expense charts: bar + pie, daily/weekly/monthly (#v30 item 11) ---
       _moneyChart(th, lang, s),
       const SizedBox(height: 20),
-      // --- category bars (this month's expenses) ---
+      // --- category bars (this month's expenses) — tap one to filter ---
       if (cats.isNotEmpty) ...[
+        _heading(th, lang, t(lang, 'byCategory')),
         for (final e in cats) _catBar(th, lang, e.key, e.value, maxCat, cur),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
       ],
       // --- entries ---
+      _heading(th, lang, t(lang, 'entries')),
+      if (_catFilter != null)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: GestureDetector(
+              key: const Key('moneyClearFilter'),
+              onTap: () => setState(() {
+                _catFilter = null;
+                _txPage = 0;
+              }),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                decoration: BoxDecoration(
+                  color: col(th.accent),
+                  border: Border.all(color: col(th.onSurface), width: 1),
+                ),
+                child: Text('${t(lang, _catFilter!)}  X',
+                    style: pixelStyle(lang, 8, col(th.onAccent), text: t(lang, _catFilter!))),
+              ),
+            ),
+          ),
+        ),
       if (monthTxs.isEmpty)
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 16),
-          child: Text(t(lang, 'noTx'),
+          child: Text(t(lang, monthAll.isEmpty ? 'noTxHint' : 'noTx'),
               textAlign: TextAlign.center,
-              style: pixelStyle(lang, 10, col(th.onSurfaceDim), text: t(lang, 'noTx'))),
+              style: pixelStyle(lang, 9, col(th.onSurfaceDim), text: t(lang, 'noTxHint'))),
         )
       else ...[
+        Text(t(lang, 'tapToEdit'),
+            style: pixelStyle(lang, 7, col(th.onSurfaceDim), text: t(lang, 'tapToEdit'))),
+        const SizedBox(height: 6),
         // paged, not silently capped at 40 like before (#v30.9 rec 3)
-        for (final tx in Paging.page(monthTxs, _txPage, 50)) _txRow(context, s, th, lang, tx, cur),
-        if (Paging.pageCount(monthTxs.length, 50) > 1)
+        for (final tx in Paging.page(monthTxs, _txPage, 50)) _txRow(context, s, th, lang, tx, cur, view),
+        if (pages > 1)
           Padding(
             padding: const EdgeInsets.only(top: 8),
             child: Row(children: [
@@ -4772,16 +4821,15 @@ class _MoneyScreenState extends State<MoneyScreen> {
                 child: PixelButton(
                     text: '<', fill: th.panel, border: th.onSurfaceDim, textColor: th.onSurface, shadow: th.shadow,
                     lang: lang, fontSize: 13, padding: const EdgeInsets.all(10),
-                    opacity: _txPage + 1 < Paging.pageCount(monthTxs.length, 50) ? 1 : 0.35,
+                    opacity: _txPage + 1 < pages ? 1 : 0.35,
                     onTap: () {
-                      if (_txPage + 1 < Paging.pageCount(monthTxs.length, 50)) setState(() => _txPage++);
+                      if (_txPage + 1 < pages) setState(() => _txPage++);
                     }),
               ),
               Expanded(
                 child: Center(
-                  child: Text(tf(lang, 'pageOf', [_txPage + 1, Paging.pageCount(monthTxs.length, 50)]),
-                      style: pixelStyle(lang, 10, col(th.onSurface),
-                          text: tf(lang, 'pageOf', [_txPage + 1, Paging.pageCount(monthTxs.length, 50)]))),
+                  child: Text(tf(lang, 'pageOf', [_txPage + 1, pages]),
+                      style: pixelStyle(lang, 10, col(th.onSurface), text: tf(lang, 'pageOf', [_txPage + 1, pages]))),
                 ),
               ),
               SizedBox(
@@ -4800,6 +4848,62 @@ class _MoneyScreenState extends State<MoneyScreen> {
       const SizedBox(height: 20),
       _moneySettings(context, s, th, lang),
     ]);
+  }
+
+  Widget _heading(PixelTheme th, String lang, String text) => Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Text(text, style: pixelStyle(lang, 10, col(th.onSurface), text: text)),
+      );
+
+  /// SPENT TODAY, and against the daily budget when one is set: a bar plus how
+  /// much is left (or how far over). The budget used to be a number typed into
+  /// settings at the bottom with no feedback anywhere about where you stood.
+  Widget _todayCard(PixelTheme th, String lang, AppStore s) {
+    final cur = s.mainCurrency;
+    final spent = s.spentToday;
+    final budget = s.dailyRateMinor / 100.0;
+    final hasBudget = budget > 0;
+    final over = hasBudget && spent >= budget;
+    final barColor = over ? th.accent : th.work;
+    final status = !hasBudget
+        ? t(lang, 'noBudgetHint')
+        : over
+            ? tf(lang, 'budgetOver', [_money(spent - budget, cur, lang)])
+            : tf(lang, 'budgetLeft', [_money(budget - spent, cur, lang)]);
+    return Container(
+      key: const Key('moneyToday'),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: col(th.panel),
+        border: Border.all(color: col(th.onSurfaceDim), width: 2),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        // label and amount on their own lines: side by side they ran into
+        // each other on a 320px phone
+        Text(t(lang, 'spentToday'), style: pixelStyle(lang, 8, col(th.onSurfaceDim), text: t(lang, 'spentToday'))),
+        const SizedBox(height: 6),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(
+              hasBudget ? '${_money(spent, cur, lang)} / ${_money(budget, cur, lang)}' : _money(spent, cur, lang),
+              style: pixelStyle(lang, 11, col(over ? th.accent : th.onSurface), text: '0')),
+        ),
+        if (hasBudget) ...[
+          const SizedBox(height: 6),
+          LayoutBuilder(builder: (context, box) {
+            final w = box.maxWidth * (spent / budget).clamp(0.0, 1.0);
+            return Stack(children: [
+              Container(height: 8, color: col(th.bg)),
+              Container(height: 8, width: w, color: col(barColor)),
+            ]);
+          }),
+        ],
+        const SizedBox(height: 6),
+        Text(status,
+            style: pixelStyle(lang, 8, col(over ? th.accent : th.onSurfaceDim), text: status)),
+      ]),
+    );
   }
 
   // income/expense bar + pie chart, current daily/weekly/monthly window
@@ -4899,212 +5003,323 @@ class _MoneyScreenState extends State<MoneyScreen> {
     ]);
   }
 
-  Widget _total(PixelTheme th, String lang, String label, String value, int accent) => Column(
+  Widget _total(PixelTheme th, String lang, String label, String value, int accent) => Padding(
+      // a gap between the two halves of a row so big amounts never touch
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Column(
         children: [
           Text(label, style: pixelStyle(lang, 9, col(th.onSurfaceDim), text: label)),
           const SizedBox(height: 4),
-          Text(value, style: pixelStyle(lang, 12, col(accent), text: value)),
+          // big amounts shrink to fit their half of the row instead of overflowing
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(value, maxLines: 1, style: pixelStyle(lang, 12, col(accent), text: value)),
+          ),
         ],
-      );
+      ));
 
   Widget _catBar(PixelTheme th, String lang, String cat, double value, double max, String cur) {
     final label = t(lang, cat);
     final color = LabelColors.defaultFor(cat);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            Text(label, style: pixelStyle(lang, 9, col(th.onSurface), text: label)),
-            Text(_money(value, cur), style: pixelStyle(lang, 9, col(th.onSurfaceDim), text: _money(value, cur))),
-          ]),
-          const SizedBox(height: 3),
-          LayoutBuilder(builder: (context, box) {
-            final w = (box.maxWidth * (max <= 0 ? 0 : value / max)).clamp(3.0, box.maxWidth);
-            return Stack(children: [
-              Container(height: 8, color: col(th.panel)),
-              Container(height: 8, width: w, color: col(color)),
-            ]);
-          }),
-        ],
-      ),
-    );
-  }
-
-  Widget _txRow(BuildContext context, AppStore s, PixelTheme th, String lang, MoneyTx tx, String cur) {
-    final d = dateOfEpochDay(tx.epochDay);
-    final sign = tx.isExpense ? '-' : '+';
-    // the entry KEEPS its original currency (spend złoty on holiday, earn in
-    // euro — the 150 PLN stays 150 PLN); the main-currency equivalent shows
-    // as a dim second line, and ONLY when both rates are actually known —
-    // the old converted-only display fell back to the raw number when rates
-    // were missing, so 150 PLN read as "EUR 150.00" (#v30.9).
-    final orig = '$sign${_money(tx.amountMinor / 100.0, tx.currency)}';
-    final sameCur = tx.currency == cur;
-    final ratesKnown = s.fxRates[tx.currency] != null && s.fxRates[cur] != null;
-    final conv = '= ${_money(s.moneyToMain(tx), cur)}';
-    final amtColor = col(tx.isExpense ? th.accent : th.work);
+    final selected = _catFilter == cat;
     return GestureDetector(
-      onLongPress: () => _deleteTx(context, s, tx),
+      key: Key('moneyCat_$cat'),
+      behavior: HitTestBehavior.opaque,
+      onTap: () => setState(() {
+        _catFilter = selected ? null : cat;
+        _txPage = 0;
+      }),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 5),
-        child: Row(children: [
-          Swatch(color: LabelColors.defaultFor(tx.category), border: th.onSurfaceDim, size: 12),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text('${d.day} ${monthName(lang, d.month).substring(0, monthName(lang, d.month).length.clamp(0, 3))}  ${t(lang, tx.category)}',
-                maxLines: 1, overflow: TextOverflow.clip,
-                style: pixelStyle(lang, 9, col(th.onSurface), text: t(lang, tx.category))),
-          ),
-          if (sameCur)
-            Text(orig, style: pixelStyle(lang, 9, amtColor, text: orig))
-          else
-            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              Text(orig, style: pixelStyle(lang, 9, amtColor, text: orig)),
-              if (ratesKnown)
-                Text(conv, style: pixelStyle(lang, 7, col(th.onSurfaceDim), text: conv)),
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              Flexible(
+                child: Text(selected ? '> $label' : label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: pixelStyle(lang, 9, col(selected ? th.accent : th.onSurface), text: label)),
+              ),
+              Text(_money(value, cur, lang),
+                  style: pixelStyle(lang, 9, col(th.onSurfaceDim), text: _money(value, cur, lang))),
             ]),
-        ]),
-      ),
-    );
-  }
-
-  void _addTx(BuildContext context, AppStore s, bool isExpense) {
-    final th = s.theme;
-    final lang = s.lang;
-    final amountCtrl = TextEditingController();
-    final noteCtrl = TextEditingController();
-    // built-ins + the user's own custom categories, in one picker (#v30 item 10)
-    var cats = [...(isExpense ? _expenseCats : _incomeCats), ...s.customCategories];
-    var cat = cats.first;
-    var currency = s.mainCurrency;
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setLocal) => AlertDialog(
-          backgroundColor: col(th.panel),
-          title: Text(t(lang, isExpense ? 'addExpense' : 'addIncome'),
-              style: pixelStyle(lang, 11, col(th.onSurface), text: t(lang, isExpense ? 'addExpense' : 'addIncome'))),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(children: [
-                  Expanded(
-                    child: TextField(
-                      controller: amountCtrl,
-                      autofocus: true,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      style: pixelStyle(lang, 13, col(th.onSurface), text: '0'),
-                      decoration: InputDecoration(
-                        hintText: t(lang, 'amount'),
-                        hintStyle: pixelStyle(lang, 10, col(th.onSurfaceDim), text: t(lang, 'amount')),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  DropdownButton<String>(
-                    value: currency,
-                    dropdownColor: col(th.panel),
-                    style: pixelStyle(lang, 10, col(th.onSurface), text: currency),
-                    items: [for (final c in s.currencyOptions) DropdownMenuItem(value: c, child: Text(c))],
-                    onChanged: (v) => setLocal(() => currency = v ?? currency),
-                  ),
-                ]),
-                const SizedBox(height: 12),
-                Text(t(lang, 'category'), style: pixelStyle(lang, 9, col(th.onSurfaceDim), text: t(lang, 'category'))),
-                const SizedBox(height: 6),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    for (final c in cats)
-                      GestureDetector(
-                        onTap: () => setLocal(() => cat = c),
-                        // custom categories delete on long-press, like habit
-                        // cards; built-ins have no handler (#v30.9 rec 2)
-                        onLongPress: !s.customCategories.contains(c)
-                            ? null
-                            : () => showDialog(
-                                  context: ctx,
-                                  builder: (ctx2) => AlertDialog(
-                                    backgroundColor: col(th.panel),
-                                    content: Text(tf(lang, 'removeCategoryMsg', [c]),
-                                        style: pixelStyle(lang, 11, col(th.onSurface), text: tf(lang, 'removeCategoryMsg', [c]))),
-                                    actions: [
-                                      secondaryBtn(th, lang, t(lang, 'no'), () => Navigator.pop(ctx2), fontSize: 10, padding: const EdgeInsets.all(10)),
-                                      primaryBtn(th, lang, t(lang, 'yes'), () {
-                                        s.removeCustomCategory(c);
-                                        setLocal(() {
-                                          cats = [for (final x in cats) if (x != c) x];
-                                          if (cat == c) cat = cats.first;
-                                        });
-                                        Navigator.pop(ctx2);
-                                      }, fontSize: 10, padding: const EdgeInsets.all(10)),
-                                    ],
-                                  ),
-                                ),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                          decoration: BoxDecoration(
-                            color: col(cat == c ? th.accent : th.bg),
-                            border: Border.all(color: col(th.onSurfaceDim), width: 1),
-                          ),
-                          child: Text(t(lang, c),
-                              style: pixelStyle(lang, 8, col(cat == c ? th.onAccent : th.onSurface), text: t(lang, c))),
-                        ),
-                      ),
-                    GestureDetector(
-                      onTap: () => _addCategory(context, s, th, lang,
-                          (name) => setLocal(() {
-                                cats = [...cats, name];
-                                cat = name;
-                              })),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: col(th.bg),
-                          border: Border.all(color: col(th.onSurfaceDim), width: 1),
-                        ),
-                        child: Text('+ ${t(lang, 'addCategory')}',
-                            style: pixelStyle(lang, 8, col(th.onSurfaceDim), text: '+ ${t(lang, 'addCategory')}')),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: noteCtrl,
-                  style: pixelStyle(lang, 10, col(th.onSurface), text: 'Aa'),
-                  decoration: InputDecoration(
-                    hintText: t(lang, 'note'),
-                    hintStyle: pixelStyle(lang, 9, col(th.onSurfaceDim), text: t(lang, 'note')),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            secondaryBtn(th, lang, t(lang, 'cancel'), () => Navigator.pop(ctx), fontSize: 10, padding: const EdgeInsets.all(10)),
-            primaryBtn(th, lang, t(lang, 'add'), () {
-              final v = double.tryParse(amountCtrl.text.replaceAll(',', '.'));
-              if (v != null && v > 0) {
-                s.addMoneyTx((v * 100).round(), currency, cat, isExpense, noteCtrl.text.trim());
-              }
-              Navigator.pop(ctx);
-            }, fontSize: 10, padding: const EdgeInsets.all(10)),
+            const SizedBox(height: 3),
+            LayoutBuilder(builder: (context, box) {
+              final w = (box.maxWidth * (max <= 0 ? 0 : value / max)).clamp(3.0, box.maxWidth);
+              return Stack(children: [
+                Container(height: 8, color: col(th.panel)),
+                Container(height: 8, width: w, color: col(color)),
+              ]);
+            }),
           ],
         ),
       ),
     );
   }
 
-  // user-defined category (#v30 item 10) — persists to AppStore, then hands
-  // the new name back so the still-open add-tx dialog can select it.
-  void _addCategory(BuildContext context, AppStore s, PixelTheme th, String lang,
-      void Function(String) onAdded) {
+  Widget _txRow(BuildContext context, AppStore s, PixelTheme th, String lang, MoneyTx tx, String cur, DateTime view) {
+    final sign = tx.isExpense ? '-' : '+';
+    // the entry KEEPS its original currency (spend złoty on holiday, earn in
+    // euro — the 150 PLN stays 150 PLN); the main-currency equivalent shows
+    // as a dim second line, and ONLY when both rates are actually known (#v30.9).
+    final orig = '$sign${_money(tx.amountMinor / 100.0, tx.currency, lang)}';
+    final sameCur = tx.currency == cur;
+    final ratesKnown = s.fxRates[tx.currency] != null && s.fxRates[cur] != null;
+    final conv = '= ${_money(s.moneyToMain(tx), cur, lang)}';
+    final amtColor = col(tx.isExpense ? th.accent : th.work);
+    // tap edits (it used to be long-press-to-delete only — no way to fix a
+    // typo short of deleting and re-adding, and nothing said long-press did
+    // anything); long-press still deletes, now with UNDO.
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => _openTx(context, s, existing: tx, isExpense: tx.isExpense, view: view),
+      onLongPress: () => _deleteWithUndo(s, tx),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 1),
+            child: Swatch(color: LabelColors.defaultFor(tx.category), border: th.onSurfaceDim, size: 12),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('${_shortDate(lang, tx.epochDay)}  ${t(lang, tx.category)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: pixelStyle(lang, 9, col(th.onSurface), text: t(lang, tx.category))),
+              // the note was saved but never shown anywhere
+              if (tx.note.isNotEmpty) ...[
+                const SizedBox(height: 3),
+                Text(tx.note,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: pixelStyle(lang, 7, col(th.onSurfaceDim), text: tx.note)),
+              ],
+            ]),
+          ),
+          const SizedBox(width: 6),
+          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            Text(orig, style: pixelStyle(lang, 9, amtColor, text: orig)),
+            if (!sameCur && ratesKnown) ...[
+              const SizedBox(height: 3),
+              Text(conv, style: pixelStyle(lang, 7, col(th.onSurfaceDim), text: conv)),
+            ],
+          ]),
+        ]),
+      ),
+    );
+  }
+
+  /// Add (no [existing]) or edit/delete an entry. A new one defaults to today,
+  /// or to the last day of an earlier month being browsed.
+  void _openTx(BuildContext context, AppStore s,
+      {MoneyTx? existing, required bool isExpense, required DateTime view}) {
+    final today = epochDayOf(DateTime.now());
+    final lastOfView = epochDayOf(DateTime(view.year, view.month + 1, 0));
+    showDialog(
+      context: context,
+      builder: (ctx) => _TxDialog(
+        s: s,
+        existing: existing,
+        isExpense: isExpense,
+        initialDay: existing?.epochDay ?? math.min(today, lastOfView),
+        onDelete: existing == null ? null : () => _deleteWithUndo(s, existing),
+      ),
+    );
+  }
+
+  void _deleteWithUndo(AppStore s, MoneyTx tx) {
+    final lang = s.lang;
+    final i = s.deleteMoneyTx(tx);
+    if (i < 0) return;
+    final msg = '${t(lang, 'entryDeleted')}: ${t(lang, tx.category)}';
+    messengerKey.currentState
+      ?..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        content: Text(msg, style: pixelStyle(lang, 10, const Color(0xFFFFFFFF), text: msg)),
+        duration: const Duration(seconds: 5),
+        action: SnackBarAction(label: t(lang, 'undo'), onPressed: () => s.restoreMoneyTx(tx, i)),
+      ));
+  }
+
+  Widget _moneySettings(BuildContext context, AppStore s, PixelTheme th, String lang) {
+    final rates = s.fxRates.isEmpty
+        ? t(lang, 'ratesNone')
+        : () {
+            final d = DateTime.fromMillisecondsSinceEpoch(s.fxFetchedAt);
+            String two(int v) => '$v'.padLeft(2, '0');
+            return '${t(lang, 'ratesUpdated')}: ${_shortDate(lang, epochDayOf(d))} ${two(d.hour)}:${two(d.minute)}';
+          }();
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(border: Border.all(color: col(th.onSurfaceDim), width: 2)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(t(lang, 'moneySettings'), style: pixelStyle(lang, 11, col(th.onSurface), text: t(lang, 'moneySettings'))),
+          const SizedBox(height: 12),
+          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            Flexible(
+                child: Text(t(lang, 'mainCurrency'),
+                    style: pixelStyle(lang, 10, col(th.onSurfaceDim), text: t(lang, 'mainCurrency')))),
+            DropdownButton<String>(
+              value: s.mainCurrency,
+              dropdownColor: col(th.panel),
+              style: pixelStyle(lang, 11, col(th.onSurface), text: s.mainCurrency),
+              items: [for (final c in s.currencyOptions) DropdownMenuItem(value: c, child: Text(c))],
+              onChanged: (v) {
+                if (v != null) s.setMainCurrency(v);
+              },
+            ),
+          ]),
+          const SizedBox(height: 10),
+          Row(children: [
+            Expanded(child: Text(t(lang, 'dailyRate'), style: pixelStyle(lang, 10, col(th.onSurfaceDim), text: t(lang, 'dailyRate')))),
+            SizedBox(width: 130, child: _BudgetField(s: s, th: th, lang: lang)),
+          ]),
+          const SizedBox(height: 6),
+          Text(t(lang, 'dailyRateHelp'), style: pixelStyle(lang, 8, col(th.onSurfaceDim), text: t(lang, 'dailyRateHelp'))),
+          const SizedBox(height: 12),
+          // where the conversions come from, and a way to retry by hand
+          Row(children: [
+            Expanded(
+              child: Text(rates, style: pixelStyle(lang, 7, col(th.onSurfaceDim), text: rates)),
+            ),
+            secondaryBtn(th, lang, t(lang, 'refresh'), () => s.refreshFx(force: true),
+                fontSize: 8, padding: const EdgeInsets.all(8), key: const Key('moneyRefreshRates')),
+          ]),
+        ],
+      ),
+    );
+  }
+}
+
+/// The add / edit entry dialog. Its own State so the text controllers live as
+/// long as the dialog does (and are disposed), and so a bad amount can keep the
+/// dialog open with a message instead of closing on it — the old dialog closed
+/// either way, so "1.250,50" just vanished without a word.
+class _TxDialog extends StatefulWidget {
+  final AppStore s;
+  final MoneyTx? existing;
+  final bool isExpense;
+  final int initialDay;
+  final VoidCallback? onDelete;
+  const _TxDialog({
+    required this.s,
+    required this.existing,
+    required this.isExpense,
+    required this.initialDay,
+    this.onDelete,
+  });
+  @override
+  State<_TxDialog> createState() => _TxDialogState();
+}
+
+class _TxDialogState extends State<_TxDialog> {
+  late final TextEditingController _amount;
+  late final TextEditingController _note;
+  late bool _isExpense = widget.isExpense;
+  late String _currency = widget.existing?.currency ?? widget.s.mainCurrency;
+  late int _day = widget.initialDay;
+  late String _cat;
+  bool _bad = false;
+
+  AppStore get s => widget.s;
+
+  List<String> get _cats {
+    final base = [...(_isExpense ? _expenseCats : _incomeCats), ...s.customCategories];
+    // an entry whose custom category was since removed keeps it selectable
+    // (a built-in of the other type doesn't: switching type moves off it)
+    final keep = widget.existing?.category;
+    final removedCustom =
+        keep != null && !base.contains(keep) && !_expenseCats.contains(keep) && !_incomeCats.contains(keep);
+    return removedCustom ? [...base, keep] : base;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.existing;
+    _amount = TextEditingController(
+        text: e == null ? '' : MoneyAmount.toInput(e.amountMinor, e.currency, lang: s.lang));
+    _note = TextEditingController(text: e?.note ?? '');
+    _cat = e?.category ?? _cats.first;
+  }
+
+  @override
+  void dispose() {
+    _amount.dispose();
+    _note.dispose();
+    super.dispose();
+  }
+
+  void _setType(bool expense) {
+    if (expense == _isExpense) return;
+    setState(() {
+      _isExpense = expense;
+      if (!_cats.contains(_cat)) _cat = _cats.first;
+    });
+  }
+
+  void _save() {
+    final minor = MoneyAmount.parse(_amount.text);
+    if (minor == null) {
+      setState(() => _bad = true);
+      return;
+    }
+    final note = _note.text.trim();
+    final e = widget.existing;
+    if (e == null) {
+      s.addMoneyTx(minor, _currency, _cat, _isExpense, note, epochDay: _day);
+    } else {
+      s.updateMoneyTx(
+          e,
+          e.copyWith(
+              epochDay: _day, amountMinor: minor, currency: _currency, category: _cat, isExpense: _isExpense, note: note));
+    }
+    Navigator.pop(context);
+  }
+
+  Widget _chip(PixelTheme th, String lang, String text, bool sel, VoidCallback onTap,
+          {VoidCallback? onLongPress, Key? key}) =>
+      GestureDetector(
+        key: key,
+        onTap: onTap,
+        onLongPress: onLongPress,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          decoration: BoxDecoration(
+            color: col(sel ? th.accent : th.bg),
+            border: Border.all(color: col(th.onSurfaceDim), width: 1),
+          ),
+          child: Text(text, style: pixelStyle(lang, 8, col(sel ? th.onAccent : th.onSurface), text: text)),
+        ),
+      );
+
+  void _removeCategory(PixelTheme th, String lang, String c) {
+    showDialog(
+      context: context,
+      builder: (ctx2) => AlertDialog(
+        backgroundColor: col(th.panel),
+        content: Text(tf(lang, 'removeCategoryMsg', [c]),
+            style: pixelStyle(lang, 11, col(th.onSurface), text: tf(lang, 'removeCategoryMsg', [c]))),
+        actions: [
+          secondaryBtn(th, lang, t(lang, 'no'), () => Navigator.pop(ctx2), fontSize: 10, padding: const EdgeInsets.all(10)),
+          primaryBtn(th, lang, t(lang, 'yes'), () {
+            s.removeCustomCategory(c);
+            setState(() {
+              if (_cat == c) _cat = _cats.first;
+            });
+            Navigator.pop(ctx2);
+          }, fontSize: 10, padding: const EdgeInsets.all(10)),
+        ],
+      ),
+    );
+  }
+
+  void _addCategory(PixelTheme th, String lang) {
     final ctrl = TextEditingController();
     showDialog(
       context: context,
@@ -5114,6 +5329,7 @@ class _MoneyScreenState extends State<MoneyScreen> {
         content: TextField(
           controller: ctrl,
           autofocus: true,
+          maxLength: 16,
           style: pixelStyle(lang, 11, col(th.onSurface), text: 'Aa'),
           decoration: InputDecoration(
             hintText: t(lang, 'categoryNameHint'),
@@ -5126,73 +5342,160 @@ class _MoneyScreenState extends State<MoneyScreen> {
             final n = ctrl.text.trim().toUpperCase();
             if (n.isNotEmpty) {
               s.addCustomCategory(n);
-              onAdded(n);
+              setState(() => _cat = n);
             }
             Navigator.pop(ctx);
           }, fontSize: 10, padding: const EdgeInsets.all(10)),
         ],
       ),
-    );
+    ).whenComplete(ctrl.dispose);
   }
 
-  void _deleteTx(BuildContext context, AppStore s, MoneyTx tx) {
+  @override
+  Widget build(BuildContext context) {
     final th = s.theme;
     final lang = s.lang;
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: col(th.panel),
-        content: Text('${t(lang, tx.category)} · ${_money(s.moneyToMain(tx), s.mainCurrency)}',
-            style: pixelStyle(lang, 11, col(th.onSurface), text: t(lang, tx.category))),
-        actions: [
-          secondaryBtn(th, lang, t(lang, 'no'), () => Navigator.pop(ctx), fontSize: 10, padding: const EdgeInsets.all(10)),
-          primaryBtn(th, lang, t(lang, 'yes'), () {
-            s.deleteMoneyTx(tx);
-            Navigator.pop(ctx);
-          }, fontSize: 10, padding: const EdgeInsets.all(10)),
-        ],
-      ),
-    );
-  }
-
-  Widget _moneySettings(BuildContext context, AppStore s, PixelTheme th, String lang) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(border: Border.all(color: col(th.onSurfaceDim), width: 2)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(t(lang, 'moneySettings'), style: pixelStyle(lang, 11, col(th.onSurface), text: t(lang, 'moneySettings'))),
-          const SizedBox(height: 12),
-          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            Text(t(lang, 'mainCurrency'), style: pixelStyle(lang, 10, col(th.onSurfaceDim), text: t(lang, 'mainCurrency'))),
-            DropdownButton<String>(
-              value: s.mainCurrency,
-              dropdownColor: col(th.panel),
-              style: pixelStyle(lang, 11, col(th.onSurface), text: s.mainCurrency),
-              items: [for (final c in s.currencyOptions) DropdownMenuItem(value: c, child: Text(c))],
-              onChanged: (v) { if (v != null) s.setMainCurrency(v); },
+    final today = epochDayOf(DateTime.now());
+    final editing = widget.existing != null;
+    final title = t(lang, editing ? 'editEntry' : (_isExpense ? 'addExpense' : 'addIncome'));
+    final dayText = _day == today
+        ? t(lang, 'today')
+        : _day == today - 1
+            ? t(lang, 'yesterday')
+            : '${_shortDate(lang, _day)} ${dateOfEpochDay(_day).year}';
+    return AlertDialog(
+      backgroundColor: col(th.panel),
+      title: Text(title, style: pixelStyle(lang, 11, col(th.onSurface), text: title)),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // expense / income — switchable, so a wrong pick isn't a re-type
+            Row(children: [
+              Expanded(
+                  child: _chip(th, lang, t(lang, 'expense'), _isExpense, () => _setType(true),
+                      key: const Key('txTypeExpense'))),
+              const SizedBox(width: 6),
+              Expanded(
+                  child: _chip(th, lang, t(lang, 'income'), !_isExpense, () => _setType(false),
+                      key: const Key('txTypeIncome'))),
+            ]),
+            const SizedBox(height: 10),
+            Row(children: [
+              Expanded(
+                child: TextField(
+                  key: const Key('txAmount'),
+                  controller: _amount,
+                  autofocus: !editing,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  style: pixelStyle(lang, 13, col(th.onSurface), text: '0'),
+                  onChanged: (_) {
+                    if (_bad) setState(() => _bad = false);
+                  },
+                  onSubmitted: (_) => _save(),
+                  decoration: InputDecoration(
+                    hintText: t(lang, 'amount'),
+                    hintStyle: pixelStyle(lang, 10, col(th.onSurfaceDim), text: t(lang, 'amount')),
+                    errorText: _bad ? t(lang, 'invalidAmount') : null,
+                    errorMaxLines: 2,
+                    errorStyle: pixelStyle(lang, 7, col(th.accent), text: t(lang, 'invalidAmount')),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              DropdownButton<String>(
+                value: _currency,
+                dropdownColor: col(th.panel),
+                style: pixelStyle(lang, 10, col(th.onSurface), text: _currency),
+                items: [
+                  for (final c in {...s.currencyOptions, _currency}) DropdownMenuItem(value: c, child: Text(c))
+                ],
+                onChanged: (v) => setState(() => _currency = v ?? _currency),
+              ),
+            ]),
+            const SizedBox(height: 12),
+            // the day it happened — entries used to be stamped "now", so a
+            // forgotten coffee from yesterday could never be logged
+            Text(t(lang, 'date'), style: pixelStyle(lang, 9, col(th.onSurfaceDim), text: t(lang, 'date'))),
+            const SizedBox(height: 6),
+            Row(children: [
+              SizedBox(
+                width: 44,
+                child: secondaryBtn(th, lang, '<', () => setState(() => _day--),
+                    fontSize: 11, padding: const EdgeInsets.all(8), key: const Key('txDayPrev')),
+              ),
+              Expanded(
+                child: Center(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(dayText, style: pixelStyle(lang, 10, col(th.onSurface), text: dayText)),
+                  ),
+                ),
+              ),
+              SizedBox(
+                width: 44,
+                child: secondaryBtn(th, lang, '>', _day >= today ? null : () => setState(() => _day++),
+                    fontSize: 11, padding: const EdgeInsets.all(8), opacity: _day >= today ? 0.35 : 1,
+                    key: const Key('txDayNext')),
+              ),
+            ]),
+            const SizedBox(height: 12),
+            Text(t(lang, 'category'), style: pixelStyle(lang, 9, col(th.onSurfaceDim), text: t(lang, 'category'))),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final c in _cats)
+                  _chip(th, lang, t(lang, c), _cat == c, () => setState(() => _cat = c),
+                      // custom categories delete on long-press, like habit
+                      // cards; built-ins have no handler (#v30.9 rec 2)
+                      onLongPress: s.customCategories.contains(c) ? () => _removeCategory(th, lang, c) : null),
+                _chip(th, lang, '+ ${t(lang, 'addCategory')}', false, () => _addCategory(th, lang)),
+              ],
             ),
-          ]),
-          const SizedBox(height: 10),
-          Row(children: [
-            Expanded(child: Text(t(lang, 'dailyRate'), style: pixelStyle(lang, 10, col(th.onSurfaceDim), text: t(lang, 'dailyRate')))),
-            SizedBox(width: 110, child: _BudgetField(s: s, th: th, lang: lang)),
-          ]),
-          const SizedBox(height: 6),
-          Text(t(lang, 'dailyRateHelp'), style: pixelStyle(lang, 8, col(th.onSurfaceDim), text: t(lang, 'dailyRateHelp'))),
-        ],
+            if (s.customCategories.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(t(lang, 'catLongPress'),
+                  style: pixelStyle(lang, 7, col(th.onSurfaceDim), text: t(lang, 'catLongPress'))),
+            ],
+            const SizedBox(height: 10),
+            TextField(
+              key: const Key('txNote'),
+              controller: _note,
+              maxLength: 60,
+              style: pixelStyle(lang, 10, col(th.onSurface), text: 'Aa'),
+              decoration: InputDecoration(
+                hintText: t(lang, 'note'),
+                hintStyle: pixelStyle(lang, 9, col(th.onSurfaceDim), text: t(lang, 'note')),
+              ),
+            ),
+          ],
+        ),
       ),
+      actions: [
+        if (widget.onDelete != null)
+          secondaryBtn(th, lang, t(lang, 'delete'), () {
+            Navigator.pop(context);
+            widget.onDelete!();
+          }, fontSize: 10, padding: const EdgeInsets.all(10), key: const Key('txDelete')),
+        secondaryBtn(th, lang, t(lang, 'cancel'), () => Navigator.pop(context),
+            fontSize: 10, padding: const EdgeInsets.all(10)),
+        primaryBtn(th, lang, t(lang, editing ? 'save' : 'add'), _save,
+            fontSize: 10, padding: const EdgeInsets.all(10), key: const Key('txSave')),
+      ],
     );
   }
 }
 
 /// The DAILY BUDGET input. Owns its controller in State — the old inline
 /// `TextEditingController(...)` in the parent's build() was recreated on
-/// EVERY AppStore notification, wiping an in-progress edit (the fx refresh
-/// fired seconds after the screen opened, which is exactly when the user is
-/// typing here — found in the #v30.8 bug sweep). Also fixes the controller
-/// leak (the inline one was never disposed).
+/// EVERY AppStore notification, wiping an in-progress edit (#v30.8 bug sweep).
+///
+/// Saves as you type (#v38). It used to save only on the keyboard's
+/// done/enter key, so typing a budget and tapping CLOSE — what most people
+/// do — silently threw it away.
 class _BudgetField extends StatefulWidget {
   final AppStore s;
   final PixelTheme th;
@@ -5208,8 +5511,9 @@ class _BudgetFieldState extends State<_BudgetField> {
   @override
   void initState() {
     super.initState();
-    final rate = (widget.s.dailyRateMinor / 100).toStringAsFixed(0);
-    _ctrl = TextEditingController(text: rate == '0' ? '' : rate);
+    final s = widget.s;
+    _ctrl = TextEditingController(
+        text: s.dailyRateMinor <= 0 ? '' : MoneyAmount.toInput(s.dailyRateMinor, s.mainCurrency, lang: widget.lang));
   }
 
   @override
@@ -5218,12 +5522,15 @@ class _BudgetFieldState extends State<_BudgetField> {
     super.dispose();
   }
 
+  void _commit(String v) => widget.s.setDailyRate(v.trim().isEmpty ? 0 : (MoneyAmount.parse(v) ?? 0));
+
   @override
   Widget build(BuildContext context) {
     final s = widget.s, th = widget.th, lang = widget.lang;
     return TextField(
+      key: const Key('moneyBudget'),
       controller: _ctrl,
-      keyboardType: TextInputType.number,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
       textAlign: TextAlign.right,
       style: pixelStyle(lang, 12, col(th.onSurface), text: _ctrl.text),
       decoration: InputDecoration(
@@ -5231,10 +5538,8 @@ class _BudgetFieldState extends State<_BudgetField> {
         suffixText: ' ${s.mainCurrency}',
         suffixStyle: pixelStyle(lang, 9, col(th.onSurfaceDim), text: s.mainCurrency),
       ),
-      onSubmitted: (v) {
-        final d = double.tryParse(v.replaceAll(',', '.')) ?? 0;
-        s.setDailyRate((d * 100).round());
-      },
+      onChanged: _commit,
+      onSubmitted: _commit,
     );
   }
 }

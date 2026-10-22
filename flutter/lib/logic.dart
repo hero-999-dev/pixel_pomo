@@ -1707,6 +1707,112 @@ class MoneyTx {
   const MoneyTx(this.epochDay, this.minuteOfDay, this.amountMinor, this.currency,
       this.category, this.isExpense,
       [this.note = '']);
+
+  MoneyTx copyWith({
+    int? epochDay,
+    int? amountMinor,
+    String? currency,
+    String? category,
+    bool? isExpense,
+    String? note,
+  }) =>
+      MoneyTx(epochDay ?? this.epochDay, minuteOfDay, amountMinor ?? this.amountMinor,
+          currency ?? this.currency, category ?? this.category, isExpense ?? this.isExpense,
+          note ?? this.note);
+}
+
+/// Reading and writing amounts the way people actually type and read them.
+class MoneyAmount {
+  /// Largest amount one entry may hold (in whole units) — far beyond any real
+  /// entry, but small enough that a stray row of digits can't wreck the totals.
+  static const maxUnits = 999999999;
+
+  /// Currencies written without decimals; amounts are still stored ×100.
+  static const zeroDecimal = {'JPY', 'KRW', 'CLP', 'ISK', 'VND', 'IDR', 'HUF', 'COP'};
+
+  /// [text] → minor units (×100), or null if it is not a positive amount.
+  ///
+  /// The old `double.tryParse(text.replaceAll(',', '.'))` silently rejected
+  /// "1.250,50" and "1,250.50" — the add dialog then just closed and the
+  /// entry was gone. Accepts either separator style:
+  ///   * both `.` and `,` present → the LAST one is the decimal mark;
+  ///   * one kind, followed by exactly 3 digits → grouping ("1.250" = 1250);
+  ///   * otherwise it is the decimal mark ("12,5" = 12.50).
+  /// Spaces, apostrophes (1'250) and currency symbols are ignored.
+  static int? parse(String text) {
+    var t = text.trim().replaceAll(RegExp(r"[\s'’_]"), '');
+    t = t.replaceAll(RegExp(r'[^0-9.,]'), '');
+    if (t.isEmpty || !RegExp(r'[0-9]').hasMatch(t)) return null;
+    final lastDot = t.lastIndexOf('.'), lastComma = t.lastIndexOf(',');
+    String intPart, frac = '';
+    if (lastDot >= 0 && lastComma >= 0) {
+      // the decimal mark is the last one and appears once; the other kind
+      // only groups thousands in front of it
+      final dec = math.max(lastDot, lastComma);
+      final mark = t[dec], group = mark == '.' ? ',' : '.';
+      final head = t.substring(0, dec);
+      if (head.contains(mark)) return null;
+      final groups = head.split(group);
+      if (groups.first.isEmpty || groups.skip(1).any((g) => g.length != 3)) return null;
+      intPart = groups.join();
+      frac = t.substring(dec + 1);
+    } else if (lastDot >= 0 || lastComma >= 0) {
+      final sep = lastDot >= 0 ? '.' : ',';
+      final parts = t.split(sep);
+      final groups = parts.length > 2 || parts.last.length == 3;
+      if (groups) {
+        // every group after the first must be exactly 3 digits
+        if (parts.skip(1).any((g) => g.length != 3) || parts.first.isEmpty) {
+          if (parts.length > 2) return null;
+          intPart = parts.first;
+          frac = parts.last;
+        } else {
+          intPart = parts.join();
+        }
+      } else {
+        intPart = parts.first;
+        frac = parts.last;
+      }
+    } else {
+      intPart = t;
+    }
+    if (frac.length > 2) return null;
+    if (intPart.isEmpty) intPart = '0';
+    final whole = int.tryParse(intPart);
+    final cents = frac.isEmpty ? 0 : int.tryParse(frac.padRight(2, '0'));
+    if (whole == null || cents == null || whole > maxUnits) return null;
+    final minor = whole * 100 + cents;
+    return minor > 0 ? minor : null;
+  }
+
+  /// "TRY 1.250,50"-style display, with thousands grouping: `1,250.50` for
+  /// English, `1.250,50` for the languages that write it that way.
+  static String format(double v, String cur, {String lang = 'en'}) {
+    final zero = zeroDecimal.contains(cur);
+    final minor = (v.abs() * 100).round();
+    final whole = zero ? (minor + 50) ~/ 100 : minor ~/ 100;
+    final digits = '$whole';
+    final commaDecimal = lang != 'en';
+    final group = commaDecimal ? (lang == 'pl' || lang == 'fr' ? ' ' : '.') : ',';
+    final b = StringBuffer();
+    for (var i = 0; i < digits.length; i++) {
+      if (i > 0 && (digits.length - i) % 3 == 0) b.write(group);
+      b.write(digits[i]);
+    }
+    if (!zero) {
+      b
+        ..write(commaDecimal ? ',' : '.')
+        ..write('${minor % 100}'.padLeft(2, '0'));
+    }
+    return '$cur $b';
+  }
+
+  /// Minor units → the text an edit field starts with ("12.5" → "12,50" in tr).
+  static String toInput(int minor, String cur, {String lang = 'en'}) {
+    final whole = minor ~/ 100, cents = minor % 100;
+    if (cents == 0 || zeroDecimal.contains(cur)) return '$whole';
+    return '$whole${lang == 'en' ? '.' : ','}${'$cents'.padLeft(2, '0')}';
+  }
 }
 
 class MoneyBook {
@@ -1751,6 +1857,12 @@ class MoneyBook {
     if (rc == null || rm == null || rc == 0) return v;
     return v / rc * rm;
   }
+
+  /// Any entry in [txs] whose amount can't be converted to [main] (its rate
+  /// or main's is missing) — the totals then add it unconverted, so the
+  /// screen must say so instead of quietly mixing currencies.
+  static bool hasUnconverted(Iterable<MoneyTx> txs, Map<String, double> rates, String main) =>
+      txs.any((t) => t.currency != main && (rates[t.currency] == null || rates[main] == null));
 
   static double spentOnDay(
       List<MoneyTx> txs, int day, Map<String, double> rates, String main) {

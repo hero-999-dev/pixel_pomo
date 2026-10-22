@@ -110,6 +110,11 @@ classic arcade look.
   *TURKISH · 7 days · 15 times*, no extra tapping).
 - **🐷 Money Tracker** — a simple **income / expense ledger**. **Entries keep the currency you spent in** —
   earn euros, spend złoty on holiday, and the row still reads 150 PLN with its euro equivalent right under it.
+  **Tap an entry to edit it** (amount, currency, type, day, category, note) or delete it — a delete can be
+  **UNDOne** for a few seconds; long-press deletes straight from the list. Entries can be **back-dated** (the
+  coffee you forgot to log yesterday), and amounts are read the way you type them — `1.250,50`, `1,250.50`,
+  `12,5` all work, and totals show thousands grouped. A **SPENT TODAY** card shows today against your daily
+  budget with what's left; tap a **category bar** to list only its entries.
   Categories are extendable via **+ ADD CATEGORY** (long-press a custom one to remove it). **Monthly totals
   with a signed NET line**, **category bars**, a **bar / pie chart** (daily / weekly / monthly, with a **◀ ▶
   history navigator**), and **paged entries**. Pick a **main currency**; rates refresh from the internet

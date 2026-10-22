@@ -530,21 +530,53 @@ class AppStore extends ChangeNotifier {
 
   // ---- money manager (#v29) -------------------------------------------------
 
+  /// Logs an entry — today unless [epochDay] says otherwise (a coffee you
+  /// forgot to note yesterday). Future days are refused.
   void addMoneyTx(int amountMinor, String currency, String category,
-      bool isExpense, String note) {
+      bool isExpense, String note, {int? epochDay}) {
     if (amountMinor <= 0) return;
     final now = DateTime.now();
-    money.add(MoneyTx(epochDayOf(now), now.hour * 60 + now.minute, amountMinor,
+    final today = epochDayOf(now);
+    final day = epochDay == null || epochDay > today ? today : epochDay;
+    money.add(MoneyTx(day, now.hour * 60 + now.minute, amountMinor,
         currency, category, isExpense, note));
+    _saveMoney();
+  }
+
+  /// Replaces [old] with [updated] in place (edit dialog). No-op if [old] is
+  /// gone, or if the edit would leave a non-positive amount / a future day.
+  void updateMoneyTx(MoneyTx old, MoneyTx updated) {
+    final i = money.indexOf(old);
+    if (i < 0 || updated.amountMinor <= 0) return;
+    final today = epochDayOf(DateTime.now());
+    money[i] = updated.epochDay > today ? updated.copyWith(epochDay: today) : updated;
+    _saveMoney();
+  }
+
+  /// Removes [tx]; returns where it sat so [restoreMoneyTx] can undo it
+  /// (-1 if it was not there).
+  int deleteMoneyTx(MoneyTx tx) {
+    final i = money.indexOf(tx);
+    if (i < 0) return -1;
+    money.removeAt(i);
+    _saveMoney();
+    return i;
+  }
+
+  /// UNDO for [deleteMoneyTx]: puts [tx] back where it was.
+  void restoreMoneyTx(MoneyTx tx, int index) {
+    if (money.contains(tx)) return;
+    money.insert(index.clamp(0, money.length), tx);
+    _saveMoney();
+  }
+
+  void _saveMoney() {
     _prefs.setString(_kMoney, MoneyBook.encode(money));
     notifyListeners();
   }
 
-  void deleteMoneyTx(MoneyTx tx) {
-    money.remove(tx);
-    _prefs.setString(_kMoney, MoneyBook.encode(money));
-    notifyListeners();
-  }
+  /// Expenses logged today, in the main currency — the daily-budget meter.
+  double get spentToday => MoneyBook.spentOnDay(money, epochDayOf(DateTime.now()), fxRates, mainCurrency);
 
   void setMainCurrency(String cur) {
     mainCurrency = cur;
