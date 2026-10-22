@@ -14,6 +14,7 @@ import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.cos
 import kotlin.math.floor
+import kotlin.math.hypot
 import kotlin.math.min
 import kotlin.math.sin
 import kotlin.math.sqrt
@@ -449,14 +450,7 @@ class GardenRenderer(private val data: GardenData) {
             // snapping the frame the state flips — mirrors the in-app easing;
             // the wallpaper had been left with the instant jump (#v25 item4,
             // #v31.17, ease #v32)
-            val travelLift = 0.25
-            val k = (c.timer / 0.4).coerceIn(0.0, 1.0)
-            val liftFrac = when (c.state) {
-                CState.APPROACH -> travelLift
-                CState.HOVER -> travelLift + (c.perch - travelLift) * k
-                CState.LEAVE -> c.perch + (travelLift - c.perch) * k
-            }
-            val lift = t * liftFrac
+            val lift = t * c.liftFrac()
             val px = sx.toFloat(); val py = (sy + bob - lift).toFloat()
             canvas.drawBitmap(bmp, src, RectF(px - s / 2, py - s / 2, px + s / 2, py + s / 2), paint)
         }
@@ -468,10 +462,28 @@ class GardenRenderer(private val data: GardenData) {
     private class Critter(
         val kind: String, var x: Double, var y: Double, var tx: Double, var ty: Double,
         val speed: Double, val phase: Double, val hoverFor: Double, val perch: Double,
+        // seconds this visit may take before it is sent home — mirrors Dart's
+        // Critter.budget: running out sends it away instead of deleting it
+        // mid-air, which popped bees out of thin air on an expanded plot (#3)
+        val budget: Double,
     ) {
         var state = CState.APPROACH
         var timer = 0.0
         var life = 0.0
+        // lift at the moment it turned to leave, so the glide down starts from
+        // where it really was (no one-frame jump up to the perch)
+        var leaveLift = TRAVEL_LIFT
+
+        fun liftFrac(): Double {
+            val k = (timer / 0.4).coerceIn(0.0, 1.0)
+            return when (state) {
+                CState.APPROACH -> TRAVEL_LIFT
+                CState.HOVER -> TRAVEL_LIFT + (perch - TRAVEL_LIFT) * k
+                CState.LEAVE -> leaveLift + (TRAVEL_LIFT - leaveLift) * k
+            }
+        }
+
+        companion object { const val TRAVEL_LIFT = 0.25 }
     }
 
     /**
@@ -516,11 +528,13 @@ class GardenRenderer(private val data: GardenData) {
                 // captured at spawn, so without this the critter sniffs an empty
                 // patch of grass until the lifetime cap.
                 if (c.state != CState.LEAVE && !flowerStillThere(c.tx, c.ty, flowers)) sendAway(c, half)
+                // out of time: fly off rather than vanish where it is (#3)
+                if (c.state != CState.LEAVE && c.life > c.budget) sendAway(c, half)
                 stepOne(c, d, half)
             }
-            // despawn on exit OR past the hard lifetime cap, so none can stick (#3)
+            // despawn once off the plot; the hard cap is only a backstop (#3)
             list.removeAll { c ->
-                c.life > MAX_LIFE ||
+                c.life > c.budget + half + 4 ||
                     (c.state == CState.LEAVE && (abs(c.x) > half + 0.5 || abs(c.y) > half + 0.5))
             }
         }
@@ -535,12 +549,19 @@ class GardenRenderer(private val data: GardenData) {
             return false
         }
 
-        /** Turn a critter around and send it out the nearest side. */
+        /** Turn a critter around and send it out the nearest of the four sides
+         *  (was always left/right, so one by the top edge crossed the plot). */
         private fun sendAway(c: Critter, half: Double) {
+            c.leaveLift = c.liftFrac()
             c.state = CState.LEAVE
             c.timer = 0.0
-            c.tx = if (c.x < 0) -(half + 1) else (half + 1)
-            c.ty = c.y
+            if (abs(c.x) >= abs(c.y)) {
+                c.tx = if (c.x < 0) -(half + 1) else (half + 1)
+                c.ty = c.y
+            } else {
+                c.tx = c.x
+                c.ty = if (c.y < 0) -(half + 1) else (half + 1)
+            }
         }
 
         private fun spawn(half: Double, flowers: List<Pair<Double, Double>>) {
@@ -554,13 +575,21 @@ class GardenRenderer(private val data: GardenData) {
             // land at a randomized spot NEAR the flower, not its exact tile centre —
             // mirrors the in-app CritterSystem (garden_engine.dart _spawn) so the
             // wallpaper doesn't always target the identical pixel either (#v31.17).
-            val flower = flowers[Random.nextInt(flowers.size)]
+            // prefer a flower nobody is visiting yet, so two don't stack on one
+            val free = flowers.filter { f ->
+                list.none { c -> c.state != CState.LEAVE && hypot(c.tx - f.first, c.ty - f.second) <= 0.75 }
+            }
+            val pool = if (free.isEmpty()) flowers else free
+            val flower = pool[Random.nextInt(pool.size)]
             val tx = flower.first + (Random.nextDouble() * 2 - 1) * 0.35
             val ty = flower.second + (Random.nextDouble() * 2 - 1) * 0.35
+            val speed = 1.0 + Random.nextDouble() * 0.8
+            val hoverFor = 2.0 + Random.nextDouble() * 2.5
+            val budget = maxOf(MAX_LIFE, hypot(tx - start.first, ty - start.second) / speed + 1.5 + hoverFor + 1)
             list.add(Critter(
                 kinds[Random.nextInt(kinds.size)], start.first, start.second, tx, ty,
-                1.0 + Random.nextDouble() * 0.8, Random.nextDouble() * Math.PI * 2, 2.0 + Random.nextDouble() * 2.5,
-                0.20 + Random.nextDouble() * 0.65))
+                speed, Random.nextDouble() * Math.PI * 2, hoverFor,
+                0.20 + Random.nextDouble() * 0.65, budget))
         }
 
         private fun stepOne(c: Critter, dt: Double, half: Double) {

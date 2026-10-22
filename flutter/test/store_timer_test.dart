@@ -43,6 +43,25 @@ void main() {
     s.dispose();
   });
 
+  test('cancelling a run after a mid-run settings change pays for the time really spent', () async {
+    // the run keeps its old 25-min length, so 15 min were spent — not
+    // 50 - 10 = 40 computed from the NEW focus setting
+    SharedPreferences.setMockInitialValues({});
+    final s = AppStore();
+    await s.load();
+    final coinsBefore = s.coins;
+
+    s.start();
+    s.engine.setTimeLeft(10 * 60 * 1000);
+    s.saveSettings(50, 10, 6);
+    s.reset();
+
+    expect(s.records.last.minutes, 15);
+    expect(s.coins - coinsBefore, Economy.coinsFor(15));
+
+    s.dispose();
+  });
+
   test('saveSettings applies immediately when no run is in progress', () async {
     SharedPreferences.setMockInitialValues({});
     final s = AppStore();

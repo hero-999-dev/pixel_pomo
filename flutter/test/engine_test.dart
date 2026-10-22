@@ -140,9 +140,111 @@ void main() {
         sys.step(0.05, 6, flowers); // 200s total
       }
       expect(sys.critters.length, lessThanOrEqualTo(CritterSystem.maxActive));
+      // half = 6/2 + 0.8; a leaving critter is out within (half + 1.5) / 1.4 s
       for (final c in sys.critters) {
-        expect(c.life, lessThanOrEqualTo(Critter.maxLife + 0.2));
+        expect(c.life, lessThanOrEqualTo(c.budget + (3.8 + 1.5) / 1.4 + 0.2));
       }
+    });
+  });
+
+  group('Critters on a big plot fly off instead of popping out of the air (v37.1)', () {
+    // "böceklerde bug var": on an EXPANDed plot (rows grow +4 a step) the
+    // flight in alone could outlast the old 18s hard cap, which deleted the
+    // critter wherever it was — mid-air or sitting on a flower.
+    const n = 31; // a plot expanded a handful of times
+    const half = n / 2.0 + 0.8;
+    final flowers = [
+      for (var y = -14; y <= 14; y += 7)
+        for (var x = -6; x <= 6; x += 6) Offset(x.toDouble(), y.toDouble())
+    ];
+
+    test('every critter leaves the garden by flying out over an edge', () {
+      for (var seed = 0; seed < 20; seed++) {
+        final sys = CritterSystem(seed);
+        var before = <Critter>[];
+        for (var i = 0; i < 2400; i++) {
+          sys.step(0.05, n, flowers);
+          for (final c in before) {
+            if (sys.critters.contains(c)) continue;
+            expect(c.leaving, isTrue, reason: 'seed $seed: removed before it left');
+            expect(math.max(c.pos.dx.abs(), c.pos.dy.abs()), greaterThan(half),
+                reason: 'seed $seed: vanished at ${c.pos}, inside the garden');
+          }
+          before = [...sys.critters];
+        }
+      }
+    });
+
+    test('a long trip still gets to hover on its flower', () {
+      var hovered = 0, visits = 0;
+      for (var seed = 0; seed < 20; seed++) {
+        final sys = CritterSystem(seed);
+        final seen = <Critter>{}, sat = <Critter>{};
+        for (var i = 0; i < 2400; i++) {
+          sys.step(0.05, n, flowers);
+          for (final c in sys.critters) {
+            seen.add(c);
+            if (!c.leaving && (c.pos - c.target).distance < 0.06) sat.add(c);
+          }
+        }
+        visits += seen.length;
+        hovered += sat.length;
+      }
+      expect(visits, greaterThan(20));
+      // only the ones still on their way in when the loop stopped may miss out
+      expect(hovered, greaterThanOrEqualTo(visits - 20 * CritterSystem.maxActive));
+    });
+  });
+
+  group('Critters leave by the nearest edge (v37.1)', () {
+    test('one near the top edge flies out the top, not across the plot', () {
+      final flowers = [const Offset(0.4, -5)]; // just inside the top of a tall plot
+      for (var seed = 0; seed < 10; seed++) {
+        final sys = CritterSystem(seed);
+        for (var i = 0; i < 600 && (sys.critters.isEmpty || !sys.critters.first.leaving); i++) {
+          sys.step(0.05, 12, flowers);
+        }
+        final c = sys.critters.first;
+        if ((c.target.dy).abs() < 1) continue; // left mid-approach elsewhere
+        expect(c.target.dy, lessThan(-6), reason: 'seed $seed exits towards ${c.target}');
+      }
+    });
+  });
+
+  group('Critter lift glides when it turns away (v37.1)', () {
+    test('sent away mid-approach it does not jump up to its perch first', () {
+      final sys = CritterSystem(7);
+      for (var i = 0; i < 400 && sys.critters.isEmpty; i++) {
+        sys.step(0.05, 6, [const Offset(0, 0)]);
+      }
+      final c = sys.critters.first;
+      expect(c.leaving, isFalse);
+      final before = c.liftFrac;
+      sys.step(0.016, 6, const []); // flower dug up
+      expect(c.leaving, isTrue);
+      expect((c.liftFrac - before).abs(), lessThan(0.05),
+          reason: 'lift jumped from $before to ${c.liftFrac}');
+    });
+  });
+
+  group('Two visitors spread over the bed (v37.1)', () {
+    test('a second critter picks a flower nobody is visiting yet', () {
+      final flowers = [const Offset(-2, 0), const Offset(2, 0)];
+      var both = 0, apart = 0;
+      for (var seed = 0; seed < 40; seed++) {
+        final sys = CritterSystem(seed);
+        for (var i = 0; i < 800; i++) {
+          sys.step(0.05, 8, flowers);
+          final visiting = sys.critters.where((c) => !c.leaving).toList();
+          if (visiting.length == 2) {
+            both++;
+            if ((visiting[0].target - visiting[1].target).distance > 2) apart++;
+            break;
+          }
+        }
+      }
+      expect(both, greaterThan(3), reason: 'sanity: two visitors at once should happen');
+      expect(apart, both);
     });
   });
 

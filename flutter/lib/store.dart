@@ -768,7 +768,7 @@ class AppStore extends ChangeNotifier {
       // done — so the badge can't sit there ticking past zero with the old label.
       if (autoBreak) {
         showTimerNotification(deadline, currentLabel,
-            nextMs: breakMin * 60 * 1000, nextTitle: t(lang, 'break'), doneTitle: t(lang, 'breakDone'));
+            nextMs: engine.breakMillis, nextTitle: t(lang, 'break'), doneTitle: t(lang, 'breakDone'));
       } else {
         showTimerNotification(deadline, currentLabel, doneTitle: t(lang, 'workDone'));
       }
@@ -782,7 +782,7 @@ class AppStore extends ChangeNotifier {
     if (isPomodoroMode) {
       // cancelling a started focus session still pays out the time spent (#6)
       if (engine.mode == Mode.work && engine.timeLeftMillis < engine.workMillis) {
-        final spent = Economy.elapsedFocusMinutes(workMin, engine.timeLeftMillis);
+        final spent = Economy.elapsedFocusMinutes(_runWorkMin, engine.timeLeftMillis);
         if (spent > 0) {
           final now = DateTime.now();
           records.add(SessionRecord(epochDayOf(now), spent, currentLabel,
@@ -823,15 +823,22 @@ class AppStore extends ChangeNotifier {
   void toggleStartPause() =>
       (isPomodoroMode ? engine.isRunning : stopwatch.isRunning) ? pause() : start();
 
+  /// Focus length of the run actually in progress. Not [workMin]: a settings
+  /// save mid-run leaves the engine on its OLD durations (#v31.15), so paying
+  /// out from [workMin] logged — and paid coins for — the new length instead
+  /// (25 min done, setting changed to 90 → 90 min and 18 coins).
+  int get _runWorkMin => engine.workMillis ~/ 60000;
+
   void _recordWork() {
     final now = DateTime.now();
-    records.add(SessionRecord(epochDayOf(now), workMin, currentLabel,
+    final minutes = _runWorkMin;
+    records.add(SessionRecord(epochDayOf(now), minutes, currentLabel,
         minuteOfDay: now.hour * 60 + now.minute));
     _saveStats();
     // re-affirm the active label on this durable write so it can't be lost
     // between sessions (#v25 item2 hardening)
     _prefs.setString(_kCurrentLabel, currentLabel);
-    coins += Economy.coinsFor(workMin);
+    coins += Economy.coinsFor(minutes);
     _saveWallet();
   }
 

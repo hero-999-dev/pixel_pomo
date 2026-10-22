@@ -878,9 +878,19 @@ enum _CState { approach, hover, leave }
 /// coordinates** — so it rotates/zooms with the map — entering from a plot edge,
 /// flying to a flower, hovering as if sniffing, then leaving and despawning.
 class Critter {
-  /// Hard cap on how long a critter may live, in seconds, regardless of state —
-  /// guarantees one can never get stuck (e.g. among the trees) forever (#3).
+  /// Minimum visit budget, in seconds (#3). It used to be a hard cap that
+  /// deleted the critter on the spot, which on an EXPANDed plot (the rows grow
+  /// +4 per expand) popped bees out of thin air mid-flight or mid-hover: the
+  /// flight in alone could take longer than 18s. Now each critter gets
+  /// [budget] = max(this, its own flight + hover time), and running out of it
+  /// sends the critter away gracefully instead of deleting it.
   static const double maxLife = 18.0;
+
+  /// Height (fraction of a tile) critters fly at between flowers.
+  static const double travelLift = 0.25;
+
+  /// Seconds to glide between travel height and a perch.
+  static const double liftEase = 0.4;
 
   final String kind;
   Offset pos; // garden coords (tile units)
@@ -895,11 +905,32 @@ class Critter {
   // of a tile — randomized per critter so visits land anywhere from near
   // the base to near the bloom, not always the same spot (#v31.17).
   final double perch;
+  // seconds this visit may take before the critter is sent home
+  final double budget;
+  // lift fraction at the moment it turned to leave, so the glide back down to
+  // travel height starts from where it really was. Easing from [perch] made a
+  // critter sent away mid-approach (flower dug up) or within the first 0.4s of
+  // a hover jump up to its perch for one frame first.
+  double _leaveLift = travelLift;
 
-  Critter(this.kind, this.pos, this.target, this.speed, this.phase, this.hoverFor, this.perch);
+  Critter(this.kind, this.pos, this.target, this.speed, this.phase, this.hoverFor, this.perch,
+      [double? budget])
+      : budget = budget ?? maxLife;
 
   /// On its way out of the garden — no longer visiting anything.
   bool get leaving => state == _CState.leave;
+
+  /// How high above the ground it flies right now, as a fraction of a tile:
+  /// low while travelling, easing up to its own [perch] while visiting and
+  /// back down when it leaves — a glide, never an instant jump (#v31.21).
+  double get liftFrac {
+    final k = (timer / liftEase).clamp(0.0, 1.0);
+    return switch (state) {
+      _CState.approach => travelLift,
+      _CState.hover => travelLift + (perch - travelLift) * k,
+      _CState.leave => _leaveLift + (travelLift - _leaveLift) * k,
+    };
+  }
 }
 
 /// Owns the (at most 2) active critters and spawns them occasionally. Works
@@ -942,11 +973,15 @@ class CritterSystem {
       // up to the 18s lifetime cap. Re-checked every frame against the CURRENT
       // list, which step() is already handed.
       if (!c.leaving && !_flowerStillThere(c.target, flowers)) _sendAway(c, half);
+      // out of time: fly off rather than vanish where it is (#3)
+      if (!c.leaving && c.life > c.budget) _sendAway(c, half);
       _stepOne(c, d, half);
     }
-    // despawn on exit OR once past the hard lifetime cap, so none can stick (#3)
+    // despawn once it has flown off the plot. The hard cap is only a backstop
+    // now: a leaving critter flies straight out at >= 1.4 tiles/s and is never
+    // more than half + 1 tiles from its exit, so it is gone well before it.
     critters.removeWhere((c) =>
-        c.life > Critter.maxLife ||
+        c.life > c.budget + half + 4 ||
         (c.state == _CState.leave &&
             (c.pos.dx.abs() > half + 0.5 || c.pos.dy.abs() > half + 0.5)));
   }
@@ -964,11 +999,18 @@ class CritterSystem {
   }
 
   /// Turn a critter around and send it out the nearest side.
+  ///
+  /// It used to always pick the nearer LEFT/RIGHT side, so a bee sitting just
+  /// inside the top edge of a tall plot flew sideways across the whole garden
+  /// instead of hopping half a tile out the top.
   void _sendAway(Critter c, double half) {
+    c._leaveLift = c.liftFrac;
     c.state = _CState.leave;
     c.timer = 0;
-    final ex = c.pos.dx < 0 ? -(half + 1) : (half + 1);
-    c.target = Offset(ex, c.pos.dy);
+    final x = c.pos.dx, y = c.pos.dy;
+    c.target = x.abs() >= y.abs()
+        ? Offset(x < 0 ? -(half + 1) : (half + 1), y)
+        : Offset(x, y < 0 ? -(half + 1) : (half + 1));
   }
 
   void _spawn(double half, List<Offset> flowers) {
@@ -982,16 +1024,30 @@ class CritterSystem {
     // land at a randomized spot NEAR the flower, not its exact tile centre
     // every time — a fixed target made every visit converge on the same
     // pixel, which read as snapping/teleporting rather than a real flight (#2).
-    final flower = flowers[_r.nextInt(flowers.length)];
+    //
+    // Prefer a flower nobody is visiting yet, so the two visitors don't stack
+    // on the same plant while the rest of the bed sits empty.
+    final free = [
+      for (final f in flowers)
+        if (!critters.any((c) => !c.leaving && (c.target - f).distance <= 0.75)) f
+    ];
+    final pool = free.isEmpty ? flowers : free;
+    final flower = pool[_r.nextInt(pool.length)];
     final target = flower + Offset((_r.nextDouble() * 2 - 1) * 0.35, (_r.nextDouble() * 2 - 1) * 0.35);
+    final speed = 1.0 + _r.nextDouble() * 0.8; // tiles/sec
+    final hoverFor = 2.0 + _r.nextDouble() * 2.5;
+    // the flight in (plus the slow final ease-in) and the hover, with slack:
+    // a long trip across a big plot must not run out of time halfway (#3)
+    final budget = math.max(Critter.maxLife, (target - start).distance / speed + 1.5 + hoverFor + 1);
     critters.add(Critter(
       kinds[_r.nextInt(kinds.length)],
       start,
       target,
-      1.0 + _r.nextDouble() * 0.8, // tiles/sec
+      speed,
       _r.nextDouble() * math.pi * 2,
-      2.0 + _r.nextDouble() * 2.5,
+      hoverFor,
       0.20 + _r.nextDouble() * 0.65, // perch: near the base up to near the bloom (#v31.17)
+      budget,
     ));
   }
 
@@ -1443,15 +1499,7 @@ class GardenPainter extends CustomPainter {
       // Glide smoothly over the transition instead of snapping instantly the
       // moment it arrives/leaves — the instant jump was still visible even
       // once the landing height itself was randomized (#v31.21).
-      const travelLift = 0.25;
-      const ease = 0.4; // seconds to glide between travel height and perch
-      final k = (c.timer / ease).clamp(0.0, 1.0);
-      final liftFrac = switch (c.state) {
-        _CState.approach => travelLift,
-        _CState.hover => travelLift + (c.perch - travelLift) * k,
-        _CState.leave => c.perch + (travelLift - c.perch) * k,
-      };
-      final lift = t * liftFrac;
+      final lift = t * c.liftFrac;
       final at = p.projectGrid(c.pos).translate(0, bob - lift);
       final rect = Rect.fromCenter(center: at, width: s, height: s);
       if (img != null) {
