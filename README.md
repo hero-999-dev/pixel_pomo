@@ -115,7 +115,12 @@ classic arcade look.
   coffee you forgot to log yesterday), and amounts are read the way you type them — `1.250,50`, `1,250.50`,
   `12,5` all work, and totals show thousands grouped. A **SPENT TODAY** card shows today against your daily
   budget with what's left; tap a **category bar** to list only its entries.
-  Categories are extendable via **+ ADD CATEGORY** (long-press a custom one to remove it). **Monthly totals
+  Every entry can carry a **payment type** — **CASH / CARD / TRANSFER** or your own (**+ ADD TYPE**) — and the month
+  gets a **spending by payment type** breakdown. Expenses always read with a **minus**. Expense categories and
+  **income types** are separate lists, each extendable via **+ ADD** (long-press one you added to remove it).
+  **Rates refresh every 10 minutes** while online from a live source (Coinbase, falling back to the daily
+  currency-api and open.er-api), and **each entry keeps the rate of the moment it was added** — a back-dated one
+  is priced at its own day's historical rate — so last month's spending doesn't drift with today's exchange rate. **Monthly totals
   with a signed NET line**, **category bars**, a **bar / pie chart** (daily / weekly / monthly, with a **◀ ▶
   history navigator**), and **paged entries**. Pick a **main currency**; rates refresh from the internet
   (hourly when online). Set a **daily budget** in settings — stay under it for a day and earn **+1 garden

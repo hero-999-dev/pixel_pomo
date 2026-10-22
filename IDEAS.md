@@ -21,8 +21,6 @@ yanına sürüm numarası yazılır.
 - **Tekrarlayan kayıtlar** — kira, maaş, abonelikler her ay kendiliğinden eklensin.
 - **Kategori bütçeleri** — "yemek için ayda X" ve aşınca uyarı.
 - **CSV dışa aktarma** — kayıtları tabloya almak için.
-- **Giriş anındaki kur** — kayıt, girildiği günün kuruyla da saklansın; şu an
-  geçmiş kayıtlar bugünün kuruyla çevriliyor.
 - **Hiç kayıt girilmeyen gün** — günlük bütçe coin'i şu an hiç harcama girilmeyen
   güne de veriliyor; bunun ödül olup olmayacağına karar verilmeli.
 

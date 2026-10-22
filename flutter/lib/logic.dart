@@ -1704,10 +1704,29 @@ class MoneyTx {
   final String category;
   final bool isExpense;
   final String note;
+
+  /// How it was paid / received (cash, card, transfer, or one the user
+  /// added); '' = not specified (#v39).
+  final String method;
+
+  /// The rate snapshot (#v39): what this entry was worth when it was added
+  /// (or, back-dated, on its own day) — so last month's 150 PLN stays what it
+  /// cost then instead of drifting with today's rate. [usdMicro] is its value
+  /// in millionths of a USD (fine enough for 5 TRY), [refMinor] its value in
+  /// [refCur], the main currency at that time. 0 / '' = no snapshot yet: it
+  /// converts at the live rate until one is taken.
+  final int usdMicro;
+  final String refCur;
+  final int refMinor;
+
   const MoneyTx(this.epochDay, this.minuteOfDay, this.amountMinor, this.currency,
       this.category, this.isExpense,
-      [this.note = '']);
+      [this.note = '', this.method = '', this.usdMicro = 0, this.refCur = '', this.refMinor = 0]);
 
+  bool get hasSnapshot => usdMicro > 0;
+
+  /// [clearSnapshot] when the amount, currency or day changes — the old
+  /// snapshot no longer describes this entry.
   MoneyTx copyWith({
     int? epochDay,
     int? amountMinor,
@@ -1715,10 +1734,32 @@ class MoneyTx {
     String? category,
     bool? isExpense,
     String? note,
+    String? method,
+    bool clearSnapshot = false,
   }) =>
       MoneyTx(epochDay ?? this.epochDay, minuteOfDay, amountMinor ?? this.amountMinor,
           currency ?? this.currency, category ?? this.category, isExpense ?? this.isExpense,
-          note ?? this.note);
+          note ?? this.note, method ?? this.method,
+          clearSnapshot ? 0 : usdMicro, clearSnapshot ? '' : refCur, clearSnapshot ? 0 : refMinor);
+
+  /// This entry with its value pinned at [rates] (per-USD, the rates of the
+  /// moment or of its day) and [main]; unchanged if a needed rate is missing.
+  MoneyTx snapshotAt(Map<String, double> rates, String main) {
+    final rc = rates[currency], rm = rates[main];
+    if (rc == null || rm == null || rc <= 0) return this;
+    final usd = amountMinor / 100.0 / rc;
+    return MoneyTx(epochDay, minuteOfDay, amountMinor, currency, category, isExpense, note, method,
+        math.max(1, (usd * 1e6).round()), main, math.max(1, (usd * rm * 100).round()));
+  }
+
+  /// Re-express an existing snapshot in [main] (main currency changed) using
+  /// that day's [rates] — the USD value taken at entry is kept as is.
+  MoneyTx rebasedTo(Map<String, double> rates, String main) {
+    final rm = rates[main];
+    if (!hasSnapshot || rm == null) return this;
+    return MoneyTx(epochDay, minuteOfDay, amountMinor, currency, category, isExpense, note, method,
+        usdMicro, main, math.max(1, (usdMicro / 1e6 * rm * 100).round()));
+  }
 }
 
 /// Reading and writing amounts the way people actually type and read them.
@@ -1828,6 +1869,10 @@ class MoneyBook {
             t.isExpense ? 1 : 0,
             _clean(t.category),
             _clean(t.note),
+            _clean(t.method),
+            t.refCur,
+            t.refMinor,
+            t.usdMicro,
           ].join(_us))
       .join('\n');
 
@@ -1842,18 +1887,31 @@ class MoneyBook {
       if (day == null || min == null || amt == null || exp == null || amt <= 0) {
         continue;
       }
+      // 7 fields before #v39; method + rate snapshot appended after the note
+      final snap = p.length >= 11;
       out.add(MoneyTx(day, min, amt, p[3], p[5], exp == 1,
-          p.length > 6 ? p.sublist(6).join(_us) : ''));
+          p.length > 6 ? p[6] : '',
+          p.length > 7 ? p[7] : '',
+          snap ? (int.tryParse(p[10]) ?? 0) : 0,
+          snap ? p[8] : '',
+          snap ? (int.tryParse(p[9]) ?? 0) : 0));
     }
     return out;
   }
 
   /// Amount in the MAIN currency (rates are per-USD; a missing rate falls back
   /// to the raw amount so the book never crashes on an unknown currency).
+  ///
+  /// An entry with a rate snapshot (#v39) uses the value it had when it was
+  /// added; only one without (offline when added, not yet back-filled) floats
+  /// with today's rate.
   static double toMain(MoneyTx t, Map<String, double> rates, String main) {
     final v = t.amountMinor / 100.0;
     if (t.currency == main) return v;
-    final rc = rates[t.currency], rm = rates[main];
+    if (t.refCur == main && t.refMinor > 0) return t.refMinor / 100.0;
+    final rm = rates[main];
+    if (t.hasSnapshot && rm != null) return t.usdMicro / 1e6 * rm;
+    final rc = rates[t.currency];
     if (rc == null || rm == null || rc == 0) return v;
     return v / rc * rm;
   }
@@ -1862,7 +1920,11 @@ class MoneyBook {
   /// or main's is missing) — the totals then add it unconverted, so the
   /// screen must say so instead of quietly mixing currencies.
   static bool hasUnconverted(Iterable<MoneyTx> txs, Map<String, double> rates, String main) =>
-      txs.any((t) => t.currency != main && (rates[t.currency] == null || rates[main] == null));
+      txs.any((t) =>
+          t.currency != main &&
+          !(t.refCur == main && t.refMinor > 0) &&
+          !(t.hasSnapshot && rates[main] != null) &&
+          (rates[t.currency] == null || rates[main] == null));
 
   static double spentOnDay(
       List<MoneyTx> txs, int day, Map<String, double> rates, String main) {
@@ -1905,6 +1967,18 @@ class MoneyBook {
     return out;
   }
 
+  /// Expenses per payment type (main currency), biggest first; '' collects
+  /// the entries with no type (#v39).
+  static List<MapEntry<String, double>> byMethod(
+      Iterable<MoneyTx> txs, Map<String, double> rates, String main) {
+    final sums = <String, double>{};
+    for (final t in txs) {
+      if (!t.isExpense) continue;
+      sums[t.method] = (sums[t.method] ?? 0) + toMain(t, rates, main);
+    }
+    return sums.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+  }
+
   /// (income, expense) within an inclusive epochDay window (main currency) —
   /// feeds the daily/weekly/monthly bar chart (#v30 item 11).
   static (double, double) totalsInWindow(List<MoneyTx> txs, int startDay,
@@ -1941,7 +2015,64 @@ class MoneyBook {
 /// and the cache is older than [ttlMs] (1 hour — the upstream data itself
 /// updates about daily, so this also satisfies "update every 24h").
 class Fx {
-  static const ttlMs = 3600 * 1000;
+  /// Rates refresh every 10 minutes while online (#v39). The live source
+  /// (Coinbase) moves minute to minute, so this is a real refresh, not a
+  /// re-download of the same daily table.
+  static const ttlMs = 10 * 60 * 1000;
+
+  /// A cache older than this is too stale to pin a new entry's value to; the
+  /// entry waits for fresh rates (or its day's historical ones) instead.
+  static const snapshotMaxAgeMs = 60 * 60 * 1000;
+
+  /// ISO 4217 currencies — the live feeds also list hundreds of crypto
+  /// tokens, which have no place in the currency picker.
+  static const iso = {
+    'AED', 'AFN', 'ALL', 'AMD', 'ANG', 'AOA', 'ARS', 'AUD', 'AWG', 'AZN', 'BAM', 'BBD', 'BDT', 'BGN', 'BHD',
+    'BIF', 'BMD', 'BND', 'BOB', 'BRL', 'BSD', 'BTN', 'BWP', 'BYN', 'BZD', 'CAD', 'CDF', 'CHF', 'CLP', 'CNY',
+    'COP', 'CRC', 'CUP', 'CVE', 'CZK', 'DJF', 'DKK', 'DOP', 'DZD', 'EGP', 'ERN', 'ETB', 'EUR', 'FJD', 'FKP',
+    'GBP', 'GEL', 'GHS', 'GIP', 'GMD', 'GNF', 'GTQ', 'GYD', 'HKD', 'HNL', 'HTG', 'HUF', 'IDR', 'ILS', 'INR',
+    'IQD', 'IRR', 'ISK', 'JMD', 'JOD', 'JPY', 'KES', 'KGS', 'KHR', 'KMF', 'KRW', 'KWD', 'KYD', 'KZT', 'LAK',
+    'LBP', 'LKR', 'LRD', 'LSL', 'LYD', 'MAD', 'MDL', 'MGA', 'MKD', 'MMK', 'MNT', 'MOP', 'MRU', 'MUR', 'MVR',
+    'MWK', 'MXN', 'MYR', 'MZN', 'NAD', 'NGN', 'NIO', 'NOK', 'NPR', 'NZD', 'OMR', 'PAB', 'PEN', 'PGK', 'PHP',
+    'PKR', 'PLN', 'PYG', 'QAR', 'RON', 'RSD', 'RUB', 'RWF', 'SAR', 'SBD', 'SCR', 'SDG', 'SEK', 'SGD', 'SHP',
+    'SLE', 'SOS', 'SRD', 'SSP', 'STN', 'SYP', 'SZL', 'THB', 'TJS', 'TMT', 'TND', 'TOP', 'TRY', 'TTD', 'TWD',
+    'TZS', 'UAH', 'UGX', 'USD', 'UYU', 'UZS', 'VES', 'VND', 'VUV', 'WST', 'XAF', 'XCD', 'XOF', 'XPF', 'YER',
+    'ZAR', 'ZMW',
+  };
+
+  static Map<String, double> _clean(Map<dynamic, dynamic> raw) {
+    final out = <String, double>{};
+    raw.forEach((k, v) {
+      final code = '$k'.toUpperCase();
+      final d = v is num ? v.toDouble() : double.tryParse('$v');
+      if (iso.contains(code) && d != null && d > 0 && d.isFinite) out[code] = d;
+    });
+    out['USD'] = 1.0;
+    return out;
+  }
+
+  /// Coinbase `/v2/exchange-rates?currency=USD` → per-USD rates, or null.
+  static Map<String, double>? parseCoinbase(Object? json) {
+    if (json is! Map || json['data'] is! Map) return null;
+    final rates = (json['data'] as Map)['rates'];
+    if (rates is! Map) return null;
+    final out = _clean(rates);
+    return out.length > 1 ? out : null;
+  }
+
+  /// fawazahmed0 currency-api (`{"date": …, "usd": {"eur": …}}`) → per-USD.
+  static Map<String, double>? parseCurrencyApi(Object? json) {
+    if (json is! Map || json['usd'] is! Map) return null;
+    final out = _clean(json['usd'] as Map);
+    return out.length > 1 ? out : null;
+  }
+
+  /// open.er-api.com `/v6/latest/USD` → per-USD rates, or null.
+  static Map<String, double>? parseErApi(Object? json) {
+    if (json is! Map || json['result'] != 'success' || json['rates'] is! Map) return null;
+    final out = _clean(json['rates'] as Map);
+    return out.length > 1 ? out : null;
+  }
 
   /// Picker seed before the first successful fetch.
   static const seedCurrencies = [

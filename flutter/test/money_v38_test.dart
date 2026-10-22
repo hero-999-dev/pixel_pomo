@@ -162,7 +162,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(s.money.single.amountMinor, 125050);
       // the NET total reads the same, so look for the row as well as it
-      expect(find.text('-USD 1,250.50'), findsNWidgets(2));
+      expect(find.text('-USD 1,250.50'), findsWidgets); // row, expense total, NET, category bar
     });
 
     testWidgets('a bad amount keeps the dialog open with a message', (tester) async {
@@ -248,7 +248,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('bread'), findsNothing);
       expect(find.text('cinema'), findsOneWidget);
-      await tester.tap(find.byKey(const Key('moneyClearFilter')));
+      await tester.tap(find.byKey(const Key('moneyClearFilter_catFun')));
       await tester.pumpAndSettle();
       expect(find.text('bread'), findsOneWidget);
     });

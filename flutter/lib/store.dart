@@ -47,7 +47,10 @@ class AppStore extends ChangeNotifier {
   static const _kMainCur = 'main_currency';
   static const _kDailyRate = 'daily_rate_minor';
   static const _kMoneyRewardDay = 'money_last_reward_day';
-  static const _kCustomCats = 'custom_categories'; // user-added money categories (#v30)
+  static const _kCustomCats = 'custom_categories'; // user-added money categories (#v30) — expense ones since #v39
+  static const _kCustomIncomeCats = 'custom_income_categories'; // user-added income types (#v39)
+  static const _kCustomPay = 'custom_pay_methods'; // user-added payment types (#v39)
+  static const _kLastPay = 'last_pay_method'; // the dialog starts on the last one used (#v39)
   static const _kShowMoney = 'show_money_tracker'; // hide = icon gone + feature inert (#v32)
   static const _kShowHabits = 'show_habit_tracker'; // hide = icon gone (#v32)
   static const _kStatsDetailed = 'stats_detailed'; // simple stats hides timeline + Sessions in Pixels (#v32)
@@ -151,8 +154,17 @@ class AppStore extends ChangeNotifier {
   String mainCurrency = 'USD';
   int dailyRateMinor = 0; // 0 = daily-budget coin off
   int _moneyRewardDay = 0; // last day evaluated for the budget coin
-  List<String> customCategories = []; // user-added money categories (#v30)
+  List<String> customCategories = []; // user-added EXPENSE categories (#v30, split #v39)
+  List<String> customIncomeCategories = []; // user-added INCOME types (#v39)
+  List<String> customPayMethods = []; // user-added payment types (#v39)
+  String lastPayMethod = '';
   bool _fxFetching = false;
+  Timer? _fxTimer;
+  bool _backfilling = false;
+
+  /// Where rates come from — swappable so tests never touch the network.
+  Future<Map<String, double>?> Function() fxLatest = fetchFxRates;
+  Future<Map<String, double>?> Function(DateTime day) fxHistory = fetchFxRatesOn;
 
   /// Hide the Money / Habit trackers (#v32): the top-bar icon disappears and
   /// the feature goes inert (no fx fetch, no daily-budget coin while hidden).
@@ -292,10 +304,22 @@ class AppStore extends ChangeNotifier {
     mainCurrency = _prefs.getString(_kMainCur) ?? 'USD';
     dailyRateMinor = _prefs.getInt(_kDailyRate) ?? 0;
     _moneyRewardDay = _prefs.getInt(_kMoneyRewardDay) ?? (epochDayOf(DateTime.now()) - 1);
-    customCategories = (_prefs.getString(_kCustomCats) ?? '')
-        .split('\n')
-        .where((s) => s.trim().isNotEmpty)
-        .toList();
+    List<String> lines(String key) =>
+        (_prefs.getString(key) ?? '').split('\n').where((s) => s.trim().isNotEmpty).toList();
+    customCategories = lines(_kCustomCats);
+    customPayMethods = lines(_kCustomPay);
+    lastPayMethod = _prefs.getString(_kLastPay) ?? '';
+    if (_prefs.containsKey(_kCustomIncomeCats)) {
+      customIncomeCategories = lines(_kCustomIncomeCats);
+    } else {
+      // before #v39 one custom list served both sides: carry over the ones
+      // actually used on income entries, so they stay in the income picker
+      customIncomeCategories = [
+        for (final c in customCategories)
+          if (money.any((t) => !t.isExpense && t.category == c)) c
+      ];
+      _prefs.setString(_kCustomIncomeCats, customIncomeCategories.join('\n'));
+    }
     // #v34.9 fresh-install defaults: trackers ON, stats DETAILED (reversed
     // from #v34). A saved value always wins, so nobody's existing setup flips
     // underneath them — only a brand-new install sees the change.
@@ -311,7 +335,10 @@ class AppStore extends ChangeNotifier {
     if (showMoneyTracker) _accrueMoneyReward();
     engine = _buildEngine();
     notifyListeners();
-    if (showMoneyTracker) unawaited(refreshFx()); // best-effort; updates silently when it lands
+    if (showMoneyTracker) {
+      unawaited(refreshFx()); // best-effort; updates silently when it lands
+      unawaited(_backfillSnapshots()); // a fresh cache skips refreshFx, not this
+    }
   }
 
   void setShowMoneyTracker(bool v) {
@@ -532,25 +559,103 @@ class AppStore extends ChangeNotifier {
 
   /// Logs an entry — today unless [epochDay] says otherwise (a coffee you
   /// forgot to note yesterday). Future days are refused.
+  ///
+  /// Its value is pinned at the rate of this moment (#v39) when the cached
+  /// rates are fresh; otherwise — offline, or a back-dated entry — it is
+  /// pinned later by [_backfillSnapshots], at its own day's rate.
   void addMoneyTx(int amountMinor, String currency, String category,
-      bool isExpense, String note, {int? epochDay}) {
+      bool isExpense, String note, {int? epochDay, String method = ''}) {
     if (amountMinor <= 0) return;
     final now = DateTime.now();
     final today = epochDayOf(now);
     final day = epochDay == null || epochDay > today ? today : epochDay;
-    money.add(MoneyTx(day, now.hour * 60 + now.minute, amountMinor,
-        currency, category, isExpense, note));
+    money.add(_pinNow(MoneyTx(day, now.hour * 60 + now.minute, amountMinor,
+        currency, category, isExpense, note, method)));
+    if (method != lastPayMethod) {
+      lastPayMethod = method;
+      _prefs.setString(_kLastPay, method);
+    }
     _saveMoney();
+    unawaited(_backfillSnapshots());
   }
 
   /// Replaces [old] with [updated] in place (edit dialog). No-op if [old] is
   /// gone, or if the edit would leave a non-positive amount / a future day.
+  /// A new amount, currency or day re-prices it; a new note or category doesn't.
   void updateMoneyTx(MoneyTx old, MoneyTx updated) {
     final i = money.indexOf(old);
     if (i < 0 || updated.amountMinor <= 0) return;
     final today = epochDayOf(DateTime.now());
-    money[i] = updated.epochDay > today ? updated.copyWith(epochDay: today) : updated;
+    var u = updated.epochDay > today ? updated.copyWith(epochDay: today) : updated;
+    if (u.amountMinor != old.amountMinor || u.currency != old.currency || u.epochDay != old.epochDay) {
+      u = _pinNow(u.copyWith(clearSnapshot: true));
+    }
+    money[i] = u;
     _saveMoney();
+    unawaited(_backfillSnapshots());
+  }
+
+  /// Today's entry, priced at the cached rates if they are fresh enough to
+  /// stand for "now"; anything else is left for [_backfillSnapshots].
+  MoneyTx _pinNow(MoneyTx t) {
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    if (t.epochDay != epochDayOf(DateTime.now()) || nowMs - fxFetchedAt > Fx.snapshotMaxAgeMs) return t;
+    return t.snapshotAt(fxRates, mainCurrency);
+  }
+
+  /// Gives entries without a rate snapshot one, and re-expresses snapshots
+  /// taken under an older main currency: today's entries at the current
+  /// rates, earlier ones at THEIR day's historical rates (fetched, a handful
+  /// of days per pass so a long history fills in over a few refreshes).
+  Future<void> _backfillSnapshots({int maxDays = 12}) async {
+    if (_backfilling || !showMoneyTracker) return;
+    final today = epochDayOf(DateTime.now());
+    // an entry in the main currency needs no conversion (until main changes)
+    bool needs(MoneyTx t) => t.currency != mainCurrency && (!t.hasSnapshot || t.refCur != mainCurrency);
+    if (!money.any(needs)) return;
+    _backfilling = true;
+    try {
+      final main = mainCurrency;
+      final fresh = fxRates.isNotEmpty &&
+          DateTime.now().millisecondsSinceEpoch - fxFetchedAt <= Fx.snapshotMaxAgeMs;
+      final days = <int>{for (final t in money) if (needs(t) && t.epochDay < today) t.epochDay}.toList()
+        ..sort((a, b) => b - a); // most recent first: what the screen shows
+      final history = <int, Map<String, double>>{};
+      for (final d in days.take(maxDays)) {
+        final r = await fxHistory(dateOfEpochDay(d));
+        if (r != null) history[d] = r;
+      }
+      if (main != mainCurrency) return; // switched while fetching; next pass redoes it
+      var changed = false;
+      for (var i = 0; i < money.length; i++) {
+        final t = money[i];
+        if (!needs(t)) continue;
+        final rates = t.epochDay >= today ? (fresh ? fxRates : null) : history[t.epochDay];
+        if (rates == null) continue;
+        final next = t.hasSnapshot ? t.rebasedTo(rates, main) : t.snapshotAt(rates, main);
+        if (!identical(next, t)) {
+          money[i] = next;
+          changed = true;
+        }
+      }
+      if (changed) {
+        _prefs.setString(_kMoney, MoneyBook.encode(money));
+        notifyListeners();
+      }
+    } catch (_) {
+      // best effort — the next refresh tries again
+    } finally {
+      _backfilling = false;
+    }
+  }
+
+  /// Checks the rates every [Fx.ttlMs] while the app runs (#v39). Started by
+  /// the app itself, not by [load], so tests don't inherit a live timer.
+  void startFxAutoRefresh() {
+    _fxTimer?.cancel();
+    _fxTimer = Timer.periodic(const Duration(milliseconds: Fx.ttlMs), (_) {
+      if (showMoneyTracker) unawaited(refreshFx());
+    });
   }
 
   /// Removes [tx]; returns where it sat so [restoreMoneyTx] can undo it
@@ -579,9 +684,13 @@ class AppStore extends ChangeNotifier {
   double get spentToday => MoneyBook.spentOnDay(money, epochDayOf(DateTime.now()), fxRates, mainCurrency);
 
   void setMainCurrency(String cur) {
+    if (cur == mainCurrency) return;
     mainCurrency = cur;
     _prefs.setString(_kMainCur, cur);
     notifyListeners();
+    // re-express the pinned values in the new main currency at each entry's
+    // own day's rate (until then they convert via their pinned USD value)
+    unawaited(_backfillSnapshots());
     // switching main currency is exactly when conversion rates are needed —
     // if the cache is empty (fetch never landed) this is what let 150 PLN
     // display as "EUR 150.00" (#v30.9). TTL-gated, so it's a no-op when the
@@ -595,37 +704,68 @@ class AppStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Adds a user-defined money category (#v30 item 10). No-op for an empty
-  /// or already-known name (case-insensitive).
-  void addCustomCategory(String name) {
+  /// Adds a user-defined money category (#v30 item 10) — an expense one, or
+  /// with [income] an income type (#v39: they used to share one list, so a
+  /// "RENT" you added for expenses also showed up as a way to earn money).
+  /// No-op for an empty or already-known name (case-insensitive).
+  void addCustomCategory(String name, {bool income = false}) {
     final n = name.trim().toUpperCase();
-    if (n.isEmpty || customCategories.contains(n)) return;
-    customCategories = [...customCategories, n];
-    _prefs.setString(_kCustomCats, customCategories.join('\n'));
-    notifyListeners();
+    final list = income ? customIncomeCategories : customCategories;
+    if (n.isEmpty || list.contains(n)) return;
+    _setCustom(income, [...list, n]);
   }
 
   /// Removes a user-defined category (#v30.9, long-press its chip). Existing
   /// entries keep the name — display falls back to the raw string.
-  void removeCustomCategory(String name) {
-    if (!customCategories.contains(name)) return;
-    customCategories = [for (final c in customCategories) if (c != name) c];
-    _prefs.setString(_kCustomCats, customCategories.join('\n'));
+  void removeCustomCategory(String name, {bool income = false}) {
+    final list = income ? customIncomeCategories : customCategories;
+    if (!list.contains(name)) return;
+    _setCustom(income, [for (final c in list) if (c != name) c]);
+  }
+
+  void _setCustom(bool income, List<String> list) {
+    if (income) {
+      customIncomeCategories = list;
+      _prefs.setString(_kCustomIncomeCats, list.join('\n'));
+    } else {
+      customCategories = list;
+      _prefs.setString(_kCustomCats, list.join('\n'));
+    }
+    notifyListeners();
+  }
+
+  /// A user-defined payment type (#v39), e.g. "PAYPAL", "MEAL CARD".
+  void addPayMethod(String name) {
+    final n = name.trim().toUpperCase();
+    if (n.isEmpty || customPayMethods.contains(n)) return;
+    customPayMethods = [...customPayMethods, n];
+    _prefs.setString(_kCustomPay, customPayMethods.join('\n'));
+    notifyListeners();
+  }
+
+  void removePayMethod(String name) {
+    if (!customPayMethods.contains(name)) return;
+    customPayMethods = [for (final m in customPayMethods) if (m != name) m];
+    _prefs.setString(_kCustomPay, customPayMethods.join('\n'));
+    if (lastPayMethod == name) {
+      lastPayMethod = '';
+      _prefs.setString(_kLastPay, '');
+    }
     notifyListeners();
   }
 
   /// Currencies offered in the picker: the fetched set if we have one, else the
   /// seed list (always includes the current main currency).
   List<String> get currencyOptions {
-    final set = {...Fx.seedCurrencies, ...fxRates.keys, mainCurrency};
+    final set = {...Fx.seedCurrencies, ...fxRates.keys.where(Fx.iso.contains), mainCurrency};
     final list = set.toList()..sort();
     return list;
   }
 
   double moneyToMain(MoneyTx t) => MoneyBook.toMain(t, fxRates, mainCurrency);
 
-  /// Fetch USD-based rates from open.er-api.com when online + stale (>1h). Uses
-  /// dart:io directly (no new dep); silent on any failure so it never blocks.
+  /// Fetch USD-based rates (see fx_fetch.dart) when online + stale (>10 min).
+  /// Silent on any failure so it never blocks.
   Future<void> refreshFx({bool force = false}) async {
     if (_fxFetching) return;
     final nowMs = DateTime.now().millisecondsSinceEpoch;
@@ -634,7 +774,7 @@ class AppStore extends ChangeNotifier {
     }
     _fxFetching = true;
     try {
-      final rates = await fetchFxRates();
+      final rates = await fxLatest();
       if (rates != null && rates.isNotEmpty) {
         fxRates = rates;
         fxFetchedAt = DateTime.now().millisecondsSinceEpoch;
@@ -642,6 +782,8 @@ class AppStore extends ChangeNotifier {
         _accrueMoneyReward(); // fresh rates may complete a pending under-budget day
         notifyListeners();
       }
+      // entries added offline, back-dated, or from before snapshots existed
+      unawaited(_backfillSnapshots());
     } catch (_) {
       // offline / transient — keep the cache, try again next time.
     } finally {
@@ -1193,6 +1335,7 @@ class AppStore extends ChangeNotifier {
   @override
   void dispose() {
     _timer?.cancel();
+    _fxTimer?.cancel();
     super.dispose();
   }
 }

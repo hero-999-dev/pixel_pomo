@@ -50,6 +50,7 @@ Future<void> main() async {
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   final store = AppStore();
   await store.load();
+  store.startFxAutoRefresh(); // rates every 10 min while the app runs (#v39)
   runApp(PixelPomoApp(store));
 }
 
@@ -91,7 +92,11 @@ class _PixelPomoAppState extends State<PixelPomoApp> with WidgetsBindingObserver
     if (state == AppLifecycleState.paused) store.onBackgrounded();
     // The app is rarely cold-started — it sits in recents for days — so coming
     // back to it is the moment to look again (throttled inside).
-    if (state == AppLifecycleState.resumed) refreshUpdate();
+    if (state == AppLifecycleState.resumed) {
+      refreshUpdate();
+      // rates too: a Timer doesn't run while Android has the app paused (#v39)
+      if (store.showMoneyTracker) store.refreshFx();
+    }
   }
 
   @override
@@ -4632,8 +4637,13 @@ const _expenseCats = [
   'catHealth', 'catShopping', 'catEducation', 'catOther'
 ];
 const _incomeCats = ['catSalary', 'catGift', 'catOther'];
+// how it was paid / received (#v39); the user can add their own
+const _payMethods = ['payCash', 'payCard', 'payTransfer'];
 
 String _money(double v, String cur, String lang) => MoneyAmount.format(v, cur, lang: lang);
+
+/// An expense amount: money going out, so it carries a minus (#v39).
+String _out(double v, String cur, String lang) => v.abs() < 0.005 ? _money(0, cur, lang) : '-${_money(v, cur, lang)}';
 
 /// "21 OCT" — a short day label for entry rows and the date stepper.
 String _shortDate(String lang, int epochDay) {
@@ -4656,6 +4666,7 @@ class _MoneyScreenState extends State<MoneyScreen> {
   int _chartOffset = 0; // chart windows back from now (#v30.9 rec 4)
   int _txPage = 0; // entry-list page, newest first (#v30.9 rec 3)
   String? _catFilter; // tapped category bar → only its entries (#v38)
+  String? _payFilter; // tapped payment-type bar → only its entries (#v39)
 
   @override
   void initState() {
@@ -4667,6 +4678,7 @@ class _MoneyScreenState extends State<MoneyScreen> {
         _offset += delta;
         _txPage = 0;
         _catFilter = null;
+        _payFilter = null;
       });
 
   @override
@@ -4684,8 +4696,11 @@ class _MoneyScreenState extends State<MoneyScreen> {
       final d = dateOfEpochDay(t.epochDay);
       return d.year == view.year && d.month == view.month;
     }).toList();
+    final pays = MoneyBook.byMethod(monthAll, s.fxRates, cur);
+    final maxPay = pays.isEmpty ? 1.0 : pays.first.value;
     final monthTxs = monthAll
         .where((t) => _catFilter == null || (t.isExpense && t.category == _catFilter))
+        .where((t) => _payFilter == null || (t.isExpense && t.method == _payFilter))
         .toList()
       ..sort((a, b) => b.epochDay != a.epochDay
           ? b.epochDay - a.epochDay
@@ -4732,7 +4747,8 @@ class _MoneyScreenState extends State<MoneyScreen> {
       // --- income / expense totals ---
       Row(children: [
         Expanded(child: _total(th, lang, t(lang, 'income'), _money(income, cur, lang), th.work)),
-        Expanded(child: _total(th, lang, t(lang, 'expense'), _money(expense, cur, lang), th.accent)),
+        // an expense reads as money going out: always with a minus (#v39)
+        Expanded(child: _total(th, lang, t(lang, 'expense'), _out(expense, cur, lang), th.accent)),
       ]),
       const SizedBox(height: 10),
       Row(children: [
@@ -4741,7 +4757,7 @@ class _MoneyScreenState extends State<MoneyScreen> {
               net >= 0 ? th.work : th.accent),
         ),
         Expanded(
-          child: _total(th, lang, t(lang, 'avgPerDay'), _money(expense / daysCounted, cur, lang), th.onSurface),
+          child: _total(th, lang, t(lang, 'avgPerDay'), _out(expense / daysCounted, cur, lang), th.accent),
         ),
       ]),
       // some amounts could not be converted → the totals add them as-is;
@@ -4771,20 +4787,39 @@ class _MoneyScreenState extends State<MoneyScreen> {
       // --- category bars (this month's expenses) — tap one to filter ---
       if (cats.isNotEmpty) ...[
         _heading(th, lang, t(lang, 'byCategory')),
-        for (final e in cats) _catBar(th, lang, e.key, e.value, maxCat, cur),
+        for (final e in cats)
+          _catBar(th, lang, e.key, e.value, maxCat, cur, _catFilter == e.key, () => setState(() {
+                _catFilter = _catFilter == e.key ? null : e.key;
+                _txPage = 0;
+              })),
+        const SizedBox(height: 12),
+      ],
+      // --- expenses by payment type (#v39) — only once any entry has one ---
+      if (pays.any((e) => e.key.isNotEmpty)) ...[
+        _heading(th, lang, t(lang, 'byPayMethod')),
+        for (final e in pays)
+          _catBar(th, lang, e.key.isEmpty ? 'payNone' : e.key, e.value, maxPay, cur, _payFilter == e.key,
+              () => setState(() {
+                    _payFilter = _payFilter == e.key ? null : e.key;
+                    _txPage = 0;
+                  }),
+              key: Key('moneyPay_${e.key}')),
         const SizedBox(height: 12),
       ],
       // --- entries ---
       _heading(th, lang, t(lang, 'entries')),
-      if (_catFilter != null)
+      for (final (f, clear) in [
+        if (_catFilter != null) (_catFilter!, () => _catFilter = null),
+        if (_payFilter != null) (_payFilter!.isEmpty ? 'payNone' : _payFilter!, () => _payFilter = null),
+      ])
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: Align(
             alignment: Alignment.centerLeft,
             child: GestureDetector(
-              key: const Key('moneyClearFilter'),
+              key: Key('moneyClearFilter_$f'),
               onTap: () => setState(() {
-                _catFilter = null;
+                clear();
                 _txPage = 0;
               }),
               child: Container(
@@ -4793,8 +4828,7 @@ class _MoneyScreenState extends State<MoneyScreen> {
                   color: col(th.accent),
                   border: Border.all(color: col(th.onSurface), width: 1),
                 ),
-                child: Text('${t(lang, _catFilter!)}  X',
-                    style: pixelStyle(lang, 8, col(th.onAccent), text: t(lang, _catFilter!))),
+                child: Text('${t(lang, f)}  X', style: pixelStyle(lang, 8, col(th.onAccent), text: t(lang, f))),
               ),
             ),
           ),
@@ -4886,7 +4920,7 @@ class _MoneyScreenState extends State<MoneyScreen> {
           fit: BoxFit.scaleDown,
           alignment: Alignment.centerLeft,
           child: Text(
-              hasBudget ? '${_money(spent, cur, lang)} / ${_money(budget, cur, lang)}' : _money(spent, cur, lang),
+              hasBudget ? '${_out(spent, cur, lang)} / ${_money(budget, cur, lang)}' : _out(spent, cur, lang),
               style: pixelStyle(lang, 11, col(over ? th.accent : th.onSurface), text: '0')),
         ),
         if (hasBudget) ...[
@@ -5018,17 +5052,15 @@ class _MoneyScreenState extends State<MoneyScreen> {
         ],
       ));
 
-  Widget _catBar(PixelTheme th, String lang, String cat, double value, double max, String cur) {
+  Widget _catBar(PixelTheme th, String lang, String cat, double value, double max, String cur, bool selected,
+      VoidCallback onTap,
+      {Key? key}) {
     final label = t(lang, cat);
     final color = LabelColors.defaultFor(cat);
-    final selected = _catFilter == cat;
     return GestureDetector(
-      key: Key('moneyCat_$cat'),
+      key: key ?? Key('moneyCat_$cat'),
       behavior: HitTestBehavior.opaque,
-      onTap: () => setState(() {
-        _catFilter = selected ? null : cat;
-        _txPage = 0;
-      }),
+      onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.only(bottom: 8),
         child: Column(
@@ -5041,8 +5073,7 @@ class _MoneyScreenState extends State<MoneyScreen> {
                     overflow: TextOverflow.ellipsis,
                     style: pixelStyle(lang, 9, col(selected ? th.accent : th.onSurface), text: label)),
               ),
-              Text(_money(value, cur, lang),
-                  style: pixelStyle(lang, 9, col(th.onSurfaceDim), text: _money(value, cur, lang))),
+              Text(_out(value, cur, lang), style: pixelStyle(lang, 9, col(th.accent), text: _out(value, cur, lang))),
             ]),
             const SizedBox(height: 3),
             LayoutBuilder(builder: (context, box) {
@@ -5089,10 +5120,11 @@ class _MoneyScreenState extends State<MoneyScreen> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: pixelStyle(lang, 9, col(th.onSurface), text: t(lang, tx.category))),
-              // the note was saved but never shown anywhere
-              if (tx.note.isNotEmpty) ...[
+              // payment type + note under the category (the note was saved
+              // but never shown anywhere before #v38)
+              if (tx.method.isNotEmpty || tx.note.isNotEmpty) ...[
                 const SizedBox(height: 3),
-                Text(tx.note,
+                Text([if (tx.method.isNotEmpty) t(lang, tx.method), if (tx.note.isNotEmpty) tx.note].join(' · '),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: pixelStyle(lang, 7, col(th.onSurfaceDim), text: tx.note)),
@@ -5183,6 +5215,8 @@ class _MoneyScreenState extends State<MoneyScreen> {
           Text(t(lang, 'dailyRateHelp'), style: pixelStyle(lang, 8, col(th.onSurfaceDim), text: t(lang, 'dailyRateHelp'))),
           const SizedBox(height: 12),
           // where the conversions come from, and a way to retry by hand
+          Text(t(lang, 'ratesHelp'), style: pixelStyle(lang, 7, col(th.onSurfaceDim), text: t(lang, 'ratesHelp'))),
+          const SizedBox(height: 8),
           Row(children: [
             Expanded(
               child: Text(rates, style: pixelStyle(lang, 7, col(th.onSurfaceDim), text: rates)),
@@ -5224,12 +5258,23 @@ class _TxDialogState extends State<_TxDialog> {
   late String _currency = widget.existing?.currency ?? widget.s.mainCurrency;
   late int _day = widget.initialDay;
   late String _cat;
+  // the last type used is the likeliest next one (#v39)
+  late String _method = widget.existing?.method ?? s.lastPayMethod;
   bool _bad = false;
 
   AppStore get s => widget.s;
 
+  List<String> get _methods {
+    final base = [..._payMethods, ...s.customPayMethods];
+    return _method.isNotEmpty && !base.contains(_method) ? [...base, _method] : base;
+  }
+
+  // expense categories and income types are separate lists now (#v39)
   List<String> get _cats {
-    final base = [...(_isExpense ? _expenseCats : _incomeCats), ...s.customCategories];
+    final base = [
+      ...(_isExpense ? _expenseCats : _incomeCats),
+      ...(_isExpense ? s.customCategories : s.customIncomeCategories)
+    ];
     // an entry whose custom category was since removed keeps it selectable
     // (a built-in of the other type doesn't: switching type moves off it)
     final keep = widget.existing?.category;
@@ -5272,14 +5317,43 @@ class _TxDialogState extends State<_TxDialog> {
     final note = _note.text.trim();
     final e = widget.existing;
     if (e == null) {
-      s.addMoneyTx(minor, _currency, _cat, _isExpense, note, epochDay: _day);
+      s.addMoneyTx(minor, _currency, _cat, _isExpense, note, epochDay: _day, method: _method);
     } else {
       s.updateMoneyTx(
           e,
           e.copyWith(
-              epochDay: _day, amountMinor: minor, currency: _currency, category: _cat, isExpense: _isExpense, note: note));
+              epochDay: _day,
+              amountMinor: minor,
+              currency: _currency,
+              category: _cat,
+              isExpense: _isExpense,
+              note: note,
+              method: _method));
     }
     Navigator.pop(context);
+  }
+
+  /// "1 PLN = TRY 11,08 (AT ENTRY)" — null when the entry is in the main
+  /// currency or no rate is known.
+  String? _rateLine(String lang) {
+    final main = s.mainCurrency;
+    if (_currency == main) return null;
+    final e = widget.existing;
+    double? perUnit;
+    var tag = 'rateLive';
+    if (e != null && e.currency == _currency && e.epochDay == _day && e.refCur == main && e.refMinor > 0) {
+      perUnit = e.refMinor / e.amountMinor;
+      tag = 'rateAtEntry';
+    } else {
+      final rc = s.fxRates[_currency], rm = s.fxRates[main];
+      if (rc != null && rm != null && rc > 0) perUnit = rm / rc;
+      if (_day != epochDayOf(DateTime.now())) tag = 'rateOfDay';
+    }
+    if (perUnit == null) return null;
+    final shown = perUnit >= 0.01
+        ? MoneyAmount.format(perUnit, main, lang: lang)
+        : '$main ${perUnit.toStringAsPrecision(3)}';
+    return '1 $_currency = $shown  ${t(lang, tag)}';
   }
 
   Widget _chip(PixelTheme th, String lang, String text, bool sel, VoidCallback onTap,
@@ -5298,20 +5372,27 @@ class _TxDialogState extends State<_TxDialog> {
         ),
       );
 
-  void _removeCategory(PixelTheme th, String lang, String c) {
+  void _removeCategory(PixelTheme th, String lang, String c, {bool pay = false}) {
     showDialog(
       context: context,
       builder: (ctx2) => AlertDialog(
         backgroundColor: col(th.panel),
-        content: Text(tf(lang, 'removeCategoryMsg', [c]),
-            style: pixelStyle(lang, 11, col(th.onSurface), text: tf(lang, 'removeCategoryMsg', [c]))),
+        content: Text(tf(lang, 'removeTypeMsg', [c]),
+            style: pixelStyle(lang, 11, col(th.onSurface), text: tf(lang, 'removeTypeMsg', [c]))),
         actions: [
           secondaryBtn(th, lang, t(lang, 'no'), () => Navigator.pop(ctx2), fontSize: 10, padding: const EdgeInsets.all(10)),
           primaryBtn(th, lang, t(lang, 'yes'), () {
-            s.removeCustomCategory(c);
-            setState(() {
-              if (_cat == c) _cat = _cats.first;
-            });
+            if (pay) {
+              s.removePayMethod(c);
+              setState(() {
+                if (_method == c) _method = '';
+              });
+            } else {
+              s.removeCustomCategory(c, income: !_isExpense);
+              setState(() {
+                if (_cat == c) _cat = _cats.first;
+              });
+            }
             Navigator.pop(ctx2);
           }, fontSize: 10, padding: const EdgeInsets.all(10)),
         ],
@@ -5319,36 +5400,17 @@ class _TxDialogState extends State<_TxDialog> {
     );
   }
 
-  void _addCategory(PixelTheme th, String lang) {
-    final ctrl = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: col(th.panel),
-        title: Text(t(lang, 'addCategory'), style: pixelStyle(lang, 12, col(th.onSurface), text: t(lang, 'addCategory'))),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          maxLength: 16,
-          style: pixelStyle(lang, 11, col(th.onSurface), text: 'Aa'),
-          decoration: InputDecoration(
-            hintText: t(lang, 'categoryNameHint'),
-            hintStyle: pixelStyle(lang, 10, col(th.onSurfaceDim), text: t(lang, 'categoryNameHint')),
-          ),
-        ),
-        actions: [
-          secondaryBtn(th, lang, t(lang, 'cancel'), () => Navigator.pop(ctx), fontSize: 10, padding: const EdgeInsets.all(10)),
-          primaryBtn(th, lang, t(lang, 'add'), () {
-            final n = ctrl.text.trim().toUpperCase();
-            if (n.isNotEmpty) {
-              s.addCustomCategory(n);
-              setState(() => _cat = n);
-            }
-            Navigator.pop(ctx);
-          }, fontSize: 10, padding: const EdgeInsets.all(10)),
-        ],
-      ),
-    ).whenComplete(ctrl.dispose);
+  Future<void> _addCategory(PixelTheme th, String lang, {bool pay = false}) async {
+    final title = t(lang, pay ? 'addPayMethod' : (_isExpense ? 'addCategory' : 'addIncomeType'));
+    final n = await showDialog<String>(context: context, builder: (_) => _NameDialog(s: s, title: title));
+    if (n == null || n.isEmpty || !mounted) return;
+    if (pay) {
+      s.addPayMethod(n);
+      setState(() => _method = n);
+    } else {
+      s.addCustomCategory(n, income: !_isExpense);
+      setState(() => _cat = n);
+    }
   }
 
   @override
@@ -5395,6 +5457,9 @@ class _TxDialogState extends State<_TxDialog> {
                   },
                   onSubmitted: (_) => _save(),
                   decoration: InputDecoration(
+                    // the sign says which way the money goes (#v39)
+                    prefixText: _isExpense ? '- ' : '+ ',
+                    prefixStyle: pixelStyle(lang, 13, col(_isExpense ? th.accent : th.work), text: '-'),
                     hintText: t(lang, 'amount'),
                     hintStyle: pixelStyle(lang, 10, col(th.onSurfaceDim), text: t(lang, 'amount')),
                     errorText: _bad ? t(lang, 'invalidAmount') : null,
@@ -5414,6 +5479,14 @@ class _TxDialogState extends State<_TxDialog> {
                 onChanged: (v) => setState(() => _currency = v ?? _currency),
               ),
             ]),
+            // which rate this entry is priced at (#v39): the one pinned when it
+            // was added, or — new / re-priced — today's live one
+            if (_rateLine(lang) case final line?) ...[
+              const SizedBox(height: 6),
+              Text(line,
+                  key: const Key('txRateLine'),
+                  style: pixelStyle(lang, 7, col(th.onSurfaceDim), text: line)),
+            ],
             const SizedBox(height: 12),
             // the day it happened — entries used to be stamped "now", so a
             // forgotten coffee from yesterday could never be logged
@@ -5441,7 +5514,8 @@ class _TxDialogState extends State<_TxDialog> {
               ),
             ]),
             const SizedBox(height: 12),
-            Text(t(lang, 'category'), style: pixelStyle(lang, 9, col(th.onSurfaceDim), text: t(lang, 'category'))),
+            Text(t(lang, _isExpense ? 'category' : 'incomeType'),
+                style: pixelStyle(lang, 9, col(th.onSurfaceDim), text: t(lang, 'category'))),
             const SizedBox(height: 6),
             Wrap(
               spacing: 6,
@@ -5451,11 +5525,31 @@ class _TxDialogState extends State<_TxDialog> {
                   _chip(th, lang, t(lang, c), _cat == c, () => setState(() => _cat = c),
                       // custom categories delete on long-press, like habit
                       // cards; built-ins have no handler (#v30.9 rec 2)
-                      onLongPress: s.customCategories.contains(c) ? () => _removeCategory(th, lang, c) : null),
-                _chip(th, lang, '+ ${t(lang, 'addCategory')}', false, () => _addCategory(th, lang)),
+                      onLongPress: (_isExpense ? s.customCategories : s.customIncomeCategories).contains(c)
+                          ? () => _removeCategory(th, lang, c)
+                          : null),
+                _chip(th, lang, '+ ${t(lang, _isExpense ? 'addCategory' : 'addIncomeType')}', false,
+                    () => _addCategory(th, lang),
+                    key: const Key('txAddCategory')),
               ],
             ),
-            if (s.customCategories.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            // how it was paid / received (#v39); tap the chosen one again to clear it
+            Text(t(lang, 'payMethod'), style: pixelStyle(lang, 9, col(th.onSurfaceDim), text: t(lang, 'payMethod'))),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final m in _methods)
+                  _chip(th, lang, t(lang, m), _method == m, () => setState(() => _method = _method == m ? '' : m),
+                      onLongPress: s.customPayMethods.contains(m) ? () => _removeCategory(th, lang, m, pay: true) : null,
+                      key: Key('txPay_$m')),
+                _chip(th, lang, '+ ${t(lang, 'addPayMethod')}', false, () => _addCategory(th, lang, pay: true),
+                    key: const Key('txAddPay')),
+              ],
+            ),
+            if (s.customCategories.isNotEmpty || s.customIncomeCategories.isNotEmpty || s.customPayMethods.isNotEmpty) ...[
               const SizedBox(height: 4),
               Text(t(lang, 'catLongPress'),
                   style: pixelStyle(lang, 7, col(th.onSurfaceDim), text: t(lang, 'catLongPress'))),
@@ -5467,6 +5561,7 @@ class _TxDialogState extends State<_TxDialog> {
               maxLength: 60,
               style: pixelStyle(lang, 10, col(th.onSurface), text: 'Aa'),
               decoration: InputDecoration(
+                counterText: '', // the length counter only cluttered the pixel dialog
                 hintText: t(lang, 'note'),
                 hintStyle: pixelStyle(lang, 9, col(th.onSurfaceDim), text: t(lang, 'note')),
               ),
@@ -5484,6 +5579,54 @@ class _TxDialogState extends State<_TxDialog> {
             fontSize: 10, padding: const EdgeInsets.all(10)),
         primaryBtn(th, lang, t(lang, editing ? 'save' : 'add'), _save,
             fontSize: 10, padding: const EdgeInsets.all(10), key: const Key('txSave')),
+      ],
+    );
+  }
+}
+
+/// Asks for a new category / payment-type name; pops it upper-cased, or null.
+/// Owns its controller so it lives exactly as long as the dialog (disposing it
+/// when showDialog's future completed was too early — the closing animation
+/// still drew the field).
+class _NameDialog extends StatefulWidget {
+  final AppStore s;
+  final String title;
+  const _NameDialog({required this.s, required this.title});
+  @override
+  State<_NameDialog> createState() => _NameDialogState();
+}
+
+class _NameDialogState extends State<_NameDialog> {
+  final _ctrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final th = widget.s.theme, lang = widget.s.lang;
+    void done() => Navigator.pop(context, _ctrl.text.trim().toUpperCase());
+    return AlertDialog(
+      backgroundColor: col(th.panel),
+      title: Text(widget.title, style: pixelStyle(lang, 12, col(th.onSurface), text: widget.title)),
+      content: TextField(
+        controller: _ctrl,
+        autofocus: true,
+        maxLength: 16,
+        onSubmitted: (_) => done(),
+        style: pixelStyle(lang, 11, col(th.onSurface), text: 'Aa'),
+        decoration: InputDecoration(
+          counterText: '',
+          hintText: t(lang, 'categoryNameHint'),
+          hintStyle: pixelStyle(lang, 10, col(th.onSurfaceDim), text: t(lang, 'categoryNameHint')),
+        ),
+      ),
+      actions: [
+        secondaryBtn(th, lang, t(lang, 'cancel'), () => Navigator.pop(context), fontSize: 10, padding: const EdgeInsets.all(10)),
+        primaryBtn(th, lang, t(lang, 'add'), done, fontSize: 10, padding: const EdgeInsets.all(10)),
       ],
     );
   }
