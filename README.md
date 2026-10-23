@@ -4,7 +4,7 @@
 
 | Build | What you get | Link |
 |---|---|---|
-| **Latest — v0.37.0** | The app itself. Starts clean: 50 coins, empty history, nothing pre-filled. | **[⬇ flutter-v37](https://github.com/hero-999-dev/pixel_pomo/releases/tag/flutter-v37)** |
+| **Latest — v0.38.0** | The app itself. Starts clean: 50 coins, empty history, nothing pre-filled. | **[⬇ flutter-v38](https://github.com/hero-999-dev/pixel_pomo/releases/tag/flutter-v38)** |
 | **Test build** | The same app under a different app id, so it installs *alongside* the real one. Comes pre-loaded with years of sample sessions and coins, so the stats, heatmaps and charts have something to show from the first launch. | **[⬇ flutter-test](https://github.com/hero-999-dev/pixel_pomo/releases/tag/flutter-test)** |
 
 **Android** — download `pixel_pomo_flutter.apk` (`pixel_pomo_test.apk` on the test build) and tap it to install. If
@@ -26,7 +26,7 @@ a living wallpaper. Built with the
 [Press Start 2P](https://fonts.google.com/specimen/Press+Start+2P) font for that
 classic arcade look.
 
-> **Status:** **v0.37.0** — one Flutter (Dart) codebase ships **both** an Android APK and an
+> **Status:** **v0.38.0** — one Flutter (Dart) codebase ships **both** an Android APK and an
 > iOS app. On top of the core timer it has a full-screen **living 2.5D garden** (now with
 > **buildings** — real box meshes, not billboards), an animated
 > **Android live wallpaper**, an **app blocker** to keep you off distracting apps during a focus
