@@ -152,11 +152,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           VER=$(grep '^version:' flutter/pubspec.yaml | sed 's/version:[[:space:]]*//' | cut -d'+' -f1)
-          TITLE="Test Pixel Pomo build (v$VER)"
+          # A full release (not a pre-release) whose title says LATEST, so it
+          # reads as the current test build next to the real app's flutter-vNN.
+          # GitHub allows ONE "Latest" badge per repo and that stays on the real
+          # app (build-flutter.yml), hence --latest=false here (#v38).
+          TITLE="Test Pixel Pomo — LATEST (v$VER)"
           NOTES="A SEPARATE app from the real Pixel Pomo (different package id — installs side by side, does not overwrite your real one). Pre-filled with the full demo/test dataset (years of pretend sessions, 1000 coins, sample labels) so heatmap/stats features can be checked on-device. Built from ${GITHUB_SHA::7}. Install pixel_pomo_test.apk once; after that the app updates itself from this release. build:$BUILD_TIME"
           if gh release view flutter-test >/dev/null 2>&1; then
             gh release upload flutter-test pixel_pomo_test.apk --clobber
-            gh release edit flutter-test --title "$TITLE" --notes "$NOTES"
+            gh release edit flutter-test --title "$TITLE" --notes "$NOTES" --prerelease=false --latest=false
           else
-            gh release create flutter-test pixel_pomo_test.apk --title "$TITLE" --notes "$NOTES" --prerelease
+            gh release create flutter-test pixel_pomo_test.apk --title "$TITLE" --notes "$NOTES" --latest=false
           fi
