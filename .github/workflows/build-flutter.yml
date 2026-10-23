@@ -180,11 +180,23 @@ jobs:
           # latest-flutter (a rolling "always newest" tag) was removed #v31.13 —
           # flutter-vNN is the one place to grab a build; no second, redundant
           # tag pointing at the same content every push.
+          #
+          # The newest real-app build is the repo's one full release, marked
+          # Latest; every older flutter-vNN is demoted to a pre-release. Builds
+          # used to be created as pre-releases, so GitHub's "Latest" badge sat
+          # on whichever old one had been flipped to a full release by hand
+          # (v0.36.1) while newer builds were listed below it (#v38).
+          # flutter-test stays a pre-release (build-flutter-test.yml). The
+          # in-app updater reads the release list either way, so this changes
+          # nothing for installed apps.
           for TAG in "flutter-$VTAG"; do
             if gh release view "$TAG" >/dev/null 2>&1; then
               gh release upload "$TAG" $ASSETS --clobber
-              gh release edit "$TAG" --title "$TITLE" --notes "$NOTES"
+              gh release edit "$TAG" --title "$TITLE" --notes "$NOTES" --prerelease=false --latest
             else
-              gh release create "$TAG" $ASSETS --title "$TITLE" --notes "$NOTES" --prerelease
+              gh release create "$TAG" $ASSETS --title "$TITLE" --notes "$NOTES" --latest
             fi
+            gh release list --limit 200 --json tagName,isPrerelease \
+              --jq ".[] | select(.isPrerelease == false and (.tagName | startswith(\"flutter-v\")) and .tagName != \"$TAG\") | .tagName" |
+              while read -r OLD; do gh release edit "$OLD" --prerelease; done
           done
